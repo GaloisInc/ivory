@@ -12,15 +12,13 @@ Language Features
 
 ### Memory Safety
 Ivory removes the possibility for accidental indexing out of array bounds, and
-null pointer dereferencing statically.  All allocation in Ivory is done via a
-special primitive that allows only stack allocation, and requires that
-everything allocated gets a zero-initializer.  One exception to this is that
-global data allocated is given no initializer, placing the resulting definitions
-in `.bss`.
+null pointer dereferencing statically.  All allocation in Ivory is either
+stack-based or global, allowing for initializers to be specified by the
+programmer.
 
 
 ### C Integration
-Ivory makes it easy to work with existing C source.  Function symbols and even
+Ivory makes it easy to work with existing C source.  Function symbols and
 structures can be imported into an Ivory program, and as code for Ivory is
 generated via C, calling Ivory from C is straight forward.
 
@@ -76,16 +74,23 @@ instead they will be manipulated through the use of a `Ref` or `Ptr`.
 Language
 ================================================================================
 
-`Ivory r a` (statement monad)
+`Ivory eff a` (statement monad)
 --------------------------------------------------------------------------------
 
 All statements in Ivory are performed in the context of the `Ivory` monad.  The
-monad has two parameters, `r` and `a`, which represent the return type of the
-enclosing block, and the return type of the statement respectively.  For
+monad has two parameters, `eff` and `a`, which represent the effect context of
+the enclosing block, and the return type of the statement respectively.  For
 example, calling a function that produces an `IBool` value in isolation will
-produce something of type `Ivory r IBool`, while the statement that returns a
-value used with something of the type `IBool` will have the type `Ivory IBool
-()`.
+produce something of type `Ivory eff IBool`, while the statement that returns a
+value used with something of the type `IBool` will have the type
+`(Returns eff IBool) => Ivory eff ()`, `Returns` being the effect that is
+tracked in this context..
+
+
+### Return Effects
+
+### Allocation Effects
+
 
 
 `()` (void)
@@ -121,7 +126,7 @@ statement, or a conditional expression.  If-then-else is implemented by the
 branch for the `true` case, and a branch for the `false` case.
 
 ```haskell
-ifte :: IBool -> Ivory r a -> Ivory r b -> Ivory r ()
+ifte :: IBool -> Ivory eff a -> Ivory eff b -> Ivory eff ()
 ```
 
 Conditional expressions mirror the ternary conditional operator of C:
@@ -227,8 +232,9 @@ against that case.
 There are only two operations defined for working
 with the values that references contain:
 
- * `deref :: Ref (Stored a) -> Ivory r a` - read the value out of a reference
- * `store :: Ref (Stored a) -> a -> Ivor r ()` - store a value into a reference
+ * `deref :: Ref (Stored a) -> Ivory eff a` - read the value out of a reference
+ * `store :: Ref (Stored a) -> a -> Ivory eff ()` - store a value into a
+   reference
 
 Notice that these two operations only work on references that point to a
 `Stored` thing, this implies that you can only `deref` and `store` things that
@@ -277,7 +283,7 @@ a reference in context.  To perform this unwrapping, the `withRef` operation is
 provided.
 
 ```haskell
-withRef :: Ptr area -> (Ref area -> Ivory r t) -> Ivory r f -> Ivory r ()
+withRef :: Ptr area -> (Ref area -> Ivory eff t) -> Ivory eff f -> Ivory eff ()
 ```
 
 Under the hood, this is implemented as a null-check, using the true continuation
@@ -304,8 +310,8 @@ variants of call.
 
 ```haskell
 f :: Def ('[Uint32] :-> Uint32)
-call  f :: Uint32 -> Ivory r Uint32
-call_ f :: Uint32 -> Ivory r ()
+call  f :: Uint32 -> Ivory eff Uint32
+call_ f :: Uint32 -> Ivory eff ()
 ```
 
 ### Function Pointers
@@ -350,7 +356,7 @@ to the `Ivory` monad type, and that the monadic return type is set as `()`.
 f :: Def ('[Uint32] :-> Uint32)
 f  = proc "f" f_body
 
-f_body :: Uint32 -> Ivory Uint32 ()
+f_body :: (eff `Returns` Uint32) => Uint32 -> Ivory eff ()
 f_body val = ret val
 ```
 
@@ -360,7 +366,7 @@ In order to return a value from a function body, either the `ret` or `retVoid`
 functions must be used.  The two functions have the following type:
 
 ```haskell
-ret     :: r -> Ivory r ()
+ret     :: (eff `Returns` r) => r -> Ivory eff ()
 retVoid :: Ivory () ()
 ```
 
