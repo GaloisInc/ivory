@@ -21,7 +21,7 @@ library
                         Ivory.Compile.C.Prop,
                         Ivory.Compile.C.Types,
                         Ivory.Compile.C.CmdlineFrontend
-  other-modules:        Paths_ivory_lang_c
+  other-modules:        Paths_ivory_backend_c
 
   build-depends:        base >= 4.6,
                         language-c-quote >= 0.7.1,
@@ -89,8 +89,8 @@ executable ivory-c-clang-test
                         mainland-pretty >= 0.2.4,
                         wl-pprint,
                         ivory,
-                        ivory-lang-c,
-                        ivory-lang-opts
+                        ivory-opts,
+                        ivory-backend-c
   default-language:     Haskell2010
   ghc-options:          -Wall
   if flag(debug-qq)

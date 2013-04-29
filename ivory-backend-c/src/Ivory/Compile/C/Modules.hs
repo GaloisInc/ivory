@@ -2,7 +2,7 @@
 
 module Ivory.Compile.C.Modules where
 
-import Paths_ivory_lang_c (version)
+import Paths_ivory_backend_c (version)
 
 import qualified Text.PrettyPrint.Mainland as PP
 import Text.PrettyPrint.Mainland
