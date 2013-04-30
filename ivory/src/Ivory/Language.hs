@@ -126,7 +126,7 @@ module Ivory.Language (
   , assert
 
     -- ** Module Definitions
-  , AST.Module(), package
+  , AST.Module(), moduleName, package
   , ModuleDef, incl, depend, defStruct
   , defMemArea, defConstMemArea
   , inclHeader

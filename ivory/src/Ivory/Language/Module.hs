@@ -97,3 +97,9 @@ private build = Module $ local Private (unModule build)
 -- default, and this function is just included to complement 'private'.
 public :: ModuleDef -> ModuleDef
 public build = Module $ local Public (unModule build)
+
+
+-- Accessors -------------------------------------------------------------------
+
+moduleName :: I.Module -> String
+moduleName  = I.modName
