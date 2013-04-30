@@ -46,11 +46,12 @@ cf ty e =
 
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
-  let body' = D.toList $ foldl' (stmtFold opt) D.empty (I.procBody proc) in
-  proc { I.procBody = body' }
+  let cxt   = I.procSym proc
+      body' = D.toList $ foldl' (stmtFold cxt opt) D.empty (I.procBody proc)
+   in proc { I.procBody = body' }
 
-stmtFold :: ExprOpt -> D.DList I.Stmt -> I.Stmt -> D.DList I.Stmt
-stmtFold opt blk stmt =
+stmtFold :: String -> ExprOpt -> D.DList I.Stmt -> I.Stmt -> D.DList I.Stmt
+stmtFold cxt opt blk stmt =
   case stmt of
     I.IfTE e b0 b1       ->
       let e' = opt I.TyBool e in
@@ -63,8 +64,9 @@ stmtFold opt blk stmt =
       case e' of
         I.ExpLit (I.LitBool b) ->
           if b then blk
-            else error $ "Constant folding evaluated a False assert() "
-                       ++ "in evaluating expression " ++ show e
+            else error $ "Constant folding evaluated a False assert()"
+                       ++ " in evaluating expression " ++ show e
+                       ++ " of function " ++ cxt
         _                      -> snoc (I.Assert e')
     I.Return e           -> snoc $ I.Return (typedFold opt e)
     I.ReturnVoid         -> snoc I.ReturnVoid
@@ -88,7 +90,7 @@ stmtFold opt blk stmt =
                         (newFold blk')
     I.Break              -> snoc I.Break
     I.Forever b          -> snoc $ I.Forever (newFold b)
-  where sf       = stmtFold opt
+  where sf       = stmtFold cxt opt
         newFold' = foldl' sf D.empty
         newFold  = D.toList . newFold'
         snoc     = (blk `D.snoc`)
