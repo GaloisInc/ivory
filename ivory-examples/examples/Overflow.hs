@@ -19,7 +19,7 @@ ovf2  = proc "ovf2" $ \ n -> requires [check $ n <? 1]
 
 ovf3 :: Def ('[IFloat, IFloat, IFloat] :-> IBool)
 ovf3  = proc "ovf3" $ \ n m o -> body $ do
-  x <- assign (n / m / o / 0)
+  x <- assign (n / m / o)
   ret $ x >? (n / m)
 
 cmodule :: Module
