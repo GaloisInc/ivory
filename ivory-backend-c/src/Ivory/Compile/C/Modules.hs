@@ -19,6 +19,7 @@ import Control.Applicative ((<$>))
 import qualified Data.Set as S
 import Control.Monad
 import System.IO
+import System.FilePath ((<.>))
 import MonadLib (put,runM)
 
 --------------------------------------------------------------------------------
@@ -134,12 +135,14 @@ compileModule I.Module { I.modName    = nm
   res     = compRes comp
   compRes = (snd . runM . unCompile)
 
+  unitHdr = LocalInclude (nm <.> "h")
+
   comp = do
     let c = compRes comp0
-    unless (null (snd (headers c))) (putSrcInc (LocalInclude nm))
+    unless (null (snd (headers c))) (putSrcInc unitHdr)
     Compile (put c)
 
-  ivoryHdr = RtInclude "ivory.h"
+  ivoryHdr = RtInclude "runtime/ivory.h"
 
   comp0 :: Compile
   comp0 = do

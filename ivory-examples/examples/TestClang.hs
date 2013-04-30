@@ -21,7 +21,8 @@ main :: IO ()
 main = do
   args <- getArgs
   let path = head args
-  let opts = initialOpts { includeDir = path, srcDir = path }
+  let opts = initialOpts { includeDir = path, srcDir = path
+                         , rtIncludeDir = Nothing }
   runCompiler modules opts
   Overflow.writeOverflow opts
 
