@@ -9,19 +9,22 @@ import qualified "language-c-quote" Language.C.Syntax as C
 
 import MonadLib (WriterT,Id,put)
 import Data.Monoid
+import System.FilePath ((</>))
 import qualified Data.Set as S
 
 --------------------------------------------------------------------------------
 
 data Include
-  = SysInclude FilePath
-  | LocalInclude FilePath
+  = SysInclude   FilePath -- ^ @#include <foo.h>@
+  | LocalInclude FilePath -- ^ @#include "foo.h"@
+  | RtInclude    FilePath -- ^ runtime includes
     deriving (Show,Eq,Ord)
 
-includeDef :: Include -> C.Definition
-includeDef incl = case incl of
-  SysInclude file   -> [cedecl| $esc:("#include <"  ++ file ++ ".h>")  |]
-  LocalInclude file -> [cedecl| $esc:("#include \"" ++ file ++ ".h\"") |]
+includeDef :: FilePath -> Include -> C.Definition
+includeDef path incl = case incl of
+  SysInclude file   -> [cedecl| $esc:("#include <"  ++ file ++ ">")           |]
+  LocalInclude file -> [cedecl| $esc:("#include \"" ++ file ++ "\"")          |]
+  RtInclude file    -> [cedecl| $esc:("#include \"" ++ path </> file ++ "\"") |]
 
 type Includes = S.Set Include
 type Sources  = [C.Definition]

@@ -10,6 +10,8 @@ module Ivory.Compile.C.CmdlineFrontend
   , initialOpts
   ) where
 
+import qualified Paths_ivory_backend_c as Paths
+
 import Control.Monad
 import System.Console.CmdLib
 import System.FilePath
@@ -35,6 +37,7 @@ data Opts
     -- dependencies
     , deps        :: [FilePath]
     , depPrefix   :: String
+    , rtIncludeDir:: Maybe FilePath
     -- optimization passes
     , constFold   :: Bool
     , overflow    :: Bool
@@ -61,6 +64,10 @@ instance Attributes Opts where
     , srcDir      %> [ Help "output directory for source files"
                      , ArgHelp "PATH"
                      , Default "."
+                     ]
+    , rtIncludeDir%> [ Help "path to ivory runtime includes"
+                     , ArgHelp "PATH"
+                     , Default (Nothing :: Maybe FilePath)
                      ]
     , constFold   %> [ Help "constant folding."
                      , Default False
@@ -107,6 +114,7 @@ initialOpts = Opts
   { stdOut      = False
   , includeDir  = "."
   , srcDir      = "."
+  , rtIncludeDir= Nothing
   -- dependencies
   , deps        = []
   , depPrefix   = "."
@@ -131,7 +139,7 @@ compileWithSizeMap :: G.SizeMap -> [Module] -> IO ()
 compileWithSizeMap st ms = runCompilerWithSizeMap st ms =<< executeR initialOpts =<< getArgs
 
 runCompilerWithSizeMap :: G.SizeMap -> [Module] -> Opts -> IO ()
-runCompilerWithSizeMap sm = rc sm
+runCompilerWithSizeMap  = rc
 
 runCompiler :: [Module] -> Opts -> IO ()
 runCompiler = rc G.defaultSizeMap
@@ -176,7 +184,9 @@ rc sm modules opts
     [_] -> True
     _   -> error "invalid option for deps"
 
-  showM_ = (mapM_ . mapM_) putStrLn . C.showModule
+  showM_ mods = do
+    rtPath <- getRtPath
+    mapM_ (mapM_ putStrLn) (C.showModule rtPath mods)
 
   cfPass = mkPass constFold O.constFold
   ofPass = mkPass overflow O.overflowFold
@@ -202,14 +212,22 @@ rc sm modules opts
 
   -- Transform a compiled unit into a header, and write to a .h file
   outputHeader :: FilePath -> C.CompileUnits -> IO ()
-  outputHeader basename cm =
-    C.writeHdr (verbose opts) (addExtension basename ".h")
+  outputHeader basename cm = do
+    rtPath <- getRtPath
+    C.writeHdr (verbose opts) rtPath (addExtension basename ".h")
                (C.headers cm) (C.unitName cm)
 
   -- Transform a compiled unit into a c src, and write to a .c file
   outputSrc :: FilePath -> C.CompileUnits -> IO ()
-  outputSrc basename cm =
-    C.writeSrc (verbose opts) (addExtension basename ".c") (C.sources cm)
+  outputSrc basename cm = do
+    rtPath <- getRtPath
+    C.writeSrc (verbose opts) rtPath (addExtension basename ".c")
+               (C.sources cm)
+
+  getRtPath :: IO FilePath
+  getRtPath  = case rtIncludeDir opts of
+    Just path -> return path
+    Nothing   -> Paths.getDataDir
 
 --------------------------------------------------------------------------------
 
