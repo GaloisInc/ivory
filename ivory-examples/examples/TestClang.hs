@@ -25,6 +25,8 @@ main = do
                          , rtIncludeDir = Nothing }
 
   mapM_ (compileExample opts) modules
+
+  putStrLn "Compiling: Overflow"
   Overflow.writeOverflow opts
 
 compileExample opts m = do
