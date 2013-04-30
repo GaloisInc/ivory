@@ -15,7 +15,7 @@ import qualified PublicPrivate
 import qualified Bits
 
 import Ivory.Compile.C.CmdlineFrontend
-import Ivory.Language (Module)
+import Ivory.Language (Module(),moduleName)
 
 main :: IO ()
 main = do
@@ -23,8 +23,13 @@ main = do
   let path = head args
   let opts = initialOpts { includeDir = path, srcDir = path
                          , rtIncludeDir = Nothing }
-  runCompiler modules opts
+
+  mapM_ (compileExample opts) modules
   Overflow.writeOverflow opts
+
+compileExample opts m = do
+  putStrLn ("Compiling: " ++ moduleName m)
+  runCompiler [m] opts
 
 modules :: [Module]
 modules = [ PID.cmodule
