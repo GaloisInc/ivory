@@ -147,7 +147,8 @@ compileModule I.Module { I.modName    = nm
   comp0 :: Compile
   comp0 = do
     putHdrInc ivoryHdr
-    mapM_ (putHdrInc . LocalInclude) (S.toList deps)
+    -- module names don't have a .h on the end
+    mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) (S.toList deps)
     mapM_ (putHdrInc . SysInclude)   (S.toList hdrs)
     mapM_ (compileStruct Public) (I.public structs)
     mapM_ (compileStruct Private) (I.private structs)

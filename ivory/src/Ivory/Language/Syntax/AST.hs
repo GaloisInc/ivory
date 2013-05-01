@@ -13,6 +13,10 @@ import qualified Data.Set as Set
 
 -- Modules ---------------------------------------------------------------------
 
+-- | An external module that defines an imported resource.  A header file in C
+-- is an example of this.
+type ModulePath = String
+
 data Visible a = Visible
   { public :: [a]
   , private :: [a]
@@ -22,12 +26,15 @@ instance Monoid (Visible a) where
   mempty                                  = Visible [] []
   mappend (Visible l0 l1) (Visible m0 m1) = Visible (l0 ++ m0) (l1 ++ m1)
 
+-- | The name of a module defined in Ivory.
+type ModuleName = String
+
 data Module = Module
-  { modName        :: String
+  { modName        :: ModuleName
     -- ^ The name of this module
-  , modHeaders     :: Set.Set String
+  , modHeaders     :: Set.Set FilePath
     -- ^ Included headers
-  , modDepends     :: Set.Set String
+  , modDepends     :: Set.Set ModuleName
     -- ^ Named module dependencies
   , modExterns     :: [Extern]
   , modImports     :: [Import]
@@ -78,7 +85,7 @@ data Extern = Extern
 -- | Functions that are defined in a c header.
 data Import = Import
   { importSym  :: Sym
-  , importFile :: String
+  , importFile :: ModulePath
   } deriving (Show, Eq, Ord)
 
 
@@ -99,7 +106,7 @@ data Proc = Proc
 
 data Struct
   = Struct String [Typed String]
-  | Abstract String String
+  | Abstract String ModulePath
     deriving (Show, Eq, Ord)
 
 structName :: Struct -> String
@@ -123,7 +130,7 @@ data Area = Area
 data AreaImport = AreaImport
   { aiSym   :: Sym
   , aiConst :: Bool
-  , aiFile  :: String
+  , aiFile  :: ModulePath
   } deriving (Show, Eq, Ord)
 
 
