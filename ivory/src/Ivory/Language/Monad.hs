@@ -29,8 +29,6 @@ module Ivory.Language.Monad (
   , CodeBlock(..)
   , emits
   , emit
-  , emitPreCond
-  , emitPostCond
 
     -- ** Name Generation
   , freshVar
@@ -123,18 +121,6 @@ emits  = Ivory . MonadLib.put
 -- XXX do not export
 emit :: AST.Stmt -> Ivory eff ()
 emit s = emits mempty { blockStmts = [s] }
-
--- | Emit a pre-condition.
---
--- XXX do not export
-emitPreCond :: AST.Require -> Ivory eff ()
-emitPreCond r = emits mempty { blockRequires = [r] }
-
--- | Emit a post-condition.
---
--- XXX do not export
-emitPostCond :: AST.Ensure -> Ivory eff ()
-emitPostCond e = emits mempty { blockEnsure = Just e }
 
 -- | Generate a fresh variable name.
 --

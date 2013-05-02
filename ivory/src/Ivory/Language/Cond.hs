@@ -12,9 +12,23 @@ import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
+import Data.Monoid(Monoid(..))
 
 import Control.Monad ((<=<))
 
+-- Effects ---------------------------------------------------------------------
+
+-- | Emit a pre-condition.
+--
+-- XXX do not export
+emitPreCond :: I.Require -> Ivory eff ()
+emitPreCond r = emits mempty { blockRequires = [r] }
+
+-- | Emit a post-condition.
+--
+-- XXX do not export
+emitPostCond :: I.Ensure -> Ivory eff ()
+emitPostCond e = emits mempty { blockEnsure = Just e }
 
 -- Conditional Notation --------------------------------------------------------
 
