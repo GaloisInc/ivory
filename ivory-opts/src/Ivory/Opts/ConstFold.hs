@@ -68,6 +68,17 @@ stmtFold cxt opt blk stmt =
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
         _                      -> snoc (I.Assert e')
+
+    I.Assume e           ->
+      let e' = opt I.TyBool e in
+      case e' of
+        I.ExpLit (I.LitBool b) ->
+          if b then blk
+            else error $ "Constant folding evaluated a False assume()"
+                       ++ " in evaluating expression " ++ show e
+                       ++ " of function " ++ cxt
+        _                      -> snoc (I.Assume e')
+
     I.Return e           -> snoc $ I.Return (typedFold opt e)
     I.ReturnVoid         -> snoc I.ReturnVoid
     I.Deref t var e      -> snoc $ I.Deref t var (opt t e)

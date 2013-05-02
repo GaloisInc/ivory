@@ -13,7 +13,7 @@ ovf1  = proc "ovf1" $ \ n -> body $
        (ret (n .% 2))
 
 ovf2 :: Def ('[Sint8] :-> Sint8)
-ovf2  = proc "ovf2" $ \ n -> requires [check $ n <? 1]
+ovf2  = proc "ovf2" $ \ n -> requires (n <? 1)
                            $ body
                            $ ret (n + 15)
 

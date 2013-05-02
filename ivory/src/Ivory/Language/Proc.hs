@@ -88,7 +88,7 @@ proc name impl = DefProc AST.Proc
   , AST.procArgs     = zipWith AST.Typed args vars
   , AST.procBody     = blockStmts block
   , AST.procRequires = blockRequires block
-  , AST.procEnsures  = blockEnsure block
+  , AST.procEnsures  = blockEnsures block
   }
   where
   (r,args)     = procType (Proxy :: Proxy proc)

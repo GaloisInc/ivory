@@ -8,7 +8,7 @@ import Ivory.Language
 
 add :: Def ('[Uint32,Uint32] :-> Uint32)
 add  = proc "add"
-     $ \ x y -> ensures (\r -> check (r ==? x + y))
+     $ \ x y -> ensures (\r -> r ==? x + y)
               $ body
               $ ret (x + y)
 

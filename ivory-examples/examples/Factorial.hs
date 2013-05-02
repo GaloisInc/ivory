@@ -9,7 +9,7 @@ import Ivory.Compile.C.CmdlineFrontend
 factorial :: Def ('[Sint32] :-> Sint32)
 factorial  = proc "factorial" $ \ n ->
   -- These are made up requires/ensures for testing purposes.
-  ensures (\r -> check (n <? r)) $
+  ensures (\r -> n <? r) $
   body $
     ifte (n >? 1)
       (do n' <- call factorial (n - 1)

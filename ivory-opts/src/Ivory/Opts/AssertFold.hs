@@ -45,6 +45,7 @@ stmtFold ef ss
         (I.IfTE e (toFoldBlck b0) (toFoldBlck b1)
           `D.cons` stmtFold ef stmts)
     I.Assert{}             -> go D.empty
+    I.Assume{}             -> go D.empty
     I.Return (I.Typed t e) -> let asserts = collect t e in
                               go asserts
     I.ReturnVoid           -> go D.empty

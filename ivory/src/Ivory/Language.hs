@@ -89,8 +89,13 @@ module Ivory.Language (
   , Body(), body
 
     -- *** Pre/Post-Conditions
-  , requires, Cond(), satisfy, check
+  , requires
+  , checkStored
   , ensures
+
+    -- ** Assumption/Assertion statements
+  , assert
+  , assume
 
     -- ** Structures
   , IvoryStruct(..), StructDef(), ivory, (~>), Label()
@@ -122,8 +127,6 @@ module Ivory.Language (
   , SafeCast(), RuntimeCast(), Default()
   , safeCast, castWith, castDefault
   , SignCast(), signCast
-    -- ** Asserts.
-  , assert
 
     -- ** Module Definitions
   , AST.Module(), moduleName, package
@@ -187,6 +190,9 @@ assign e = do
 
 assert :: forall a eff. IvoryExpr a => a -> Ivory eff ()
 assert e = emit (AST.Assert (unwrapExpr e))
+
+assume :: forall a eff. IvoryExpr a => a -> Ivory eff ()
+assume e = emit (AST.Assume (unwrapExpr e))
 
 -- | Primitive return from function.
 ret :: (IvoryVar r, eff `Returns` r) => r -> Ivory eff ()

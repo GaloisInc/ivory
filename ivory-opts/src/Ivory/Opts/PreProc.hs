@@ -29,6 +29,7 @@ stmtFold opt stmt =
   case stmt of
     I.IfTE e b0 b1       -> I.IfTE (opt e) (map sf b0) (map sf b1)
     I.Assert e           -> I.Assert (opt e)
+    I.Assume e           -> I.Assume (opt e)
     I.Return e           -> I.Return (typedFold opt e)
     I.ReturnVoid         -> I.ReturnVoid
     I.Deref t var e      -> I.Deref t var (opt e)

@@ -98,7 +98,7 @@ data Proc = Proc
   , procArgs     :: [Typed Var]
   , procBody     :: Block
   , procRequires :: [Require]
-  , procEnsures  :: Maybe Ensure
+  , procEnsures  :: [Ensure]
   } deriving (Show, Eq, Ord)
 
 
@@ -144,7 +144,11 @@ data Stmt
     -- @IBool@.
 
   | Assert Expr
-    -- ^ Boolean-valued assertions.  The @Expr@ argumetn will be typed as an
+    -- ^ Boolean-valued assertions.  The @Expr@ argument will be typed as an
+    -- @IBool@.
+
+  | Assume Expr
+    -- ^ Boolean-valued assumptions.  The @Expr@ argument will be typed as an
     -- @IBool@.
 
   | Return (Typed Expr)

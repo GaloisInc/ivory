@@ -71,19 +71,19 @@ newtype Ivory (eff :: Effect) a = Ivory
 data CodeBlock = CodeBlock
   { blockStmts    :: AST.Block
   , blockRequires :: [AST.Require]
-  , blockEnsure   :: Maybe AST.Ensure
+  , blockEnsures  :: [AST.Ensure]
   } deriving (Show)
 
 instance Monoid CodeBlock where
   mempty = CodeBlock
     { blockStmts    = []
     , blockRequires = []
-    , blockEnsure   = Nothing
+    , blockEnsures  = []
     }
   mappend l r = CodeBlock
     { blockStmts    = blockStmts l    `mappend` blockStmts r
     , blockRequires = blockRequires l `mappend` blockRequires r
-    , blockEnsure   = blockEnsure l   <|>       blockEnsure r
+    , blockEnsures  = blockEnsures l  `mappend` blockEnsures r
     }
 
 

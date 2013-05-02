@@ -54,12 +54,10 @@ pidUpdate :: Def ('[ Ref s (Struct "PID")
 pidUpdate = proc "pid_update" $
   \ pid sp pv dt ->
   -- These are made up requires/ensures for testing purposes.
-  requires [satisfy (pid ~> pid_err) (\err -> check (err <? 1))] $
-  ensures (\res -> satisfy (pid ~> pid_err)
-                     (\err -> check (err <? res))
-            ) $
---  $ ensures (\ret -> check (ret <? 0.5))
-  body $ do
+    requires (checkStored (pid ~> pid_err) (\err -> err <? 1))
+  $ ensures  (\res -> checkStored (pid ~> pid_err) (\err -> err <? res))
+  $ body
+  $ do
     err     <- assign (sp - pv)
     i       <- deref $ pid ~> pid_i
     i'      <- assign  $ ki * (i + err*dt)

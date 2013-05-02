@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Ivory.Language.Cond where
 
@@ -14,8 +16,6 @@ import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 import Data.Monoid(Monoid(..))
 
-import Control.Monad ((<=<))
-
 -- Effects ---------------------------------------------------------------------
 
 -- | Emit a pre-condition.
@@ -28,47 +28,65 @@ emitPreCond r = emits mempty { blockRequires = [r] }
 --
 -- XXX do not export
 emitPostCond :: I.Ensure -> Ivory eff ()
-emitPostCond e = emits mempty { blockEnsure = Just e }
+emitPostCond e = emits mempty { blockEnsures = [e] }
 
--- Conditional Notation --------------------------------------------------------
+-- Condition Notation ----------------------------------------------------------
 
 newtype Cond = Cond
   { runCond :: forall eff. Ivory eff I.Cond
     -- ^ Use the naming environment from the Ivory monad.
   }
 
--- | Predicates over a referenced value.
-satisfy :: forall ref s a.
-           (IvoryVar a, IvoryRef ref, IvoryVar (ref s (Stored a)))
-        => ref s (Stored a) -> (a -> Cond) -> Cond
-satisfy ref k = Cond $ do
-  n <- freshVar "pre"
-  let ty = ivoryType (Proxy :: Proxy a)
-  b <- runCond (k (wrapVar n))
-  return (I.CondDeref ty (unwrapExpr ref) n b)
-
--- | Check a boolean expression.
+-- | Checkable a boolean expression.
 check :: IBool -> Cond
 check bool = Cond (return (I.CondBool (unwrapExpr bool)))
 
+checkStored :: forall ref s a.
+           (IvoryVar a, IvoryRef ref, IvoryVar (ref s (Stored a)))
+        => ref s (Stored a) -> (a -> IBool) -> Cond
+checkStored ref prop = Cond $ do
+  n <- freshVar "pre"
+  let ty = ivoryType (Proxy :: Proxy a)
+  b <- runCond $ check $ prop $ wrapVar n
+  return (I.CondDeref ty (unwrapExpr ref) n b)
 
 -- Pre-Conditions --------------------------------------------------------------
 
--- | Proc bodies that have pre-conditions.
-requires :: IvoryType r => [Cond] -> Body r -> Body r
-requires rs b = Body $ do
-  mapM_ (emitPreCond . I.Require <=< runCond) rs
+-- | Proc bodies that have pre-conditions.  Multiple pre-conditions may be
+-- provided, for which the conjunction must hold.
+class Requires c where
+  requires :: IvoryType r => c -> Body r -> Body r
+
+-- XXX Do not export
+requires' :: (Requires c, IvoryType r) => (c -> Cond) -> c -> Body r -> Body r
+requires' chk prop b = Body $ do
+  req <- runCond $ chk $ prop
+  emitPreCond (I.Require req)
   runBody b
 
+instance Requires IBool where
+  requires = requires' check
+
+instance Requires Cond where
+  requires = requires' id
 
 -- Post-Conditions -------------------------------------------------------------
 
--- | Proc bodies that have post-conditions.  This function will override any
--- previously set post-condition, as each function is only allowed to have one.
--- This is a bit of a hack, and it would be nice to come up with a way to have
--- it prevent that statically.
-ensures :: IvoryVar r => (r -> Cond) -> Body r -> Body r
-ensures p m = Body $ do
-  c <- runCond (p (wrapVar I.retval))
+-- | Proc bodies that have post-conditions.  Multiple post-conditions may be
+-- provided, for which the conjunction must hold.
+class Ensures c where
+  ensures :: IvoryVar r => (r -> c) -> Body r -> Body r
+
+-- XXX Do not export
+ensures' :: (Ensures c, IvoryVar r)
+  => (c -> Cond) -> (r -> c) -> Body r -> Body r
+ensures' chk prop b = Body $ do
+  c <- runCond $ chk $ prop $ wrapVar I.retval
   emitPostCond (I.Ensure c)
-  runBody m
+  runBody b
+
+instance Ensures IBool where
+  ensures = ensures' check
+
+instance Ensures Cond where
+  ensures = ensures' id

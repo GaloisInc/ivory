@@ -91,9 +91,9 @@ compileUnit I.Proc { I.procSym      = sym
                    , I.procArgs     = args
                    , I.procBody     = body
                    , I.procRequires = requires
-                   , I.procEnsures  = ensure
+                   , I.procEnsures  = ensures
                    }
-  = do let ens  = fmap I.getEnsure ensure
+  = do let ens  = map I.getEnsure ensures
        let bd   = concatMap (toBody ens) body
        let reqs = map (toRequire . I.getRequire) requires
        putSrc [cedecl| $ty:(toType ret) ($id:sym) ($params:(toArgs args))
@@ -197,16 +197,14 @@ toVar var = case var of
 
 --------------------------------------------------------------------------------
 
---type Ensures = C.BlockItem
-type Ensure = Maybe I.Cond
-
 -- | Translate statements.
-toBody :: Ensure -> I.Stmt -> [C.BlockItem]
+toBody :: [I.Cond] -> I.Stmt -> [C.BlockItem]
 toBody ens stmt =
   let toBody' = toBody ens in
   case stmt of
     I.Assign t v exp       ->
-      [C.BlockDecl [cdecl| $ty:(toTypeAssign t) $id:(toVar v) = $exp:(toExpr t exp); |]]
+      [C.BlockDecl [cdecl| $ty:(toTypeAssign t) $id:(toVar v)
+                         = $exp:(toExpr t exp); |]]
     I.IfTE exp blk0 blk1   ->
       let ifBd   = concatMap toBody' blk0 in
       let elseBd = concatMap toBody' blk1 in
@@ -214,7 +212,7 @@ toBody ens stmt =
                             $items:ifBd }
                          else { $items:elseBd } |]]
     I.Return exp           ->
-      maybe [] (\ens0 -> [toEnsure (I.tValue exp) ens0]) ens
+           map (toEnsure $ I.tValue exp) ens
         ++ [C.BlockStm [cstm| return $exp:(typedRet exp); |]]
     I.ReturnVoid           -> [C.BlockStm [cstm| return; |]]
 
@@ -255,6 +253,8 @@ toBody ens stmt =
         _             -> ([cexp| &($id:name) |], t)
     I.Assert exp           -> [C.BlockStm
       [cstm| ASSERTS($exp:(toExpr I.TyBool exp)); |]]
+    I.Assume exp           -> [C.BlockStm
+      [cstm| ASSUMES($exp:(toExpr I.TyBool exp)); |]]
     I.Call t mVar sym args ->
       case mVar of
         Nothing  -> -- Just call the fuction.
@@ -564,9 +564,10 @@ toEnsure retE = toAssertion (ensTrans retE) "ENSURES"
 toAssertion :: (I.Expr -> I.Expr) -> String -> I.Cond -> C.BlockItem
 toAssertion trans call cond = C.BlockStm $
   case cond of
-    I.CondBool e          -> [cstm| $id:call($exp:(toExpr I.TyBool (trans e))); |]
+    I.CondBool e          ->
+      [cstm| $id:call($exp:(toExpr I.TyBool (trans e))); |]
     I.CondDeref t e var c ->
-      let res = (toBody Nothing) (I.Deref t var (trans e)) in
+      let res = (toBody []) (I.Deref t var (trans e)) in
       let c1  = toAssertion trans call c in
       [cstm| { $items:res $item:c1 } |]
 
