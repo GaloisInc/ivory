@@ -29,6 +29,7 @@ main = do
   putStrLn "Compiling: Overflow"
   Overflow.writeOverflow opts
 
+compileExample :: Opts -> Module -> IO ()
 compileExample opts m = do
   putStrLn ("Compiling: " ++ moduleName m)
   runCompiler [m] opts

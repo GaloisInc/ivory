@@ -6,7 +6,7 @@ TESTDIR=test_dir
 IDIR=../runtime
 CFLAGS=-I$(IDIR) -O2
 
-EXECPATH=../../cabal-dev/bin
+EXECPATH=../../../cabal-dev/bin
 EXEC=ivory-c-clang-test
 
 # Our tests
