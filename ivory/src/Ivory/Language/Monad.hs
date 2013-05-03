@@ -39,7 +39,7 @@ import Ivory.Language.Proxy
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as AST
 
-import Control.Applicative (Applicative(..),(<|>))
+import Control.Applicative (Applicative(..))
 import Data.Monoid (Monoid(..))
 import MonadLib (StateT,WriterT,Id)
 import qualified MonadLib
