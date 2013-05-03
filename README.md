@@ -4,8 +4,20 @@ Ivory is an embedded domain specific language (EDSL) which aims to provide
 a systems-level programming language that removes some common pitfalls of
 programming in C, without sacrificing expressivity.
 
-This repository includes a [user guide][userguide] and some [examples][examples] of simple
-Ivory programs.
+This repository includes a [user guide][userguide] and some
+[examples][examples] Ivory programs.
+
+## Contents
+
+* `ivory`: the Ivory language implementation and interpreter
+* `ivory-backend-c`: a backend for compiling Ivory programs to C
+* `ivory-examples`: sample Ivory programs
+* `ivory-opts`: an optimization framework and some optimization
+  implementations, for the Ivory AST.
+* `ivory-bitdata`: a macro language library for specifying bit-precise
+  Ivory operations.
+* `ivory-hw`: a macro language library for writing hardware drivers
+  in Ivory. (Still a work in progress.)
 
 ## Installing
 
