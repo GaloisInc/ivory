@@ -14,6 +14,7 @@ data RuntimeError
   | FrameStackEmpty String
   | ContStackEmpty
   | AssertFailed Expr
+  | AssumeFailed Expr
   | UnboundLocal Var
     deriving (Show,Typeable)
 
@@ -36,6 +37,11 @@ contStackEmpty  = throwIO ContStackEmpty
 -- assertion failure.
 assertFailed :: Expr -> IO a
 assertFailed  = throwIO . AssertFailed
+
+-- | An assumption failed.  The expression given is the one that generated the
+-- assumption failure.
+assumeFailed :: Expr -> IO a
+assumeFailed  = throwIO . AssumeFailed
 
 -- | A local variable was used, but never defined.
 unboundLocal :: Var -> IO a

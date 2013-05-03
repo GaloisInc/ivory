@@ -6,7 +6,7 @@
 
 module Ivory.Interp.Eval where
 
-import Ivory.Interp.Error (assertFailed,typeError)
+import Ivory.Interp.Error (assumeFailed, assertFailed,typeError)
 import Ivory.Interp.Monad
 import Ivory.Interp.Value
 import Ivory.Language.Monad
@@ -90,6 +90,10 @@ evalStmt stmt = case stmt of
   AST.Assert e -> do
     val <- evalExpr AST.TyBool e
     unless (isTrue val) (io (assertFailed e))
+
+  AST.Assume e -> do
+    val <- evalExpr AST.TyBool e
+    unless (isTrue val) (io (assumeFailed e))
 
   AST.Return te -> do
     val <- evalTypedExpr te
