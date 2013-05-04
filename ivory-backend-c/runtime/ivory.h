@@ -13,24 +13,27 @@
 #include <assert.h>
 
 #define REQUIRES(arg) assert(arg)
+#define ENSURES(arg)  assert(arg)
+#define ASSUMES(arg)  assert(arg)
 #define ASSERTS(arg)  assert(arg)
-#define ENSURES(arg) assert(arg)
 
 #endif /* IVORY_TEST */
 
 #ifdef IVORY_CBMC
 
 #define REQUIRES(arg) __CPROVER_assume(arg)
+#define ENSURES(arg)  __CPROVER_assert(arg, "")
 #define ASSERTS(arg)  __CPROVER_assert(arg, "")
-#define ENSURES(arg) __CPROVER_assert(arg, "")
+#define ASSUMES(arg)  __CPROVER_assume(arg)
 
 #endif /* IVORY_CBMC */
 
 #ifdef IVORY_DEPLOY
 
 #define REQUIRES(arg)
-#define ASSERTS(arg)
 #define ENSURES(arg)
+#define ASSERTS(arg)
+#define ASSUMES(arg)
 
 #endif /* IVORY_DEPLOY */
 
