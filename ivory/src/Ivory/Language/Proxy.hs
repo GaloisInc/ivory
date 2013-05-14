@@ -7,7 +7,7 @@ module Ivory.Language.Proxy where
 import GHC.TypeLits (Sing,fromSing,Symbol,Nat)
 
 
-data Proxy a = Proxy
+data Proxy (a :: k) = Proxy
 
 -- | Type proxies for * types.
 type SProxy a = Proxy (a :: *)

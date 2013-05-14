@@ -1,5 +1,6 @@
 module Ivory.Language.Sint where
 
+import Ivory.Language.SizeOf
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
@@ -20,6 +21,9 @@ instance IvoryVar Sint8 where
 
 instance IvoryExpr Sint8 where
   wrapExpr = Sint8
+
+instance IvorySizeOf Sint8 where
+  sizeOfBytes _ = 1
 
 instance Num Sint8 where
   (*)         = exprBinop (*)
@@ -48,6 +52,9 @@ instance IvoryVar Sint16 where
 instance IvoryExpr Sint16 where
   wrapExpr = Sint16
 
+instance IvorySizeOf Sint16 where
+  sizeOfBytes _ = 2
+
 instance Num Sint16 where
   (*)         = exprBinop (*)
   (+)         = exprBinop (+)
@@ -75,6 +82,9 @@ instance IvoryVar Sint32 where
 instance IvoryExpr Sint32 where
   wrapExpr = Sint32
 
+instance IvorySizeOf Sint32 where
+  sizeOfBytes _ = 4
+
 instance Num Sint32 where
   (*)         = exprBinop (*)
   (+)         = exprBinop (+)
@@ -101,6 +111,9 @@ instance IvoryVar Sint64 where
 
 instance IvoryExpr Sint64 where
   wrapExpr = Sint64
+
+instance IvorySizeOf Sint64 where
+  sizeOfBytes _ = 8
 
 instance Num Sint64 where
   (*)         = exprBinop (*)

@@ -5,6 +5,7 @@ module Ivory.Language.Float where
 import Ivory.Language.IBool
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
+import Ivory.Language.SizeOf
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
@@ -37,6 +38,9 @@ instance IvoryVar IFloat where
 
 instance IvoryExpr IFloat where
   wrapExpr = IFloat
+
+instance IvorySizeOf IFloat where
+  sizeOfBytes _ = 4
 
 instance IvoryEq  IFloat
 
@@ -99,6 +103,9 @@ instance IvoryVar IDouble where
 
 instance IvoryExpr IDouble where
   wrapExpr = IDouble
+
+instance IvorySizeOf IDouble where
+  sizeOfBytes _ = 8
 
 instance IvoryEq  IDouble
 

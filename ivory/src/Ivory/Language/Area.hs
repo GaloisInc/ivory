@@ -6,6 +6,7 @@
 module Ivory.Language.Area where
 
 import Ivory.Language.Proxy
+import Ivory.Language.SizeOf
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
@@ -31,5 +32,12 @@ instance (SingI len, IvoryType area) => IvoryType (Array len area) where
     len  = fromInteger (fromTypeNat (sing :: Sing len))
     area = ivoryType (Proxy :: Proxy area)
 
+instance (SingI len, IvorySizeOf area) => IvorySizeOf (Array len area) where
+  sizeOfBytes _ =
+    fromTypeNat (sing :: Sing len) * sizeOfBytes (Proxy :: Proxy area)
+
 instance IvoryType a => IvoryType (Stored a) where
   ivoryType _ = ivoryType (Proxy :: Proxy a)
+
+instance IvorySizeOf a => IvorySizeOf (Stored a) where
+  sizeOfBytes _ = sizeOfBytes (Proxy :: Proxy a)

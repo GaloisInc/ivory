@@ -27,6 +27,9 @@ module Ivory.Language (
   , InitStruct(), (.=), istruct
   , local
 
+    -- ** SizeOf
+  , IvorySizeOf(..), sizeOf
+
     -- ** Nullable Pointers
   , Ptr(), nullPtr
 
@@ -162,6 +165,7 @@ import Ivory.Language.Ptr
 import Ivory.Language.Ref
 import Ivory.Language.Scope
 import Ivory.Language.Sint
+import Ivory.Language.SizeOf
 import Ivory.Language.Struct
 import Ivory.Language.Struct.Quote (ivory)
 import Ivory.Language.Type

@@ -10,12 +10,14 @@ module Ivory.Language.Struct.Quote (
 import Ivory.Language.Area
 import Ivory.Language.Proxy
 import Ivory.Language.Scope
+import Ivory.Language.SizeOf
 import Ivory.Language.Struct
 import Ivory.Language.Type
 import qualified Ivory.Language.Struct.Parser as P
 import qualified Ivory.Language.Syntax.AST  as AST
 import qualified Ivory.Language.Syntax.Type as AST
 
+import Data.Traversable (sequenceA)
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Text.Parsec.Prim (parse,setPosition,getPosition)
@@ -48,12 +50,10 @@ quoteStructDefs str = concat `fmap` (mapM mkDef =<< parseDefs str)
 
 mkDef :: P.StructDef -> Q [Dec]
 mkDef def = case def of
-  P.StructDef n fs ->
+  P.StructDef n fs -> do
     let sym = mkSym n
-     in sequence $ concat
-          [ mkIvoryStruct sym def
-          , mkFields      sym fs
-          ]
+    sizeOfDefs <- mkIvorySizeOf sym fs
+    sequence (mkIvoryStruct sym def ++ sizeOfDefs ++ mkFields sym fs)
 
   P.AbstractDef n _hdr -> sequence (mkIvoryStruct (mkSym n) def)
   where
@@ -85,6 +85,38 @@ mkStructDef def = funD 'structDef
          }
     |]
 
+
+-- IvorySizeOf -----------------------------------------------------------------
+
+mkIvorySizeOf :: TypeQ -> [P.Field] -> Q [DecQ]
+mkIvorySizeOf sym fields = do
+  mbs <- mapM fieldSizeOfBytes fields
+  case sequenceA mbs of
+    Just tys | not (null tys) -> return (mkIvorySizeOfInst sym tys)
+    _                         -> return []
+
+-- | Return a call to 'sizeOfBytes' if there's an instance for the type named in
+-- the field.
+fieldSizeOfBytes :: P.Field -> Q (Maybe Type)
+fieldSizeOfBytes field = do
+  ty          <- mkType (P.fieldType field)
+  hasInstance <- isInstance ''IvorySizeOf [ty]
+  if hasInstance
+     then return (Just ty)
+     else return  Nothing
+
+mkIvorySizeOfInst :: TypeQ -> [Type] -> [DecQ]
+mkIvorySizeOfInst sym tys =
+  [ instanceD (cxt []) (appT (conT ''IvorySizeOf) sym) [mkSizeOfBytes tys]
+  ]
+
+mkSizeOfBytes :: [Type] -> DecQ
+mkSizeOfBytes tys = funD 'sizeOfBytes
+  [ clause [] (normalB (foldr1 add exprs)) []
+  ]
+  where
+  exprs   = [ [| sizeOfBytes (Proxy :: AProxy $(return ty)) |] | ty <- tys ]
+  add l r = [| $l + ($r :: Integer) |]
 
 -- Field Labels ----------------------------------------------------------------
 

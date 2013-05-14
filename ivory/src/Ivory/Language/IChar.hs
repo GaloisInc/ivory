@@ -1,5 +1,6 @@
 module Ivory.Language.IChar where
 
+import Ivory.Language.SizeOf
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
@@ -20,3 +21,6 @@ instance IvoryVar IChar where
 
 instance IvoryExpr IChar where
   wrapExpr = IChar
+
+instance IvorySizeOf IChar where
+  sizeOfBytes _ = 1
