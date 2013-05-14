@@ -49,9 +49,10 @@ compileExtern I.Extern
 compileStruct :: Visibility -> I.Struct -> Compile
 compileStruct visibility def = case def of
   I.Struct n fs    ->
-    (if visibility == Public
-       then putHdrSrc
-       else putSrc) [cedecl| struct $id:n { $sdecls:(map mkFieldGroup fs) } ; |]
+    (if visibility == Public then putHdrSrc else putSrc)
+    [cedecl| struct $id:n { $sdecls:(map mkFieldGroup fs)
+                          } __attribute__ ((__packed__)) ;
+           |]
   I.Abstract _ file ->
     putHdrInc (SysInclude file)
 
