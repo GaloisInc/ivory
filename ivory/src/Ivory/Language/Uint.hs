@@ -1,5 +1,9 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
+
 module Ivory.Language.Uint where
 
+import Ivory.Language.Area
 import Ivory.Language.SizeOf
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
@@ -22,7 +26,7 @@ instance IvoryVar Uint8 where
 instance IvoryExpr Uint8 where
   wrapExpr = Uint8
 
-instance IvorySizeOf Uint8 where
+instance IvorySizeOf (Stored Uint8) where
   sizeOfBytes _ = 1
 
 instance Num Uint8 where
@@ -52,7 +56,7 @@ instance IvoryVar Uint16 where
 instance IvoryExpr Uint16 where
   wrapExpr = Uint16
 
-instance IvorySizeOf Uint16 where
+instance IvorySizeOf (Stored Uint16) where
   sizeOfBytes _ = 2
 
 instance Num Uint16 where
@@ -82,7 +86,7 @@ instance IvoryVar Uint32 where
 instance IvoryExpr Uint32 where
   wrapExpr = Uint32
 
-instance IvorySizeOf Uint32 where
+instance IvorySizeOf (Stored Uint32) where
   sizeOfBytes _ = 4
 
 instance Num Uint32 where
@@ -112,7 +116,7 @@ instance IvoryVar Uint64 where
 instance IvoryExpr Uint64 where
   wrapExpr = Uint64
 
-instance IvorySizeOf Uint64 where
+instance IvorySizeOf (Stored Uint64) where
   sizeOfBytes _ = 8
 
 instance Num Uint64 where

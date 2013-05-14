@@ -107,12 +107,14 @@ fieldSizeOfBytes field = do
 
 mkIvorySizeOfInst :: TypeQ -> [Type] -> [DecQ]
 mkIvorySizeOfInst sym tys =
-  [ instanceD (cxt []) (appT (conT ''IvorySizeOf) sym) [mkSizeOfBytes tys]
+  [ instanceD (cxt []) (appT (conT ''IvorySizeOf) struct) [mkSizeOfBytes tys]
   ]
+  where
+  struct = [t| Struct $sym |]
 
 mkSizeOfBytes :: [Type] -> DecQ
 mkSizeOfBytes tys = funD 'sizeOfBytes
-  [ clause [] (normalB (foldr1 add exprs)) []
+  [ clause [wildP] (normalB (foldr1 add exprs)) []
   ]
   where
   exprs   = [ [| sizeOfBytes (Proxy :: AProxy $(return ty)) |] | ty <- tys ]

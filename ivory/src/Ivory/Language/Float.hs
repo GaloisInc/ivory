@@ -1,7 +1,10 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Ivory.Language.Float where
 
+import Ivory.Language.Area
 import Ivory.Language.IBool
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
@@ -39,7 +42,7 @@ instance IvoryVar IFloat where
 instance IvoryExpr IFloat where
   wrapExpr = IFloat
 
-instance IvorySizeOf IFloat where
+instance IvorySizeOf (Stored IFloat) where
   sizeOfBytes _ = 4
 
 instance IvoryEq  IFloat
@@ -104,7 +107,7 @@ instance IvoryVar IDouble where
 instance IvoryExpr IDouble where
   wrapExpr = IDouble
 
-instance IvorySizeOf IDouble where
+instance IvorySizeOf (Stored IDouble) where
   sizeOfBytes _ = 8
 
 instance IvoryEq  IDouble
