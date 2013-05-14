@@ -401,18 +401,18 @@ monadic actions that describe what goes in to a module definition.
 
 ### Exporting Functions
 Functions, whether imported from C or defined in Ivory, are exported with the
-`incl` function.  Using `incl` will different things in different contexts:
+`incl` function.  Using `incl` will do different things in different contexts:
 
- * For an imported function, incl will write out an `#include` directive for the
+ * For an imported function, it will write out an `#include` directive for the
    header that defines the symbol
- * For an extern function, incl will write out an extern definition in the
+ * For an extern function, it will write out an `extern` definition in the
    generated header
  * For a function defined in Ivory, it will write the function prototype in the
    header, and the function body in the source
 
 Functions, memory areas and structs can be made private -- meaning that their
 declarations are only put in the source file, not the header. This is done by
-using using a `private` block in the module definiton as shown below. As shown,
+using a `private` block in the module definiton as shown below. As shown,
 one can also explicitly use a `public` block -- but public visibility is the
 default.
 
