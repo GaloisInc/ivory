@@ -13,6 +13,7 @@ import qualified Cond
 import qualified Forever
 import qualified PublicPrivate
 import qualified Bits
+import qualified SizeOf
 
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language (Module(),moduleName)
@@ -48,4 +49,5 @@ modules = [ PID.cmodule
           , Forever.cmodule
           , PublicPrivate.cmodule
           , Bits.cmodule
+          , SizeOf.cmodule
           ]

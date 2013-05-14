@@ -23,7 +23,8 @@ executable ivory-c-clang-test
                         Cond,
                         Forever,
                         PublicPrivate,
-                        Bits
+                        Bits,
+                        SizeOf
   hs-source-dirs:       examples
   build-depends:        base >= 4.6,
                         pretty >= 1.1,
