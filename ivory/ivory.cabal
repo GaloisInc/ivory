@@ -31,6 +31,7 @@ library
                         Ivory.Language.CArray,
                         Ivory.Language.Cast,
                         Ivory.Language.Cond,
+                        Ivory.Language.Const,
                         Ivory.Language.Float,
                         Ivory.Language.IBool,
                         Ivory.Language.IChar,

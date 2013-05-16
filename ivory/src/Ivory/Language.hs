@@ -67,6 +67,9 @@ module Ivory.Language (
     -- ** Subexpression naming
   , assign
 
+    -- ** Constants
+  , extern
+
     -- ** Arithmetic (operators from the 'Num' class are also provided).
   , IvoryIntegral((.%), iDiv)
 
@@ -149,6 +152,7 @@ import Ivory.Language.Bits
 import Ivory.Language.CArray
 import Ivory.Language.Cast
 import Ivory.Language.Cond
+import Ivory.Language.Const
 import Ivory.Language.Float
 import Ivory.Language.IBool
 import Ivory.Language.IChar
