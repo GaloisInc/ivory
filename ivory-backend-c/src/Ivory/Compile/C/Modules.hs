@@ -84,10 +84,11 @@ writeSrc :: Bool                 -- ^ Be verbose
          -> FilePath             -- ^ Output source name
          -> (Includes, Sources)  -- ^ Module to translate
          -> IO ()
-writeSrc verbose rtPath f s = vToFile f (topComments </> (ppr $ defs s))
+writeSrc verbose rtPath f s = vToFile f (topComments </> out)
   where
-  defs (incls,us) = map (includeDef rtPath) (S.toList incls) ++ us
   vToFile = if verbose then toFile else toFileQuiet
+  defs (incls,us) = map (includeDef rtPath) (S.toList incls) ++ us
+  out = stack $ punctuate line $ map ppr $ defs s
 
 -- Utility
 toFileQuiet :: FilePath -> Doc -> IO ()
