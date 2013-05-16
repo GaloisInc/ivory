@@ -90,7 +90,8 @@ module Ivory.Language (
   , IvoryAddrOf(addrOf)
 
     -- ** Procedures
-  , Def(), ProcPtr(), procPtr
+  , Def()
+  , ProcPtr(), procPtr
   , proc, externProc, importProc
   , Body(), body
 
