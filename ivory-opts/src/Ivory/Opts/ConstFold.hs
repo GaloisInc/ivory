@@ -383,12 +383,12 @@ cfDiv [l,r] = case (l,r) of
   _                         -> CfExpr    (I.ExpOp I.ExpDiv [toExpr l,toExpr r])
 cfDiv _ = error "wrong number of args to cfDiv"
 
--- | Constant folding for mod on integer literals.  There's probably some
--- strange behavior here, without knowing the type where the computation should
--- take place.
+-- | Constant folding for mod on integer literals.  We use Haskell's `rem` which
+-- matches C ISO 1999 semantics of the remainder having the same sign as the
+-- dividend.
 cfMod :: [CfVal] -> CfVal
 cfMod [l,r] = case (l,r) of
-  (CfInteger x,CfInteger y) -> CfInteger (x `mod` y)
+  (CfInteger x,CfInteger y) -> CfInteger (x `rem` y)
   _                         -> CfExpr    (I.ExpOp I.ExpMod [toExpr l, toExpr r])
 cfMod _ = error "wrong number of args to cfMod"
 
