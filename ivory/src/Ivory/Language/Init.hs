@@ -26,8 +26,7 @@ import qualified Ivory.Language.Syntax as I
 import Data.Monoid (Monoid(..),mconcat)
 import GHC.TypeLits
 
--- | Stack allocation, restricted to only the top-level of a function
--- definition.
+-- | Stack allocation
 local :: forall eff s area. (eff `AllocsIn` s, IvoryType area)
       => Init area -> Ivory eff (Ref (Stack s) area)
 local ini = do
