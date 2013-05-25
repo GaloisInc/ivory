@@ -11,6 +11,21 @@ flag debug-qq
   default:              False
   description:          Enable dumping of template-haskell splices
 
+executable ivory-fibtutorial
+  main-is:              FibTutorial.hs
+  hs-source-dirs:       examples
+  build-depends:        base >= 4.6,
+                        pretty >= 1.1,
+                        monadLib >= 3.7,
+                        template-haskell >= 2.8,
+                        mainland-pretty >= 0.2.4,
+                        wl-pprint,
+                        ivory,
+                        ivory-opts,
+                        ivory-backend-c
+  default-language:     Haskell2010
+  ghc-options:          -Wall
+
 executable ivory-c-clang-test
   main-is:              TestClang.hs
   other-modules:        Factorial,

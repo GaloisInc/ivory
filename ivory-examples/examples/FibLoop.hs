@@ -29,16 +29,13 @@ fib_loop  = proc "fib_loop" $ \ n -> body $ do
   b <- local (ival 0)
 
   n `times` \ _ -> do
-    store a =<< deref b
-    store b =<< refsum a b
+    a' <- deref a
+    b' <- deref b
+    store a b'
+    store b (a' + b')
 
-  ret =<< deref a
-  where
-  refsum :: Ref s1 (Stored Uint32) -> Ref s2 (Stored Uint32) -> Ivory eff Uint32
-  refsum refx refy = do
-    x <- deref refx
-    y <- deref refy
-    return (x + y)
+  result <- deref a
+  ret result
 
 -- Loop implementation of fib, using a structure instead
 -- of two discrete variables.
