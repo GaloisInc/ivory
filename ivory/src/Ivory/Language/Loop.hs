@@ -32,12 +32,13 @@ upTo from to = loop (unwrapExpr from) (AST.IncrTo (unwrapExpr to))
 downTo :: SingI n => Ix n -> Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
 downTo from to = loop (unwrapExpr from) (AST.DecrTo (unwrapExpr to))
 
-for :: forall eff n a. SingI n => Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
-for n = upTo 0 (n-1)
+for :: forall eff n a. SingI n
+    => Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
+for n = upTo 0 (n - 1)
 
 times :: forall eff n a. SingI n
       => Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
-times n = downTo (n-1) 0
+times n = downTo 0 (n-1)
 
 arrayMap :: forall eff n a . SingI n => (Ix n -> Ivory eff a) -> Ivory eff ()
 arrayMap = upTo 0 hi

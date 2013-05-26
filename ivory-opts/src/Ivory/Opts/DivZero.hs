@@ -32,6 +32,7 @@ expFold ty e = case e of
     expFold tIdx eIdx
     expFold tArr eArr
   I.ExpSafeCast ty' e0 -> expFold ty' e0
+  I.ExpToIx e0 _ -> expFold (I.TyInt I.Int32) e0
 
 --------------------------------------------------------------------------------
 

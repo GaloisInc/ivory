@@ -2,6 +2,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Language.Area where
 

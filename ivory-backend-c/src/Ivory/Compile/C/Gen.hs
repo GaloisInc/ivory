@@ -367,6 +367,9 @@ toExpr t (I.ExpIndex at a ti i) = case t of
 toExpr tTo (I.ExpSafeCast tFrom e) =
   [cexp| ($ty:(toType tTo))$exp:(toExpr tFrom e) |]
 ----------------------------------------
+toExpr tTo (I.ExpToIx e maxSz) =
+  [cexp| $exp:(toExpr tTo e ) % $exp:maxSz |]
+----------------------------------------
 
 exp0 :: [C.Exp] -> C.Exp
 exp0 = flip (!!) 0

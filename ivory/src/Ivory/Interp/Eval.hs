@@ -228,6 +228,9 @@ evalExpr ty expr = case expr of
 
   AST.ExpSafeCast fty e -> evalCast ty fty =<< evalExpr fty e
 
+  AST.ExpToIx e maxSz -> do ValInt i <- evalExpr (AST.TyInt AST.Int32) e
+                            return $ ValInt (i `rem` maxSz)
+
   AST.ExpOp op args -> evalOp ty op args
 
 -- | Interpret a cast.
@@ -303,7 +306,7 @@ evalOp ty op args = case (op,args) of
     AST.TyWord _ -> interpIntegral2 ty div l r
     _            -> io (typeError "evalOp" "AST.ExpDiv")
 
-  (AST.ExpMod, [l,r]) -> interpIntegral2 ty mod l r
+  (AST.ExpMod, [l,r]) -> interpIntegral2 ty rem l r
 
   (AST.ExpRecip, [a]) -> interpFloating1 ty recip a
 

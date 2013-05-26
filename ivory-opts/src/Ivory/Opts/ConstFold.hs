@@ -44,6 +44,13 @@ cf ty e =
             _ <- destLit e0'
             return e0'
 
+    I.ExpToIx e0 maxSz    ->
+      let ty' = I.TyInt I.Int32 in
+      let e0' = cf ty' e0 in
+      case destIntegerLit e0' of
+        Just i  -> I.ExpLit $ I.LitInteger $ i `rem` maxSz
+        Nothing -> I.ExpToIx e0' maxSz
+
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
   let cxt   = I.procSym proc
@@ -173,8 +180,8 @@ cfOp ty op args =
       | otherwise -> noop
 
     I.ExpMul      -> toExpr (cfNum2 op (*)    args')
-    I.ExpAdd      -> toExpr (cfNum2 op (*)    args')
-    I.ExpSub      -> toExpr (cfNum2 op (*)    args')
+    I.ExpAdd      -> toExpr (cfNum2 op (+)    args')
+    I.ExpSub      -> toExpr (cfNum2 op (-)    args')
     I.ExpNegate   -> toExpr (cfNum1 op negate args')
     I.ExpAbs      -> toExpr (cfNum1 op abs    args')
     I.ExpSignum   -> toExpr (cfNum1 op signum args')
