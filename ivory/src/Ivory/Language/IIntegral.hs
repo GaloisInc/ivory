@@ -13,12 +13,14 @@ class (IvoryExpr a, Num a) => IvoryIntegral a where
   iDiv :: a -> a -> a
   iDiv l r = wrapExpr (iDivE (unwrapExpr l) (unwrapExpr r))
 
+  -- | Has C semantics: like Haskell's `rem`.
   (.%) :: a -> a -> a
   l .% r = wrapExpr (iModE (unwrapExpr l) (unwrapExpr r))
 
 iDivE :: I.Expr -> I.Expr -> I.Expr
 iDivE l r = I.ExpOp I.ExpDiv [l,r]
 
+-- | Has C semantics: like Haskell's `rem`.
 iModE :: I.Expr -> I.Expr -> I.Expr
 iModE l r = I.ExpOp I.ExpMod [l,r]
 
