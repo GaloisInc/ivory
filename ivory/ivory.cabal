@@ -27,6 +27,7 @@ library
                         Ivory.Language.Monad,
                         Ivory.Language.Area,
                         Ivory.Language.Array,
+                        Ivory.Language.Assert,
                         Ivory.Language.Bits,
                         Ivory.Language.CArray,
                         Ivory.Language.Cast,

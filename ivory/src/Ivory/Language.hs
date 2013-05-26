@@ -149,6 +149,7 @@ module Ivory.Language (
 
 import Ivory.Language.Area
 import Ivory.Language.Array
+import Ivory.Language.Assert
 import Ivory.Language.Bits
 import Ivory.Language.CArray
 import Ivory.Language.Cast
@@ -196,12 +197,6 @@ assign e = do
   r <- freshVar "let"
   emit (AST.Assign (ivoryType (Proxy :: Proxy a)) r (unwrapExpr e))
   return (wrapExpr (AST.ExpVar r))
-
-assert :: forall a eff. IvoryExpr a => a -> Ivory eff ()
-assert e = emit (AST.Assert (unwrapExpr e))
-
-assume :: forall a eff. IvoryExpr a => a -> Ivory eff ()
-assume e = emit (AST.Assume (unwrapExpr e))
 
 -- | Primitive return from function.
 ret :: (IvoryVar r, eff `Returns` r) => r -> Ivory eff ()
