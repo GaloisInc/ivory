@@ -24,7 +24,6 @@ iDivE l r = I.ExpOp I.ExpDiv [l,r]
 iModE :: I.Expr -> I.Expr -> I.Expr
 iModE l r = I.ExpOp I.ExpMod [l,r]
 
-
 --------------------------------------------------------------------------------
 
 instance IvoryIntegral Sint8
