@@ -268,22 +268,24 @@ toBody ens stmt =
         go I.Typed { I.tType = t'
                    , I.tValue = v }
           = toExpr t' v
-    -- Assume that ty is signed, and sufficiently big (int).
-    I.Loop ty var start incr blk ->
+    -- Assume that ty is a signed and sufficiently big (int).
+    I.Loop var start incr blk ->
       let loopBd =  concatMap toBody' blk in
       [C.BlockStm [cstm| for( $ty:(toType ty) $id:(toVar var)
                                 = $exp:(toExpr ty start);
                               $exp:test;
-                              $id:(toVar var) = $exp:incExp ) {
+                              $exp:incExp ) {
                        $items:loopBd } |]]
       where
+      ty = I.TyInt I.Int32
       (test,incExp)  = toIncr incr
       ix = toVar var
-      toIncr (I.IncrTo to) = ( [cexp| $id:ix <= $exp:(toExpr ty to) |]
-                                  , [cexp| $id:ix + 1 |] )
+      toIncr (I.IncrTo to) =
+        ( [cexp| $id:ix <= $exp:(toExpr ty to) |]
+        , [cexp| $id:ix++ |] )
       toIncr (I.DecrTo to) =
         ( [cexp| $id:ix >= $exp:(toExpr ty to) |]
-        , [cexp| $id:ix - 1 |] )
+        , [cexp| $id:ix-- |] )
 
     I.Forever blk ->
       let foreverBd =  concatMap toBody' blk in

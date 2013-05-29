@@ -20,5 +20,6 @@ ensTrans retE = loop
     I.ExpLabel t e0 s     -> I.ExpLabel t (loop e0) s
     I.ExpIndex t e0 t1 e1 -> I.ExpIndex t (loop e0) t1 (loop e1)
     I.ExpSafeCast t e0    -> I.ExpSafeCast t (loop e0)
+    I.ExpToIx e0 maxSz    -> I.ExpToIx (loop e0) maxSz
 
 --------------------------------------------------------------------------------

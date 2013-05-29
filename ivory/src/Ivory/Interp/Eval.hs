@@ -143,7 +143,8 @@ evalStmt stmt = case stmt of
     AST.NameSym _ -> do
       fail "unable to deal with memory areas"
 
-  AST.Loop rep ix i incr body -> do
+  AST.Loop ix i incr body -> do
+    let rep = AST.TyInt AST.Int32
     i' <- evalExpr rep i
     bindLocal ix (AST.Typed rep i')
     loopBody rep ix incr body

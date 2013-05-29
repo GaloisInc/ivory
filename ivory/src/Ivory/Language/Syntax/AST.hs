@@ -189,8 +189,9 @@ data Stmt
     -- ^ Reference allocation.  The type parameter is not a reference, but the
     -- referenced type.
 
-  | Loop Type Var Expr LoopIncr Block
-    -- ^ Looping
+  | Loop Var Expr LoopIncr Block
+    -- ^ Looping: arguments are the loop variable, start value,
+    -- break condition (for increment or decrement), and block.
 
   | Forever Block
     -- ^ Nonterminting loop
@@ -279,7 +280,9 @@ data ExpOp
   | ExpCond
 
   | ExpGt Bool Type
+  -- ^ True means >=, False means >
   | ExpLt Bool Type
+  -- ^ True means <=, False means <
 
   | ExpNot
   | ExpAnd

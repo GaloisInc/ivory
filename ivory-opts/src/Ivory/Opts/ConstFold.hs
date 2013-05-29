@@ -95,16 +95,16 @@ stmtFold cxt opt blk stmt =
     I.Local{}            -> snoc stmt
     I.RefCopy t e0 e1    -> snoc $ I.RefCopy t (opt t e0) (opt t e1)
     I.AllocRef{}         -> snoc stmt
-    I.Loop ty v e incr blk'    ->
-      let e' = opt ty e in
-      case e' of
+    I.Loop v e incr blk' ->
+      let ty = I.TyInt I.Int32 in
+      case opt ty e of
         I.ExpLit (I.LitBool b) ->
           if b then error $ "Constant folding evaluated True expression "
                           ++ "in a loop bound.  The loop will never terminate!"
                else error $ "Constant folding evaluated False expression "
                           ++ "in a loop bound.  The loop will never execute!"
         _                      ->
-          snoc $ I.Loop ty v (opt ty e) (loopIncrFold (opt ty) incr)
+          snoc $ I.Loop v (opt ty e) (loopIncrFold (opt ty) incr)
                         (newFold blk')
     I.Break              -> snoc I.Break
     I.Forever b          -> snoc $ I.Forever (newFold b)

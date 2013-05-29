@@ -39,7 +39,7 @@ stmtFold opt stmt =
     I.Local{}            -> stmt
     I.RefCopy t e0 e1    -> I.RefCopy t (opt e0) (opt e1)
     I.AllocRef{}         -> stmt
-    I.Loop ty v e incr b -> I.Loop ty v (opt e) (loopIncrFold opt incr)
+    I.Loop v e incr b    -> I.Loop v (opt e) (loopIncrFold opt incr)
                               (map sf b)
     I.Break              -> I.Break
     I.Forever b          -> I.Forever (map sf b)

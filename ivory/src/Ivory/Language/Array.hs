@@ -91,5 +91,7 @@ ixUnary f = mkIx . f . rawIxVal
 -- XXX don't export
 rawIxVal :: SingI n => Ix n -> I.Expr
 rawIxVal n = case unwrapExpr n of
-               I.ExpToIx e _ -> e
-               _             -> error "Front-end: can't unwrap ixVal."
+               I.ExpToIx e _  -> e
+               e@(I.ExpVar _) -> e
+               e             -> error $ "Front-end: can't unwrap ixVal: "
+                             ++ show e

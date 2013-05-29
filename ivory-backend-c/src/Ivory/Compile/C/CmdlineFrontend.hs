@@ -26,6 +26,7 @@ import qualified Ivory.Compile.C as C
 import qualified Ivory.Opts.ConstFold as O
 import qualified Ivory.Opts.Overflow as O
 import qualified Ivory.Opts.DivZero as O
+import qualified Ivory.Opts.Index as O
 import qualified Ivory.Opts.FP as O
 import qualified Ivory.Opts.CFG as G
 
@@ -42,6 +43,7 @@ data Opts
     , constFold   :: Bool
     , overflow    :: Bool
     , divZero     :: Bool
+    , ixCheck     :: Bool
     , fpCheck     :: Bool
     , outProcSyms :: Bool
     -- CFG stuff
@@ -78,6 +80,10 @@ instance Attributes Opts where
                      , Invertible True
                      ]
     , divZero     %> [ Help "generate assertions checking for division by zero."
+                     , Default False
+                     , Invertible True
+                     ]
+    , ixCheck     %> [ Help "generate assertions checking for back indexes (e.g., negative)."
                      , Default False
                      , Invertible True
                      ]
@@ -119,9 +125,10 @@ initialOpts = Opts
   , deps        = []
   , depPrefix   = "."
   -- optimization passes
-  , constFold   = False
+  , constFold   = True -- ^ Turn on constant folding by default
+  , divZero     = True -- ^ Turn on div-by-zero checking by default
+  , ixCheck     = True -- ^ Turn on index-bounds checking by default
   , overflow    = False
-  , divZero     = False
   , fpCheck     = False
   , outProcSyms = False
   -- CFG stuff
@@ -189,15 +196,19 @@ rc sm modules opts
     mapM_ (mapM_ putStrLn) (C.showModule rtPath mods)
 
   cfPass = mkPass constFold O.constFold
+
+  -- Put new assertion passes here and add them to passes below.
   ofPass = mkPass overflow O.overflowFold
   dzPass = mkPass divZero O.divZeroFold
   fpPass = mkPass fpCheck O.fpFold
+  ixPass = mkPass ixCheck O.ixFold
+
   mkPass passOpt pass = if passOpt opts then pass else id
 
   -- Constant folding before and after all other passes.
   passes e = foldl' (flip ($)) e
     [ cfPass
-    , ofPass, dzPass, fpPass
+    , ofPass, dzPass, fpPass, ixPass
     , cfPass
     ]
 

@@ -3,6 +3,9 @@
 
 module Ivory.Language.Loop where
 
+import Ivory.Language.IIntegral
+import Ivory.Language.IBool
+import Ivory.Language.Assert
 import Ivory.Language.Array
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
@@ -18,27 +21,48 @@ breakOut  = emit AST.Break
 
 -- XXX don't export.
 loop :: forall eff n a. (SingI n)
-     => AST.Expr -> AST.LoopIncr -> (Ix n -> Ivory eff a) -> Ivory eff ()
-loop from to body = do
+     => (AST.Expr -> AST.LoopIncr)
+     -> Ix n
+     -> Ix n
+     -> (Ix n -> Ivory eff a)
+     -> Ivory eff ()
+loop incr fromIdx toIdx body = do
+  let maxSz :: IxRep
+      maxSz = fromInteger $ ixSize (undefined :: Ix n)
+  let trans v = unwrapExpr $ wrapExpr v .% maxSz
+  let from  = rawIxVal fromIdx
+  let to    = rawIxVal toIdx
   ix        <- freshVar "ix"
   let ixVar = wrapExpr (AST.ExpVar ix)
-      ty    = ivoryType (Proxy :: Proxy IxRep)
   (_,block) <- collect (body ixVar)
-  emit (AST.Loop ty ix from to (blockStmts block))
+  let asst v = assert (wrapExpr v <? maxSz .&& (-1::IxRep) <=? wrapExpr v)
+  asst from
+  asst to
+  emit (AST.Loop ix (trans from) (incr $ trans to) (blockStmts block))
 
 upTo :: SingI n => Ix n -> Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
-upTo from to = loop (unwrapExpr from) (AST.IncrTo (unwrapExpr to))
+upTo = loop AST.IncrTo
 
 downTo :: SingI n => Ix n -> Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
-downTo from to = loop (unwrapExpr from) (AST.DecrTo (unwrapExpr to))
+downTo = loop AST.DecrTo
 
+-- | Run the computation n times, where for
+-- @
+--   n :: Ix m, 0 <= n <= m.
+-- @
+-- Indexes increment from 0 to n-1.
 for :: forall eff n a. SingI n
     => Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
-for n = upTo 0 (n - 1)
+for n f = upTo 0 (n-1) f
 
+-- | Run the computation n times, where for
+-- @
+--   n :: Ix m, 0 <= n <= m.
+-- @
+-- Indexes decrement to 0 from n-1.
 times :: forall eff n a. SingI n
       => Ix n -> (Ix n -> Ivory eff a) -> Ivory eff ()
-times n = downTo 0 (n-1)
+times n f = downTo (n-1) 0 f
 
 arrayMap :: forall eff n a . SingI n => (Ix n -> Ivory eff a) -> Ivory eff ()
 arrayMap = upTo 0 hi

@@ -41,32 +41,34 @@ stmtFold ef ss
   case stmt of
     I.IfTE e b0 b1 ->
       let asserts = collect I.TyBool e in
-      (toAsserts asserts) `D.append`
+      toAsserts asserts `D.append`
         (I.IfTE e (toFoldBlck b0) (toFoldBlck b1)
           `D.cons` stmtFold ef stmts)
-    I.Assert{}             -> go D.empty
-    I.Assume{}             -> go D.empty
-    I.Return (I.Typed t e) -> let asserts = collect t e in
-                              go asserts
-    I.ReturnVoid           -> go D.empty
-    I.Deref t _ e          -> let asserts = collect t e in
-                              go asserts
-    I.Store t e0 e1        -> let asserts0 = collect t e0 in
-                              let asserts1 = collect t e1 in
-                              go (asserts0 `D.append` asserts1)
-    I.Assign t _ e         -> let asserts = collect t e in
-                              go asserts
-    I.Call{}               -> go D.empty
-    I.Loop t v e incr b    ->
-      let asserts = collect t e in
-      let asserts0 = fromIncr t incr in
-      let assts = asserts `D.append` asserts0 in
-      (I.Loop t v e incr (toFoldBlck b))
-        `D.cons` ((toAsserts assts) `D.append` (stmtFold ef stmts))
+    I.Assert{}              -> go D.empty
+    I.Assume{}              -> go D.empty
+    I.Return (I.Typed ty e) -> let asserts = collect ty e in
+                               go asserts
+    I.ReturnVoid            -> go D.empty
+    I.Deref ty _ e          -> let asserts = collect ty e in
+                               go asserts
+    I.Store ty e0 e1        -> let asserts0 = collect ty e0 in
+                               let asserts1 = collect ty e1 in
+                               go (asserts0 `D.append` asserts1)
+    I.Assign ty _ e         -> let asserts = collect ty e in
+                               go asserts
+    I.Call{}                -> go D.empty
+    I.Loop v e incr b ->
+      let ty       = I.TyInt I.Int32 in
+      let asserts  = collect ty e in
+      let asserts0 = fromIncr ty incr in
+      let assts    = asserts `D.append` asserts0 in
+      toAsserts assts `D.append`
+        (I.Loop v e incr (toFoldBlck b)
+          `D.cons` stmtFold ef stmts)
     I.Break                -> go D.empty
     I.Local{}              -> go D.empty
-    I.RefCopy t e0 e1      -> let asserts0 = collect t e0 in
-                              let asserts1 = collect t e1 in
+    I.RefCopy ty e0 e1     -> let asserts0 = collect ty e0 in
+                              let asserts1 = collect ty e1 in
                               go (asserts0 `D.append` asserts1)
     I.AllocRef{}           -> go D.empty
     I.Forever b            -> I.Forever (toFoldBlck b) `D.cons`
