@@ -19,7 +19,7 @@ import Control.Applicative ((<$>))
 import qualified Data.Set as S
 import Control.Monad
 import System.IO
-import System.FilePath ((<.>))
+import System.FilePath.Posix ((<.>)) -- Always use posix convention in C code
 import MonadLib (put,runM)
 
 --------------------------------------------------------------------------------

@@ -15,6 +15,7 @@ import qualified Paths_ivory_backend_c as Paths
 import Control.Monad
 import System.Console.CmdLib
 import System.FilePath
+import qualified System.FilePath.Posix as PFP
 import System.Directory
 import System.IO (withFile, IOMode(..))
 import Data.List hiding (group)
@@ -242,10 +243,10 @@ rc sm modules opts
 
 --------------------------------------------------------------------------------
 
-mkDep :: FilePath -> String -> C.CompileUnits -> FilePath
-mkDep basepath extension unit = basepath </> (C.unitName unit) <.> extension
+mkDep :: FilePath -> String -> C.CompileUnits -> String
+mkDep basepath extension unit = basepath PFP.</> (C.unitName unit) PFP.<.> extension
 
-outputDeps :: [FilePath] -> String -> [FilePath] -> [FilePath] -> IO ()
+outputDeps :: [FilePath] -> String -> [String] -> [String] -> IO ()
 outputDeps [path] prefix headers sources = do
   createDirectoryIfMissing True (takeDirectory path)
   withFile path WriteMode writedoc
