@@ -26,12 +26,12 @@ runFactorial :: IO ()
 runFactorial = runCompiler [cmodule] initialOpts { stdOut = True }
 
 
-test :: IO ()
-test  = withEnv $ do
+interpFactorial :: Int -> IO ()
+interpFactorial i = withEnv $ do
   loadModule cmodule
 
   n <- eval $ do
-    res <- call factorial 10
+    res <- call factorial (fromIntegral i)
     ret res
 
-  io (putStrLn ("factorial 10 = " ++ show n))
+  io (putStrLn ("factorial "++ (show i) ++ " = " ++ (show n)))
