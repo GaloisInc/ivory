@@ -288,10 +288,14 @@ toBody ens stmt =
         , [cexp| $id:ix-- |] )
 
     I.Forever blk ->
-      let foreverBd =  concatMap toBody' blk in
-      [C.BlockStm [cstm| for( int forever_loop = 0
-                            ; FOREVER
-                            ; FOREVER_INC ) { $items:foreverBd } |]]
+      let foreverBd =  concatMap toBody' blk
+          foreverDecl = C.BlockDecl
+            [cdecl| int forever_loop __attribute__((unused)); |]
+          loop = C.BlockStm [cstm| for( forever_loop = 0
+                                      ; FOREVER
+                                      ; FOREVER_INC ) { $items:foreverBd } |]
+          decAndLoop = [ foreverDecl, loop ]
+      in  [ C.BlockStm [cstm| { $items:decAndLoop } |] ]
 
     I.Break                       -> [C.BlockStm [cstm| break; |]]
     I.Store t ptr exp             -> [C.BlockStm
