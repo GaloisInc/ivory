@@ -17,14 +17,12 @@ import qualified Data.Set as S
 data Include
   = SysInclude   FilePath -- ^ @#include <foo.h>@
   | LocalInclude FilePath -- ^ @#include "foo.h"@
-  | RtInclude    FilePath -- ^ runtime includes
     deriving (Show,Eq,Ord)
 
-includeDef :: FilePath -> Include -> C.Definition
-includeDef path incl = case incl of
+includeDef :: Include -> C.Definition
+includeDef incl = case incl of
   SysInclude file   -> [cedecl| $esc:("#include <"  ++ file ++ ">")           |]
   LocalInclude file -> [cedecl| $esc:("#include \"" ++ file ++ "\"")          |]
-  RtInclude file    -> [cedecl| $esc:("#include \"" ++ path </> file ++ "\"") |]
 
 type Includes = S.Set Include
 type Sources  = [C.Definition]

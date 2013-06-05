@@ -3,14 +3,14 @@
 
 module Ivory.Compile.C.CmdlineFrontend
   ( compile
-  , compileWithSizeMap
+  , compileWith
   , runCompiler
-  , runCompilerWithSizeMap
+  , runCompilerWith
   , Opts(..)
   , initialOpts
   ) where
 
-import qualified Paths_ivory_backend_c as Paths
+import qualified Paths_ivory_backend_c
 
 import Control.Monad
 import System.Console.CmdLib
@@ -24,6 +24,7 @@ import Text.PrettyPrint.Leijen hiding ((</>), group)
 
 import Ivory.Language
 import qualified Ivory.Compile.C as C
+import qualified Ivory.Compile.C.SourceDeps as C
 import qualified Ivory.Opts.ConstFold as O
 import qualified Ivory.Opts.Overflow as O
 import qualified Ivory.Opts.DivZero as O
@@ -141,19 +142,20 @@ initialOpts = Opts
   }
 
 compile :: [Module] -> IO ()
-compile ms = runCompiler ms =<< executeR initialOpts =<< getArgs
+compile = compileWith Nothing Nothing
 
-compileWithSizeMap :: G.SizeMap -> [Module] -> IO ()
-compileWithSizeMap st ms = runCompilerWithSizeMap st ms =<< executeR initialOpts =<< getArgs
+compileWith :: Maybe G.SizeMap -> Maybe [FilePath] -> [Module] -> IO ()
+compileWith sm sp ms = runCompilerWith sm sp ms =<< executeR initialOpts =<< getArgs
 
-runCompilerWithSizeMap :: G.SizeMap -> [Module] -> Opts -> IO ()
-runCompilerWithSizeMap  = rc
+runCompilerWith :: Maybe G.SizeMap -> Maybe [FilePath] -> [Module] -> Opts -> IO ()
+runCompilerWith sm sp =
+  rc (maybe G.defaultSizeMap id sm) (maybe [] id sp)
 
 runCompiler :: [Module] -> Opts -> IO ()
-runCompiler = rc G.defaultSizeMap
+runCompiler = runCompilerWith Nothing Nothing
 
-rc :: G.SizeMap -> [Module] -> Opts -> IO ()
-rc sm modules opts
+rc :: G.SizeMap -> [FilePath] -> [Module] -> Opts -> IO ()
+rc sm userSearchPath modules opts
   | outProcSyms opts = C.outputProcSyms modules
   | printDeps        = runDeps
   | otherwise        = do
@@ -163,12 +165,16 @@ rc sm modules opts
       cfs <- mapM (\p -> G.callGraphDot p (cfgDotDir opts) optModules) cfgps
       let maxstacks = map ms (zip cfgps cfs)
       mapM_ maxStackMsg (zip cfgps maxstacks)
-
   where
-  run = do createDirectoryIfMissing True (includeDir opts)
-           createDirectoryIfMissing True (srcDir opts)
-           outputHeaders (includeDir opts) cmodules
-           outputSources (srcDir opts) cmodules
+  run = do
+    rtPath <- getRtPath
+    let searchPath = userSearchPath ++ [rtPath]
+    createDirectoryIfMissing True (includeDir opts)
+    createDirectoryIfMissing True (srcDir opts)
+    outputHeaders (includeDir opts) cmodules
+    outputSources (srcDir opts) cmodules
+    C.outputSourceDeps (includeDir opts) (srcDir opts)
+       ("runtime/ivory.h":(C.collectSourceDeps modules)) searchPath
 
   runDeps = do
     outputDeps (deps opts) (depPrefix opts) hs ss
@@ -193,8 +199,7 @@ rc sm modules opts
     _   -> error "invalid option for deps"
 
   showM_ mods = do
-    rtPath <- getRtPath
-    mapM_ (mapM_ putStrLn) (C.showModule rtPath mods)
+    mapM_ (mapM_ putStrLn) (C.showModule mods)
 
   cfPass = mkPass constFold O.constFold
 
@@ -225,21 +230,19 @@ rc sm modules opts
   -- Transform a compiled unit into a header, and write to a .h file
   outputHeader :: FilePath -> C.CompileUnits -> IO ()
   outputHeader basename cm = do
-    rtPath <- getRtPath
-    C.writeHdr (verbose opts) rtPath (addExtension basename ".h")
+    C.writeHdr (verbose opts) (addExtension basename ".h")
                (C.headers cm) (C.unitName cm)
 
   -- Transform a compiled unit into a c src, and write to a .c file
   outputSrc :: FilePath -> C.CompileUnits -> IO ()
   outputSrc basename cm = do
-    rtPath <- getRtPath
-    C.writeSrc (verbose opts) rtPath (addExtension basename ".c")
+    C.writeSrc (verbose opts) (addExtension basename ".c")
                (C.sources cm)
 
   getRtPath :: IO FilePath
   getRtPath  = case rtIncludeDir opts of
     Just path -> return path
-    Nothing   -> Paths.getDataDir
+    Nothing   -> Paths_ivory_backend_c.getDataDir
 
 --------------------------------------------------------------------------------
 
