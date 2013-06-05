@@ -196,4 +196,4 @@ runAlloc :: IO ()
 runAlloc = runCompiler [cmodule] initialOpts { stdOut = True }
 
 test2 :: [[String]]
-test2 = showModule "" (compileModule cmodule)
+test2 = showModule (compileModule cmodule)
