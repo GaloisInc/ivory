@@ -28,13 +28,13 @@ outputSourceDeps inclDir srcDir srcDeps searchPath = do
     case lefts discovered of
       [] -> return ()
       es -> error $ "failure to output source dependencies:\n" ++ (unlines es) ++
-                    "\nin search path:\n" ++ (unlines searchPath)
+                    "in search path:\n" ++ (unlines searchPath)
   where
   findSource :: [FilePath] -> FilePath -> IO (Either String FilePath)
   findSource searchpath f = do
     v <- filterM doesFileExist $ map (\p -> p </> f) searchpath
     case v of
-      []   -> return $ Left ("source dependency " ++ f ++ " not found.")
+      []   -> return $ Left ("not found: " ++ f)
       a:_ -> return $ Right a
   output :: FilePath -> IO ()
   output fp = case takeExtension fp of

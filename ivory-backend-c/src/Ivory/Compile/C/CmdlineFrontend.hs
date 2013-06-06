@@ -144,17 +144,17 @@ initialOpts = Opts
 compile :: [Module] -> IO ()
 compile = compileWith Nothing Nothing
 
-compileWith :: Maybe G.SizeMap -> Maybe [FilePath] -> [Module] -> IO ()
+compileWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module] -> IO ()
 compileWith sm sp ms = runCompilerWith sm sp ms =<< executeR initialOpts =<< getArgs
 
-runCompilerWith :: Maybe G.SizeMap -> Maybe [FilePath] -> [Module] -> Opts -> IO ()
+runCompilerWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module] -> Opts -> IO ()
 runCompilerWith sm sp =
   rc (maybe G.defaultSizeMap id sm) (maybe [] id sp)
 
 runCompiler :: [Module] -> Opts -> IO ()
 runCompiler = runCompilerWith Nothing Nothing
 
-rc :: G.SizeMap -> [FilePath] -> [Module] -> Opts -> IO ()
+rc :: G.SizeMap -> [IO FilePath] -> [Module] -> Opts -> IO ()
 rc sm userSearchPath modules opts
   | outProcSyms opts = C.outputProcSyms modules
   | printDeps        = runDeps
@@ -167,8 +167,7 @@ rc sm userSearchPath modules opts
       mapM_ maxStackMsg (zip cfgps maxstacks)
   where
   run = do
-    rtPath <- getRtPath
-    let searchPath = userSearchPath ++ [rtPath]
+    searchPath <- mkSearchPath opts userSearchPath
     createDirectoryIfMissing True (includeDir opts)
     createDirectoryIfMissing True (srcDir opts)
     outputHeaders (includeDir opts) cmodules
@@ -176,11 +175,16 @@ rc sm userSearchPath modules opts
     C.outputSourceDeps (includeDir opts) (srcDir opts)
        ("runtime/ivory.h":(C.collectSourceDeps modules)) searchPath
 
-  runDeps = do
-    outputDeps (deps opts) (depPrefix opts) hs ss
+  runDeps =
+    outputDeps (deps opts) (depPrefix opts) (genHs ++ cpyHs) (genSs ++ cpySs)
     where
-    hs = map (mkDep (includeDir opts) ".h") cmodules
-    ss = map (mkDep (srcDir opts) ".c")     cmodules
+    sdeps = C.collectSourceDeps modules
+    genHs = map (mkDep (includeDir opts) ".h") cmodules
+    genSs = map (mkDep (srcDir opts) ".c")     cmodules
+    cpyHs = map (mkDepSourceDep (includeDir opts)) $
+              filter (\p -> takeExtension p == ".h") sdeps
+    cpySs = map (mkDepSourceDep (srcDir opts)) $
+              filter (\p -> takeExtension p == ".c") sdeps
 
   optModules = map (C.runOpt passes) modules
 
@@ -239,15 +243,13 @@ rc sm userSearchPath modules opts
     C.writeSrc (verbose opts) (addExtension basename ".c")
                (C.sources cm)
 
-  getRtPath :: IO FilePath
-  getRtPath  = case rtIncludeDir opts of
-    Just path -> return path
-    Nothing   -> Paths_ivory_backend_c.getDataDir
-
 --------------------------------------------------------------------------------
 
 mkDep :: FilePath -> String -> C.CompileUnits -> String
 mkDep basepath extension unit = basepath PFP.</> (C.unitName unit) PFP.<.> extension
+
+mkDepSourceDep :: FilePath -> FilePath -> String
+mkDepSourceDep basepath sdep = basepath PFP.</> sdep
 
 outputDeps :: [FilePath] -> String -> [String] -> [String] -> IO ()
 outputDeps [path] prefix headers sources = do
@@ -268,4 +270,16 @@ outputDeps [path] prefix headers sources = do
   listof name values = declaration name <>
     (indent 4 $ vsep $ punctuate (text " \\") (map text values))
 outputDeps _ _ _ _ = error "invalid dep path (should be prevented by caller)"
+
+
+mkSearchPath :: Opts -> [IO FilePath] -> IO [FilePath]
+mkSearchPath opts userSearchPaths = do
+  rtPath <- getRtPath
+  users <- sequence userSearchPaths
+  return $ rtPath:users
+  where
+  getRtPath :: IO FilePath
+  getRtPath  = case rtIncludeDir opts of
+    Just path -> return path
+    Nothing   -> Paths_ivory_backend_c.getDataDir
 
