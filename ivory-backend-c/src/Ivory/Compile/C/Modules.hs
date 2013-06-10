@@ -31,8 +31,7 @@ showModule m =
   ]
   where
   mk _   (_,[])         = []
-  mk str (incls,units)  =
-    str : pp (map (includeDef rtPath) (S.toList incls) ++ units)
+  mk str (incls,units)  = str : pp (map includeDef (S.toList incls) ++ units)
   pp = map (show . ppr)
 
 --------------------------------------------------------------------------------
