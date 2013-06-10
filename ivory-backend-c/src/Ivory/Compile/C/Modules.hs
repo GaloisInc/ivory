@@ -8,7 +8,6 @@ import qualified Text.PrettyPrint.Mainland as PP
 import Text.PrettyPrint.Mainland
 
 import qualified Ivory.Language.Syntax.AST as I
---import qualified Ivory.Language as L
 
 import Ivory.Compile.C.Gen
 import Ivory.Compile.C.Types
@@ -32,7 +31,8 @@ showModule m =
   ]
   where
   mk _   (_,[])         = []
-  mk str (incls,units)  = str : pp (map includeDef (S.toList incls) ++ units)
+  mk str (incls,units)  =
+    str : pp (map (includeDef rtPath) (S.toList incls) ++ units)
   pp = map (show . ppr)
 
 --------------------------------------------------------------------------------
