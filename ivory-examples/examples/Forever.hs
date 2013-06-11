@@ -10,7 +10,7 @@ factorial :: Def ('[Sint32] :-> Sint32)
 factorial  = proc "factorial" $ \ n ->
   -- These are made up requires/ensures for testing purposes.
   ensures (\r -> n <? r) $ body $ do
-  ifte (n >? 1)
+  ifte_ (n >? 1)
     (do n' <- call factorial (n - 1)
         ret (n' * n)
     )

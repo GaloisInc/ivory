@@ -8,7 +8,7 @@ import Ivory.Compile.C.CmdlineFrontend
 
 ovf1 :: Def ('[Sint8] :-> Sint8)
 ovf1  = proc "ovf1" $ \ n -> body $
-  ifte (n <? maxBound - 20)
+  ifte_ (n <? maxBound - 20)
        (ret (n + 15))
        (ret (n .% 2))
 

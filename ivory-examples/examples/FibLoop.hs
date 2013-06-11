@@ -17,7 +17,7 @@ fib_rec  = proc "fib_rec" (\n -> body (ret =<< call fib_rec_aux 0 1 n))
 
 fib_rec_aux :: Def ('[Uint32,Uint32,Uint32] :-> Uint64)
 fib_rec_aux  = proc "fib_rec_aux" $ \ a b n -> body $ do
-  ifte (n ==? 0)
+  ifte_ (n ==? 0)
     (ret (safeCast a))
     (ret . safeCast =<< call fib_rec_aux b (a + b) (n - 1))
 
