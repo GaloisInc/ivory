@@ -125,7 +125,7 @@ module Ivory.Language (
   , call_, indirect_
 
     -- ** Conditional Branching
-  , ifte, (?), withRef
+  , ifte_, (?), withRef
 
     -- ** Return
   , ret, retVoid
@@ -190,7 +190,7 @@ withRef :: IvoryType area
         -> (Ref as area -> Ivory eff t)
         -> Ivory eff f
         -> Ivory eff ()
-withRef ptr t = ifte (nullPtr /=? ptr) (t (ptrToRef ptr))
+withRef ptr t = ifte_ (nullPtr /=? ptr) (t (ptrToRef ptr))
 
 -- | Sub-expression naming.
 assign :: forall eff a. IvoryExpr a => a -> Ivory eff a

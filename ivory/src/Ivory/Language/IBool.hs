@@ -39,8 +39,8 @@ instance IvoryStore IBool
 -- IfTE Support ----------------------------------------------------------------
 
 -- | If-then-else.
-ifte :: IBool -> Ivory eff a -> Ivory eff b -> Ivory eff ()
-ifte cmp t f = do
+ifte_ :: IBool -> Ivory eff a -> Ivory eff b -> Ivory eff ()
+ifte_ cmp t f = do
   (_,tb) <- collect t
   (_,fb) <- collect f
   emit (AST.IfTE (unwrapExpr cmp) (blockStmts tb) (blockStmts fb))
