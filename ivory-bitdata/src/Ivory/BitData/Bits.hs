@@ -5,6 +5,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 --
 -- Bits.hs --- Bit-sized unsigned integer types.
 --
@@ -42,6 +46,11 @@ type IvoryRep a = (IvoryBits a, IvoryOrd a, IvoryInit a,
 -- | A wrapper for an Ivory type that can hold an "n" bit unsigned
 -- integer.
 newtype Bits (n :: Nat) = Bits { unBits :: BitRep n }
+
+deriving instance (IvoryRep (BitRep n)) => IvoryType (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryVar  (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryExpr (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryEq   (Bits n)
 
 -- | "Bit" is a type alias for "Bits 1".
 type Bit = Bits 1

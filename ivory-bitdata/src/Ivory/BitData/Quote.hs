@@ -23,6 +23,7 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 
 import Ivory.Language ((.|), iShiftL, safeCast)
+import qualified Ivory.Language as I
 import Ivory.BitData.AST
 import Ivory.BitData.Parser (parseBitLiteral, parseDefs)
 
@@ -345,11 +346,13 @@ mkDef :: Def -> Q [Dec]
 mkDef d = do
   def <- annotateDef d
   checkDef def
-  sequence $ concat
+  ds <- sequence $ concat
     [ mkDefNewtype def
     , mkDefInstance def
     , concatMap (mkConstr def) (thDefConstrs def)
     ]
+  eqs <- mkIvoryEqInst def
+  return (ds ++ eqs)
 
 -- | Generate a newtype definition for a bit data definition.
 mkDefNewtype :: THDef -> [DecQ]
@@ -373,6 +376,21 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]
     fromFun = valD (varP 'B.fromBits) (normalB (conE name)) []
+
+-- | Generate an instance of the "IvoryEq" type class for a bit data
+-- definition.
+mkIvoryEqInst :: THDef -> Q [Dec]
+mkIvoryEqInst def = return []
+  -- We cannot use Standalone Deriving here because it is not
+  -- supported by TH (it will parse in a [d||] but not emit a Dec
+  -- So, we must write instances for IvoryType, IvoryVar, IvoryExpr,
+  -- and IvoryEq from baseTy to instTy by hand, which requires private
+  -- primitives from the ivory package.
+  -- We will implement this once bitdata and hw become part of the ivory
+  -- package and trevor gets some time to figure out the exports... -pch
+  where
+    _baseTy  = thDefType def
+    _instTy  = [t| I.IvoryEq $(conT (thDefName def)) |]
 
 -- | Return a list of types for each field in a constructor.
 constrFieldTypes :: THConstr -> [Type]
