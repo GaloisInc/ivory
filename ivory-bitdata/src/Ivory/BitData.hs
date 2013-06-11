@@ -10,8 +10,9 @@ module Ivory.BitData (
   bitdata
 
   -- * bit types
-  , Bits(), Bit, BitRep()
+  , Bits(), Bit, BitArray(), BitRep()
   , repToBits, bitsToRep, zeroBits
+  , bitLength, bitIx
 
   -- * bit data
   , BitData(), BitDataField(), BitDataRep
@@ -23,6 +24,9 @@ module Ivory.BitData (
   -- * bit data field operations
   , setBitDataBit, clearBitDataBit, getBitDataField, setBitDataField
 
+  -- * bit data operators
+  , (#!), (#.), (#>)
+
   -- * bit actions
   , BitDataM(), runBits, withBits, withBitsRef
   , clear, setBit, clearBit, setField
@@ -30,5 +34,6 @@ module Ivory.BitData (
 
 import Ivory.BitData.Bits
 import Ivory.BitData.BitData
+import Ivory.BitData.Array
 import Ivory.BitData.Quote
 import Ivory.BitData.Monad

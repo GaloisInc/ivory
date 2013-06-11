@@ -18,6 +18,7 @@ library
   exposed-modules:     Ivory.BitData,
                        Ivory.BitData.Bits,
                        Ivory.BitData.BitData,
+                       Ivory.BitData.Array,
                        Ivory.BitData.Monad,
                        Ivory.BitData.Quote
   other-modules:       Ivory.BitData.DefBitRep,

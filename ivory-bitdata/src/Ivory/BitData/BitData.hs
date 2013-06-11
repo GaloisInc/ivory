@@ -73,7 +73,14 @@ instance (SingI n, IvoryRep (BitRep n)) => BitData (Bits n) where
 data BitDataField a b = BitDataField
   { bitDataFieldPos :: Int
   , bitDataFieldLen :: Int
-  }
+  } deriving Show
+
+-- | Bit data field composition.  (like Control.Category.>>>)
+(#>) :: BitDataField a b -> BitDataField b c -> BitDataField a c
+(BitDataField p1 _) #> (BitDataField p2 l2) = BitDataField pos len
+  where
+    pos = p1 + p2
+    len = l2
 
 -- | Extract a field from a bit data definition.  Returns the value as
 -- the type defined on the right hand side of the field definition in
@@ -84,6 +91,12 @@ getBitDataField :: (BitData a, BitData b,
 getBitDataField f x = unsafeFromRep (bitCast ((toRep x `iShiftR` pos) .& mask))
   where pos  = fromIntegral (bitDataFieldPos f)
         mask = fromIntegral ((2 ^ bitDataFieldLen f) - 1 :: Integer)
+
+-- | Infix operator to read a bit data field.  (like Data.Lens.^.)
+(#.) :: (BitData a, BitData b,
+         BitCast (BitDataRep a) (BitDataRep b))
+     => a -> BitDataField a b -> b
+(#.) = flip getBitDataField
 
 -- | Set a field from a bit data definition.
 setBitDataField :: (BitData a, BitData b,

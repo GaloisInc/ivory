@@ -5,6 +5,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 
+import Control.Monad
+
 import Ivory.Language
 import Ivory.Compile.C
 import Ivory.Compile.C.CmdlineFrontend
@@ -55,6 +57,19 @@ import ExampleTypes
    , alt_spi_cr2_txdmaen  :: Bit
    , alt_spi_cr2_rxdmaen  :: Bit
    }
+
+ -- The "NVIC_ISER" register is an array of 32 bits.
+ --
+ -- We will want to access the array both at Ivory run-time using an
+ -- "Ix 32" and at code generation time using a Haskell integer.
+ bitdata NVIC_ISER :: Bits 32 = nvic_iser
+   { nvic_iser_setena :: BitArray 32 Bit
+   }
+
+ -- A bit data type with an array of 4-bit integers.
+ bitdata ArrayTest :: Bits 32 = array_test
+   { at_4bits :: BitArray 8 (Bits 4)
+   }
 |]
 
 test1 :: Def ('[Uint16] :-> Uint16)
@@ -64,14 +79,38 @@ test1 = proc "test1" $ \x -> body $ do
     setBit   spi_cr1_cpol
     setField spi_cr1_br spi_baud_div_8
 
+test2 :: Def ('[Uint32] :-> Uint8)
+test2 = proc "test2" $ \x -> body $ do
+  let d = fromRep x :: NVIC_ISER
+  ret $ toRep (d #. nvic_iser_setena #! 0)
+
+-- | Iterate over the elements of a bit array.
+forBitArray_ arr f =
+  forM_ [0..bitLength arr] $ \i -> do
+    f (arr #! i)
+
+-- | Test looping over the elements of a bit array:
+test3 :: Def ('[Uint32] :-> Uint32)
+test3 = proc "test3" $ \x -> body $ do
+  let d = fromRep x
+  total <- local (ival 0)
+  forBitArray_ (d #. at_4bits) $ \i -> do
+    x <- deref total
+    let y = safeCast (toRep i)
+    store total (x + y)
+  ret =<< deref total
+
 get_baud :: Def ('[Uint16] :-> Uint8)
 get_baud = proc "get_baud" $ \x -> body $ do
-  ret $ toRep $ getBitDataField spi_cr1_br (fromRep x)
+  let d = fromRep x
+  ret (toRep (d #. spi_cr1_br))
 
 cmodule :: Module
 cmodule = package "hw" $ do
   incl get_baud
   incl test1
+  incl test2
+  incl test3
 
 main :: IO ()
 main = runCompiler [cmodule] (initialOpts {stdOut = True, constFold = True})

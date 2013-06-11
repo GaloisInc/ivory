@@ -29,6 +29,7 @@ import Ivory.BitData.Parser (parseBitLiteral, parseDefs)
 
 import qualified Ivory.BitData.Bits    as B
 import qualified Ivory.BitData.BitData as B
+import qualified Ivory.BitData.Array   as B
 
 -- | Quasiquoter for defining Ivory bit value and bit data types.
 --
@@ -115,6 +116,10 @@ getTyBits ty =
     ConT name
       | name == ''B.Bit -> return 1
       | otherwise       -> tyInsts ''B.BitType ty >>= decBits
+    AppT (AppT (ConT name) (LitT (NumTyLit n))) ty2
+      | name == ''B.BitArray -> do
+         m <- lift $ tyBits ty2
+         return (fromIntegral n * m)
     AppT (ConT name) (LitT (NumTyLit n))
       | name == ''B.Bits -> return $ fromIntegral n
       | otherwise        -> mzero
@@ -125,14 +130,21 @@ getTyBits ty =
     decBits _ = mzero
 
 -- | Return the size in bits of a type that can appear in a bitdata
--- definition.  The allowed forms are "Bit", "Bits n", or a name
--- defined by "bitdata".
+-- definition.  The allowed forms are "Bit", "Bits n", "Array n t"
+-- where "t" is a valid bit data type, or a name defined by "bitdata".
 tyBits :: Type -> Q Int
 tyBits ty = do
   r <- findOne (getTyBits ty)
   case r of
     Just x  -> return x
     Nothing -> fail "invalid bit value base type"
+
+-- | Deconstruct a bit array type into its size and base type.
+-- Returns "Nothing" if the type is not a bit array type.
+getArrayType :: Type -> Maybe (Int, Type)
+getArrayType (AppT (AppT (ConT name) (LitT (NumTyLit n))) ty)
+  | name == ''B.BitArray = Just (fromIntegral n, ty)
+getArrayType _ = Nothing
 
 -- | A field definition annotated with its TH name, type, and bit
 -- size.
@@ -350,6 +362,7 @@ mkDef d = do
     [ mkDefNewtype def
     , mkDefInstance def
     , concatMap (mkConstr def) (thDefConstrs def)
+    , mkArraySizeTypeInsts def
     ]
   eqs <- mkIvoryEqInst def
   return (ds ++ eqs)
@@ -391,6 +404,24 @@ mkIvoryEqInst def = return []
   where
     _baseTy  = thDefType def
     _instTy  = [t| I.IvoryEq $(conT (thDefName def)) |]
+
+-- | Generate instances of the "ArraySize" type family for any fields
+-- with a bit array type.
+mkArraySizeTypeInsts :: THDef -> [DecQ]
+mkArraySizeTypeInsts def =
+ concatMap (uncurry mkArraySizeTypeInst)
+           (mapMaybe getArrayType
+                     (concatMap constrFieldTypes (thDefConstrs def)))
+
+-- | Generate an instance of the "ArraySize" type family for a bit
+-- array type.  We don't check to see if the instance already exists
+-- because duplicates are allowed by the overlapping rules when the
+-- result type is the same.
+mkArraySizeTypeInst :: Int -> Type -> [DecQ]
+mkArraySizeTypeInst n ty = [tySynInstD ''B.ArraySize args size]
+  where
+    size = tyBits ty >>= litT . numTyLit . fromIntegral . (* n)
+    args = [litT (numTyLit (fromIntegral n)), return ty]
 
 -- | Return a list of types for each field in a constructor.
 constrFieldTypes :: THConstr -> [Type]
