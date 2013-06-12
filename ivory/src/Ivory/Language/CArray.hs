@@ -19,12 +19,12 @@ import qualified Ivory.Language.Syntax as I
 import GHC.TypeLits (SingI)
 
 
-instance IvoryType a => IvoryType (CArray a) where
-  ivoryType _ = I.TyCArray (ivoryType (Proxy :: Proxy a))
+instance IvoryArea a => IvoryArea (CArray a) where
+  ivoryArea _ = I.TyCArray (ivoryArea (Proxy :: Proxy a))
 
 
 -- | Guard invocations of toCArray.
-class (IvoryType area, IvoryType rep)
+class (IvoryArea area, IvoryArea rep)
   => ToCArray (area :: Area) (rep :: Area) | area -> rep
 
 instance (SingI len, ToCArray area rep)

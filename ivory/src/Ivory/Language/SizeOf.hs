@@ -11,7 +11,7 @@ import Ivory.Language.Type
 import GHC.TypeLits (SingI,Sing,sing)
 
 
-class IvoryType t => IvorySizeOf (t :: Area) where
+class IvoryArea t => IvorySizeOf (t :: Area) where
   sizeOfBytes :: Proxy t -> Integer
 
 instance (SingI len, IvorySizeOf area) => IvorySizeOf (Array len area) where

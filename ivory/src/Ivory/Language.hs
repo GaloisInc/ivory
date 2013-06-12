@@ -10,7 +10,7 @@ module Ivory.Language (
   , Proc(..)
 
     -- * Types
-  , IvoryType()
+  , IvoryType(), IvoryArea()
   , IvoryVar()
   , IvoryExpr()
 
@@ -185,7 +185,7 @@ import GHC.TypeLits (SingI)
 -- Language --------------------------------------------------------------------
 
 -- | Unwrap a pointer, and use it as a reference.
-withRef :: IvoryType area
+withRef :: IvoryArea area
         => Ptr as area
         -> (Ref as area -> Ivory eff t)
         -> Ivory eff f

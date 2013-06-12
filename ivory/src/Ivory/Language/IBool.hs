@@ -6,6 +6,7 @@
 
 module Ivory.Language.IBool where
 
+import Ivory.Language.Area
 import Ivory.Language.Array
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
@@ -94,8 +95,8 @@ class IvoryEq a => IvoryOrd a where
   (<=?)  = boolOp (AST.ExpLt True)
   infix 4 <=?
 
-instance IvoryType area => IvoryEq (Ref s area)
-instance IvoryType area => IvoryEq (Ptr s area)
+instance IvoryArea area => IvoryEq (Ref s area)
+instance IvoryArea area => IvoryEq (Ptr s area)
 
 instance IvoryEq  IBool
 instance IvoryOrd IBool

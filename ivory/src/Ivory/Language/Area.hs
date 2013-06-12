@@ -26,11 +26,15 @@ data Area
   | forall a. Stored a
     -- ^ This is lifting for a *-kinded type
 
-instance (SingI len, IvoryType area) => IvoryType (Array len area) where
-  ivoryType _ = I.TyArr len area
+-- | Guard the inhabitants of the Area type, as not all *s are Ivory *s.
+class IvoryArea (a :: Area) where
+  ivoryArea :: Proxy a -> I.Type
+
+instance (SingI len, IvoryArea area) => IvoryArea (Array len area) where
+  ivoryArea _ = I.TyArr len area
     where
     len  = fromInteger (fromTypeNat (sing :: Sing len))
-    area = ivoryType (Proxy :: Proxy area)
+    area = ivoryArea (Proxy :: Proxy area)
 
-instance IvoryType a => IvoryType (Stored a) where
-  ivoryType _ = ivoryType (Proxy :: Proxy a)
+instance IvoryType a => IvoryArea (Stored a) where
+  ivoryArea _ = ivoryType (Proxy :: Proxy a)

@@ -27,15 +27,15 @@ import Data.Monoid (Monoid(..),mconcat)
 import GHC.TypeLits
 
 -- | Stack allocation
-local :: forall eff s area. (eff `AllocsIn` s, IvoryType area)
+local :: forall eff s area. (eff `AllocsIn` s, IvoryArea area)
       => Init area -> Ivory eff (Ref (Stack s) area)
 local ini = do
   lname <- freshVar "local"
-  let ty = ivoryType (Proxy :: Proxy area)
+  let ty = ivoryArea (Proxy :: Proxy area)
   emit (I.Local ty lname (getInit ini))
 
   rname <- freshVar "ref"
-  let areaTy = ivoryType (Proxy :: Proxy area)
+  let areaTy = ivoryArea (Proxy :: Proxy area)
   emit (I.AllocRef areaTy rname (I.NameVar lname))
 
   return (wrapExpr (I.ExpVar rname))
@@ -70,7 +70,7 @@ instance IvoryInit Sint32
 instance IvoryInit Sint64
 instance IvoryInit IFloat
 instance IvoryInit IDouble
-instance IvoryType area => IvoryInit (Ptr Global area)
+instance IvoryArea area => IvoryInit (Ptr Global area)
 instance SingI len => IvoryInit (Ix len)
 
 instance IvoryZero (Stored IBool) where
@@ -79,7 +79,7 @@ instance IvoryZero (Stored IBool) where
 instance IvoryZero (Stored IChar) where
   izero = ival (char '\0')
 
-instance IvoryType area => IvoryZero (Stored (Ptr Global area)) where
+instance IvoryArea area => IvoryZero (Stored (Ptr Global area)) where
   izero = ival nullPtr
 
 -- catch-all case for numeric things

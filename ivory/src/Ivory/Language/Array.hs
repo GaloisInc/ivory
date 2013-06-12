@@ -58,18 +58,18 @@ ixSize :: forall n. (SingI n) => Ix n -> Integer
 ixSize _ = fromTypeNat (sing :: Sing n)
 
 arrayLen :: forall s len area n ref.
-            (Num n, SingI len, IvoryType area, IvoryRef ref)
+            (Num n, SingI len, IvoryArea area, IvoryRef ref)
          => ref s (Array len area) -> n
 arrayLen _ = fromInteger (fromTypeNat (sing :: Sing len))
 
 -- | Array indexing.
 (!) :: forall s len area ref.
-       ( SingI len, IvoryType area, IvoryRef ref
+       ( SingI len, IvoryArea area, IvoryRef ref
        , IvoryExpr (ref s (Array len area)), IvoryExpr (ref s area))
     => ref s (Array len area) -> Ix len -> ref s area
 arr ! ix = wrapExpr (I.ExpIndex ty (unwrapExpr arr) ixRep (getIx ix))
   where
-  ty    = ivoryType (Proxy :: Proxy (Array len area))
+  ty    = ivoryArea (Proxy :: Proxy (Array len area))
   ixRep = ivoryType (Proxy :: Proxy IxRep)
 
 -- XXX don't export

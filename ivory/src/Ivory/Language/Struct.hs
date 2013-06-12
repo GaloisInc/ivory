@@ -17,13 +17,13 @@ import GHC.TypeLits (SingI,sing,Sing,Symbol)
 
 -- Structs ---------------------------------------------------------------------
 
-instance (IvoryStruct sym, SingI sym) => IvoryType (Struct sym) where
-  ivoryType _ = I.TyStruct (fromTypeSym (sing :: Sing sym))
+instance (IvoryStruct sym, SingI sym) => IvoryArea (Struct sym) where
+  ivoryArea _ = I.TyStruct (fromTypeSym (sing :: Sing sym))
 
 
 newtype StructDef (sym :: Symbol) = StructDef { getStructDef :: I.Struct }
 
-class (IvoryType (Struct sym), SingI sym) => IvoryStruct (sym :: Symbol) where
+class (IvoryArea (Struct sym), SingI sym) => IvoryStruct (sym :: Symbol) where
   structDef :: StructDef sym
 
 -- | Struct field labels.
@@ -36,4 +36,4 @@ newtype Label (sym :: Symbol) (field :: Area) = Label { getLabel :: String }
      => ref s (Struct sym) -> Label sym field -> ref s field
 s ~> l = wrapExpr (I.ExpLabel ty (unwrapExpr s) (getLabel l))
   where
-  ty = ivoryType (Proxy :: Proxy (Struct sym))
+  ty = ivoryArea (Proxy :: Proxy (Struct sym))

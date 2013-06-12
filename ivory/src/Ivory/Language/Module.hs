@@ -4,11 +4,11 @@
 
 module Ivory.Language.Module where
 
+import Ivory.Language.Area (IvoryArea)
 import Ivory.Language.MemArea (MemArea(..),ConstMemArea(..))
 import Ivory.Language.Proc (Def(..))
 import Ivory.Language.Proxy (Proxy(..))
 import Ivory.Language.Struct (IvoryStruct(..),StructDef(..))
-import Ivory.Language.Type (IvoryType(..))
 import qualified Ivory.Language.Syntax as I
 
 import Data.Monoid (mempty)
@@ -74,7 +74,7 @@ defStruct _ = do
   def  = structDef
 
 -- | Include the definition of a memory area.
-defMemArea :: IvoryType area => MemArea area -> ModuleDef
+defMemArea :: IvoryArea area => MemArea area -> ModuleDef
 defMemArea m = case m of
   MemImport ia -> put (mempty { I.modAreaImports = [ia] })
   MemArea a    -> do
@@ -82,7 +82,7 @@ defMemArea m = case m of
     put (mempty { I.modAreas = visAcc visibility a })
 
 -- | Include the definition of a constant memory area.
-defConstMemArea :: IvoryType area => ConstMemArea area -> ModuleDef
+defConstMemArea :: IvoryArea area => ConstMemArea area -> ModuleDef
 defConstMemArea (ConstMemArea m) = defMemArea m
 
 -- | Depend on an existing (object language) source file which should be copied

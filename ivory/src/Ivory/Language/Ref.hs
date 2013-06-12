@@ -25,35 +25,35 @@ import qualified Ivory.Language.Syntax as I
 -- | A non-null pointer to a memory area.
 newtype Ref (s :: RefScope) (a :: Area) = Ref { getRef :: I.Expr }
 
-instance IvoryType area => IvoryType (Ref s area) where
-  ivoryType _ = I.TyRef (ivoryType (Proxy :: Proxy area))
+instance IvoryArea area => IvoryType (Ref s area) where
+  ivoryType _ = I.TyRef (ivoryArea (Proxy :: Proxy area))
 
-instance IvoryType area => IvoryVar (Ref s area) where
+instance IvoryArea area => IvoryVar (Ref s area) where
   wrapVar    = wrapVarExpr
   unwrapExpr = getRef
 
-instance IvoryType area => IvoryExpr (Ref s area) where
+instance IvoryArea area => IvoryExpr (Ref s area) where
   wrapExpr = Ref
 
 
 -- Constant References ---------------------------------------------------------
 
 -- | Turn a reference into a constant reference.
-constRef :: IvoryType area => Ref s area -> ConstRef s area
+constRef :: IvoryArea area => Ref s area -> ConstRef s area
 constRef  = wrapExpr . unwrapExpr
 
 newtype ConstRef (s ::  RefScope) (a :: Area) = ConstRef
   { getConstRef :: I.Expr
   }
 
-instance IvoryType area => IvoryType (ConstRef s area) where
-  ivoryType _ = I.TyConstRef (ivoryType (Proxy :: Proxy area))
+instance IvoryArea area => IvoryType (ConstRef s area) where
+  ivoryType _ = I.TyConstRef (ivoryArea (Proxy :: Proxy area))
 
-instance IvoryType area => IvoryVar (ConstRef s area) where
+instance IvoryArea area => IvoryVar (ConstRef s area) where
   wrapVar    = wrapVarExpr
   unwrapExpr = getConstRef
 
-instance IvoryType area => IvoryExpr (ConstRef s area) where
+instance IvoryArea area => IvoryExpr (ConstRef s area) where
   wrapExpr = ConstRef
 
 
@@ -81,10 +81,10 @@ deref ref = do
 
 -- | Memory copy.
 refCopy :: forall eff sTo ref sFrom a.
-     ( IvoryRef ref, IvoryVar (Ref sTo a), IvoryVar (ref sFrom a), IvoryType a)
+     ( IvoryRef ref, IvoryVar (Ref sTo a), IvoryVar (ref sFrom a), IvoryArea a)
   => Ref sTo a -> ref sFrom a -> Ivory eff ()
 refCopy destRef srcRef =
-  emit (I.RefCopy (ivoryType (Proxy :: Proxy a))
+  emit (I.RefCopy (ivoryArea (Proxy :: Proxy a))
        (unwrapExpr destRef) (unwrapExpr srcRef))
 
 -- Storing ---------------------------------------------------------------------

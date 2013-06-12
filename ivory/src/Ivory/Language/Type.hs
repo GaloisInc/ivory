@@ -1,5 +1,4 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 
@@ -11,7 +10,7 @@ import qualified Ivory.Language.Syntax as AST
 -- Ivory Types -----------------------------------------------------------------
 
 -- | The connection between haskell and ivory types.
-class IvoryType (t :: a) where
+class IvoryType t where
   ivoryType :: Proxy t -> AST.Type
 
 -- void
