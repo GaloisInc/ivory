@@ -25,7 +25,9 @@ module Ivory.BitData (
   , setBitDataBit, clearBitDataBit, getBitDataField, setBitDataField
 
   -- * bit data operators
-  , (#!), (#.), (#>)
+  , (#!) -- access nth element of BitArray
+  , (#.) -- flip getBitDataField
+  , (#>) -- BitDataField composition (like Control.Category.>>>)
 
   -- * bit actions
   , BitDataM(), runBits, withBits, withBitsRef
