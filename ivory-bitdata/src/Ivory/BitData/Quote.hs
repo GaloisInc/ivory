@@ -1,5 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 --
 -- Quote.hs --- Bit data quasiquoter.
 --
@@ -358,19 +360,18 @@ mkDef :: Def -> Q [Dec]
 mkDef d = do
   def <- annotateDef d
   checkDef def
-  ds <- sequence $ concat
+  sequence $ concat
     [ mkDefNewtype def
     , mkDefInstance def
     , concatMap (mkConstr def) (thDefConstrs def)
     , mkArraySizeTypeInsts def
     ]
-  eqs <- mkIvoryEqInst def
-  return (ds ++ eqs)
 
 -- | Generate a newtype definition for a bit data definition.
 mkDefNewtype :: THDef -> [DecQ]
 mkDefNewtype def = [newtypeD (cxt []) name []
-                    (normalC name [strictType notStrict (return ty)]) []]
+                    (normalC name [strictType notStrict (return ty)])
+                    [''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr, ''I.IvoryEq]]
   where
     name = thDefName def
     ty   = thDefType def
@@ -389,21 +390,6 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]
     fromFun = valD (varP 'B.fromBits) (normalB (conE name)) []
-
--- | Generate an instance of the "IvoryEq" type class for a bit data
--- definition.
-mkIvoryEqInst :: THDef -> Q [Dec]
-mkIvoryEqInst def = return []
-  -- We cannot use Standalone Deriving here because it is not
-  -- supported by TH (it will parse in a [d||] but not emit a Dec
-  -- So, we must write instances for IvoryType, IvoryVar, IvoryExpr,
-  -- and IvoryEq from baseTy to instTy by hand, which requires private
-  -- primitives from the ivory package.
-  -- We will implement this once bitdata and hw become part of the ivory
-  -- package and trevor gets some time to figure out the exports... -pch
-  where
-    _baseTy  = thDefType def
-    _instTy  = [t| I.IvoryEq $(conT (thDefName def)) |]
 
 -- | Generate instances of the "ArraySize" type family for any fields
 -- with a bit array type.
