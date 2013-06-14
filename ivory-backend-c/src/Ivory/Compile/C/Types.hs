@@ -9,7 +9,6 @@ import qualified "language-c-quote" Language.C.Syntax as C
 
 import MonadLib (WriterT,Id,put)
 import Data.Monoid
-import System.FilePath.Posix ((</>)) -- Always use Posix conventions in C
 import qualified Data.Set as S
 
 --------------------------------------------------------------------------------
