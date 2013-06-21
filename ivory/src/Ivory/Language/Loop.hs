@@ -14,11 +14,6 @@ import qualified Ivory.Language.Syntax as AST
 
 import GHC.TypeLits
 
-
--- | Break out of a loop.
-breakOut :: Ivory eff ()
-breakOut  = emit AST.Break
-
 -- XXX don't export.
 loop :: forall eff n a. (SingI n)
      => (AST.Expr -> AST.LoopIncr)

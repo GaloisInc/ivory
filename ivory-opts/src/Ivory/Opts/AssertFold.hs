@@ -65,7 +65,6 @@ stmtFold ef ss
       toAsserts assts `D.append`
         (I.Loop v e incr (toFoldBlck b)
           `D.cons` stmtFold ef stmts)
-    I.Break                -> go D.empty
     I.Local{}              -> go D.empty
     I.RefCopy ty e0 e1     -> let asserts0 = collect ty e0 in
                               let asserts1 = collect ty e1 in

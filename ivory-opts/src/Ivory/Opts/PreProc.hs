@@ -41,7 +41,6 @@ stmtFold opt stmt =
     I.AllocRef{}         -> stmt
     I.Loop v e incr b    -> I.Loop v (opt e) (loopIncrFold opt incr)
                               (map sf b)
-    I.Break              -> I.Break
     I.Forever b          -> I.Forever (map sf b)
   where sf = stmtFold opt
 

@@ -116,7 +116,6 @@ module Ivory.Language (
 
     -- ** Looping
   , for, times
-  , breakOut
   , arrayMap
   , forever
 

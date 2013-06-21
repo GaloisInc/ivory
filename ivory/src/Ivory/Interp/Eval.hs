@@ -152,9 +152,6 @@ evalStmt stmt = case stmt of
   AST.Forever _ -> do
     fail "unable to deal with forever loops"
 
-  AST.Break ->
-    popCont
-
 evalCallSym :: AST.Name -> Eval AST.Proc
 evalCallSym csym = case csym of
   AST.NameSym sym -> lookupProc sym
