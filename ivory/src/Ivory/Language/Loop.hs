@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 
@@ -64,8 +66,10 @@ arrayMap = upTo 0 hi
   where
   hi = fromInteger ((fromTypeNat (sing :: Sing n)) - 1)
 
-forever :: Ivory eff () -> Ivory eff ()
+forever :: (eff `AllocsIn` s)
+        => (forall r. (r `AllocsIn` s) => Ivory r ())
+        -> Ivory eff ()
 forever body = do
-  (_, block) <- collect body
+  (_, block) <- collect (noReturn body)
   emit (AST.Forever (blockStmts block))
 

@@ -63,6 +63,9 @@ module Ivory.Language (
 
     -- ** Monadic Interface
   , Ivory(), Effect(), Returns(), AllocsIn(), RefScope(..)
+  , noAlloc
+  , noReturn
+  , noEffects
 
     -- ** Subexpression naming
   , assign

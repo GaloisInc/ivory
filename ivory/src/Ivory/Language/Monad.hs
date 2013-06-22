@@ -25,6 +25,11 @@ module Ivory.Language.Monad (
   , runIvory, primRunIvory
   , collect
 
+    -- ** Effect Manipulation
+  , noReturn
+  , noAlloc
+  , noEffects
+
     -- ** Code Blocks
   , CodeBlock(..)
   , emits
@@ -98,10 +103,26 @@ runIvory b = primRunIvory b
 primRunIvory :: Ivory (EAny s r) a -> (a,CodeBlock)
 primRunIvory m = fst (MonadLib.runM (unIvory m) 0)
 
+-- | Prevent the use of the 'Returns' effect.
+noReturn :: (eff `AllocsIn` s)
+         => (forall eff'. (eff' `AllocsIn` s) => Ivory eff' a)
+         -> Ivory eff a
+noReturn body = body
+
+-- | Prevent the use of the `AllocsIn` effect.
+noAlloc :: (eff `Returns` r)
+        => (forall eff'. (eff' `Returns` r) =>  Ivory eff' a)
+        -> Ivory eff a
+noAlloc body = body
+
+-- | Prevent the use of any effects.
+noEffects :: (forall eff'. Ivory eff' a) -> Ivory eff a
+noEffects body = body
+
 -- | Collect the 'CodeBlock' for an Ivory computation.
 --
 -- XXX do not export
-collect :: Ivory eff' a -> Ivory eff (a,CodeBlock)
+collect :: Ivory eff a -> Ivory eff (a,CodeBlock)
 collect (Ivory m) = Ivory (MonadLib.collect m)
 
 -- | Get a 'Proxy' to the return type of an Ivory block.
