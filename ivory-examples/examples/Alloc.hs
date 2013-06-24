@@ -62,12 +62,12 @@ memcpy3 = proc "memcpy3" $ \a -> body $ do
 --   retVoid
 
 {-
--- XXX eventually, the type system should prevent this.
+-- The type system prevents this.
 bad_alloc :: Def ('[] :-> Ref s (Stored Uint32))
 bad_alloc = proc "bad_alloc" $ body $ do
   pid <- local (istruct [])
   ret (pid~>i)
-  -}
+-}
 
 arrMap :: Def ('[Ref s (Array 15 (Stored Sint32))] :-> ())
 arrMap = proc "arrMap" $ \ arr -> body $ do
@@ -172,8 +172,6 @@ cmodule = package "Alloc" $ do
   incl test
   incl alloc_test
   incl arrMap
-
-  --incl bad_alloc
 
   incl ptrstrcpy
   incl mystrcpy
