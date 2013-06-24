@@ -209,9 +209,12 @@ toBody ens stmt =
     I.IfTE exp blk0 blk1   ->
       let ifBd   = concatMap toBody' blk0 in
       let elseBd = concatMap toBody' blk1 in
-      [C.BlockStm [cstm| if($exp:(toExpr I.TyBool exp)) {
-                            $items:ifBd }
-                         else { $items:elseBd } |]]
+      if null elseBd
+        then [C.BlockStm [cstm| if($exp:(toExpr I.TyBool exp)) {
+                                  $items:ifBd } |]]
+        else [C.BlockStm [cstm| if($exp:(toExpr I.TyBool exp)) {
+                                  $items:ifBd }
+                                else { $items:elseBd } |]]
     I.Return exp           ->
            map (toEnsure $ I.tValue exp) ens
         ++ [C.BlockStm [cstm| return $exp:(typedRet exp); |]]
