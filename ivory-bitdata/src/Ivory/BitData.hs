@@ -32,6 +32,7 @@ module Ivory.BitData (
   -- * bit actions
   , BitDataM(), runBits, withBits, withBitsRef
   , clear, setBit, clearBit, setField
+  , bitToBool, boolToBit
 ) where
 
 import Ivory.BitData.Bits
@@ -39,3 +40,14 @@ import Ivory.BitData.BitData
 import Ivory.BitData.Array
 import Ivory.BitData.Quote
 import Ivory.BitData.Monad
+
+import Ivory.Language
+
+-- | Convert a single bit bitdata to an Ivory boolean.
+bitToBool :: Bit -> IBool
+bitToBool b = (toRep b ==? 0) ? (false, true)
+
+-- | Convert an Ivory boolean to a single bit.
+boolToBit :: IBool -> Bit
+boolToBit b = b ? (fromRep 1, fromRep 0)
+
