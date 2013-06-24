@@ -68,6 +68,6 @@ arrayMap = upTo 0 hi
 
 forever :: Ivory eff () -> Ivory eff ()
 forever body = do
-  (_, block) <- collect (noReturn body)
+  (_, block) <- collect body
   emit (AST.Forever (blockStmts block))
 
