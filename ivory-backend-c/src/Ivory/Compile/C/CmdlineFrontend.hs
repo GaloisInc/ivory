@@ -192,7 +192,7 @@ options  =
   , Option "" ["src-dir"] (ReqArg setSrcDir "PATH")
     "output directory for source files"
 
-  , Option "" ["dep-file"] (ReqArg setDep "FILE")
+  , Option "" ["dep-file"] (ReqArg setDeps "FILE")
     "makefile dependency output"
   , Option "" ["dep-prefix"] (ReqArg setDepPrefix "STRING")
     "makefile dependency prefix"
