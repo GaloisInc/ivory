@@ -358,8 +358,8 @@ mkDep basepath extension unit = basepath PFP.</> (C.unitName unit) PFP.<.> exten
 mkDepSourceDep :: FilePath -> FilePath -> String
 mkDepSourceDep basepath sdep = basepath PFP.</> sdep
 
-outputDeps :: [FilePath] -> String -> [String] -> [String] -> IO ()
-outputDeps [path] prefix headers sources = do
+outputDeps :: FilePath -> String -> [String] -> [String] -> IO ()
+outputDeps path prefix headers sources = do
   createDirectoryIfMissing True (takeDirectory path)
   withFile path WriteMode writedoc
   where
@@ -375,7 +375,6 @@ outputDeps [path] prefix headers sources = do
   declaration n = text n <+> text ":= \\" <> line
   listof name values = declaration name <>
     (indent 4 $ stack $ punctuate (text " \\") (map text values))
-outputDeps _ _ _ _ = error "invalid dep path (should be prevented by caller)"
 
 
 mkSearchPath :: Opts -> [IO FilePath] -> IO [FilePath]
