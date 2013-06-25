@@ -304,10 +304,7 @@ rc sm userSearchPath modules opts
 
   cmodules   = map C.compileModule optModules
 
-  printDeps = case deps opts of
-    []  -> False
-    [_] -> True
-    _   -> error "invalid option for deps"
+  printDeps = not (null (deps opts))
 
   showM_ mods = do
     mapM_ (mapM_ putStrLn) (C.showModule mods)
