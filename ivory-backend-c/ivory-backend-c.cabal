@@ -31,7 +31,6 @@ library
                         -- XXX remove when inits quasi-quote escape is added
                         srcloc,
                         mainland-pretty >= 0.2.5,
-                        wl-pprint,
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
                         ivory,
