@@ -83,7 +83,7 @@ data Opts = Opts
   , includeDir  :: FilePath
   , srcDir      :: FilePath
   -- dependencies
-  , deps        :: [FilePath]
+  , deps        :: FilePath
   , depPrefix   :: String
   , rtIncludeDir:: Maybe FilePath
   -- optimization passes
@@ -110,7 +110,7 @@ initialOpts  = Opts
   , srcDir       = ""
 
   -- dependencies
-  , deps         = []
+  , deps         = ""
   , depPrefix    = ""
   , rtIncludeDir = Nothing
 
@@ -140,6 +140,12 @@ setIncludeDir str = success (\opts -> opts { includeDir = str })
 
 setSrcDir :: String -> OptParser Opts
 setSrcDir str = success (\opts -> opts { srcDir = str })
+
+setDeps :: String -> OptParser Opts
+setDeps str = success (\opts -> opts { deps = str })
+
+setDepPrefix :: String -> OptParser Opts
+setDepPrefix str = success (\opts -> opts { depPrefix = str })
 
 setRtIncludeDir :: String -> OptParser Opts
 setRtIncludeDir str = success (\opts -> opts { rtIncludeDir = Just str })
@@ -185,6 +191,11 @@ options  =
     "output directory for header files"
   , Option "" ["src-dir"] (ReqArg setSrcDir "PATH")
     "output directory for source files"
+
+  , Option "" ["dep-file"] (ReqArg setDep "FILE")
+    "makefile dependency output"
+  , Option "" ["dep-prefix"] (ReqArg setDepPrefix "STRING")
+    "makefile dependency prefix"
   , Option "" ["rt-include-dir"] (ReqArg setRtIncludeDir "PATH")
     "path to ivory runtime includes"
 
