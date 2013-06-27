@@ -12,7 +12,6 @@ import qualified Ivory.Language.Syntax as I
 
 import GHC.TypeLits (Nat,Symbol,SingI,Sing,sing)
 
-
 -- Memory Areas ----------------------------------------------------------------
 
 -- | Type proxies for @Area@s.

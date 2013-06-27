@@ -108,6 +108,7 @@ stmtFold cxt opt blk stmt =
         _                      ->
           snoc $ I.Loop v (opt ty e) (loopIncrFold (opt ty) incr)
                         (newFold blk')
+    I.Break              -> snoc I.Break
     I.Forever b          -> snoc $ I.Forever (newFold b)
   where sf       = stmtFold cxt opt
         newFold' = foldl' sf D.empty

@@ -2,33 +2,27 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE Rank2Types #-}
 
 
 module Ivory.Language.Monad (
-    -- * Effects
-    Effect()
-  , AllocsIn()
-  , Returns()
-
     -- * Ivory Monad
-  , Ivory()
+    Ivory()
   , retProxy
 
     -- ** Running Functions
   , runIvory, primRunIvory
   , collect
 
-    -- ** Effect Manipulation
-  , noReturn
-  , noAlloc
-  , noEffects
+    -- ** Effects
+  , withBreaks
 
     -- ** Code Blocks
   , CodeBlock(..)
@@ -40,6 +34,7 @@ module Ivory.Language.Monad (
   , result
   ) where
 
+import qualified Ivory.Language.Effects as E
 import Ivory.Language.Proxy
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as AST
@@ -50,26 +45,9 @@ import MonadLib (StateT,WriterT,Id)
 import qualified MonadLib
 
 
--- Effects ---------------------------------------------------------------------
-
--- | The type of effects that are supported by the Ivory monad.  It's important
--- that these types are never exported, as that would give users of the language
--- the ability to name their own effect contexts.
-data {- kind -} Effect = forall r s. EAny s r
-                       --            EAny :: * -> * -> Effect
-
--- | Allocation effects.
-class AllocsIn (eff :: Effect) s | eff -> s
-instance AllocsIn (EAny s r) s
-
--- | Return value effects.
-class IvoryType r => Returns (eff :: Effect) r | eff -> r
-instance IvoryType r => Returns (EAny s r) r
-
-
 -- Monad -----------------------------------------------------------------------
 
-newtype Ivory (eff :: Effect) a = Ivory
+newtype Ivory eff a = Ivory
   { unIvory :: WriterT CodeBlock (StateT Int Id) a
   } deriving (Functor,Applicative,Monad)
 
@@ -95,29 +73,30 @@ instance Monoid CodeBlock where
 -- | Run an Ivory block computation that could require any effect.
 --
 -- XXX do not export
-runIvory :: IvoryType r
-         => (forall eff s. (eff `Returns` r, eff `AllocsIn` s) => Ivory eff a)
-         -> (a,CodeBlock)
+runIvory :: Ivory (E.ProcEffects r) a -> (a,CodeBlock)
 runIvory b = primRunIvory b
 
-primRunIvory :: Ivory (EAny s r) a -> (a,CodeBlock)
+primRunIvory :: Ivory (E.ProcEffects r) a -> (a,CodeBlock)
 primRunIvory m = fst (MonadLib.runM (unIvory m) 0)
 
--- | Prevent the use of the 'Returns' effect.
-noReturn :: (eff `AllocsIn` s)
-         => (forall eff'. (eff' `AllocsIn` s) => Ivory eff' a)
-         -> Ivory eff a
-noReturn body = body
+-- -- | Prevent the use of the 'Returns' effect.
+-- noReturn :: Ivory eff a -> Ivory (E.NoRets eff) a
+-- noReturn (Ivory body) = Ivory body
 
--- | Prevent the use of the `AllocsIn` effect.
-noAlloc :: (eff `Returns` r)
-        => (forall eff'. (eff' `Returns` r) =>  Ivory eff' a)
-        -> Ivory eff a
-noAlloc body = body
+-- -- | Prevent the use of the `AllocsIn` effect.
+-- noAlloc :: Ivory eff a -> Ivory (E.NoAllocs eff) a
+-- noAlloc (Ivory body) = Ivory body
 
--- | Prevent the use of any effects.
-noEffects :: (forall eff'. Ivory eff' a) -> Ivory eff a
-noEffects body = body
+withBreaks :: Ivory (E.Effects (E.WithBreaks eff)) a -> Ivory (E.Effects eff) a
+withBreaks (Ivory body) = Ivory body
+
+-- noBreaks :: Ivory eff a -> Ivory (E.NoBreaks eff) a
+-- noBreaks (Ivory body) = Ivory body
+
+-- -- | Prevent the use of any effects.
+-- noEffects :: Ivory eff a -> Ivory E.NoEffects a
+-- noEffects body = let Ivory body' = noReturn (noAlloc body) in
+--                  Ivory body'
 
 -- | Collect the 'CodeBlock' for an Ivory computation.
 --
@@ -128,7 +107,7 @@ collect (Ivory m) = Ivory (MonadLib.collect m)
 -- | Get a 'Proxy' to the return type of an Ivory block.
 --
 -- XXX do not export
-retProxy :: Returns eff r => Ivory eff a -> Proxy r
+retProxy :: Ivory eff a -> Proxy r
 retProxy _ = Proxy
 
 -- | Add some statements to the collected block.

@@ -71,7 +71,7 @@ equality ty = do
   prop_eq_sym ty
 
 -- | Test symmetry of equality for types that support it.
-prop_eq_sym :: forall ty. IvoryEq ty => Proxy ty -> Eval ()
+prop_eq_sym :: forall ty. (IvoryEq ty) => Proxy ty -> Eval ()
 prop_eq_sym _ = do
   io (putStr "  prop_eq_sym ")
   quickcheck (\ a -> body (ret (a ==? (a :: ty))))

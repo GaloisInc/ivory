@@ -2,6 +2,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Ivory.Language.Loop where
 
@@ -12,9 +13,13 @@ import Ivory.Language.Array
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Type
+import qualified Ivory.Language.Effects as E
 import qualified Ivory.Language.Syntax as AST
 
 import GHC.TypeLits
+
+breakOut :: (E.WithBreaks eff ~ eff) => Ivory (E.Effects eff) ()
+breakOut = emit AST.Break
 
 -- XXX don't export.
 loop :: forall eff n a. (SingI n)
@@ -66,8 +71,12 @@ arrayMap = upTo 0 hi
   where
   hi = fromInteger ((fromTypeNat (sing :: Sing n)) - 1)
 
-forever :: Ivory eff () -> Ivory eff ()
+forever :: --(forall eff' .
+--             ( E.Breaks eff ~ E.Break) =>
+             -- , (eff' `E.Returns` ()) ~ (eff `E.Returns` ())
+             -- , (E.Allocs eff' ~ E.Allocs eff)
+--             ) =>
+    Ivory eff () -> Ivory eff ()
 forever body = do
-  (_, block) <- collect body
+  (_, block) <- collect (body)
   emit (AST.Forever (blockStmts block))
-

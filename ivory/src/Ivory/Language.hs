@@ -3,6 +3,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Ivory.Language (
     -- * Kinds
@@ -59,13 +61,28 @@ module Ivory.Language (
   , IDouble()
   , isnan, isinf, roundF, ceilF, floorF
 
+    -- * Effects
+  , Effects()
+  , ProcEffects()
+  , NoEffects()
+
+  , ReturnEff(..)
+--  , Returns()
+  , WithReturns()
+
+  , BreakEff()
+--  , Breaks()
+  , WithBreaks()
+
+  , AllocEff()
+--  , Allocs()
+  , WithAllocs()
+
     -- * Language
 
     -- ** Monadic Interface
-  , Ivory(), Effect(), Returns(), AllocsIn(), RefScope(..)
-  , noAlloc
-  , noReturn
-  , noEffects
+  , Ivory()
+  , RefScope(..)
 
     -- ** Subexpression naming
   , assign
@@ -119,6 +136,7 @@ module Ivory.Language (
 
     -- ** Looping
   , for, times
+  , breakOut
   , arrayMap
   , forever
 
@@ -158,6 +176,7 @@ import Ivory.Language.CArray
 import Ivory.Language.Cast
 import Ivory.Language.Cond
 import Ivory.Language.Const
+import Ivory.Language.Effects
 import Ivory.Language.Float
 import Ivory.Language.IBool
 import Ivory.Language.IChar
@@ -202,8 +221,9 @@ assign e = do
   return (wrapExpr (AST.ExpVar r))
 
 -- | Primitive return from function.
-ret :: (IvoryVar r, eff `Returns` r) => r -> Ivory eff ()
+ret :: (IvoryVar r, Returns eff ~ Return r)
+    => r -> Ivory (Effects eff) ()
 ret r = emit (AST.Return (typedExpr r))
 
-retVoid :: (eff `Returns` ()) => Ivory eff ()
+retVoid :: (Returns eff ~ Return ()) => Ivory (Effects eff) ()
 retVoid  = emit AST.ReturnVoid

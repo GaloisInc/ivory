@@ -5,6 +5,7 @@
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Ivory.Language.Init where
 
@@ -23,13 +24,15 @@ import Ivory.Language.Sint
 import Ivory.Language.Type
 import Ivory.Language.Uint
 import qualified Ivory.Language.Syntax as I
+import qualified Ivory.Language.Effects as E
 
 import Data.Monoid (Monoid(..),mconcat)
 import GHC.TypeLits
 
 -- | Stack allocation
-local :: forall eff s area. (eff `AllocsIn` s, IvoryArea area)
-      => Init area -> Ivory eff (Ref (Stack s) area)
+local :: forall eff s area. (IvoryArea area, E.WithAllocs eff ~ eff)
+      => Init area
+      -> Ivory (E.Effects eff) (Ref (Stack s) area)
 local ini = do
   lname <- freshVar "local"
   let ty = ivoryArea (Proxy :: Proxy area)
