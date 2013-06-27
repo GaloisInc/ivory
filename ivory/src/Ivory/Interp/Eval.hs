@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Ivory.Interp.Eval where
@@ -9,6 +10,7 @@ module Ivory.Interp.Eval where
 import Ivory.Interp.Error (assumeFailed, assertFailed,typeError)
 import Ivory.Interp.Monad
 import Ivory.Interp.Value
+import Ivory.Language.Effects
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Type
@@ -30,7 +32,7 @@ import qualified Data.Sequence as Seq
 -- | Produce a list of results.
 scanlEval :: forall r a. FromValue r a
           => Int -> r
-          -> (forall eff s. (eff `AllocsIn` s, eff `Returns` r) => r -> Ivory eff ())
+          -> (r -> Ivory (ProcEffects r) ())
           -> Eval [a]
 scanlEval n0 a0 f = loop n0 Seq.empty =<< evalExpr ty (unwrapExpr a0)
   where
@@ -60,7 +62,7 @@ scanlEval n0 a0 f = loop n0 Seq.empty =<< evalExpr ty (unwrapExpr a0)
 -- | Convenient evaluation of an @Ivory@ block.  This discards any require
 -- statements that are present.
 eval :: forall r a. (IvoryType r, FromValue r a)
-     => (forall eff s. (eff `AllocsIn` s, eff `Returns` r) => Ivory eff ())
+     => Ivory (ProcEffects r) ()
      -> Eval a
 eval m = do
   pushFrame Nothing (blockStmts (snd (primRunIvory m)))
@@ -148,6 +150,8 @@ evalStmt stmt = case stmt of
     i' <- evalExpr rep i
     bindLocal ix (AST.Typed rep i')
     loopBody rep ix incr body
+
+  AST.Break -> popCont
 
   AST.Forever _ -> do
     fail "unable to deal with forever loops"

@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Ivory.Stdlib.Control
   ( ifte
@@ -11,8 +12,11 @@ module Ivory.Stdlib.Control
 
 import Ivory.Language
 
-ifte :: (eff `AllocsIn` s, IvoryStore a, IvoryZero (Stored a))
-     => IBool -> Ivory eff a -> Ivory eff a -> Ivory eff a
+ifte :: (IvoryStore a, IvoryZero (Stored a), WithAllocs eff ~ eff)
+     => IBool
+     -> Ivory (Effects eff) a
+     -> Ivory (Effects eff) a
+     -> Ivory (Effects eff) a
 ifte c t f = do
   r <- local izero
   ifte_ c

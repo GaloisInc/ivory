@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
@@ -16,6 +17,7 @@ module Ivory.Language.Proc where
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Type
+import qualified Ivory.Language.Effects as E
 import qualified Ivory.Language.Syntax as AST
 
 
@@ -96,11 +98,11 @@ proc name impl = DefProc AST.Proc
 
 
 newtype Body r = Body
-  { runBody :: forall eff s. (eff `Returns` r, eff `AllocsIn` s) => Ivory eff ()
+  { runBody :: Ivory (E.ProcEffects r) ()
   }
 
 body :: IvoryType r
-     => (forall eff s. (eff `Returns` r, eff `AllocsIn` s) => Ivory eff ())
+     => Ivory (E.ProcEffects r) ()
      -> Body r
 body m = Body m
 
@@ -181,7 +183,8 @@ indirect :: forall proc eff impl. IvoryCall proc eff impl
          => ProcPtr proc -> impl
 indirect ptr = callAux (getProcPtr ptr) (Proxy :: Proxy proc) []
 
-class IvoryCall (proc :: Proc) (eff :: Effect) impl | proc eff -> impl, impl -> eff where
+class IvoryCall (proc :: Proc) eff impl
+  | proc eff -> impl, impl -> eff where
   callAux :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
 instance IvoryVar r => IvoryCall ('[] :-> r) eff (Ivory eff r) where
@@ -209,7 +212,7 @@ indirect_ :: forall proc eff impl. IvoryCall_ proc eff impl
           => ProcPtr proc -> impl
 indirect_ ptr = callAux_ (getProcPtr ptr) (Proxy :: Proxy proc) []
 
-class IvoryCall_ (proc :: Proc) (eff :: Effect) impl | proc eff -> impl, impl -> eff where
+class IvoryCall_ (proc :: Proc) eff impl | proc eff -> impl, impl -> eff where
   callAux_ :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
 instance IvoryType r => IvoryCall_ ('[] :-> r) eff (Ivory eff ()) where

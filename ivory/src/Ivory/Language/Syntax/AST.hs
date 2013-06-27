@@ -199,6 +199,9 @@ data Stmt
   | Forever Block
     -- ^ Nonterminting loop
 
+  | Break
+    -- ^ Break out of a loop
+
     deriving (Show, Eq, Ord)
 
 data LoopIncr

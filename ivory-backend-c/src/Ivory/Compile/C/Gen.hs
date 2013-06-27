@@ -300,6 +300,7 @@ toBody ens stmt =
           decAndLoop = [ foreverDecl, loop ]
       in  [ C.BlockStm [cstm| { $items:decAndLoop } |] ]
 
+    I.Break                       -> [C.BlockStm [cstm| break; |]]
     I.Store t ptr exp             -> [C.BlockStm
       [cstm| * $exp:(toExpr (I.TyRef t) ptr) = $exp:(toExpr t exp); |]]
 
