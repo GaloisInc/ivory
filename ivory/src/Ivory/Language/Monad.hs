@@ -47,7 +47,7 @@ import qualified MonadLib
 
 -- Monad -----------------------------------------------------------------------
 
-newtype Ivory (eff :: (E.ReturnEff *, E.BreakEff, E.AllocEff)) a = Ivory
+newtype Ivory (eff :: (E.ReturnEff *, E.BreakEff, E.AllocEff *)) a = Ivory
   { unIvory :: WriterT CodeBlock (StateT Int Id) a
   } deriving (Functor,Applicative,Monad)
 
@@ -73,10 +73,10 @@ instance Monoid CodeBlock where
 -- | Run an Ivory block computation that could require any effect.
 --
 -- XXX do not export
-runIvory :: Ivory (E.ProcEffects r) a -> (a,CodeBlock)
+runIvory :: Ivory (E.ProcEffects s r) a -> (a,CodeBlock)
 runIvory b = primRunIvory b
 
-primRunIvory :: Ivory (E.ProcEffects r) a -> (a,CodeBlock)
+primRunIvory :: Ivory (E.ProcEffects s r) a -> (a,CodeBlock)
 primRunIvory m = fst (MonadLib.runM (unIvory m) 0)
 
 -- -- | Prevent the use of the 'Returns' effect.

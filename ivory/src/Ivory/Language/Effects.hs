@@ -17,8 +17,8 @@ module Ivory.Language.Effects
 --  , Breaks()
   , WithBreaks()
 
-  , AllocEff()
---  , Allocs()
+  , AllocEff(..)
+  , Allocs()
   , WithAllocs()
   ) where
 
@@ -27,18 +27,18 @@ module Ivory.Language.Effects
 -- | Effect kinds.
 data ReturnEff t = Return t | NoReturn
 data BreakEff    = Break    | NoBreak
-data AllocEff    = Alloc    | NoAlloc
+data AllocEff s  = Alloc s  | NoAlloc
 
 --------------------------------------------------------------------------------
 -- Returns
 
-type family   Returns (effs :: (ReturnEff *, BreakEff, AllocEff))
+type family   Returns (effs :: (ReturnEff *, BreakEff, AllocEff *))
            :: ReturnEff *
 type instance Returns '(Return t , b, a) = Return t
 type instance Returns '(NoReturn , b, a) = NoReturn
 
-type family   WithReturns (effs :: (ReturnEff *, BreakEff, AllocEff)) (t :: *)
-           :: (ReturnEff *, BreakEff, AllocEff)
+type family   WithReturns (effs :: (ReturnEff *, BreakEff, AllocEff *)) (t :: *)
+           :: (ReturnEff *, BreakEff, AllocEff *)
 type instance WithReturns '(r t0, b, a) t1 = '(Return t1, b, a)
 
 --------------------------------------------------------------------------------
@@ -49,21 +49,21 @@ type instance WithReturns '(r t0, b, a) t1 = '(Return t1, b, a)
 -- type instance Breaks '(r, Break  , a) = Break
 -- type instance Breaks '(r, NoBreak, a) = NoBreak
 
-type family   WithBreaks (effs :: (ReturnEff *, BreakEff, AllocEff))
-          :: (ReturnEff *, BreakEff, AllocEff)
+type family   WithBreaks (effs :: (ReturnEff *, BreakEff, AllocEff *))
+          :: (ReturnEff *, BreakEff, AllocEff *)
 type instance WithBreaks '(r, b, a) = '(r, Break, a)
 
 --------------------------------------------------------------------------------
 -- Allocs
 
--- type family   Allocs (effs :: (ReturnEff *, BreakEff, AllocEff))
---            :: AllocEff
--- type instance Allocs '(r , b, Alloc)   = Alloc
--- type instance Allocs '(r , b, NoAlloc) = NoAlloc
+type family   Allocs (effs :: (ReturnEff *, BreakEff, AllocEff *))
+           :: AllocEff *
+type instance Allocs '(r , b, Alloc s) = Alloc s
+type instance Allocs '(r , b, NoAlloc) = NoAlloc
 
-type family   WithAllocs (effs :: (ReturnEff *, BreakEff, AllocEff))
-          :: (ReturnEff *, BreakEff, AllocEff)
-type instance WithAllocs '(r, b, a) = '(r, b, Alloc)
+type family   WithAllocs (effs :: (ReturnEff *, BreakEff, AllocEff *))
+          :: (ReturnEff *, BreakEff, AllocEff *)
+type instance WithAllocs '(r, b, a s) = '(r, b, Alloc s)
 
 --------------------------------------------------------------------------------
 
@@ -75,7 +75,7 @@ type instance WithAllocs '(r, b, a) = '(r, b, Alloc)
 
 -- Helpers
 
-type ProcEffects t = '(Return t, NoBreak, Alloc)
-type NoEffects     = '(NoReturn, NoBreak, NoAlloc)
+type ProcEffects s t = '(Return t, NoBreak, Alloc s)
+type NoEffects       = '(NoReturn, NoBreak, NoAlloc)
 
 --------------------------------------------------------------------------------
