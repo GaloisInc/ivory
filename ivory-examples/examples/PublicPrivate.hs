@@ -24,8 +24,7 @@ privateHelper2  = proc "private_helper2" $ body retVoid
 
 publicFunction :: Def ('[Ref s (Struct "Bar")] :-> Uint32)
 publicFunction = proc "public_function" $ \_ -> body $ do
-  f <- addrOf privateFoo
-  a <- call privateHelper1 f
+  a <- call privateHelper1 (addrOf privateFoo)
   call_ privateHelper2
   ret =<< deref a
 

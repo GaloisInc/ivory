@@ -378,6 +378,8 @@ toExpr tTo (I.ExpSafeCast tFrom e) =
 toExpr tTo (I.ExpToIx e maxSz) =
   [cexp| $exp:(toExpr tTo e ) % $exp:maxSz |]
 ----------------------------------------
+toExpr _ (I.ExpAddrOfGlobal sym) = [cexp| & $id:sym |]
+----------------------------------------
 
 exp0 :: [C.Exp] -> C.Exp
 exp0 = flip (!!) 0

@@ -270,6 +270,10 @@ data Expr
   | ExpOp ExpOp [Expr]
     -- ^ Primitive expression operators
 
+  | ExpAddrOfGlobal Sym
+    -- ^ Take the address of a global memory area, introduced through a MemArea
+    -- *only*.
+
     deriving (Show, Eq, Ord)
 
 

@@ -231,6 +231,10 @@ evalExpr ty expr = case expr of
 
   AST.ExpOp op args -> evalOp ty op args
 
+  -- TODO: this would be nice to fix, memory areas shouldn't be impossible to
+  -- support
+  AST.ExpAddrOfGlobal _sym -> fail ("evalExp: Global memory areas supported")
+
 -- | Interpret a cast.
 evalCast :: AST.Type -> AST.Type -> Value -> Eval Value
 evalCast toTy fromTy val = case fromTy of

@@ -25,13 +25,11 @@ cval  = constArea "cval" (istruct [field .= ival 10])
 
 getVal :: Def ('[] :-> Uint32)
 getVal = proc "getVal" $ body $ do
-  ref <- addrOf val
-  ret =<< deref (ref ~> field)
+  ret =<< deref (addrOf val ~> field)
 
 setVal :: Def ('[Uint32] :-> ())
 setVal = proc "setVal" $ \ n -> body $ do
-  ref <- addrOf val
-  store (ref ~> field) n
+  store (addrOf val ~> field) n
   retVoid
 
 cmodule :: Module

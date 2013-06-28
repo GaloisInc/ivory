@@ -8,7 +8,6 @@ module Ivory.Language.MemArea where
 
 import Ivory.Language.Area
 import Ivory.Language.Init
-import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Scope
@@ -72,19 +71,16 @@ importConstArea name header = ConstMemArea $ MemImport I.AreaImport
 
 -- Area Usage ------------------------------------------------------------------
 
+-- | Turn a memory area into a reference.
 class IvoryAddrOf (mem :: Area -> *) ref | mem -> ref, ref -> mem  where
-  addrOf :: IvoryArea area => mem area -> Ivory eff (ref Global area)
+  addrOf :: IvoryArea area => mem area -> ref Global area
 
 -- XXX do not export
-primAddrOf :: forall area eff. IvoryArea area => MemArea area -> Ivory eff I.Var
-primAddrOf mem = do
-  rname <- freshVar "ref"
-  let areaTy = ivoryArea (Proxy :: Proxy area)
-  emit (I.AllocRef areaTy rname (I.NameSym (memSym mem)))
-  return rname
+primAddrOf :: IvoryArea area => MemArea area -> I.Expr
+primAddrOf mem = I.ExpAddrOfGlobal (memSym mem)
 
 instance IvoryAddrOf MemArea Ref where
-  addrOf mem = wrapVar `fmap` primAddrOf mem
+  addrOf mem = wrapExpr (primAddrOf mem)
 
 instance IvoryAddrOf ConstMemArea ConstRef where
-  addrOf (ConstMemArea mem) = wrapVar `fmap` primAddrOf mem
+  addrOf (ConstMemArea mem) = wrapExpr (primAddrOf mem)
