@@ -5,8 +5,8 @@
 {-# LANGUAGE GADTs #-}
 
 module Ivory.Language.Effects
-  ( Effects()
-  , ProcEffects()
+  ( --Effects()
+    ProcEffects()
   , NoEffects()
 
   , ReturnEff(..)
@@ -67,15 +67,15 @@ type instance WithAllocs '(r, b, a) = '(r, b, Alloc)
 
 --------------------------------------------------------------------------------
 
--- | Wrap Effects so that they have kind *.
-data Effects :: (ReturnEff *, BreakEff, AllocEff) -> * --where
+-- -- | Wrap Effects so that they have kind *.
+-- data Effects :: (ReturnEff *, BreakEff, AllocEff) -> * --where
 --  Effects :: Effects '(r t, b, a)
 
 --------------------------------------------------------------------------------
 
 -- Helpers
 
-type ProcEffects t = Effects '(Return t, NoBreak, Alloc)
-type NoEffects     = Effects '(NoReturn, NoBreak, NoAlloc)
+type ProcEffects t = '(Return t, NoBreak, Alloc)
+type NoEffects     = '(NoReturn, NoBreak, NoAlloc)
 
 --------------------------------------------------------------------------------

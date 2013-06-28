@@ -14,9 +14,9 @@ import Ivory.Language
 
 ifte :: (IvoryStore a, IvoryZero (Stored a), WithAllocs eff ~ eff)
      => IBool
-     -> Ivory (Effects eff) a
-     -> Ivory (Effects eff) a
-     -> Ivory (Effects eff) a
+     -> Ivory eff a
+     -> Ivory eff a
+     -> Ivory eff a
 ifte c t f = do
   r <- local izero
   ifte_ c

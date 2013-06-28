@@ -183,7 +183,7 @@ indirect :: forall proc eff impl. IvoryCall proc eff impl
          => ProcPtr proc -> impl
 indirect ptr = callAux (getProcPtr ptr) (Proxy :: Proxy proc) []
 
-class IvoryCall (proc :: Proc) eff impl
+class IvoryCall (proc :: Proc) (eff :: (E.ReturnEff *, E.BreakEff, E.AllocEff)) impl
   | proc eff -> impl, impl -> eff where
   callAux :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
@@ -212,7 +212,11 @@ indirect_ :: forall proc eff impl. IvoryCall_ proc eff impl
           => ProcPtr proc -> impl
 indirect_ ptr = callAux_ (getProcPtr ptr) (Proxy :: Proxy proc) []
 
-class IvoryCall_ (proc :: Proc) eff impl | proc eff -> impl, impl -> eff where
+class IvoryCall_ (proc :: Proc)
+                 (eff :: (E.ReturnEff *, E.BreakEff, E.AllocEff))
+                 impl
+      | proc eff -> impl, impl -> eff
+  where
   callAux_ :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
 instance IvoryType r => IvoryCall_ ('[] :-> r) eff (Ivory eff ()) where

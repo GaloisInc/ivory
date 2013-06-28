@@ -32,7 +32,7 @@ import GHC.TypeLits
 -- | Stack allocation
 local :: forall eff s area. (IvoryArea area, E.WithAllocs eff ~ eff)
       => Init area
-      -> Ivory (E.Effects eff) (Ref (Stack s) area)
+      -> Ivory eff (Ref (Stack s) area)
 local ini = do
   lname <- freshVar "local"
   let ty = ivoryArea (Proxy :: Proxy area)

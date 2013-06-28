@@ -47,7 +47,7 @@ import qualified MonadLib
 
 -- Monad -----------------------------------------------------------------------
 
-newtype Ivory eff a = Ivory
+newtype Ivory (eff :: (E.ReturnEff *, E.BreakEff, E.AllocEff)) a = Ivory
   { unIvory :: WriterT CodeBlock (StateT Int Id) a
   } deriving (Functor,Applicative,Monad)
 
@@ -87,7 +87,7 @@ primRunIvory m = fst (MonadLib.runM (unIvory m) 0)
 -- noAlloc :: Ivory eff a -> Ivory (E.NoAllocs eff) a
 -- noAlloc (Ivory body) = Ivory body
 
-withBreaks :: Ivory (E.Effects (E.WithBreaks eff)) a -> Ivory (E.Effects eff) a
+withBreaks :: Ivory (E.WithBreaks eff) a -> Ivory eff a
 withBreaks (Ivory body) = Ivory body
 
 -- noBreaks :: Ivory eff a -> Ivory (E.NoBreaks eff) a

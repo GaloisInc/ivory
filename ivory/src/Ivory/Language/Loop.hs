@@ -18,7 +18,7 @@ import qualified Ivory.Language.Syntax as AST
 
 import GHC.TypeLits
 
-breakOut :: (E.WithBreaks eff ~ eff) => Ivory (E.Effects eff) ()
+breakOut :: (E.WithBreaks eff ~ eff) => Ivory eff ()
 breakOut = emit AST.Break
 
 -- XXX don't export.
