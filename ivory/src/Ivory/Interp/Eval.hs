@@ -30,9 +30,9 @@ import qualified Data.Sequence as Seq
 -- Evaluation ------------------------------------------------------------------
 
 -- | Produce a list of results.
-scanlEval :: forall r a. FromValue r a
+scanlEval :: forall s r a. FromValue r a
           => Int -> r
-          -> (r -> Ivory (ProcEffects r) ())
+          -> (r -> Ivory (ProcEffects s r) ())
           -> Eval [a]
 scanlEval n0 a0 f = loop n0 Seq.empty =<< evalExpr ty (unwrapExpr a0)
   where
@@ -61,8 +61,8 @@ scanlEval n0 a0 f = loop n0 Seq.empty =<< evalExpr ty (unwrapExpr a0)
 
 -- | Convenient evaluation of an @Ivory@ block.  This discards any require
 -- statements that are present.
-eval :: forall r a. (IvoryType r, FromValue r a)
-     => Ivory (ProcEffects r) ()
+eval :: forall s r a. (IvoryType r, FromValue r a)
+     => Ivory (ProcEffects s r) ()
      -> Eval a
 eval m = do
   pushFrame Nothing (blockStmts (snd (primRunIvory m)))

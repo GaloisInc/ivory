@@ -69,7 +69,8 @@ module Ivory.Language (
   , WithReturns()
   , BreakEff()
   , WithBreaks()
-  , AllocEff()
+  , AllocEff(..)
+  , Allocs()
   , WithAllocs()
 
     -- * Language

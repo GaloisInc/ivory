@@ -12,7 +12,7 @@ module Ivory.Stdlib.Control
 
 import Ivory.Language
 
-ifte :: (IvoryStore a, IvoryZero (Stored a), WithAllocs eff ~ eff)
+ifte :: (IvoryStore a, IvoryZero (Stored a), Allocs eff ~ Alloc (Ref s (Stored a)))
      => IBool
      -> Ivory eff a
      -> Ivory eff a
