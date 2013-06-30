@@ -67,6 +67,8 @@ module Ivory.Language (
   , ReturnEff(..), GetReturn(), ClearReturn(), noReturn
   , AllocEff(..),  GetAlloc(),  ClearAlloc(),  noAlloc
 
+  , withBreaks
+
     -- * Language
 
     -- ** Monadic Interface
