@@ -1,81 +1,86 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Ivory.Language.Effects
-  ( --Effects()
-    ProcEffects()
-  , NoEffects()
+  ( Effects(..)
+  , ProcEffects
+  , NoEffects
 
   , ReturnEff(..)
-  , Returns()
-  , WithReturns()
+  , GetReturn()
+  , ClearReturn()
 
-  , BreakEff()
---  , Breaks()
-  , WithBreaks()
+  , BreakEff(..)
+  , CanBreak()
+  , AllowBreak()
+  , ClearBreak()
 
   , AllocEff(..)
-  , Allocs()
-  , WithAllocs()
+  , GetAlloc()
+  , ClearAlloc()
   ) where
 
---------------------------------------------------------------------------------
 
--- | Effect kinds.
-data ReturnEff t = Return t | NoReturn
-data BreakEff    = Break    | NoBreak
-data AllocEff s  = Alloc s  | NoAlloc
+--------------------------------------------------------------------------------
+-- Effect Context
+
+-- | The effect context for 'Ivory' operations.
+data Effects = Effects ReturnEff BreakEff AllocEff
+
+-- | Function return effect.
+data ReturnEff = forall t. Returns t | NoReturn
+
+-- | Loop break effect.
+data BreakEff = Break | NoBreak
+
+-- | Stack allocation effect.
+data AllocEff = forall s. Scope s | NoAlloc
+
 
 --------------------------------------------------------------------------------
 -- Returns
 
-type family   Returns (effs :: (ReturnEff *, BreakEff, AllocEff *))
-           :: ReturnEff *
-type instance Returns '(Return t , b, a) = Return t
-type instance Returns '(NoReturn , b, a) = NoReturn
+-- | Retrieve any 'Return' effect present.
+type family   GetReturn (effs :: Effects) :: ReturnEff
+type instance GetReturn ('Effects r b a) = r
 
-type family   WithReturns (effs :: (ReturnEff *, BreakEff, AllocEff *)) (t :: *)
-           :: (ReturnEff *, BreakEff, AllocEff *)
-type instance WithReturns '(r t0, b, a) t1 = '(Return t1, b, a)
+-- | Remove any 'Return' effects present.
+type family   ClearReturn (effs :: Effects) :: Effects
+type instance ClearReturn ('Effects r b a) = 'Effects NoReturn b a
 
 --------------------------------------------------------------------------------
 -- Breaks
 
--- type family   Breaks (effs :: (ReturnEff *, BreakEff, AllocEff))
---            :: BreakEff
--- type instance Breaks '(r, Break  , a) = Break
--- type instance Breaks '(r, NoBreak, a) = NoBreak
+-- | Test for the presence of the 'Break' effect.
+class CanBreak (effs :: Effects)
+instance CanBreak ('Effects r 'Break a)
 
-type family   WithBreaks (effs :: (ReturnEff *, BreakEff, AllocEff *))
-          :: (ReturnEff *, BreakEff, AllocEff *)
-type instance WithBreaks '(r, b, a) = '(r, Break, a)
+-- | Add the 'Break' effect into an effect context.
+type family   AllowBreak (effs :: Effects) :: Effects
+type instance AllowBreak ('Effects r b a) = 'Effects r Break a
+
+-- | Remove any 'Break' effect present.
+type family   ClearBreak (effs :: Effects) :: Effects
+type instance ClearBreak ('Effects r b a) = 'Effects r NoBreak a
 
 --------------------------------------------------------------------------------
 -- Allocs
 
-type family   Allocs (effs :: (ReturnEff *, BreakEff, AllocEff *))
-           :: AllocEff *
-type instance Allocs '(r , b, Alloc s) = Alloc s
-type instance Allocs '(r , b, NoAlloc) = NoAlloc
+-- | Retrieve the current allocation effect.
+type family   GetAlloc (effs :: Effects) :: AllocEff
+type instance GetAlloc ('Effects r b a) = a
 
-type family   WithAllocs (effs :: (ReturnEff *, BreakEff, AllocEff *))
-          :: (ReturnEff *, BreakEff, AllocEff *)
-type instance WithAllocs '(r, b, a s) = '(r, b, Alloc s)
-
---------------------------------------------------------------------------------
-
--- -- | Wrap Effects so that they have kind *.
--- data Effects :: (ReturnEff *, BreakEff, AllocEff) -> * --where
---  Effects :: Effects '(r t, b, a)
+-- | Remove any allocation effect currently present.
+type family   ClearAlloc (effs :: Effects) :: Effects
+type instance ClearAlloc ('Effects r b a) = 'Effects r b NoAlloc
 
 --------------------------------------------------------------------------------
-
 -- Helpers
 
-type ProcEffects s t = '(Return t, NoBreak, Alloc s)
-type NoEffects       = '(NoReturn, NoBreak, NoAlloc)
+type ProcEffects s t = 'Effects (Returns t) NoBreak (Scope s)
+type NoEffects       = 'Effects NoReturn NoBreak NoAlloc
 
 --------------------------------------------------------------------------------

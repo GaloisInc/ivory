@@ -62,16 +62,10 @@ module Ivory.Language (
   , isnan, isinf, roundF, ceilF, floorF
 
     -- * Effects
-  , ProcEffects()
-  , NoEffects()
-  , ReturnEff(..)
-  , Returns()
-  , WithReturns()
-  , BreakEff()
-  , WithBreaks()
-  , AllocEff(..)
-  , Allocs()
-  , WithAllocs()
+  , Effects(..)
+  , BreakEff(..),  CanBreak(),  AllowBreak(), ClearBreak(), noBreak
+  , ReturnEff(..), GetReturn(), ClearReturn(), noReturn
+  , AllocEff(..),  GetAlloc(),  ClearAlloc(),  noAlloc
 
     -- * Language
 
@@ -216,9 +210,8 @@ assign e = do
   return (wrapExpr (AST.ExpVar r))
 
 -- | Primitive return from function.
-ret :: (IvoryVar r, Returns eff ~ Return r)
-    => r -> Ivory eff ()
+ret :: (GetReturn eff ~ Returns r, IvoryVar r) => r -> Ivory eff ()
 ret r = emit (AST.Return (typedExpr r))
 
-retVoid :: (Returns eff ~ Return ()) => Ivory eff ()
+retVoid :: (GetReturn eff ~ Returns ()) => Ivory eff ()
 retVoid  = emit AST.ReturnVoid

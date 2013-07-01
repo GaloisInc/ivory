@@ -30,7 +30,7 @@ import Data.Monoid (Monoid(..),mconcat)
 import GHC.TypeLits
 
 -- | Stack allocation
-local :: forall eff s area. (IvoryArea area, E.Allocs eff ~ E.Alloc s)
+local :: forall eff s area. (IvoryArea area, E.GetAlloc eff ~ E.Scope s)
       => Init area
       -> Ivory eff (Ref (Stack s) area)
 local ini = do
