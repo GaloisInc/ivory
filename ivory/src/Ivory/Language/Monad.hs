@@ -9,7 +9,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE Rank2Types #-}
 
 
 module Ivory.Language.Monad (
@@ -22,7 +21,9 @@ module Ivory.Language.Monad (
   , collect
 
     -- ** Effects
-  , withBreaks
+  , noBreak
+  , noReturn
+  , noAlloc
 
     -- ** Code Blocks
   , CodeBlock(..)
@@ -47,7 +48,7 @@ import qualified MonadLib
 
 -- Monad -----------------------------------------------------------------------
 
-newtype Ivory (eff :: (E.ReturnEff *, E.BreakEff, E.AllocEff *)) a = Ivory
+newtype Ivory (eff :: E.Effects) a = Ivory
   { unIvory :: WriterT CodeBlock (StateT Int Id) a
   } deriving (Functor,Applicative,Monad)
 
@@ -79,29 +80,10 @@ runIvory b = primRunIvory b
 primRunIvory :: Ivory (E.ProcEffects s r) a -> (a,CodeBlock)
 primRunIvory m = fst (MonadLib.runM (unIvory m) 0)
 
--- -- | Prevent the use of the 'Returns' effect.
--- noReturn :: Ivory eff a -> Ivory (E.NoRets eff) a
--- noReturn (Ivory body) = Ivory body
-
--- -- | Prevent the use of the `AllocsIn` effect.
--- noAlloc :: Ivory eff a -> Ivory (E.NoAllocs eff) a
--- noAlloc (Ivory body) = Ivory body
-
-withBreaks :: Ivory (E.WithBreaks eff) a -> Ivory eff a
-withBreaks (Ivory body) = Ivory body
-
--- noBreaks :: Ivory eff a -> Ivory (E.NoBreaks eff) a
--- noBreaks (Ivory body) = Ivory body
-
--- -- | Prevent the use of any effects.
--- noEffects :: Ivory eff a -> Ivory E.NoEffects a
--- noEffects body = let Ivory body' = noReturn (noAlloc body) in
---                  Ivory body'
-
 -- | Collect the 'CodeBlock' for an Ivory computation.
 --
 -- XXX do not export
-collect :: Ivory eff a -> Ivory eff (a,CodeBlock)
+collect :: Ivory eff' a -> Ivory eff (a,CodeBlock)
 collect (Ivory m) = Ivory (MonadLib.collect m)
 
 -- | Get a 'Proxy' to the return type of an Ivory block.
@@ -140,3 +122,16 @@ result a = do
   let ty = ivoryType (Proxy :: Proxy a)
   emit (AST.Assign ty res (unwrapExpr a))
   return res
+
+
+-- Public Functions ------------------------------------------------------------
+
+noBreak :: Ivory (E.ClearBreak outer) a -> Ivory outer a
+noBreak (Ivory body) = Ivory body
+
+noAlloc :: (inner ~ E.ClearAlloc outer) => Ivory inner a -> Ivory outer a
+noAlloc (Ivory body) = Ivory body
+
+noReturn :: Ivory (E.ClearReturn outer) a -> Ivory outer a
+noReturn (Ivory body) = Ivory body
+
