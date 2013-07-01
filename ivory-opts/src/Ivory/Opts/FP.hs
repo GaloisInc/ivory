@@ -28,7 +28,7 @@ expFold ty e = case e of
   I.ExpSym{} -> return ()
   I.ExpVar{} -> return ()
   I.ExpLit{} -> return ()
-  eo@(I.ExpOp op args)  -> do
+  eo@(I.ExpOp op args) -> do
     putExpr (fpAssert ty eo)
     mapM_ (expFold $ expOpType ty op) args
   I.ExpLabel ty' e0 _  -> expFold  ty' e0
@@ -36,7 +36,8 @@ expFold ty e = case e of
     expFold tIdx eIdx
     expFold tArr eArr
   I.ExpSafeCast ty' e0 -> expFold ty' e0
-  I.ExpToIx e0 _ -> expFold (I.TyInt I.Int32) e0
+  I.ExpToIx e0 _       -> expFold (I.TyInt I.Int32) e0
+  I.ExpAddrOfGlobal{}  -> return ()
 
 fpAssert :: I.Type -> I.Expr -> Maybe I.Expr
 fpAssert ty e = case ty of

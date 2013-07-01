@@ -51,6 +51,8 @@ cf ty e =
         Just i  -> I.ExpLit $ I.LitInteger $ i `rem` maxSz
         Nothing -> I.ExpToIx e0' maxSz
 
+    I.ExpAddrOfGlobal{}   -> e
+
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
   let cxt   = I.procSym proc

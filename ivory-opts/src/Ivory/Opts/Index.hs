@@ -25,16 +25,16 @@ expFold ty e = case e of
   I.ExpSym{} -> return ()
   I.ExpVar{} -> return ()
   I.ExpLit{} -> return ()
-  I.ExpOp op args -> mapM_ (expFold $ expOpType ty op) args
-  I.ExpLabel ty' e0 _ -> expFold  ty' e0
+  I.ExpOp op args      -> mapM_ (expFold $ expOpType ty op) args
+  I.ExpLabel ty' e0 _  -> expFold  ty' e0
   I.ExpIndex tIdx eIdx tArr eArr -> do
     expFold tIdx eIdx
     expFold tArr eArr
   I.ExpSafeCast ty' e0 -> expFold ty' e0
-  I.ExpToIx e0 maxSz -> do
+  I.ExpToIx e0 maxSz   -> do
     putExpr (Just $ toIxAssert e0 maxSz)
     expFold ixTy e0
-
+  I.ExpAddrOfGlobal{}  -> return ()
 --------------------------------------------------------------------------------
 
 -- | For toIx e :: Ix maxSz, assert
