@@ -378,7 +378,12 @@ toExpr tTo (I.ExpSafeCast tFrom e) =
 toExpr tTo (I.ExpToIx e maxSz) =
   [cexp| $exp:(toExpr tTo e ) % $exp:maxSz |]
 ----------------------------------------
-toExpr _ (I.ExpAddrOfGlobal sym) = [cexp| & $id:sym |]
+toExpr tTo (I.ExpAddrOfGlobal sym) = case tTo of
+  I.TyRef (I.TyArr _ _)       -> [cexp| $id:sym |]
+  I.TyRef (I.TyCArray _)      -> [cexp| $id:sym |]
+  I.TyConstRef (I.TyArr _ _)  -> [cexp| $id:sym |]
+  I.TyConstRef (I.TyCArray _) -> [cexp| $id:sym |]
+  _                           -> [cexp| & $id:sym |]
 ----------------------------------------
 
 exp0 :: [C.Exp] -> C.Exp
