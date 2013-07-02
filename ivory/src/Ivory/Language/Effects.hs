@@ -49,7 +49,7 @@ type instance GetReturn ('Effects r b a) = r
 
 -- | Remove any 'Return' effects present.
 type family   ClearReturn (effs :: Effects) :: Effects
-type instance ClearReturn ('Effects r b a) = 'Effects NoReturn b a
+type instance ClearReturn ('Effects r b a) = 'Effects 'NoReturn b a
 
 --------------------------------------------------------------------------------
 -- Breaks
@@ -60,11 +60,11 @@ instance CanBreak ('Effects r 'Break a)
 
 -- | Add the 'Break' effect into an effect context.
 type family   AllowBreak (effs :: Effects) :: Effects
-type instance AllowBreak ('Effects r b a) = 'Effects r Break a
+type instance AllowBreak ('Effects r b a) = 'Effects r 'Break a
 
 -- | Remove any 'Break' effect present.
 type family   ClearBreak (effs :: Effects) :: Effects
-type instance ClearBreak ('Effects r b a) = 'Effects r NoBreak a
+type instance ClearBreak ('Effects r b a) = 'Effects r 'NoBreak a
 
 --------------------------------------------------------------------------------
 -- Allocs
@@ -75,12 +75,12 @@ type instance GetAlloc ('Effects r b a) = a
 
 -- | Remove any allocation effect currently present.
 type family   ClearAlloc (effs :: Effects) :: Effects
-type instance ClearAlloc ('Effects r b a) = 'Effects r b NoAlloc
+type instance ClearAlloc ('Effects r b a) = 'Effects r b 'NoAlloc
 
 --------------------------------------------------------------------------------
 -- Helpers
 
 type ProcEffects s t = 'Effects (Returns t) NoBreak (Scope s)
-type NoEffects       = 'Effects NoReturn NoBreak NoAlloc
+type NoEffects       = 'Effects 'NoReturn 'NoBreak 'NoAlloc
 
 --------------------------------------------------------------------------------
