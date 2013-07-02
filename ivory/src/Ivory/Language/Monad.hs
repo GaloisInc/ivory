@@ -3,7 +3,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -126,12 +125,13 @@ result a = do
 
 -- Public Functions ------------------------------------------------------------
 
-noBreak :: Ivory (E.ClearBreak outer) a -> Ivory outer a
+noBreak :: Ivory (E.ClearBreak eff) a -> Ivory eff a
 noBreak (Ivory body) = Ivory body
 
-noAlloc :: (inner ~ E.ClearAlloc outer) => Ivory inner a -> Ivory outer a
+noAlloc :: (innerEff ~ E.ClearAlloc outerEff)
+        => Ivory innerEff a -> Ivory outerEff a
 noAlloc (Ivory body) = Ivory body
 
-noReturn :: Ivory (E.ClearReturn outer) a -> Ivory outer a
+noReturn :: Ivory (E.ClearReturn eff) a -> Ivory eff a
 noReturn (Ivory body) = Ivory body
 
