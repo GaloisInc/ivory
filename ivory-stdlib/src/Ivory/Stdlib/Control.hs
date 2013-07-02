@@ -12,11 +12,12 @@ module Ivory.Stdlib.Control
 
 import Ivory.Language
 
-ifte :: (IvoryStore a, IvoryZero (Stored a), Allocs eff ~ Alloc (Ref s (Stored a)))
-     => IBool
-     -> Ivory eff a
-     -> Ivory eff a
-     -> Ivory eff a
+ifte :: (IvoryStore a, IvoryZero (Stored a)
+        , GetAlloc eff ~ Scope (Ref s (Stored a))
+        ) => IBool
+          -> Ivory eff a
+          -> Ivory eff a
+          -> Ivory eff a
 ifte c t f = do
   r <- local izero
   ifte_ c
