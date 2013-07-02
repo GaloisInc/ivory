@@ -12,9 +12,9 @@ EXEC=ivory-c-clang-test
 # Our tests
 TESTS=PID.out FibLoop.out FunPtr.out String.out Factorial.out \
 	  Float.out Alloc.out Area.out Cond.out Forever.out PublicPrivate.out \
-	  Overflow.out
+	  Overflow.out AddrOfRegression.out
 
-all : $(TESTS)
+all : clean $(TESTS)
 
 %.out : $(TESTDIR)/%.c
 	echo $(MAIN) >> $<

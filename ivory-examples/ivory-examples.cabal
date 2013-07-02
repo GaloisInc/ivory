@@ -39,7 +39,8 @@ executable ivory-c-clang-test
                         Forever,
                         PublicPrivate,
                         Bits,
-                        SizeOf
+                        SizeOf,
+                        AddrOfRegression
   hs-source-dirs:       examples
   build-depends:        base >= 4.6,
                         pretty >= 1.1,

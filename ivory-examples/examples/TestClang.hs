@@ -14,6 +14,7 @@ import qualified Forever
 import qualified PublicPrivate
 import qualified Bits
 import qualified SizeOf
+import qualified AddrOfRegression
 
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language (Module(),moduleName)
@@ -50,4 +51,5 @@ modules = [ PID.cmodule
           , PublicPrivate.cmodule
           , Bits.cmodule
           , SizeOf.cmodule
+          , AddrOfRegression.cmodule
           ]
