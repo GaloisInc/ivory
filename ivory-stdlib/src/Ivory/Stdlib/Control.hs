@@ -12,8 +12,9 @@ module Ivory.Stdlib.Control
 
 import Ivory.Language
 
-ifte :: (IvoryStore a, IvoryZero (Stored a)
-        , GetAlloc eff ~ Scope (Ref s (Stored a))
+ifte :: ( IvoryStore a
+        , IvoryZero (Stored a)
+        , GetAlloc eff ~ Scope s
         ) => IBool
           -> Ivory eff a
           -> Ivory eff a
@@ -21,8 +22,8 @@ ifte :: (IvoryStore a, IvoryZero (Stored a)
 ifte c t f = do
   r <- local izero
   ifte_ c
-    (t >>= (store r))
-    (f >>= (store r))
+    (t >>= store r)
+    (f >>= store r)
   deref r
 
 when :: IBool -> Ivory eff () -> Ivory eff ()
