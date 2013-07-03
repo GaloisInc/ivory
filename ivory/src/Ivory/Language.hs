@@ -63,7 +63,7 @@ module Ivory.Language (
 
     -- * Effects
   , Effects(..)
-  , BreakEff(..),  CanBreak(),  AllowBreak(), ClearBreak(), noBreak
+  , BreakEff(..),  AllowBreak(), ClearBreak(), CanBreak(), noBreak
   , ReturnEff(..), GetReturn(), ClearReturn(), noReturn
   , AllocEff(..),  GetAlloc(),  ClearAlloc(),  noAlloc
 

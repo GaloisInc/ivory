@@ -53,9 +53,7 @@ type instance ClearReturn ('Effects r b a) = 'Effects 'NoReturn b a
 
 --------------------------------------------------------------------------------
 -- Breaks
-
--- | Test for the presence of the 'Break' effect.
-class CanBreak (effs :: Effects)
+class CanBreak (eff :: Effects)
 instance CanBreak ('Effects r 'Break a)
 
 -- | Add the 'Break' effect into an effect context.
