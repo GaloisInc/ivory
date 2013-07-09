@@ -3,7 +3,6 @@
 
 module Factorial where
 
-import Ivory.Interp
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -24,14 +23,3 @@ cmodule = package "Factorial" $ incl factorial
 
 runFactorial :: IO ()
 runFactorial = runCompiler [cmodule] initialOpts { stdOut = True }
-
-
-interpFactorial :: Int -> IO ()
-interpFactorial i = withEnv $ do
-  loadModule cmodule
-
-  n <- eval $ do
-    res <- call factorial (fromIntegral i)
-    ret res
-
-  io (putStrLn ("factorial "++ (show i) ++ " = " ++ (show n)))

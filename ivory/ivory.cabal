@@ -15,15 +15,7 @@ flag debug-qq
                         examples
 
 library
-  exposed-modules:      Ivory.Interp,
-                        Ivory.Interp.Eval,
-                        Ivory.Interp.Error,
-                        Ivory.Interp.Module,
-                        Ivory.Interp.Monad,
-                        Ivory.Interp.QuickCheck,
--- XXX                        Ivory.Interp.Tests,
-                        Ivory.Interp.Value,
-                        Ivory.Language,
+  exposed-modules:      Ivory.Language,
                         Ivory.Language.Effects,
                         Ivory.Language.Monad,
                         Ivory.Language.Area,
@@ -65,7 +57,7 @@ library
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
                         parsec >= 3.1.3,
-                        QuickCheck >= 2.5.1,
+                        -- QuickCheck >= 2.5.1,
                         th-lift >= 0.5.5
   hs-source-dirs:       src
   default-language:     Haskell2010

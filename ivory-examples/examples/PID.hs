@@ -8,7 +8,6 @@ module PID where
 
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
-import Ivory.Interp
 
 [ivory|
 
@@ -70,14 +69,6 @@ pidUpdate = proc "pid_update" $
 
 runPID :: IO ()
 runPID = runCompiler [cmodule] initialOpts { stdOut = True }
-
-evalPID :: IO Float
-evalPID  = withEnv $ do
-  loadModule cmodule
-  eval $ do
-    pid <- local (istruct [])
-    call_ pidUpdate pid 10 2 10
-    ret =<< deref (pid ~> pid_i)
 
 cmodule :: Module
 cmodule = package "PID" $ do
