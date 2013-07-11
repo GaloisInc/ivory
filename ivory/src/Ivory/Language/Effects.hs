@@ -14,7 +14,7 @@ module Ivory.Language.Effects
   , ClearReturn()
 
   , BreakEff(..)
-  , CanBreak()
+  , GetBreaks()
   , AllowBreak()
   , ClearBreak()
 
@@ -53,8 +53,10 @@ type instance ClearReturn ('Effects r b a) = 'Effects 'NoReturn b a
 
 --------------------------------------------------------------------------------
 -- Breaks
-class CanBreak (eff :: Effects)
-instance CanBreak ('Effects r 'Break a)
+
+-- | Retrieve any 'Breaks' effect present.
+type family   GetBreaks (effs :: Effects) :: BreakEff
+type instance GetBreaks ('Effects r b a) = b
 
 -- | Add the 'Break' effect into an effect context.
 type family   AllowBreak (effs :: Effects) :: Effects
