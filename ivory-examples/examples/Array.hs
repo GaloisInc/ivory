@@ -1,8 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
 
-
-import Ivory.Interp
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
