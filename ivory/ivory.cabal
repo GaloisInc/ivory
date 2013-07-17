@@ -63,15 +63,3 @@ library
   default-language:     Haskell2010
   ghc-options:          -Wall
 
--- executable ivory-i-example
---   main-is:              Check.hs
---   hs-source-dirs:       examples
---   build-depends:        base >= 4.6,
---                         pretty >= 1.1,
---                         monadLib >= 3.7,
---                         template-haskell >= 2.8,
---                         ivory
---   default-language:     Haskell2010
---   ghc-options:          -Wall
---   if flag(debug-qq)
---     ghc-options:        -ddump-splices
