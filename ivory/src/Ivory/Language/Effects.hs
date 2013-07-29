@@ -6,6 +6,7 @@
 
 module Ivory.Language.Effects
   ( Effects(..)
+  , AllocEffects
   , ProcEffects
   , NoEffects
 
@@ -80,7 +81,8 @@ type instance ClearAlloc ('Effects r b a) = 'Effects r b 'NoAlloc
 --------------------------------------------------------------------------------
 -- Helpers
 
-type ProcEffects s t = 'Effects (Returns t) NoBreak (Scope s)
-type NoEffects       = 'Effects 'NoReturn 'NoBreak 'NoAlloc
+type AllocEffects s  = 'Effects 'NoReturn   'NoBreak (Scope s)
+type ProcEffects s t = 'Effects (Returns t) 'NoBreak (Scope s)
+type NoEffects       = 'Effects 'NoReturn   'NoBreak 'NoAlloc
 
 --------------------------------------------------------------------------------
