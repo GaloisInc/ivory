@@ -2,8 +2,8 @@
 #include "ivory_stdlib_string_prim.h"
 #include <string.h>
 
-uint32_t ivory_stdlib_strncpy_uint8(uint8_t *dest, const char *src,  uint32_t size) {
-    return strncpy((char*)dest, src, size);
+void ivory_stdlib_strncpy_uint8(uint8_t *dest, const char *src,  uint32_t size) {
+    strncpy((char*)dest, src, size);
 }
 
 /*

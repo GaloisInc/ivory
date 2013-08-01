@@ -18,7 +18,7 @@ extern "C" {
 
 uint32_t ivory_stdlib_strlcpy(char *dest, const char *src,  uint32_t size);
 
-uint32_t ivory_stdlib_strncpy_uint8( uint8_t *dest, const char *src, uint32_t size);
+void ivory_stdlib_strncpy_uint8( uint8_t *dest, const char *src, uint32_t size);
 
 #ifdef __cplusplus
 }
