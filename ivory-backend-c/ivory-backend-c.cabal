@@ -23,6 +23,7 @@ library
                         Ivory.Compile.C.Prop,
                         Ivory.Compile.C.Types,
                         Ivory.Compile.C.CmdlineFrontend,
+                        Ivory.Compile.C.CmdlineFrontend.Options,
                         Ivory.Compile.C.SourceDeps
   other-modules:        Paths_ivory_backend_c
 
