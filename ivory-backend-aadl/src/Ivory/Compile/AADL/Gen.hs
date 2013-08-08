@@ -3,17 +3,9 @@
 module Ivory.Compile.AADL.Gen where
 
 import qualified Ivory.Language.Syntax as I
-import qualified Ivory.Language.Proc as P
 
 import Ivory.Compile.AADL.AST
 import Ivory.Compile.AADL.Types
-
-import Prelude hiding (exp, abs, signum)
-import qualified Prelude as P
-import Control.Monad (when)
-import Data.List (foldl')
-
-import Data.Loc (noLoc)
 
 --------------------------------------------------------------------------------
 -- | Compile a struct.
@@ -28,48 +20,34 @@ compileStruct def = case def of
 mkField :: I.Typed String -> DTField
 mkField field = DTField (I.tValue field) (toType (I.tType field))
 
--- | Type conversion outside of an assignment context.  This converts arrays to
--- arrays, and carrays to pointers.
 toType :: I.Type -> TypeName
-toType  = toTypeCxt $ \ t -> case t of
-  I.TyCArray t'  -> undefined -- [cty| $ty:(toType t') *          |]
-  I.TyArr len t' -> undefined --[cty| $ty:(toType t')[$uint:len] |]
-  _              -> undefined --[cty| $ty:(toType t) *           |]
-
-
---------------------------------------------------------------------------------
--- | C type conversion, with a special case for references and pointers.
-toTypeCxt :: (I.Type -> TypeName) -> I.Type -> TypeName
-toTypeCxt arrCase = convert
+toType = convert
   where
   convert ty = case ty of
-    I.TyVoid              -> undefined -- [cty| void |]
-    I.TyChar              -> undefined -- [cty| char |]
-    I.TyInt i             -> undefined -- intSize i
-    I.TyWord w            -> undefined -- wordSize w
-    I.TyBool              -> undefined -- [cty| typename bool |]
-    I.TyFloat             -> undefined -- [cty| float |]
-    I.TyDouble            -> undefined -- [cty| double |]
-    I.TyStruct nm         -> undefined -- [cty| struct $id:nm |]
-    I.TyConstRef t        -> undefined -- [cty| const $ty:(arrCase t) |]
-    -- Reference is a guaranted non-NULL pointer.
-    I.TyRef t             -> undefined -- arrCase t
-    I.TyPtr t             -> undefined -- arrCase t
-    I.TyArr len t         -> undefined -- [cty| $ty:(convert t)[$uint:len] |]
-    I.TyCArray t          -> undefined -- [cty| $ty:(convert t) * |]
-    I.TyProc retTy argTys -> undefined --
-    --  [cty| $ty:(convert retTy) (*)
-    --        ($params:(map (toParam . convert) argTys)) |]
+    I.TyVoid              -> QualTypeName "Base_Types" "Void"
+    I.TyChar              -> QualTypeName "Base_Types" "Char"
+    I.TyInt i             -> intSize i
+    I.TyWord w            -> wordSize w
+    I.TyBool              -> QualTypeName "Base_Types" "Bool"
+    I.TyFloat             -> QualTypeName "Base_Types" "Float"
+    I.TyDouble            -> QualTypeName "Base_Types" "Double"
+    I.TyStruct nm         -> StructTypeName nm
+    I.TyConstRef t        -> RefTypeName Const         (toType t)
+    I.TyRef t             -> RefTypeName Mutable       (toType t)
+    I.TyPtr t             -> RefTypeName Mutable       (toType t) -- not strictly true
+    I.TyArr len t         -> ArrayTypeName (Just len)  (toType t)
+    I.TyCArray t          -> ArrayTypeName Nothing     (toType t)
+    I.TyProc retTy argTys -> ProcTypeName (toType retTy) (map toType argTys)
 
 intSize :: I.IntSize -> TypeName
-intSize I.Int8  = undefined -- [cty| typename int8_t  |]
-intSize I.Int16 = undefined -- [cty| typename int16_t |]
-intSize I.Int32 = undefined -- [cty| typename int32_t |]
-intSize I.Int64 = undefined -- [cty| typename int64_t |]
+intSize I.Int8  = QualTypeName "Base_Types" "Signed_8"
+intSize I.Int16 = QualTypeName "Base_Types" "Signed_16"
+intSize I.Int32 = QualTypeName "Base_Types" "Signed_32"
+intSize I.Int64 = QualTypeName "Base_Types" "Signed_64"
 
 wordSize :: I.WordSize -> TypeName
-wordSize I.Word8  = undefined -- [cty| typename uint8_t  |]
-wordSize I.Word16 = undefined -- [cty| typename uint16_t |]
-wordSize I.Word32 = undefined -- [cty| typename uint32_t |]
-wordSize I.Word64 = undefined -- [cty| typename uint64_t |]
+wordSize I.Word8  = QualTypeName "Base_Types" "Unsigned_8"
+wordSize I.Word16 = QualTypeName "Base_Types" "Unsigned_16"
+wordSize I.Word32 = QualTypeName "Base_Types" "Unsigned_32"
+wordSize I.Word64 = QualTypeName "Base_Types" "Unsigned_64"
 
