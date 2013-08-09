@@ -16,6 +16,8 @@ module Ivory.Language (
   , IvoryVar()
   , IvoryExpr()
 
+  , OpaqueType()
+
     -- ** Non-null References
   , IvoryRef()
   , ConstRef()

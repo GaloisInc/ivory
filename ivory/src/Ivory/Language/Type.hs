@@ -46,3 +46,11 @@ exprBinop k x y = wrapExpr (k (unwrapExpr x) (unwrapExpr y))
 -- XXX do not export
 exprUnary :: IvoryExpr a => (AST.Expr -> AST.Expr) -> (a -> a)
 exprUnary k x = wrapExpr (k (unwrapExpr x))
+
+-- Proxy Type ------------------------------------------------------------------
+
+-- | An opaque type that can never be implemented.
+data OpaqueType = OpaqueType
+
+instance IvoryType OpaqueType where
+  ivoryType _ = AST.TyOpaque

@@ -170,6 +170,7 @@ toTypeCxt arrCase = convert
     I.TyProc retTy argTys ->
       [cty| $ty:(convert retTy) (*)
             ($params:(map (toParam . convert) argTys)) |]
+    I.TyOpaque            -> error "Opaque type is not implementable."
 
 intSize :: I.IntSize -> C.Type
 intSize I.Int8  = [cty| typename int8_t  |]
