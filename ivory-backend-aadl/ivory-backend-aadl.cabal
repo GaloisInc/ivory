@@ -12,7 +12,8 @@ library
                         Ivory.Compile.AADL.AST,
                         Ivory.Compile.AADL.Types,
                         Ivory.Compile.AADL.Gen,
-                        Ivory.Compile.AADL.Modules
+                        Ivory.Compile.AADL.Modules,
+                        Ivory.Compile.AADL.PrettyPrint
   build-depends:        base >= 4.6,
                         srcloc,
                         mainland-pretty >= 0.2.5,
@@ -20,6 +21,7 @@ library
                         template-haskell >= 2.8,
                         ivory,
                         ivory-opts,
+                        wl-pprint,
                         containers
   hs-source-dirs:       src
   default-language:     Haskell2010
