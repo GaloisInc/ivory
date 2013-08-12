@@ -52,7 +52,7 @@ data ThreadDef
   deriving (Eq, Show)
 
 data ThreadFeature
-  = ThreadFeaturePort PortKind PortDir TypeName [(String, String)]
+  = ThreadFeaturePort String PortKind PortDir TypeName [(String, String)]
   deriving (Eq, Show)
 
 data PortKind

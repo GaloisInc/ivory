@@ -21,9 +21,9 @@ compileModule mod = case doc of
     _               -> Just $ doc { doc_name = I.modName mod }
   where
   structs = I.modStructs mod
-  compRes = (snd . runM . unCompile)
-  doc     = compRes $ do
+  rundoc  = snd . runM . unCompile
+  doc     = rundoc $ do
+    putImport "Base_Types"
     mapM_ compileStruct (I.public structs)
     mapM_ compileStruct (I.private structs)
-
 
