@@ -34,39 +34,59 @@ docDefinition (TypeDefinition dtypedef)    = docDTypeDef dtypedef   <$> empty
 docDefinition (ThreadDefinition threaddef) = docThreadDef threaddef <$> empty
 
 docDTypeDef :: DTypeDef -> Doc
-docDTypeDef (DTDeclaration tname) =
-  text "data" <+> t <$> text "end" <+> t <> semi
-  where t = docTypeName tname
-docDTypeDef (DTImplementation tname implname fields) =
-      text "data implementation" <+> t
-  <$> tab body
-  <$> text "end" <+> t <> semi
+docDTypeDef (DTStruct tname fields) = vsep
+  [ docBlock "data" t
+      [ docSection "properties"
+          [ docKV "Data_Model::Data_Representation" "Struct"
+          ]
+      ] 
+  , empty
+  , docBlock "data implementation" ti
+      [ docSection "subcomponents"
+          (map docDTField fields)
+      ]
+  ]
   where
-  t = docTypeName tname <> dot <> text implname
-  body =  text "subcomponents"
-      <$> tab (vsep (map docDTField fields))
+  t  = string tname
+  ti = t <> dot <> text "impl"
+
+docDTypeDef (DTArray tname len basetype) =
+  docBlock "data" t $
+    [ dmodel "Data_Representation" $ text "Array"
+    , dmodel "Base_Type"           $ parens btype
+    , dmodel "Dimension"           $ parens (int len)
+    ]
+  where
+  t = text tname
+  dmodel field v = kv (text ("Data_Model::" ++ field)) v
+  btype = text "classifier" <+> parens (docTypeName basetype)
+
+docBlock :: String -> Doc -> [Doc] -> Doc
+docBlock opener name body = text opener <+> name 
+                         <$> tab (vsep body)
+                         <$> text "end" <+> name <> semi
+                         <$> empty
+
+docSection :: String -> [Doc] -> Doc
+docSection secname props = text secname <$> tab (vsep props)
 
 docDTField :: DTField -> Doc
 docDTField (DTField name tname) =
-  text name <+> colon <+> text "data" <+> docTypeName tname <+> semi
+  text name <+> colon <+> text "data" <+> docTypeName tname <> semi
 
 docTypeName :: TypeName -> Doc
 docTypeName (UnqualTypeName s)   = text s
 docTypeName (QualTypeName a b)   = text a <> colon <> colon <> text b
-docTypeName (ArrayTypeName _ _)  = text "(array type rendering unsupported)"
-docTypeName (RefTypeName _ _)    = text "(ref type rendering unsupported)"
-docTypeName (StructTypeName s)   = text s -- XXX ??
-docTypeName (ProcTypeName _ _)   = text "(ref type rendering unsupported)"
+docTypeName (DotTypeName n a)    = docTypeName n <> dot <> text a
 
 docThreadDef :: ThreadDef -> Doc
 docThreadDef (ThreadDef threadname features properties) =
-      text "thread" <+> t
-  <$> tab (text "features")
-  <$> tab (tab (vsep (map docThreadFeature features)))
-  <$> tab (text "properties")
-  <$> tab (tab (vsep (map docThreadProperty properties)))
-  <$> text "end" <+> t <> semi
-  <$> empty
+  docBlock "thread" t
+    [ docSection "features"
+        (map docThreadFeature features)
+    , docSection "properties"
+        (map docThreadProperty properties)
+    ]
   where
   t = text threadname
 
@@ -82,11 +102,14 @@ docThreadFeature (ThreadFeaturePort n k d tname props) =
     PortKindEvent -> text "event data port"
   ps = case props of
     [] -> empty
-    _  -> braces (vsep (empty : map docKV props))
+    _  -> braces (vsep (empty : map (uncurry docKV) props))
 
-docKV :: (String, String) -> Doc
-docKV (k,v) = text k <+> text "=>" <+> text v <> semi
+docKV :: String -> String -> Doc
+docKV k v = kv (text k) (text v) 
+
+kv :: Doc -> Doc -> Doc
+kv k v = k <+> text "=>" <+> v <> semi
 
 docThreadProperty :: ThreadProperty -> Doc
-docThreadProperty (ThreadProperty k v) = docKV (k,v)
+docThreadProperty (ThreadProperty k v) = docKV k v
 

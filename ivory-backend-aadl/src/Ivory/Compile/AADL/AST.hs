@@ -26,26 +26,17 @@ data Definition
 data TypeName
   = UnqualTypeName String
   | QualTypeName String String
-  | ArrayTypeName (Maybe Int) TypeName
-  | RefTypeName Constness TypeName
-  | StructTypeName String
-  | ProcTypeName TypeName [TypeName]
-  deriving (Eq, Show)
-
-data Constness
-  = Const
-  | Mutable
+  | DotTypeName TypeName String
   deriving (Eq, Show)
 
 data DTypeDef
-  = DTDeclaration TypeName
-  | DTImplementation TypeName String [DTField]
+  = DTStruct String [DTField]
+  | DTArray String Int TypeName
   deriving (Eq, Show)
 
 data DTField
   = DTField String TypeName
   deriving (Eq, Show)
-
 
 data ThreadDef
   = ThreadDef String [ThreadFeature] [ThreadProperty]

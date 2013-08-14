@@ -10,20 +10,16 @@ import Ivory.Compile.AADL.Gen
 import Ivory.Compile.AADL.AST
 import Ivory.Compile.AADL.Types
 
-import MonadLib (runM)
-
 --------------------------------------------------------------------------------
 
 -- | Compile a module.
-compileModule :: I.Module -> Maybe Document
-compileModule mod = case doc of
+compileModule :: [I.Module] -> I.Module -> Maybe Document
+compileModule modulectx mod = case doc of
     Document _ _ [] -> Nothing
     _               -> Just $ doc { doc_name = I.modName mod }
   where
   structs = I.modStructs mod
-  rundoc  = snd . runM . unCompile
-  doc     = rundoc $ do
-    putImport "Base_Types"
+  doc = runCompile modulectx mod $ do
     mapM_ compileStruct (I.public structs)
     mapM_ compileStruct (I.private structs)
 
