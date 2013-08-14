@@ -34,6 +34,12 @@ writeTypeDefinition dtdef = Compile $ do
     set d { doc_definitions = td:(doc_definitions d) }
   where td = TypeDefinition dtdef
 
+writeThreadDefinition :: ThreadDef -> Compile
+writeThreadDefinition tdef = Compile $ do
+  d <- get
+  set d { doc_definitions = td:(doc_definitions d) }
+  where td = ThreadDefinition tdef
+
 writeImport :: String -> Compile
 writeImport i = Compile $ do
   d <- get
