@@ -1,11 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Ivory.Compile.AADL.Types where
+module Ivory.Compile.AADL.Monad where
 
 import MonadLib
 import Data.Monoid
 
 import Ivory.Compile.AADL.AST
+import Ivory.Compile.AADL.Identifier
 
 import qualified Ivory.Language.Syntax as I
 
@@ -18,7 +19,7 @@ type Compile = CompileM ()
 -- Using snoc to write to lists, reverse at end of run.
 runCompile :: [I.Module] -> I.Module -> Compile -> Document
 runCompile allms m (Compile c) = Document
-  { doc_name        = doc_name d
+  { doc_name        = identifier (I.modName m)
   , doc_imports     = reverse (doc_imports d)
   , doc_definitions = reverse (doc_definitions d)
   }

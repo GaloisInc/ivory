@@ -8,7 +8,7 @@ import Prelude hiding (mod)
 
 import Ivory.Compile.AADL.Gen
 import Ivory.Compile.AADL.AST
-import Ivory.Compile.AADL.Types
+import Ivory.Compile.AADL.Monad
 
 --------------------------------------------------------------------------------
 
@@ -16,7 +16,7 @@ import Ivory.Compile.AADL.Types
 compileModule :: [I.Module] -> I.Module -> Maybe Document
 compileModule modulectx mod = case doc of
     Document _ _ [] -> Nothing
-    _               -> Just $ doc { doc_name = I.modName mod }
+    _               -> Just doc
   where
   structs = I.modStructs mod
   doc = runCompile modulectx mod $ do

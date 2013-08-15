@@ -8,7 +8,8 @@ import qualified Data.Set as Set
 import Data.List (find)
 
 import Ivory.Compile.AADL.AST
-import Ivory.Compile.AADL.Types
+import Ivory.Compile.AADL.Monad
+import Ivory.Compile.AADL.Identifier
 
 --------------------------------------------------------------------------------
 -- | Compile a struct.
@@ -16,7 +17,7 @@ compileStruct :: I.Struct -> Compile
 compileStruct def = case def of
   I.Struct n fs -> do
     ftypes <- mapM mkField fs
-    writeTypeDefinition $ DTStruct n ftypes
+    writeTypeDefinition $ DTStruct (identifier n) ftypes
   _ -> return ()
 
 mkField :: I.Typed String -> CompileM DTField
@@ -59,9 +60,9 @@ mkType ty = case ty of
 arrayType :: Int -> TypeName -> CompileM TypeName
 arrayType len basetype = do
   writeTypeDefinition dtarray
-  return $ UnqualTypeName arraytn
+  return $ UnqualTypeName (identifier arraytn)
   where
-  dtarray = DTArray arraytn len basetype
+  dtarray = DTArray (identifier arraytn) len basetype
   arraytn = arrayTypeNameS len basetype
 
 arrayTypeNameS :: Int -> TypeName -> String
@@ -83,10 +84,11 @@ structType s = do
       writeImport m
       return t
     Just t -> return t
-    Nothing -> return $ UnqualTypeName s -- Or error...
+    Nothing -> return $ UnqualTypeName ss -- Or error...
   where
-  aux (QualTypeName _ n) = n == s
-  aux (UnqualTypeName n) = n == s
+  ss = identifier s
+  aux (QualTypeName _ n) = n == ss
+  aux (UnqualTypeName n) = n == ss
   aux (DotTypeName t _)  = aux t
 
 importedTypes :: CompileM [TypeName]
@@ -100,8 +102,8 @@ importedTypes = getIModContext >>= \(m,ms) -> return (aux m ms)
     ]
   pubStructTypeNames :: I.Module -> I.Module -> [TypeName]
   pubStructTypeNames a m =
-    [ if a == m then UnqualTypeName n
-      else QualTypeName (I.modName m) n
+    [ if a == m then UnqualTypeName (identifier n)
+      else QualTypeName (identifier (I.modName m)) (identifier n)
     | I.Struct n _  <- I.public (I.modStructs m)
     ]
 

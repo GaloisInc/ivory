@@ -102,7 +102,8 @@ docThreadFeature (ThreadFeaturePort n k d tname props) =
     PortKindEvent -> text "event data port"
   ps = case props of
     [] -> empty
-    _  -> braces (vsep (empty : map (uncurry docKV) props))
+    _  -> space <> braces (line <> tab values <> line)
+      where values = vsep (map (uncurry docKV) props)
 
 docKV :: String -> String -> Doc
 docKV k v = kv (text k) (text v) 

@@ -10,9 +10,10 @@ license:             BSD3
 library
   exposed-modules:      Ivory.Compile.AADL,
                         Ivory.Compile.AADL.AST,
-                        Ivory.Compile.AADL.Types,
                         Ivory.Compile.AADL.Gen,
+                        Ivory.Compile.AADL.Identifier,
                         Ivory.Compile.AADL.Modules,
+                        Ivory.Compile.AADL.Monad,
                         Ivory.Compile.AADL.PrettyPrint
   build-depends:        base >= 4.6,
                         srcloc,
