@@ -5,5 +5,6 @@ identifier :: String -> String
 identifier = map aux
   where
   aux '-' = '_'
+  aux ' ' = '_'
   aux a   = a
 
