@@ -21,6 +21,7 @@ instance Monoid Document where
 data Definition
   = TypeDefinition DTypeDef
   | ThreadDefinition ThreadDef
+  | ProcessDefinition ProcessDef
   deriving (Eq, Show)
 
 data TypeName
@@ -43,7 +44,7 @@ data ThreadDef
   deriving (Eq, Show)
 
 data ThreadFeature
-  = ThreadFeaturePort String PortKind PortDir TypeName [(String, String)]
+  = ThreadFeaturePort String PortKind PortDir TypeName [ThreadProperty]
   deriving (Eq, Show)
 
 data PortKind
@@ -57,6 +58,23 @@ data PortDir
   deriving (Eq, Show)
 
 data ThreadProperty =
-  ThreadProperty String String -- XXX
+  ThreadProperty String String -- Key, Value
   deriving (Eq, Show)
+
+data ProcessDef =
+  ProcessDef String [ProcessComponent] [ProcessConnection]
+  deriving (Eq, Show)
+
+data ProcessComponent
+  = ProcessComponent String String -- Name, Thread Name
+  deriving (Eq, Show)
+
+data ProcessPort
+  = ProcessPort ProcessComponent String -- Component, Feature Name
+  deriving (Eq, Show)
+
+data ProcessConnection
+  = ProcessConnection ProcessPort ProcessPort -- From, To
+  deriving (Eq, Show)
+
 

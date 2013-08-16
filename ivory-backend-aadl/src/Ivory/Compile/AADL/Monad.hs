@@ -41,6 +41,12 @@ writeThreadDefinition tdef = Compile $ do
   set d { doc_definitions = td:(doc_definitions d) }
   where td = ThreadDefinition tdef
 
+writeProcessDefinition :: ProcessDef -> Compile
+writeProcessDefinition pdef = Compile $ do
+  d <- get
+  set d { doc_definitions = pd:(doc_definitions d) }
+  where pd = ProcessDefinition pdef
+
 writeImport :: String -> Compile
 writeImport i = Compile $ do
   d <- get
