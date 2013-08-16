@@ -140,6 +140,6 @@ docProcConnection (ProcessConnection to fro) =
   text "port" <+> docProcessPort to <+> text "->" <+> docProcessPort fro <> semi
 
 docProcessPort :: ProcessPort -> Doc
-docProcessPort (ProcessPort (ProcessComponent n _) p) =
+docProcessPort (ProcessPort n p) =
   text n <> dot <> text p
 

@@ -70,7 +70,7 @@ data ProcessComponent
   deriving (Eq, Show)
 
 data ProcessPort
-  = ProcessPort ProcessComponent String -- Component, Feature Name
+  = ProcessPort String String -- Thread Name, Feature Name
   deriving (Eq, Show)
 
 data ProcessConnection
