@@ -57,12 +57,6 @@ depend :: I.Module -> ModuleDef
 depend m =
   put (mempty { I.modDepends = Set.singleton (I.modName m) })
 
--- | Unsafe: add a dependency on another module, by name.
--- Useful when module isn't completely constructed yet (ivory-tower)
-dependName :: String -> ModuleDef
-dependName n =
-  put (mempty { I.modDepends = Set.singleton n })
-
 -- | Include the definition of a structure in the module.
 defStruct :: forall sym. (IvoryStruct sym, SingI sym) =>
   Proxy sym -> ModuleDef
