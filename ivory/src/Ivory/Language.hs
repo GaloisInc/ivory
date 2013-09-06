@@ -60,6 +60,7 @@ module Ivory.Language (
   , IFloat()
   , IDouble()
   , isnan, isinf, roundF, ceilF, floorF
+  , ifloat, idouble
 
     -- * Effects
   , Effects(..)
