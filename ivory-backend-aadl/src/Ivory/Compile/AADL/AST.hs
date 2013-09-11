@@ -57,8 +57,9 @@ data PortDir
   | Out
   deriving (Eq, Show)
 
-data ThreadProperty =
-  ThreadProperty String String -- Key, Value
+data ThreadProperty
+  = ThreadProperty String String -- Key, Value
+  | UnprintableThreadProperty String -- Comment of some sort
   deriving (Eq, Show)
 
 data ProcessDef =

@@ -111,6 +111,7 @@ docThreadFeature (ThreadFeaturePort n k d tname props) =
 
 docThreadProperty :: ThreadProperty -> Doc
 docThreadProperty (ThreadProperty k v) = kv (text k) (text v)
+docThreadProperty (UnprintableThreadProperty str) = text ("-- " ++ str)
 
 kv :: Doc -> Doc -> Doc
 kv k v = k <+> text "=>" <+> v <> semi
