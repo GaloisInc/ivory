@@ -46,10 +46,10 @@ local ini = do
 
 
 -- | Initializer values.
-newtype Init (area :: Area) = Init { getInit :: I.Init }
+newtype Init (area :: Area *) = Init { getInit :: I.Init }
 
 -- | Zero initializers.
-class IvoryZero (area :: Area) where
+class IvoryZero (area :: Area *) where
   izero :: Init area
 
 

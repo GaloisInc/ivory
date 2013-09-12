@@ -24,7 +24,7 @@ import qualified Ivory.Language.Syntax as I
 -- References ------------------------------------------------------------------
 
 -- | A non-null pointer to a memory area.
-newtype Ref (s :: RefScope) (a :: Area) = Ref { getRef :: I.Expr }
+newtype Ref (s :: RefScope) (a :: Area *) = Ref { getRef :: I.Expr }
 
 instance IvoryArea area => IvoryType (Ref s area) where
   ivoryType _ = I.TyRef (ivoryArea (Proxy :: Proxy area))
@@ -43,7 +43,7 @@ instance IvoryArea area => IvoryExpr (Ref s area) where
 constRef :: IvoryArea area => Ref s area -> ConstRef s area
 constRef  = wrapExpr . unwrapExpr
 
-newtype ConstRef (s ::  RefScope) (a :: Area) = ConstRef
+newtype ConstRef (s ::  RefScope) (a :: Area *) = ConstRef
   { getConstRef :: I.Expr
   }
 
@@ -60,7 +60,7 @@ instance IvoryArea area => IvoryExpr (ConstRef s area) where
 
 -- Dereferencing ---------------------------------------------------------------
 
-class IvoryRef (ref ::  RefScope -> Area -> *) where
+class IvoryRef (ref ::  RefScope -> Area * -> *) where
   unwrapRef :: IvoryVar a => ref s (Stored a) -> I.Expr
 
 instance IvoryRef Ref where

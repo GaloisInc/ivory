@@ -15,18 +15,18 @@ import GHC.TypeLits (Nat,Symbol,SingI,Sing,sing)
 -- Memory Areas ----------------------------------------------------------------
 
 -- | Type proxies for @Area@s.
-type AProxy a = Proxy (a :: Area)
+type AProxy a = Proxy (a :: Area *)
 
 -- | The kind of memory-area types.
-data Area
+data Area k
   = Struct Symbol
-  | Array Nat Area
-  | CArray Area
-  | forall a. Stored a
+  | Array Nat (Area k)
+  | CArray (Area k)
+  | Stored k
     -- ^ This is lifting for a *-kinded type
 
 -- | Guard the inhabitants of the Area type, as not all *s are Ivory *s.
-class IvoryArea (a :: Area) where
+class IvoryArea (a :: Area *) where
   ivoryArea :: Proxy a -> I.Type
 
 instance (SingI len, IvoryArea area) => IvoryArea (Array len area) where

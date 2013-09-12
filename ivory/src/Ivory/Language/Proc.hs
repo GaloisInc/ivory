@@ -24,9 +24,9 @@ import qualified Ivory.Language.Syntax as AST
 -- Function Type ---------------------------------------------------------------
 
 -- | The kind of procedures.
-data Proc = forall a ret. [a] :-> ret
+data Proc k = [k] :-> k
 
-class ProcType (sig :: Proc) where
+class ProcType (sig :: Proc *) where
   procType :: Proxy sig -> (AST.Type,[AST.Type])
 
 instance IvoryType r => ProcType ('[] :-> r) where
@@ -42,7 +42,7 @@ instance (IvoryType a, ProcType (args :-> r))
 -- Function Pointers -----------------------------------------------------------
 
 -- | Procedure pointers
-newtype ProcPtr (sig :: Proc) = ProcPtr { getProcPtr :: AST.Name }
+newtype ProcPtr (sig :: Proc *) = ProcPtr { getProcPtr :: AST.Name }
 
 instance ProcType proc => IvoryType (ProcPtr proc) where
   ivoryType _ = AST.TyProc r args
@@ -62,7 +62,7 @@ procPtr  = ProcPtr . defSymbol
 -- Function Symbols ------------------------------------------------------------
 
 -- | Procedure definitions.
-data Def (proc :: Proc)
+data Def (proc :: Proc *)
   = DefProc AST.Proc
   | DefExtern AST.Extern
   | DefImport AST.Import
@@ -106,7 +106,7 @@ body :: IvoryType r
      -> Body r
 body m = Body m
 
-class ProcType proc => IvoryProcDef (proc :: Proc) impl | impl -> proc where
+class ProcType proc => IvoryProcDef (proc :: Proc *) impl | impl -> proc where
   procDef :: Closure -> Proxy proc -> impl -> ([AST.Var],CodeBlock)
 
 instance IvoryType ret => IvoryProcDef ('[] :-> ret) (Body ret) where
@@ -183,7 +183,7 @@ indirect :: forall proc eff impl. IvoryCall proc eff impl
          => ProcPtr proc -> impl
 indirect ptr = callAux (getProcPtr ptr) (Proxy :: Proxy proc) []
 
-class IvoryCall (proc :: Proc) (eff :: E.Effects) impl
+class IvoryCall (proc :: Proc *) (eff :: E.Effects) impl
     | proc eff -> impl, impl -> eff where
   callAux :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
@@ -212,7 +212,7 @@ indirect_ :: forall proc eff impl. IvoryCall_ proc eff impl
           => ProcPtr proc -> impl
 indirect_ ptr = callAux_ (getProcPtr ptr) (Proxy :: Proxy proc) []
 
-class IvoryCall_ (proc :: Proc) (eff :: E.Effects) impl
+class IvoryCall_ (proc :: Proc *) (eff :: E.Effects) impl
     | proc eff -> impl, impl -> eff
   where
   callAux_ :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
