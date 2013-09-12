@@ -25,7 +25,7 @@ instance IvoryArea a => IvoryArea (CArray a) where
 
 -- | Guard invocations of toCArray.
 class (IvoryArea area, IvoryArea rep)
-  => ToCArray (area :: Area) (rep :: Area) | area -> rep
+  => ToCArray (area :: Area *) (rep :: Area *) | area -> rep
 
 instance (SingI len, ToCArray area rep)
     => ToCArray (Array len area) (CArray rep)

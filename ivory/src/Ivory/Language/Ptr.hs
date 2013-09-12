@@ -17,7 +17,7 @@ import qualified Ivory.Language.Syntax as I
 -- Pointers --------------------------------------------------------------------
 
 -- | Pointers (nullable references).
-newtype Ptr (s :: RefScope) (a :: Area) = Ptr { getPtr :: I.Expr }
+newtype Ptr (s :: RefScope) (a :: Area *) = Ptr { getPtr :: I.Expr }
 
 instance IvoryArea area => IvoryType (Ptr s area) where
   ivoryType _ = I.TyPtr (ivoryArea (Proxy :: Proxy area))

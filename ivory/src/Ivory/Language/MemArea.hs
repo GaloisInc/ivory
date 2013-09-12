@@ -18,7 +18,7 @@ import qualified Ivory.Language.Syntax as I
 -- Memory Areas ----------------------------------------------------------------
 
 -- | Externally defined memory areas.
-data MemArea (area :: Area)
+data MemArea (area :: Area *)
   = MemImport I.AreaImport
   | MemArea I.Area
 
@@ -49,7 +49,7 @@ importArea name header = MemImport I.AreaImport
 
 -- Constant Memory Areas -------------------------------------------------------
 
-newtype ConstMemArea (area :: Area) = ConstMemArea (MemArea area)
+newtype ConstMemArea (area :: Area *) = ConstMemArea (MemArea area)
 
 -- | Constant memory area definition.
 constArea :: forall area. IvoryArea area
@@ -72,7 +72,7 @@ importConstArea name header = ConstMemArea $ MemImport I.AreaImport
 -- Area Usage ------------------------------------------------------------------
 
 -- | Turn a memory area into a reference.
-class IvoryAddrOf (mem :: Area -> *) ref | mem -> ref, ref -> mem  where
+class IvoryAddrOf (mem :: Area * -> *) ref | mem -> ref, ref -> mem  where
   addrOf :: IvoryArea area => mem area -> ref Global area
 
 -- XXX do not export

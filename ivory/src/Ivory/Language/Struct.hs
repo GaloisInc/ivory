@@ -27,7 +27,7 @@ class (IvoryArea (Struct sym), SingI sym) => IvoryStruct (sym :: Symbol) where
   structDef :: StructDef sym
 
 -- | Struct field labels.
-newtype Label (sym :: Symbol) (field :: Area) = Label { getLabel :: String }
+newtype Label (sym :: Symbol) (field :: Area *) = Label { getLabel :: String }
 
 -- | Label indexing in a structure.
 (~>) :: forall ref s sym field.
