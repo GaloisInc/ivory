@@ -95,7 +95,6 @@ class IvoryEq a => IvoryOrd a where
   (<=?)  = boolOp (AST.ExpLt True)
   infix 4 <=?
 
-instance IvoryArea area => IvoryEq (Ref s area)
 instance IvoryArea area => IvoryEq (Ptr s area)
 
 instance IvoryEq  IBool

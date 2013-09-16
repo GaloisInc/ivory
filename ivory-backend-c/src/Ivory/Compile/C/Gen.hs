@@ -241,11 +241,13 @@ toBody ens stmt =
 
     I.Local t var inits    -> [C.BlockDecl
       [cdecl| $ty:(toType t) $id:(toVar var) = $init:(toInit inits); |]]
-    I.RefCopy t vto vfrom  -> [C.BlockStm
-      [cstm| memcpy( $exp:(toExpr (I.TyRef t) vto)
-                   , $exp:(toExpr (I.TyRef t) vfrom)
-                   , sizeof($ty:(toType t))
-                   ); |] ]
+    -- Can't do a static check since we have local let bindings.
+    I.RefCopy t vto vfrom  ->
+      [C.BlockStm [cstm| if( $exp:toRef != $exp:fromRef) {
+         memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); } |]]
+      where
+      toRef   = toExpr (I.TyRef t) vto
+      fromRef = toExpr (I.TyRef t) vfrom
 
     -- Should only be a reference (not a pointer).
     I.AllocRef t l r       -> [C.BlockDecl
