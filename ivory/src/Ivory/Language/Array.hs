@@ -4,6 +4,7 @@
 
 module Ivory.Language.Array where
 
+import Ivory.Language.IBool
 import Ivory.Language.Area
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
@@ -43,6 +44,9 @@ instance (SingI n) => Num (Ix n) where
   abs           = ixUnary abs
   signum        = ixUnary signum
   fromInteger   = mkIx . fromInteger
+
+instance (SingI n) => IvoryEq  (Ix n)
+instance (SingI n) => IvoryOrd (Ix n)
 
 fromIx :: SingI n => Ix n -> IxRep
 fromIx = wrapExpr . unwrapExpr

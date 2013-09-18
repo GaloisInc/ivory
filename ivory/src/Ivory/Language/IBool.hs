@@ -6,18 +6,12 @@
 
 module Ivory.Language.IBool where
 
-import Ivory.Language.Area
-import Ivory.Language.Array
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
-import Ivory.Language.Ptr
-import Ivory.Language.Ref
 import Ivory.Language.Sint
 import Ivory.Language.Type
 import Ivory.Language.Uint
 import qualified Ivory.Language.Syntax as AST
-
-import GHC.TypeLits (SingI)
 
 
 -- Booleans --------------------------------------------------------------------
@@ -33,9 +27,6 @@ instance IvoryVar IBool where
 
 instance IvoryExpr IBool where
   wrapExpr = IBool
-
-instance IvoryStore IBool
-
 
 -- IfTE Support ----------------------------------------------------------------
 
@@ -95,13 +86,8 @@ class IvoryEq a => IvoryOrd a where
   (<=?)  = boolOp (AST.ExpLt True)
   infix 4 <=?
 
-instance IvoryArea area => IvoryEq (Ptr s area)
-
 instance IvoryEq  IBool
 instance IvoryOrd IBool
-
-instance (SingI n) => IvoryEq  (Ix n)
-instance (SingI n) => IvoryOrd (Ix n)
 
 instance IvoryEq  Uint8
 instance IvoryOrd Uint8

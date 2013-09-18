@@ -6,6 +6,7 @@
 
 module Ivory.Language.Ptr where
 
+import Ivory.Language.IBool
 import Ivory.Language.Area
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
@@ -28,6 +29,8 @@ instance IvoryArea area => IvoryVar (Ptr s area) where
 
 instance IvoryArea area => IvoryExpr (Ptr s area) where
   wrapExpr = Ptr
+
+instance IvoryArea area => IvoryEq (Ptr s area)
 
 -- Only allow global pointers to be stored in structures.
 instance IvoryArea a => IvoryStore (Ptr Global a)

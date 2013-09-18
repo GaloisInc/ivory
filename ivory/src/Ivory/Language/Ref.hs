@@ -16,6 +16,7 @@ import Ivory.Language.Area
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Scope
+import Ivory.Language.IBool
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
@@ -79,7 +80,7 @@ deref ref = do
 
 -- Copying ---------------------------------------------------------------------
 
--- | Memory copy.
+-- | Memory copy.  Emits an assertion that the two references are unequal.
 refCopy :: forall eff sTo ref sFrom a.
      ( IvoryRef ref, IvoryVar (Ref sTo a), IvoryVar (ref sFrom a), IvoryArea a)
   => Ref sTo a -> ref sFrom a -> Ivory eff ()
@@ -98,6 +99,7 @@ store ref a = emit (I.Store ty (unwrapExpr ref) (unwrapExpr a))
 class IvoryVar a => IvoryStore a where
 
 -- simple types
+instance IvoryStore IBool
 instance IvoryStore IChar
 instance IvoryStore Uint8
 instance IvoryStore Uint16
