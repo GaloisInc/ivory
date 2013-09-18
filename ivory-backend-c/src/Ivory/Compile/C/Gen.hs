@@ -244,7 +244,9 @@ toBody ens stmt =
     -- Can't do a static check since we have local let bindings.
     I.RefCopy t vto vfrom  ->
       [C.BlockStm [cstm| if( $exp:toRef != $exp:fromRef) {
-         memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); } |]]
+         memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); }
+                           else { ASSERTS(false); }
+      |]]
       where
       toRef   = toExpr (I.TyRef t) vto
       fromRef = toExpr (I.TyRef t) vfrom
