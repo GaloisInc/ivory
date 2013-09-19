@@ -102,6 +102,15 @@ iarray is = Init (I.InitArray (take len (map getInit is)))
   where
   len = fromInteger (fromTypeNat (sing :: Sing len))
 
+idynarray :: forall a s len ref.
+             ( SingI len, IvoryRef ref
+             , IvoryArea a
+             , IvoryVar (ref s (Array len a)))
+          => ref s (Array len a)
+          -> Init (DynArray a)
+idynarray ref = Init (I.InitDynArray ty (unwrapExpr ref))
+  where
+    ty = ivoryArea (Proxy :: Proxy (Array len a))
 
 -- Struct Initializers ---------------------------------------------------------
 

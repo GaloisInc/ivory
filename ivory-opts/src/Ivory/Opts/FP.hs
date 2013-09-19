@@ -35,9 +35,11 @@ expFold ty e = case e of
   I.ExpIndex tIdx eIdx tArr eArr -> do
     expFold tIdx eIdx
     expFold tArr eArr
-  I.ExpSafeCast ty' e0 -> expFold ty' e0
-  I.ExpToIx e0 _       -> expFold (I.TyInt I.Int32) e0
-  I.ExpAddrOfGlobal{}  -> return ()
+  I.ExpSafeCast ty' e0  -> expFold ty' e0
+  I.ExpToIx e0 _        -> expFold (I.TyInt I.Int32) e0
+  I.ExpAddrOfGlobal{}   -> return ()
+  I.ExpDynArrayLength{} -> return ()
+  I.ExpDynArrayData{}   -> return ()
 
 fpAssert :: I.Type -> I.Expr -> Maybe I.Expr
 fpAssert ty e = case ty of

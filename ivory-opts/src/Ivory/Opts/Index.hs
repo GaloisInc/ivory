@@ -30,11 +30,13 @@ expFold ty e = case e of
   I.ExpIndex tIdx eIdx tArr eArr -> do
     expFold tIdx eIdx
     expFold tArr eArr
-  I.ExpSafeCast ty' e0 -> expFold ty' e0
-  I.ExpToIx e0 maxSz   -> do
+  I.ExpSafeCast ty' e0  -> expFold ty' e0
+  I.ExpToIx e0 maxSz    -> do
     putExpr (Just $ toIxAssert e0 maxSz)
     expFold ixTy e0
-  I.ExpAddrOfGlobal{}  -> return ()
+  I.ExpAddrOfGlobal{}   -> return ()
+  I.ExpDynArrayLength{} -> return ()
+  I.ExpDynArrayData{}   -> return ()
 --------------------------------------------------------------------------------
 
 -- | For toIx e :: Ix maxSz, assert

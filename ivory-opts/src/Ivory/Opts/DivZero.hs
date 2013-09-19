@@ -34,6 +34,8 @@ expFold ty e = case e of
   I.ExpSafeCast ty' e0 -> expFold ty' e0
   I.ExpToIx e0 _       -> expFold (I.TyInt I.Int32) e0
   I.ExpAddrOfGlobal{}  -> return ()
+  I.ExpDynArrayLength{} -> return ()
+  I.ExpDynArrayData{}   -> return ()
 
 --------------------------------------------------------------------------------
 

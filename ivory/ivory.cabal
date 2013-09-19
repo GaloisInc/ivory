@@ -26,6 +26,7 @@ library
                         Ivory.Language.Cast,
                         Ivory.Language.Cond,
                         Ivory.Language.Const,
+                        Ivory.Language.DynArray,
                         Ivory.Language.Float,
                         Ivory.Language.IBool,
                         Ivory.Language.IChar,

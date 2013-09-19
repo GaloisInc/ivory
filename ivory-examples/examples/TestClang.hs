@@ -15,6 +15,8 @@ import qualified PublicPrivate
 import qualified Bits
 import qualified SizeOf
 import qualified AddrOfRegression
+import qualified Array
+import qualified DynArray
 
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language (Module(),moduleName)
@@ -52,4 +54,6 @@ modules = [ PID.cmodule
           , Bits.cmodule
           , SizeOf.cmodule
           , AddrOfRegression.cmodule
+          , Array.cmodule
+          , DynArray.cmodule
           ]
