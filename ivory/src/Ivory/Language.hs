@@ -206,13 +206,6 @@ withRef :: IvoryArea area
         -> Ivory eff ()
 withRef ptr t = ifte_ (nullPtr /=? ptr) (t (ptrToRef ptr))
 
--- | Sub-expression naming.
-assign :: forall eff a. IvoryExpr a => a -> Ivory eff a
-assign e = do
-  r <- freshVar "let"
-  emit (AST.Assign (ivoryType (Proxy :: Proxy a)) r (unwrapExpr e))
-  return (wrapExpr (AST.ExpVar r))
-
 -- | Primitive return from function.
 ret :: (GetReturn eff ~ Returns r, IvoryVar r) => r -> Ivory eff ()
 ret r = emit (AST.Return (typedExpr r))
