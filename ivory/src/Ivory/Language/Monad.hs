@@ -32,6 +32,7 @@ module Ivory.Language.Monad (
     -- ** Name Generation
   , freshVar
   , result
+  , assign
   ) where
 
 import qualified Ivory.Language.Effects as E
@@ -134,4 +135,11 @@ noAlloc (Ivory body) = Ivory body
 
 noReturn :: Ivory (E.ClearReturn eff) a -> Ivory eff a
 noReturn (Ivory body) = Ivory body
+
+-- | Sub-expression naming.
+assign :: forall eff a. IvoryExpr a => a -> Ivory eff a
+assign e = do
+  r <- freshVar "let"
+  emit (AST.Assign (ivoryType (Proxy :: Proxy a)) r (unwrapExpr e))
+  return (wrapExpr (AST.ExpVar r))
 
