@@ -53,6 +53,9 @@ cf ty e =
 
     I.ExpAddrOfGlobal{}   -> e
 
+    I.ExpDynArrayLength{} -> e
+    I.ExpDynArrayData{}   -> e
+
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
   let cxt   = I.procSym proc
@@ -108,6 +111,7 @@ stmtFold cxt opt blk stmt =
         _                      ->
           snoc $ I.Loop v (opt ty e) (loopIncrFold (opt ty) incr)
                         (newFold blk')
+    I.DynArrayMap{}      -> snoc stmt
     I.Break              -> snoc I.Break
     I.Forever b          -> snoc $ I.Forever (newFold b)
   where sf       = stmtFold cxt opt

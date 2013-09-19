@@ -126,6 +126,7 @@ module Ivory.Language (
   , arrayLen
   , SingI()
   , toCArray
+  , toDynArray, withDynArray, dynArrayMap
 
     -- ** Looping
   , for, times
@@ -169,6 +170,7 @@ import Ivory.Language.CArray
 import Ivory.Language.Cast
 import Ivory.Language.Cond
 import Ivory.Language.Const
+import Ivory.Language.DynArray
 import Ivory.Language.Effects
 import Ivory.Language.Float
 import Ivory.Language.IBool

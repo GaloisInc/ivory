@@ -1,11 +1,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
 
+module Array where
+
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
 cmodule :: Module
-cmodule = package "ArrayExample" $ incl arrayExample
+cmodule = package "Array" $ incl arrayExample
 
 runArrayExample :: IO ()
 runArrayExample = runCompiler [cmodule] initialOpts { stdOut = True }

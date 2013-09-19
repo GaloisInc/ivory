@@ -22,6 +22,7 @@ data Area k
   = Struct Symbol
   | Array Nat (Area k)
   | CArray (Area k)
+  | DynArray (Area k)
   | Stored k
     -- ^ This is lifting for a *-kinded type
 

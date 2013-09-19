@@ -23,6 +23,7 @@ data Type
   | TyArr Int Type     -- ^ Arrays
   | TyStruct String    -- ^ Structures
   | TyCArray Type      -- ^ C Arrays
+  | TyDynArray Type    -- ^ Dynamic Arrays
   | TyOpaque           -- ^ Opaque type---not implementeable.
     deriving (Show, Eq, Ord)
 
