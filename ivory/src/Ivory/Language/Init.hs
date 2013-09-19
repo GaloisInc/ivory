@@ -15,6 +15,7 @@ import Ivory.Language.Float
 import Ivory.Language.IBool
 import Ivory.Language.IChar
 import Ivory.Language.Monad
+import Ivory.Language.Proc
 import Ivory.Language.Proxy
 import Ivory.Language.Ptr
 import Ivory.Language.Ref
@@ -74,6 +75,7 @@ instance IvoryInit Sint32
 instance IvoryInit Sint64
 instance IvoryInit IFloat
 instance IvoryInit IDouble
+instance ProcType proc => IvoryInit (ProcPtr proc)
 instance IvoryArea area => IvoryInit (Ptr Global area)
 instance SingI len => IvoryInit (Ix len)
 
