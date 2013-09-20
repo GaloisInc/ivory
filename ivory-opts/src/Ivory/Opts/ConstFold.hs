@@ -111,7 +111,8 @@ stmtFold cxt opt blk stmt =
         _                      ->
           snoc $ I.Loop v (opt ty e) (loopIncrFold (opt ty) incr)
                         (newFold blk')
-    I.DynArrayMap{}      -> snoc stmt
+    I.DynArrayMap v1 v2 ty e blk' ->
+      snoc (I.DynArrayMap v1 v2 ty e (newFold blk'))
     I.Break              -> snoc I.Break
     I.Forever b          -> snoc $ I.Forever (newFold b)
   where sf       = stmtFold cxt opt

@@ -65,7 +65,9 @@ stmtFold ef ss
       toAsserts assts `D.append`
         (I.Loop v e incr (toFoldBlck b)
           `D.cons` stmtFold ef stmts)
-    I.DynArrayMap{}        -> go D.empty
+    I.DynArrayMap v1 v2 ty e b ->
+        I.DynArrayMap v1 v2 ty e (toFoldBlck b)
+          `D.cons` stmtFold ef stmts
     I.Break                -> go D.empty
     I.Local{}              -> go D.empty
     I.RefCopy ty e0 e1     -> let asserts0 = collect ty e0 in
