@@ -223,8 +223,8 @@ instance Default Sint16 where defaultVal = 0
 instance Default Sint32 where defaultVal = 0
 instance Default Sint64 where defaultVal = 0
 
-instance Default Float  where defaultVal = 0
-instance Default Double where defaultVal = 0
+instance Default IFloat  where defaultVal = 0
+instance Default IDouble where defaultVal = 0
 
 --------------------------------------------------------------------------------
 -- Indexes.
