@@ -52,7 +52,7 @@ downTo = loop AST.DecrTo
 
 -- | Run the computation n times, where for
 -- @
---   n :: Ix m, 0 <= n <= m.
+--   n :: Ix m, 0 <= n < m.
 -- @
 -- Indexes increment from 0 to n-1.
 for :: forall eff n a. SingI n
@@ -61,9 +61,9 @@ for n f = upTo 0 (n-1) f
 
 -- | Run the computation n times, where for
 -- @
---   n :: Ix m, 0 <= n <= m.
+--   n :: Ix m, 0 <= n < m.
 -- @
--- Indexes decrement to 0 from n-1.
+-- Indexes decrement from n-1 to 0.
 times :: forall eff n a. SingI n
       => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 times n f = downTo (n-1) 0 f
