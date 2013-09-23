@@ -22,22 +22,30 @@ into :: IvoryStore a =>
      Ref s (Stored a) -> Ref s' (Stored a) -> Ivory eff ()
 into a b = store b =<< deref a
 
--- | Copy from array @from@ into array @to@ starting at index @start@.  If there
--- is not room to copy the entire from array, then no copying takes place.  The
--- start value being negative is considered an error.
-arrCopy :: (SingI n, SingI m, IvoryStore t, GetAlloc eff ~ Scope s0)
+-- XXX Belongs with Pack.hs and SafePack.hs.
+
+-- | Copy from array @from@ (either a 'Ref' or a 'ConstRef') into array @to@
+-- starting at index @start@.  If there is not room to copy the entire from
+-- array, then no copying takes place.  The start value being negative is
+-- considered an error.  The length of the @from@ array is returned if the
+-- copying was successful and 0 otherwise.
+arrCopy :: ( SingI n, SingI m, IvoryRef r
+           , IvoryExpr (r s2 (Array m (Stored t)))
+           , IvoryExpr (r s2 (Stored t))
+           , IvoryStore t, GetAlloc eff ~ Scope s0
+           )
         => Ref s1 (Array n (Stored t))
-        -> Ref s2 (Array m (Stored t))
+        -> r s2 (Array m (Stored t))
         -> Sint32
-        -> Ivory eff IBool
+        -> Ivory eff Sint32
 arrCopy to from start = do
-  b <- local (ival false)
+  b <- local (ival $ arrayLen from)
   cond_ [    start <? 0
         ==> assert false
         ,   arrayLen to - start >=? arrayLen from
         ==> do arrayMap $ \ix ->
                  deref (from ! ix) >>= store (to ! mkIx ix)
-               b %= const true
+               b %= const 0
         ]
   return =<< deref b
   where
