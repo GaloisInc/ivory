@@ -21,6 +21,7 @@ import Ivory.Language.Type
 
 import qualified Ivory.Language.Syntax as I
 
+----------------------------------------------------------------------
 -- Dynamic Array Primitives
 
 -- | Allocate a dynamic array wrapping an existing array.
@@ -62,6 +63,27 @@ dynArrayLength :: ( IvoryArea a, IvoryRef ref
                -> ConstRef s (Stored IxRep)
 dynArrayLength d = wrapExpr (I.ExpDynArrayLength (unwrapExpr d))
 
+-- | Index a dynamic array with a run-time bounds check.  If @ix@
+-- is within bounds of the array, call @ok_f@ with a reference to
+-- the element at that position.  Otherwise, call @fail_f@.
+dynArrayRef :: forall a b c s eff ref.
+               ( IvoryArea a, IvoryRef ref
+               , IvoryExpr (ref s (DynArray a))
+               , IvoryExpr (ref s a))
+            => ref s (DynArray a)
+            -> IxRep
+            -> (ref s a -> Ivory eff b)
+            -> Ivory eff c
+            -> Ivory eff ()
+dynArrayRef arr ix ok_f fail_f = do
+  elt             <- freshVar "elt"
+  let eltVar       = wrapExpr (I.ExpVar elt)
+  (_, ok_block)   <- collect (ok_f eltVar)
+  (_, fail_block) <- collect fail_f
+  let ty           = ivoryType (Proxy :: Proxy (ref s (DynArray a)))
+  emit (I.DynArrayRef elt ty (unwrapExpr arr) (unwrapExpr ix)
+                      (blockStmts ok_block) (blockStmts fail_block))
+
 -- | Map a function over each element of a dynamic array.
 dynArrayMap :: forall a b s eff ref.
                ( IvoryArea a, IvoryRef ref
@@ -78,9 +100,4 @@ dynArrayMap arr body = do
   (_, block) <- collect (body eltVar ixVar)
   let ty      = ivoryType (Proxy :: Proxy (ref s (DynArray a)))
   emit (I.DynArrayMap elt ix ty (unwrapExpr arr) (blockStmts block))
-
-
--- TODO: Define a version of "withDynArray" that is polymorphic in the
--- array length?
-
 

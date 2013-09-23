@@ -196,6 +196,15 @@ data Stmt
     -- ^ Looping: arguments are the loop variable, start value,
     -- break condition (for increment or decrement), and block.
 
+  | DynArrayRef Var Type Expr Expr Block Block
+    -- ^ @DynArrayRef eltVar arrTy arrExp ixExp okBlk failBlk@
+    --
+    -- Safely index a dynamic array.  If @ixExp@ is a valid index
+    -- for @arrExp@ (which is a dynamic array of @arrTy@), then
+    -- execute @okBlk@ with @eltVar@ bound to the array element
+    -- at that index.  If the index is out of bounds, execute
+    -- @failBlk@.
+
   | DynArrayMap Var Var Type Expr Block
     -- ^ Loop over the elements in a dynamic array.  The first @Var@
     -- will contain the array element, and the second @Var@ contains

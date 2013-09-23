@@ -128,7 +128,7 @@ module Ivory.Language (
   , toCArray
 
     -- ** Dynamic Arrays
-  , toDynArray, withDynArray, dynArrayMap
+  , toDynArray, withDynArray, dynArrayMap, dynArrayRef
 
     -- ** Dynamic Array Memory Areas
   , dynArea, constDynArea

@@ -51,20 +51,13 @@ dynArrayExample = proc "dynArrayExample" $ body $ do
 
   ret (total + safeCast elt3)
 
--- | This is pulled out into a function because we need to declare
--- the array length inside the success continuation of "withDynArray".
-thirdAux :: ConstRef s (Array 3 (Stored Uint8)) -> ConstRef s (Stored Uint8)
-thirdAux a = a ! 2
-
 -- | Return the third element of a dynamic array, or 255 if the
 -- array size is less than 3.
 third :: Def ('[ConstRef s (DynArray (Stored Uint8))] :-> Uint8)
 third = proc "third" $ \darr -> body $ do
-  rv <- local (ival 0)
-  withDynArray darr
-    (\a _ -> store rv =<< deref (thirdAux a))
-    (\_   -> store rv 255)
-  ret =<< deref rv
+  dynArrayRef darr 3
+    (\a -> ret =<< deref a)
+    (ret 255)
 
 -- | Return the 32-bit sum of an 8-bit array of any length.
 sum :: Def ('[ConstRef s (DynArray (Stored Uint8))] :-> Uint32)

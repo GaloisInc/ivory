@@ -296,6 +296,28 @@ toBody ens stmt =
         ( [cexp| $id:ix >= $exp:(toExpr ty to) |]
         , [cexp| $id:ix-- |] )
 
+    I.DynArrayRef eltVar arrTy arr ix ok_blk fail_blk ->
+      let ok_body   = concatMap toBody' ok_blk   in
+      let fail_body = concatMap toBody' fail_blk in
+      [C.BlockStm [cstm|
+        if($exp:ixExpr >= 0 && $exp:ixExpr < $exp:ubound) {
+          $ty:(toType eltTy) $id:(toVar eltVar) = $exp:eltExpr;
+          $items:ok_body
+        } else {
+          $items:fail_body
+        } |]]
+      where
+        ty = I.TyInt I.Int32
+        ixExpr = toExpr ty ix
+        eltTy =
+          case arrTy of
+            I.TyRef      (I.TyDynArray x) -> I.TyRef x
+            I.TyConstRef (I.TyDynArray x) -> I.TyConstRef x
+            _ -> error "invalid dynamic error type"
+        eltExpr =
+          [cexp| &(($ty:(toType eltTy))($exp:(toExpr arrTy arr)) -> data) [$exp:ixExpr] |]
+        ubound = [cexp| * $exp:(toExpr ty (I.ExpDynArrayLength arr)) |]
+
     I.DynArrayMap eltVar ixVar arrTy arr blk ->
       let loopBd = concatMap toBody' blk in
       [C.BlockStm [cstm|
