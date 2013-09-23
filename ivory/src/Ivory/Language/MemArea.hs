@@ -21,12 +21,14 @@ import qualified Ivory.Language.Syntax as I
 data MemArea (area :: Area *)
   = MemImport I.AreaImport
   | MemArea I.Area
+  | DynArea I.Area I.Area
 
 -- XXX do not export
 memSym :: MemArea area -> I.Sym
 memSym m = case m of
   MemImport i -> I.aiSym i
   MemArea a   -> I.areaSym a
+  DynArea a _ -> I.areaSym a
 
 -- | Define a global constant.
 area :: forall area. IvoryArea area
@@ -84,3 +86,36 @@ instance IvoryAddrOf MemArea Ref where
 
 instance IvoryAddrOf ConstMemArea ConstRef where
   addrOf (ConstMemArea mem) = wrapExpr (primAddrOf mem)
+
+-- Dynamic Array Memory Areas --------------------------------------------------
+
+-- | A dynamic array area contains one user visible area for the
+-- "dyn_array" structure, and a hidden area for the array's storage.
+makeDynArea :: forall a. IvoryArea a => I.Sym -> [Init a] -> Bool -> MemArea (DynArray a)
+makeDynArea name xs isConst = DynArea arr storage
+  where
+    ty  = I.TyArr (length xs) (ivoryArea (Proxy :: Proxy a))
+    -- NOTE: We are reserving the "_Ivory_*" namespace for internal
+    -- definitions generated from user-supplied symbols.
+    sym = "_Ivory_storage_" ++ name
+    arr = I.Area
+      { I.areaSym   = name
+      , I.areaConst = isConst
+      , I.areaType  = ivoryArea (Proxy :: Proxy (DynArray a))
+      , I.areaInit  = I.InitDynArray ty (I.ExpAddrOfGlobal sym)
+      }
+    storage = I.Area
+      { I.areaSym   = sym
+      , I.areaConst = isConst
+      , I.areaType  = ty
+      , I.areaInit  = I.InitArray (map getInit xs)
+      }
+
+-- | Define a global dynamic array.  We actually need to define
+-- two memory areas---one to hold the array data, and one to
+-- hold the dynamic array information.
+dynArea :: forall a. IvoryArea a => I.Sym -> [Init a] -> MemArea (DynArray a)
+dynArea sym xs = makeDynArea sym xs False
+
+constDynArea :: forall a. IvoryArea a => I.Sym -> [Init a] -> ConstMemArea (DynArray a)
+constDynArea sym xs = ConstMemArea (makeDynArea sym xs True)

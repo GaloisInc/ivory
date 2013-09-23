@@ -2,9 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
 
 module Ivory.Language.DynArray where
 
@@ -22,9 +20,6 @@ import Ivory.Language.Ref
 import Ivory.Language.Type
 
 import qualified Ivory.Language.Syntax as I
-
-instance IvoryArea a => IvoryArea (DynArray a) where
-  ivoryArea _ = I.TyDynArray (ivoryArea (Proxy :: Proxy a))
 
 -- Dynamic Array Primitives
 
@@ -88,4 +83,4 @@ dynArrayMap arr body = do
 -- TODO: Define a version of "withDynArray" that is polymorphic in the
 -- array length?
 
--- TODO: What about doing something with MemArea for globals?
+

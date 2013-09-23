@@ -38,3 +38,7 @@ instance (SingI len, IvoryArea area) => IvoryArea (Array len area) where
 
 instance IvoryType a => IvoryArea (Stored a) where
   ivoryArea _ = ivoryType (Proxy :: Proxy a)
+
+instance IvoryArea a => IvoryArea (DynArray a) where
+  ivoryArea _ = I.TyDynArray (ivoryArea (Proxy :: Proxy a))
+

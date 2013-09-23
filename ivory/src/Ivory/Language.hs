@@ -126,7 +126,12 @@ module Ivory.Language (
   , arrayLen
   , SingI()
   , toCArray
+
+    -- ** Dynamic Arrays
   , toDynArray, withDynArray, dynArrayMap
+
+    -- ** Dynamic Array Memory Areas
+  , dynArea, constDynArea
 
     -- ** Looping
   , for, times

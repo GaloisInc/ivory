@@ -11,16 +11,10 @@ import Prelude hiding (sum)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
-{-
--- TODO: I'd love to be able to define something like this:
-table :: MemArea (DynArray (Stored Uint32))
-table = dynArrayArea "table"
-          [ ival 0x10102020
-          , ival 0x30304040
-          , ival 0x8080f0f0
-          , ival 0xdeadbeef
-          ]
--}
+-- | Define a dynamic-length constant look-up table.
+table :: ConstMemArea (DynArray (Stored Uint8))
+table = constDynArea "table"
+          [ ival 0x10 , ival 0x30 , ival 0x80 , ival 0xde ]
 
 -- | Module containing functions to generate.
 cmodule :: Module
@@ -29,6 +23,7 @@ cmodule = package "DynArray" $ do
   incl sum
   incl third
   incl toUpper
+  defConstMemArea table
 
 -- | Compile the test functions in this module.
 runDynArrayExample :: IO ()
@@ -47,6 +42,7 @@ dynArrayExample = proc "dynArrayExample" $ body $ do
   x     <- localArr (Proxy :: Proxy 5) [1, 2, 3, 4, 5]
   y     <- toDynArray x
   total <- call sum (constRef y)
+  tot'  <- call sum (addrOf table)
   elt3  <- call third (constRef y)
 
   s     <- localArr (Proxy :: Proxy 12) (map (fromIntegral . ord) "Hello world!")

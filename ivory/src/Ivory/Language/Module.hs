@@ -74,6 +74,10 @@ defMemArea m = case m of
   MemArea a    -> do
     visibility <- ask
     put (mempty { I.modAreas = visAcc visibility a })
+  DynArea a1 a2 -> do
+    visibility <- ask
+    put (mempty { I.modAreas = visAcc visibility a1 })
+    put (mempty { I.modAreas = visAcc visibility a2 })
 
 -- | Include the definition of a constant memory area.
 defConstMemArea :: IvoryArea area => ConstMemArea area -> ModuleDef
