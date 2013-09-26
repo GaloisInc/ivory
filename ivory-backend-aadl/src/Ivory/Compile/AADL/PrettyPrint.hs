@@ -110,8 +110,13 @@ docThreadFeature (ThreadFeaturePort n k d tname props) =
       where values = vsep (map docThreadProperty props)
 
 docThreadProperty :: ThreadProperty -> Doc
-docThreadProperty (ThreadProperty k v) = kv (text k) (text v)
+docThreadProperty (ThreadProperty k v) = kv (text k) (docPropValue v)
 docThreadProperty (UnprintableThreadProperty str) = text ("-- " ++ str)
+
+docPropValue (PropInteger n) = integer n
+docPropValue (PropUnit n unit) = float n <+> text unit
+docPropValue (PropString s) = dquotes (text s)
+docPropValue (PropList l) = parens (hcat (punctuate (comma <> space) (map docPropValue l)))
 
 kv :: Doc -> Doc -> Doc
 kv k v = k <+> text "=>" <+> v <> semi

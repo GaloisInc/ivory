@@ -58,8 +58,15 @@ data PortDir
   deriving (Eq, Show)
 
 data ThreadProperty
-  = ThreadProperty String String -- Key, Value
+  = ThreadProperty String PropValue -- Key, Value
   | UnprintableThreadProperty String -- Comment of some sort
+  deriving (Eq, Show)
+
+data PropValue
+  = PropInteger Integer
+  | PropUnit Float String
+  | PropString String
+  | PropList [PropValue]
   deriving (Eq, Show)
 
 data ProcessDef =
