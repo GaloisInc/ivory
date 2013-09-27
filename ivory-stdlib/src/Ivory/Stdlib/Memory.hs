@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Ivory.Stdlib.Memory
   ( resultInto
@@ -10,8 +11,6 @@ module Ivory.Stdlib.Memory
   ) where
 
 import Ivory.Language
-import Ivory.Stdlib.Control
-import Ivory.Stdlib.Operators
 
 -- | handy shorthand for transfering members
 resultInto :: IvoryStore a =>
@@ -25,28 +24,32 @@ into a b = store b =<< deref a
 -- XXX Belongs with Pack.hs and SafePack.hs.
 
 -- | Copy from array @from@ (either a 'Ref' or a 'ConstRef') into array @to@
--- starting at index @start@.  If there is not room to copy the entire from
--- array, then no copying takes place.  The start value being negative is
--- considered an error.  The length of the @from@ array is returned if the
--- copying was successful and 0 otherwise.
-arrCopy :: ( SingI n, SingI m, IvoryRef r
+-- starting at index @start@.  Copying continues until either the from array is
+-- fully copied or the to array is full.  The start value being negative is
+-- considered an error.
+arrCopy :: forall n m r s0 s1 s2 eff t.
+           ( SingI n, SingI m, IvoryRef r
            , IvoryExpr (r s2 (Array m (Stored t)))
            , IvoryExpr (r s2 (Stored t))
-           , IvoryStore t, GetAlloc eff ~ Scope s0
+           , IvoryStore t
+           , GetAlloc eff ~ Scope s0
            )
         => Ref s1 (Array n (Stored t))
         -> r s2 (Array m (Stored t))
         -> Sint32
-        -> Ivory eff Sint32
-arrCopy to from start = do
-  b <- local (ival $ arrayLen from)
-  cond_ [    start <? 0
-        ==> assert false
-        ,   arrayLen to - start >=? arrayLen from
-        ==> do arrayMap $ \ix ->
-                 deref (from ! ix) >>= store (to ! mkIx ix)
-               b %= const 0
-        ]
-  return =<< deref b
+        -> Ivory eff ()
+arrCopy to from start =
+  ifte_ (start <? 0)
+        (assert false)
+        (arrayMap $ go)
   where
+  mkIx :: Ix m -> Ix n
   mkIx ix = toIx (start + fromIx ix)
+
+  go ix =
+    ifte_
+      (fromIx ix + start >=? arrayLen to)
+      -- The from array is too big, so stop copying.
+      (return ()) -- XXX could be break but type constraints get hairy
+      -- We can copy the whole from array.
+      (deref (from ! ix) >>= store (to ! mkIx ix))
