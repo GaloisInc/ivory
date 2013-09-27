@@ -42,7 +42,7 @@ dynArrayExample = proc "dynArrayExample" $ body $ do
   x     <- localArr (Proxy :: Proxy 5) [1, 2, 3, 4, 5]
   y     <- toDynArray x
   total <- call sum (constRef y)
-  tot'  <- call sum (addrOf table)
+  _     <- call sum (addrOf table)
   elt3  <- call third (constRef y)
 
   s     <- localArr (Proxy :: Proxy 12) (map (fromIntegral . ord) "Hello world!")
