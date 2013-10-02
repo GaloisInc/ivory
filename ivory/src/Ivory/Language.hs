@@ -128,7 +128,8 @@ module Ivory.Language (
   , toCArray
 
     -- ** Dynamic Arrays
-  , toDynArray, withDynArray, dynArrayMap, dynArrayRef
+  , toDynArray, withDynArray, withDynArrayData
+  , dynArrayMap, dynArrayRef
   , idynarray
 
     -- ** Looping

@@ -17,7 +17,6 @@ import Ivory.Compile.C.Prop
 
 import Prelude hiding (exp, abs, signum)
 import qualified Prelude as P
-import Control.Monad (when)
 import Data.List (foldl')
 
 import Data.Loc (noLoc)
@@ -430,14 +429,16 @@ toExpr t (I.ExpLabel t' e field) = case t of
 toExpr t (I.ExpDynArrayLength e) =
   toExpr t (I.ExpLabel t e "length")
 ----------------------------------------
-toExpr t (I.ExpDynArrayData t' e) =
-  case t of
-    I.TyRef      (I.TyArr _ et) -> getField (I.TyRef et)
-    I.TyConstRef (I.TyArr _ et) -> getField (I.TyConstRef et)
-    _                           -> error $ "unexpected: " ++ show t
+toExpr t1 (I.ExpDynArrayData t2 e) =
+  case t1 of
+    I.TyRef      (I.TyArr    _ _) -> getField
+    I.TyRef      (I.TyCArray _  ) -> getField
+    I.TyConstRef (I.TyArr    _ _) -> getField
+    I.TyConstRef (I.TyCArray _  ) -> getField
+    _                           -> error $ "unexpected: " ++ show t1
   where
-    getField et =
-      [cexp| ($ty:(toType et))($exp:(toExpr t' (I.ExpLabel t e "data"))) |]
+    getField =
+      [cexp| ($ty:(toType t1))($exp:(toExpr t1 (I.ExpLabel t2 e "data"))) |]
 ----------------------------------------
 toExpr t (I.ExpIndex at a ti i) = case t of
   I.TyRef (I.TyArr _ _)       -> expIdx I.TyRef

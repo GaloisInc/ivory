@@ -56,6 +56,22 @@ withDynArray arr ok_f fail_f = do
         ok_f a len)
     (fail_f len)
 
+-- Note: We are acting as though the CArray was allocated in a
+-- new scope so that it cannot escape the body of the function.
+withDynArrayData :: forall a b s eff ref.
+                    ( IvoryArea a, IvoryRef ref
+                    , IvoryExpr (ref s (DynArray a))
+                    , IvoryExpr (ref s (CArray a))
+                    , IvoryExpr (ref (Stack s) (CArray a)))
+                 => ref s (DynArray a)
+                 -> (ref (Stack s) (CArray a) -> IxRep -> Ivory eff b)
+                 -> Ivory eff b
+withDynArrayData arr f = do
+  let ty  = ivoryType (Proxy :: Proxy (ref s (CArray a)))
+  len    <- deref (dynArrayLength arr)
+  carr   <- assign (wrapExpr (I.ExpDynArrayData ty (unwrapExpr arr)))
+  f carr len
+
 -- | Retrieve a reference to a dynamic array's length.
 dynArrayLength :: ( IvoryArea a, IvoryRef ref
                   , IvoryExpr (ref s (DynArray a)))
