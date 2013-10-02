@@ -152,6 +152,8 @@ compileModule I.Module { I.modName    = nm
     mapM_ (compileStruct Private) (I.private structs)
     mapM_ compileExtern exts
     mapM_ fromImport imports
+    mapM_ (extractAreaProto Public) (I.public areas)
+    mapM_ (extractAreaProto Private) (I.private areas)
     mapM_ (compileArea Public) (I.public areas)
     mapM_ (compileArea Private) (I.private areas)
     mapM_ compileAreaImport ais

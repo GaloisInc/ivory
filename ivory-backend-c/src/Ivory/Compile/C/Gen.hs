@@ -66,6 +66,16 @@ compileAreaImport :: I.AreaImport -> Compile
 compileAreaImport ai = putSrcInc (SysInclude (I.aiFile ai))
 
 --------------------------------------------------------------------------------
+-- | Get prototypes for memory areas.
+extractAreaProto :: Visibility -> I.Area -> Compile
+extractAreaProto visibility area = do
+  let aty                   = toType (I.areaType area)
+      ty | I.areaConst area = [cty| const $ty:aty |]
+         | otherwise        = aty
+  if visibility == Public
+    then putHdrSrc [cedecl| extern $ty:ty $id:(I.areaSym area); |]
+    else putSrc    [cedecl| static $ty:ty $id:(I.areaSym area); |]
+
 -- | Compile a memory area definition into an extern in the header, and a
 -- structure in the source.
 compileArea :: Visibility -> I.Area -> Compile
@@ -74,8 +84,6 @@ compileArea visibility area = do
       i                     = I.areaInit area
       ty | I.areaConst area = [cty| const $ty:aty |]
          | otherwise        = aty
-  when (visibility == Public) $
-    putHdrSrc [cedecl| extern $ty:ty $id:(I.areaSym area) ; |]
   case i of
     I.InitZero -> putSrc [cedecl| $ty:(type' visibility ty) $id:(I.areaSym area) ; |]
     _          -> putSrc [cedecl| $ty:(type' visibility ty)
