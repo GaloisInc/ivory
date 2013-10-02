@@ -383,7 +383,12 @@ dynArrayInit :: I.Type -> I.Expr -> C.Initializer
 dynArrayInit (I.TyArr len _) e =
   C.CompoundInitializer
     [ ( Just (fieldDes "data")
-      , [cinit| $exp:(toExpr (I.TyPtr I.TyVoid) e) |])
+      -- XXX The cast to 'void *' here is to prevent a warning when
+      -- initializing a const dynarray with a const data pointer.  We
+      -- are safe because the generated code will always cast it back
+      -- to a const pointer before using it, but it is stored as
+      -- non-const inside the "ivory_dynarray" structure.
+      , [cinit| (void *)$exp:(toExpr (I.TyPtr I.TyVoid) e) |])
     , ( Just (fieldDes "length") , [cinit| $exp:len |])
     ] noLoc
 dynArrayInit _ _ = error "invalid dynamic array initializer"
