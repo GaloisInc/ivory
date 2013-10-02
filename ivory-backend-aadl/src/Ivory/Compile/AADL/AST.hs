@@ -64,8 +64,9 @@ data ThreadProperty
 
 data PropValue
   = PropInteger Integer
-  | PropUnit Float String
+  | PropUnit Integer String
   | PropString String
+  | PropLiteral String
   | PropList [PropValue]
   deriving (Eq, Show)
 

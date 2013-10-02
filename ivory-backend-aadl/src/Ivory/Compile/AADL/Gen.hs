@@ -17,6 +17,7 @@ compileStruct :: I.Struct -> Compile
 compileStruct def = case def of
   I.Struct n fs -> do
     ftypes <- mapM mkField fs
+    writeImport "Data_Model"
     writeTypeDefinition $ DTStruct (identifier n) ftypes
   _ -> return ()
 
@@ -41,6 +42,8 @@ mkType ty = case ty of
     I.TyArr len t         -> mkType t >>= \t' -> arrayType len t'
     I.TyCArray _t         -> error "cannot translate TyCArray"
     I.TyProc _retT _argTs -> error "cannot translate TyProc"
+    I.TyDynArray _        -> error "cannot translate TyDynArray"
+    I.TyOpaque            -> error "cannot translate TyOpaque"
   where
   basetype :: String -> CompileM TypeName
   basetype t = qualTypeName "Base_Types" t
@@ -59,6 +62,7 @@ mkType ty = case ty of
 
 arrayType :: Int -> TypeName -> CompileM TypeName
 arrayType len basetype = do
+  writeImport "Data_Model"
   writeTypeDefinition dtarray
   return $ UnqualTypeName (identifier arraytn)
   where

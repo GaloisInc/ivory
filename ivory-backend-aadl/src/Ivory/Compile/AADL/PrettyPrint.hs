@@ -55,10 +55,12 @@ docDTypeDef (DTStruct tname fields) = vsep
   ti = t <> dot <> text "impl"
 
 docDTypeDef (DTArray tname len basetype) =
-  docBlock "data" t $
-    [ dmodel "Data_Representation" $ text "Array"
-    , dmodel "Base_Type"           $ parens btype
-    , dmodel "Dimension"           $ parens (int len)
+  docBlock "data" t
+    [ docSection "properties"
+      [ dmodel "Data_Representation" $ text "Array"
+      , dmodel "Base_Type"           $ parens btype
+      , dmodel "Dimension"           $ parens (int len)
+      ]
     ]
   where
   t = text tname
@@ -114,8 +116,9 @@ docThreadProperty (ThreadProperty k v) = kv (text k) (docPropValue v)
 docThreadProperty (UnprintableThreadProperty str) = text ("-- " ++ str)
 
 docPropValue (PropInteger n) = integer n
-docPropValue (PropUnit n unit) = float n <+> text unit
+docPropValue (PropUnit n unit) = integer n <+> text unit
 docPropValue (PropString s) = dquotes (text s)
+docPropValue (PropLiteral s) = text s
 docPropValue (PropList l) = parens (hcat (punctuate (comma <> space) (map docPropValue l)))
 
 kv :: Doc -> Doc -> Doc
