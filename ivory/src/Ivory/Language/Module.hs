@@ -11,6 +11,7 @@ import Ivory.Language.Proxy (Proxy(..))
 import Ivory.Language.Struct (IvoryStruct(..),StructDef(..))
 import qualified Ivory.Language.Syntax as I
 
+import Control.Monad (forM_)
 import Data.Monoid (mempty)
 import GHC.TypeLits (SingI())
 import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
@@ -71,13 +72,11 @@ defStruct _ = do
 defMemArea :: IvoryArea area => MemArea area -> ModuleDef
 defMemArea m = case m of
   MemImport ia -> put (mempty { I.modAreaImports = [ia] })
-  MemArea a    -> do
+  MemArea a as -> do
     visibility <- ask
     put (mempty { I.modAreas = visAcc visibility a })
-  DynArea a1 a2 -> do
-    visibility <- ask
-    put (mempty { I.modAreas = visAcc visibility a1 })
-    put (mempty { I.modAreas = visAcc visibility a2 })
+    forM_ as $ \aux -> do
+      put (mempty { I.modAreas = visAcc Private aux })
 
 -- | Include the definition of a constant memory area.
 defConstMemArea :: IvoryArea area => ConstMemArea area -> ModuleDef

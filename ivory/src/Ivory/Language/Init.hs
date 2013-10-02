@@ -27,39 +27,91 @@ import Ivory.Language.Uint
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Effects as E
 
+import Control.Monad (forM_)
 import Data.Monoid (Monoid(..),mconcat)
 import GHC.TypeLits
 
--- | Stack allocation
-local :: forall eff s area. (IvoryArea area, E.GetAlloc eff ~ E.Scope s)
-      => Init area
-      -> Ivory eff (Ref (Stack s) area)
-local ini = do
-  lname <- freshVar "local"
-  let ty = ivoryArea (Proxy :: Proxy area)
-  emit (I.Local ty lname (getInit ini))
+-- Initializers ----------------------------------------------------------------
 
-  rname <- freshVar "ref"
-  let areaTy = ivoryArea (Proxy :: Proxy area)
-  emit (I.AllocRef areaTy rname (I.NameVar lname))
+-- | Intermediate initializer type supporting compound initializers.
+-- The "IFresh" nodes are flattened into multiple "I.Init" nodes
+-- in a "FreshName" monad when the variable is allocated.
+data XInit
+  = IVal      I.Type I.Init
+  | IArray    I.Type [XInit]
+  | IStruct   I.Type [(String, XInit)]
+  | IFresh    I.Type XInit (I.Var -> I.Init)
 
-  return (wrapExpr (I.ExpVar rname))
+-- | Return the type of the initializer.
+initType :: XInit -> I.Type
+initType (IVal    ty _)   = ty
+initType (IArray  ty _)   = ty
+initType (IStruct ty _)   = ty
+initType (IFresh  ty _ _) = ty
 
-
--- | Initializer values.
-newtype Init (area :: Area *) = Init { getInit :: I.Init }
+newtype Init (area :: Area *) = Init { getInit :: XInit }
 
 -- | Zero initializers.
 class IvoryZero (area :: Area *) where
   izero :: Init area
 
+-- Running Initializers --------------------------------------------------------
+
+class Monad m => FreshName m where
+  freshName :: String -> m I.Var
+
+instance FreshName (Ivory eff) where
+  freshName = freshVar
+
+-- | A variable binding (on the stack or in a memory area).
+data Binding = Binding
+  { bindingVar    :: I.Var
+  , bindingType   :: I.Type
+  , bindingInit   :: I.Init
+  } deriving Show
+
+-- XXX do not export
+bindingSym :: Binding -> I.Sym
+bindingSym b =
+  case bindingVar b of
+    I.VarName s     -> s
+    I.VarInternal s -> s
+    I.VarLitName s  -> s
+
+-- | Return the initializer and auxillary bindings for an
+-- initializer in a context that can allocate fresh names.
+runInit :: FreshName m => XInit -> m (I.Init, [Binding])
+runInit ini =
+  case ini of
+    IVal _ i ->
+      return (i, [])
+    IArray _ is -> do
+      binds    <- mapM runInit is
+      let inis  = map fst binds
+      let aux   = concatMap snd binds
+      return (I.InitArray inis, aux)
+    IStruct _ is -> do
+      binds    <- mapM iniStruct is
+      let inis  = map fst binds
+      let aux   = concatMap snd binds
+      return (I.InitStruct inis, aux)
+    IFresh _ i f -> do
+      var       <- freshName "init"
+      (i', aux) <- runInit i
+      let ty     = initType i
+      let aux'   = aux ++ [Binding var ty i']
+      return (f var, aux')
+  where
+    iniStruct (s, i) = do
+      (i', binds) <- runInit i
+      return ((s, i'), binds)
 
 -- Stored Initializers ---------------------------------------------------------
 
 -- | Initializers for 'Stored' things.
 class IvoryVar e => IvoryInit e where
   ival :: e -> Init (Stored e)
-  ival e = Init (I.InitExpr ty (unwrapExpr e))
+  ival e = Init (IVal ty (I.InitExpr ty (unwrapExpr e)))
     where
     ty = ivoryType (Proxy :: Proxy e)
 
@@ -92,35 +144,54 @@ instance IvoryArea area => IvoryZero (Stored (Ptr Global area)) where
 instance (Num a, IvoryInit a) => IvoryZero (Stored a) where
   izero = ival 0
 
-
 -- Array Initializers ----------------------------------------------------------
 
-instance (IvoryZero area, SingI len) => IvoryZero (Array len area) where
-  izero = Init I.InitZero
+instance (IvoryZero area, IvoryArea area, SingI len) =>
+    IvoryZero (Array len area) where
+  izero = Init (IVal ty I.InitZero)
+    where
+    ty = ivoryArea (Proxy :: Proxy (Array len area))
 
-iarray :: forall len area. SingI len => [Init area] -> Init (Array len area)
-iarray is = Init (I.InitArray (take len (map getInit is)))
+iarray :: forall len area. (IvoryArea area, SingI len)
+       => [Init area] -> Init (Array len area)
+iarray is = Init (IArray ty (take len (map getInit is)))
             -- ^ truncate to known length
   where
   len = fromInteger (fromTypeNat (sing :: Sing len))
+  ty = ivoryArea (Proxy :: Proxy (Array len area))
 
-idynarray :: forall a s len ref.
-             ( SingI len, IvoryRef ref
-             , IvoryArea a
-             , IvoryVar (ref s (Array len a)))
-          => ref s (Array len a)
-          -> Init (DynArray a)
-idynarray ref = Init (I.InitDynArray ty (unwrapExpr ref))
+-- Dynamic Array Initializers --------------------------------------------------
+
+-- | Wrap an existing array in a dynamic array.  (not exported)
+idynarrayWrap :: forall a s len ref.
+                 ( SingI len, IvoryRef ref
+                 , IvoryArea a
+                 , IvoryVar (ref s (Array len a)))
+              => ref s (Array len a)
+              -> Init (DynArray a)
+idynarrayWrap ref = Init (IVal dynArrTy (I.InitDynArray arrTy (unwrapExpr ref)))
   where
-    ty = ivoryArea (Proxy :: Proxy (Array len a))
+  arrTy = ivoryArea (Proxy :: Proxy (Array len a))
+  dynArrTy = ivoryArea (Proxy :: Proxy (DynArray a))
+
+-- | Create a dynamic array from a list of elements.
+idynarray :: forall a. IvoryArea a => [Init a] -> Init (DynArray a)
+idynarray xs = Init (IFresh dynArrTy storage go)
+  where
+  dynArrTy = ivoryArea (Proxy :: Proxy (DynArray a))
+  arrTy    = I.TyArr (length xs) (ivoryArea (Proxy :: Proxy a))
+  storage  = IArray arrTy (map getInit xs)
+  go var   = I.InitDynArray arrTy (I.ExpVar var)
 
 -- Struct Initializers ---------------------------------------------------------
 
 instance IvoryStruct sym => IvoryZero (Struct sym) where
-  izero = Init I.InitZero
+  izero = Init (IVal ty I.InitZero)
+    where
+    ty = ivoryArea (Proxy :: Proxy (Struct sym))
 
 newtype InitStruct (sym :: Symbol) = InitStruct
-  { getInitStruct :: [(String, I.Init)]
+  { getInitStruct :: [(String, XInit)]
   }
 
 -- Much like the C initializers, the furthest right field initializer will take
@@ -129,10 +200,31 @@ instance IvoryStruct sym => Monoid (InitStruct sym) where
   mempty      = InitStruct []
   mappend l r = InitStruct (mappend (getInitStruct l) (getInitStruct r))
 
-istruct :: IvoryStruct sym => [InitStruct sym] -> Init (Struct sym)
-istruct is = Init (I.InitStruct fields)
+istruct :: forall sym. IvoryStruct sym => [InitStruct sym] -> Init (Struct sym)
+istruct is = Init (IStruct ty fields)
   where
   fields = [ (l,i) | (l,i) <- getInitStruct (mconcat is) ]
+  ty = ivoryArea (Proxy :: Proxy (Struct sym))
 
 (.=) :: Label sym area -> Init area -> InitStruct sym
 l .= ini = InitStruct [(getLabel l, getInit ini)]
+
+-- | Stack allocation
+local :: forall eff s area. (IvoryArea area, E.GetAlloc eff ~ E.Scope s)
+      => Init area
+      -> Ivory eff (Ref (Stack s) area)
+local ini = do
+  (i, binds) <- runInit (getInit ini)
+
+  forM_ binds $ \b -> do
+    emit (I.Local (bindingType b) (bindingVar b) (bindingInit b))
+
+  lname <- freshVar "local"
+  let ty = ivoryArea (Proxy :: Proxy area)
+  emit (I.Local ty lname i)
+
+  rname <- freshVar "ref"
+  let areaTy = ivoryArea (Proxy :: Proxy area)
+  emit (I.AllocRef areaTy rname (I.NameVar lname))
+
+  return (wrapExpr (I.ExpVar rname))

@@ -34,7 +34,7 @@ toDynArray :: forall a s1 s2 eff len ref.
            -> Ivory eff (ref (Stack s2) (DynArray a))
 toDynArray ref = do
   let ty = ivoryType (Proxy :: Proxy (ref (Stack s2) (DynArray a)))
-  ref' <- local (idynarray ref)
+  ref' <- local (idynarrayWrap ref)
   return (wrapExpr (I.ExpSafeCast ty (unwrapExpr ref')))
 
 -- | Use a dynamic array as a sized array, calling an error
