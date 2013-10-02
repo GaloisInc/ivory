@@ -19,6 +19,8 @@ data Var
     -- ^ Names
   | VarInternal String
     -- ^ Internal names
+  | VarLitName String
+    -- ^ A literal name that should not be mangled
     deriving (Show,Eq,Ord)
 
 

@@ -205,6 +205,7 @@ toVar :: I.Var -> String
 toVar var = case var of
   I.VarName n     -> "n_" ++ n
   I.VarInternal n -> "i_" ++ n
+  I.VarLitName n  -> n
 
 --------------------------------------------------------------------------------
 
