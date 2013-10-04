@@ -20,6 +20,9 @@ import qualified DynArray
 
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language (Module(),moduleName)
+import Ivory.Stdlib (stdlibModules)
+
+import qualified Ivory.Stdlib.SearchDir as S
 
 main :: IO ()
 main = do
@@ -36,7 +39,7 @@ main = do
 compileExample :: Opts -> Module -> IO ()
 compileExample opts m = do
   putStrLn ("Compiling: " ++ moduleName m)
-  runCompiler [m] opts
+  runCompilerWith Nothing (Just [S.searchDir]) [m] opts
 
 modules :: [Module]
 modules = [ PID.cmodule
@@ -56,4 +59,4 @@ modules = [ PID.cmodule
           , AddrOfRegression.cmodule
           , Array.cmodule
           , DynArray.cmodule
-          ]
+          ] ++ stdlibModules

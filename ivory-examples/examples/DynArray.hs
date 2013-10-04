@@ -14,11 +14,10 @@ import Prelude hiding (sum)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
+import Ivory.Stdlib
+
 ivalL :: IvoryInit a => [a] -> [Init (Stored a)]
 ivalL = map ival
-
-idynstring :: String -> Init (DynArray (Stored Uint8))
-idynstring cs = idynarray (map (ival . fromIntegral . ord) cs)
 
 -- DynArray Memory Areas -------------------------------------------------------
 
@@ -97,12 +96,39 @@ testLocal1 = proc "testLocal1" $ body $ do
   call_ write (constRef s2)
   retVoid
 
+-- IStr Tests --------------------------------------------------------------
+
+strWrite :: Def ('[ConstRef s IStr] :-> ())
+strWrite = proc "do_str_write" $ \str -> body $ do
+  len <- call istr_len str
+  d   <- assign (str ~> iv_str_data)
+  withDynArrayData d $ \carr _ -> do
+    call_ c_write 0 carr len
+
+-- | Create a null terminated string in a fixed length array.
+makeStr :: GetAlloc eff ~ Scope s
+        => String
+        -> Ivory eff (Ref (Stack s) (Array 32 (Stored Uint8)))
+makeStr s = local (iarray ((map (ival . fromIntegral . ord) s) ++ [ival 0]))
+
+testString1 :: Def ('[] :-> ())
+testString1 = proc "testString1" $ body $ do
+  s1 <- local (istr_lit "Hello, world!\n")
+  call_ strWrite (constRef s1)
+
+  s2   <- local (istr_empty 32)
+  arr1 <- makeStr "Test!\n"
+  istr_from_sz s2 (constRef arr1)
+  call_ strWrite (constRef s2)
+  retVoid
+
 -- Module ----------------------------------------------------------------------
 
 -- | Run all tests in this module.
 main :: Def ('[] :-> ())
 main = proc "main" $ body $ do
   call_ testLocal1
+  call_ testString1
   retVoid
 
 -- | Compile the test functions in this module.
@@ -112,11 +138,14 @@ runDynArrayExample = runCompiler [cmodule] initialOpts { stdOut = True }
 -- | Module containing functions to generate.
 cmodule :: Module
 cmodule = package "DynArray" $ do
+  mapM_ depend stdlibModules
   incl sum
   incl toUpper
   incl c_write
   incl write
+  incl strWrite
   incl testLocal1
+  incl testString1
   incl main
   defStruct (Proxy :: Proxy "foo")
   defMemArea buffer
