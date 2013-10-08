@@ -10,6 +10,25 @@
 
 #ifdef IVORY_TEST
 
+#ifdef __arm__
+
+/* TODO: We could write a better "assert" that suspends all RTOS
+ * tasks and tries to write a debug string somewhere, but this is at
+ * least somewhat useful while running under GDB. */
+#define ivory_assert(arg)         \
+  do {                            \
+    if (!(arg)) {                 \
+      asm volatile("bkpt");       \
+    }                             \
+  } while (0)
+
+#define REQUIRES(arg) ivory_assert(arg)
+#define ENSURES(arg)  ivory_assert(arg)
+#define ASSUMES(arg)  ivory_assert(arg)
+#define ASSERTS(arg)  ivory_assert(arg)
+
+#else /* ! __arm__ */
+
 #include <assert.h>
 
 #define REQUIRES(arg) assert(arg)
@@ -17,6 +36,7 @@
 #define ASSUMES(arg)  assert(arg)
 #define ASSERTS(arg)  assert(arg)
 
+#endif /* __arm__ */
 #endif /* IVORY_TEST */
 
 #ifdef IVORY_CBMC
