@@ -42,7 +42,8 @@ mkType ty = case ty of
     I.TyArr len t         -> mkType t >>= \t' -> arrayType len t'
     I.TyCArray _t         -> error "cannot translate TyCArray"
     I.TyProc _retT _argTs -> error "cannot translate TyProc"
-    I.TyDynArray _        -> error "cannot translate TyDynArray"
+    I.TyDynArray t        -> writeImport "Ivory_Types"
+                          >> return (QualTypeName "Ivory_Types" "ivory_dynarray")
     I.TyOpaque            -> error "cannot translate TyOpaque"
   where
   basetype :: String -> CompileM TypeName
