@@ -21,6 +21,7 @@ library
                         Ivory.Stdlib.Memory,
                         Ivory.Stdlib.Operators,
                         Ivory.Stdlib.String,
+                        Ivory.Stdlib.Trig,
                         Ivory.Stdlib.SearchDir
 
   other-modules:        Paths_ivory_stdlib
