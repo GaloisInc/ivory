@@ -29,6 +29,13 @@ int32_t ivory_stdlib_string_copy_z(
   uint8_t *dest, int32_t dest_len,
   const uint8_t *src, int32_t src_len);
 
+/* Copy at most 'min(dest_len, src_len)' bytes from 'src' to
+ * dest.  Returns the number of bytes written to 'dest', which
+ * is not null terminated. */
+int32_t ivory_stdlib_string_copy(
+    uint8_t *dest, int32_t dest_len,
+    const uint8_t *src, int32_t src_len);
+
 #ifdef __cplusplus
 }
 #endif
