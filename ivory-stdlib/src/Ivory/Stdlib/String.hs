@@ -55,9 +55,10 @@ gen_stringInit l_data l_len xs =
 ----------------------------------------------------------------------
 -- Example Generated Code
 
--- [ivory|
--- string ParamName 16
--- |]
+{-
+[ivory|
+string ParamName 16
+|]
 
 [ivory|
 struct string_ParamName
@@ -77,6 +78,7 @@ instance IvoryString (Struct "string_ParamName") where
   stringDataC x    = toCArray (x ~> string_ParamName_data)
   stringLength x   = x ~> string_ParamName_len
   stringLengthC x  = x ~> string_ParamName_len
+-}
 
 ----------------------------------------------------------------------
 -- Generic Functions
