@@ -22,7 +22,5 @@ ensTrans retE = loop
     I.ExpSafeCast t e0     -> I.ExpSafeCast t (loop e0)
     I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
     I.ExpAddrOfGlobal{}    -> e
-    I.ExpDynArrayLength e0 -> I.ExpDynArrayLength (loop e0)
-    I.ExpDynArrayData t e0 -> I.ExpDynArrayData t (loop e0)
 
 --------------------------------------------------------------------------------

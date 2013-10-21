@@ -157,11 +157,4 @@ static inline uint64_t signum_u64(uint64_t i) {
 /* machine-depdentent size */
 typedef int idx;
 
-/* dynamic arrays */
-
-struct ivory_dynarray {
-  void *data;
-  idx length;
-};
-
 #endif // IVORY_H

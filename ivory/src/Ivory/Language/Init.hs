@@ -160,29 +160,6 @@ iarray is = Init (IArray ty (take len (map getInit is)))
   len = fromInteger (fromTypeNat (sing :: Sing len))
   ty = ivoryArea (Proxy :: Proxy (Array len area))
 
--- Dynamic Array Initializers --------------------------------------------------
-
--- | Wrap an existing array in a dynamic array.  (not exported)
-idynarrayWrap :: forall a s len ref.
-                 ( SingI len, IvoryRef ref
-                 , IvoryArea a
-                 , IvoryVar (ref s (Array len a)))
-              => ref s (Array len a)
-              -> Init (DynArray a)
-idynarrayWrap ref = Init (IVal dynArrTy (I.InitDynArray arrTy (unwrapExpr ref)))
-  where
-  arrTy = ivoryArea (Proxy :: Proxy (Array len a))
-  dynArrTy = ivoryArea (Proxy :: Proxy (DynArray a))
-
--- | Create a dynamic array from a list of elements.
-idynarray :: forall a. IvoryArea a => [Init a] -> Init (DynArray a)
-idynarray xs = Init (IFresh dynArrTy storage go)
-  where
-  dynArrTy = ivoryArea (Proxy :: Proxy (DynArray a))
-  arrTy    = I.TyArr (length xs) (ivoryArea (Proxy :: Proxy a))
-  storage  = IArray arrTy (map getInit xs)
-  go var   = I.InitDynArray arrTy (I.ExpVar var)
-
 -- Struct Initializers ---------------------------------------------------------
 
 instance IvoryStruct sym => IvoryZero (Struct sym) where

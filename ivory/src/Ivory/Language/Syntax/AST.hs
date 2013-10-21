@@ -196,20 +196,6 @@ data Stmt
     -- ^ Looping: arguments are the loop variable, start value,
     -- break condition (for increment or decrement), and block.
 
-  | DynArrayRef Var Type Expr Expr Block Block
-    -- ^ @DynArrayRef eltVar arrTy arrExp ixExp okBlk failBlk@
-    --
-    -- Safely index a dynamic array.  If @ixExp@ is a valid index
-    -- for @arrExp@ (which is a dynamic array of @arrTy@), then
-    -- execute @okBlk@ with @eltVar@ bound to the array element
-    -- at that index.  If the index is out of bounds, execute
-    -- @failBlk@.
-
-  | DynArrayMap Var Var Type Expr Block
-    -- ^ Loop over the elements in a dynamic array.  The first @Var@
-    -- will contain the array element, and the second @Var@ contains
-    -- the array index.  @Type@ is the dynamic array type.
-
   | Forever Block
     -- ^ Nonterminting loop
 
@@ -290,13 +276,6 @@ data Expr
   | ExpAddrOfGlobal Sym
     -- ^ Take the address of a global memory area, introduced through a MemArea
     -- *only*.
-
-  | ExpDynArrayLength Expr
-    -- ^ Retrieve a constant reference to the number of elements
-    -- in a dynamic array.
-
-  | ExpDynArrayData Type Expr
-    -- ^ Retrieve a reference to the array's data.
 
     deriving (Show, Eq, Ord)
 
@@ -423,7 +402,6 @@ data Init
   | InitExpr Type Expr         -- ^ @ expr @
   | InitStruct [(String,Init)] -- ^ @ { .f1 = i1, ..., .fn = in } @
   | InitArray [Init]           -- ^ @ { i1, ..., in } @
-  | InitDynArray Type Expr
     deriving (Show, Eq, Ord)
 
 

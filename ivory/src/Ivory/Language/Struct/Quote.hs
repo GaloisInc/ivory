@@ -139,7 +139,6 @@ mkType ty = case ty of
 
   P.TCon "Stored" -> promotedT 'Stored
   P.TCon "Array"  -> promotedT 'Array
-  P.TCon "DynArray"  -> promotedT 'DynArray
   P.TCon "Struct" -> promotedT 'Struct
   P.TCon "Global" -> promotedT 'Global
   P.TCon "Stack"  -> fail "struct: not sure what to do with Stack yet"
@@ -168,9 +167,6 @@ mkTypeE ty = case flattenTApp ty of
 
   [P.TCon "Array", P.TNat len, e] ->
     [| AST.TyArr $(litE (integerL len)) $(mkTypeE e) |]
-
-  [P.TCon "DynArray", e] ->
-    [| AST.TyDynArray $(mkTypeE e) |]
 
   [P.TCon "Stored", s] ->
     [| ivoryType (Proxy :: SProxy $(mkType s)) |]

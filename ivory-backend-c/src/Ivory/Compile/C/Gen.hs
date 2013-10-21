@@ -174,7 +174,6 @@ toTypeCxt arrCase = convert
     I.TyPtr t             -> arrCase t
     I.TyArr len t         -> [cty| $ty:(convert t)[$uint:len] |]
     I.TyCArray t          -> [cty| $ty:(convert t) * |]
-    I.TyDynArray _        -> [cty| struct ivory_dynarray |]
     I.TyProc retTy argTys ->
       [cty| $ty:(convert retTy) (*)
             ($params:(map (toParam . convert) argTys)) |]
@@ -304,47 +303,6 @@ toBody ens stmt =
         ( [cexp| $id:ix >= $exp:(toExpr ty to) |]
         , [cexp| $id:ix-- |] )
 
-    I.DynArrayRef eltVar arrTy arr ix ok_blk fail_blk ->
-      let ok_body   = concatMap toBody' ok_blk   in
-      let fail_body = concatMap toBody' fail_blk in
-      [C.BlockStm [cstm|
-        if($exp:ixExpr >= 0 && $exp:ixExpr < $exp:ubound) {
-          $ty:(toType eltTy) $id:(toVar eltVar) = $exp:eltExpr;
-          $items:ok_body
-        } else {
-          $items:fail_body
-        } |]]
-      where
-        ty = I.TyInt I.Int32
-        ixExpr = toExpr ty ix
-        eltTy =
-          case arrTy of
-            I.TyRef      (I.TyDynArray x) -> I.TyRef x
-            I.TyConstRef (I.TyDynArray x) -> I.TyConstRef x
-            _ -> error "invalid dynamic error type"
-        eltExpr =
-          [cexp| &(($ty:(toType eltTy))($exp:(toExpr arrTy arr)) -> data) [$exp:ixExpr] |]
-        ubound = [cexp| * $exp:(toExpr ty (I.ExpDynArrayLength arr)) |]
-
-    I.DynArrayMap eltVar ixVar arrTy arr blk ->
-      let loopBd = concatMap toBody' blk in
-      [C.BlockStm [cstm|
-        for($ty:(toType ty) $id:ix = 0; $id:ix < $exp:ubound; $id:ix++ ) {
-          $ty:(toType eltTy) $id:(toVar eltVar) = $exp:eltExpr;
-          $items:loopBd
-        } |]]
-      where
-        ty = I.TyInt I.Int32
-        ix = toVar ixVar
-        eltTy =
-          case arrTy of
-            I.TyRef      (I.TyDynArray x) -> I.TyRef x
-            I.TyConstRef (I.TyDynArray x) -> I.TyConstRef x
-            _ -> error "invalid dynamic array type"
-        eltExpr =
-          [cexp| &(($ty:(toType eltTy))($exp:(toExpr arrTy arr)) -> data) [$id:ix] |]
-        ubound = [cexp| * $exp:(toExpr ty (I.ExpDynArrayLength arr)) |]
-
     I.Forever blk ->
       let foreverBd =  concatMap toBody' blk
           foreverDecl = C.BlockDecl
@@ -374,24 +332,9 @@ toInit i = case i of
   I.InitArray is  -> [cinit|{$inits:([ toInit j | j <- is ])}|]
   I.InitStruct fs ->
     C.CompoundInitializer [ (Just (fieldDes f), toInit j) | (f,j) <- fs ] noLoc
-  I.InitDynArray ty e -> dynArrayInit ty e
 
 fieldDes :: String -> C.Designation
 fieldDes n = C.Designation [ C.MemberDesignator (C.Id n noLoc) noLoc ] noLoc
-
-dynArrayInit :: I.Type -> I.Expr -> C.Initializer
-dynArrayInit (I.TyArr len _) e =
-  C.CompoundInitializer
-    [ ( Just (fieldDes "data")
-      -- XXX The cast to 'void *' here is to prevent a warning when
-      -- initializing a const dynarray with a const data pointer.  We
-      -- are safe because the generated code will always cast it back
-      -- to a const pointer before using it, but it is stored as
-      -- non-const inside the "ivory_dynarray" structure.
-      , [cinit| (void *)$exp:(toExpr (I.TyPtr I.TyVoid) e) |])
-    , ( Just (fieldDes "length") , [cinit| $exp:len |])
-    ] noLoc
-dynArrayInit _ _ = error "invalid dynamic array initializer"
 
 --------------------------------------------------------------------------------
 
@@ -430,20 +373,6 @@ toExpr t (I.ExpLabel t' e field) = case t of
   _                           ->
     [cexp| &($exp:(toExpr (I.TyRef t') e) -> $id:field) |]
   where getField = [cexp| ($exp:(toExpr  t' e) -> $id:field) |]
-----------------------------------------
-toExpr t (I.ExpDynArrayLength e) =
-  toExpr t (I.ExpLabel t e "length")
-----------------------------------------
-toExpr t1 (I.ExpDynArrayData t2 e) =
-  case t1 of
-    I.TyRef      (I.TyArr    _ _) -> getField
-    I.TyRef      (I.TyCArray _  ) -> getField
-    I.TyConstRef (I.TyArr    _ _) -> getField
-    I.TyConstRef (I.TyCArray _  ) -> getField
-    _                           -> error $ "unexpected: " ++ show t1
-  where
-    getField =
-      [cexp| ($ty:(toType t1))($exp:(toExpr t1 (I.ExpLabel t2 e "data"))) |]
 ----------------------------------------
 toExpr t (I.ExpIndex at a ti i) = case t of
   I.TyRef (I.TyArr _ _)       -> expIdx I.TyRef

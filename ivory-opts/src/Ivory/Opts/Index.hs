@@ -35,8 +35,6 @@ expFold ty e = case e of
     putExpr (Just $ toIxAssert e0 maxSz)
     expFold ixTy e0
   I.ExpAddrOfGlobal{}   -> return ()
-  I.ExpDynArrayLength{} -> return ()
-  I.ExpDynArrayData{}   -> return ()
 --------------------------------------------------------------------------------
 
 -- | For toIx e :: Ix maxSz, assert

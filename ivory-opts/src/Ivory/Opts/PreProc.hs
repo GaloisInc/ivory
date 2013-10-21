@@ -43,10 +43,6 @@ stmtFold opt stmt =
                               (map sf b)
     I.Break              -> I.Break
     I.Forever b          -> I.Forever (map sf b)
-    I.DynArrayMap v1 v2 ty e b     ->
-      I.DynArrayMap v1 v2 ty (opt e) (map sf b)
-    I.DynArrayRef v ty e1 e2 b1 b2 ->
-      I.DynArrayRef v ty (opt e1) (opt e2) (map sf b1) (map sf b2)
   where sf = stmtFold opt
 
 loopIncrFold :: ExprOpt -> I.LoopIncr -> I.LoopIncr

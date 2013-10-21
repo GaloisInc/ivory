@@ -22,7 +22,6 @@ data Area k
   = Struct Symbol
   | Array Nat (Area k)
   | CArray (Area k)
-  | DynArray (Area k)
   | Stored k
     -- ^ This is lifting for a *-kinded type
 
@@ -38,7 +37,4 @@ instance (SingI len, IvoryArea area) => IvoryArea (Array len area) where
 
 instance IvoryType a => IvoryArea (Stored a) where
   ivoryArea _ = ivoryType (Proxy :: Proxy a)
-
-instance IvoryArea a => IvoryArea (DynArray a) where
-  ivoryArea _ = I.TyDynArray (ivoryArea (Proxy :: Proxy a))
 
