@@ -130,7 +130,7 @@ docProcessDef :: ProcessDef -> Doc
 docProcessDef (ProcessDef procname comps conns) = vsep
   [ docBlock "process" p []
   , empty
-  , docBlock "process" (p <> text ".impl")
+  , docBlock "process implementation" (p <> text ".impl")
       [ docSection "subcomponents"
           (map docProcComponent comps)
       , docSection "connections"
