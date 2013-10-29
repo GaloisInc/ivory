@@ -44,12 +44,8 @@ data ThreadDef
   deriving (Eq, Show)
 
 data ThreadFeature
-  = ThreadFeaturePort String PortKind PortDir TypeName [ThreadProperty]
-  deriving (Eq, Show)
-
-data PortKind
-  = PortKindData
-  | PortKindEvent
+  = ThreadFeatureEventPort String PortDir TypeName [ThreadProperty]
+  | ThreadFeatureDataPort String TypeName [ThreadProperty]
   deriving (Eq, Show)
 
 data PortDir
@@ -75,7 +71,8 @@ data ProcessDef =
   deriving (Eq, Show)
 
 data ProcessComponent
-  = ProcessComponent String String -- Name, Thread Name
+  = ProcessThread String String -- Name, Thread Name
+  | ProcessData String TypeName -- Name, Type
   deriving (Eq, Show)
 
 data ProcessPort
@@ -83,7 +80,8 @@ data ProcessPort
   deriving (Eq, Show)
 
 data ProcessConnection
-  = ProcessConnection ProcessPort ProcessPort -- From, To
+  = EventConnection ProcessPort ProcessPort -- From, To
+  | DataConnection String ProcessPort -- data name, i/o port
   deriving (Eq, Show)
 
 

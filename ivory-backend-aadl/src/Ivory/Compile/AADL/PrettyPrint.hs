@@ -97,15 +97,19 @@ docThreadDef (ThreadDef threadname features properties) =
   t = text threadname
 
 docThreadFeature :: ThreadFeature -> Doc
-docThreadFeature (ThreadFeaturePort n k d tname props) =
-  text n <> colon <+> dd <+> kk <+> (docTypeName tname) <> ps
+docThreadFeature (ThreadFeatureEventPort n d tname props) =
+  text n <> colon <+> dd <+> text "event data port" <+> (docTypeName tname) <> ps
   where
   dd = case d of
     In  -> text "in"
     Out -> text "out"
-  kk = case k of
-    PortKindData  -> text "data port"
-    PortKindEvent -> text "event data port"
+  ps = case props of
+    [] -> empty
+    _  -> space <> braces (line <> tab values <> line) <> semi
+      where values = vsep (map docThreadProperty props)
+docThreadFeature (ThreadFeatureDataPort n tname props) =
+  text n <> colon <+> text "requires data access" <+> (docTypeName tname) <> ps
+  where
   ps = case props of
     [] -> empty
     _  -> space <> braces (line <> tab values <> line) <> semi
@@ -124,7 +128,7 @@ docPropValue (PropList l) = parens (hcat (punctuate (comma <> space) (map docPro
 kv :: Doc -> Doc -> Doc
 kv k v = k <+> text "=>" <+> v <> semi
 
----
+--------------------------------------------------------------------------------
 
 docProcessDef :: ProcessDef -> Doc
 docProcessDef (ProcessDef procname comps conns) = vsep
@@ -141,12 +145,19 @@ docProcessDef (ProcessDef procname comps conns) = vsep
   p = text procname
 
 docProcComponent :: ProcessComponent -> Doc
-docProcComponent (ProcessComponent name ttype) = 
+docProcComponent (ProcessThread name ttype) =
   text name <+> colon <+> text "thread" <+> text ttype <> semi
+docProcComponent (ProcessData name t) =
+  text name <+> colon <+> text "data" <+> docTypeName t <> semi
 
 docProcConnection :: ProcessConnection -> Doc
-docProcConnection (ProcessConnection to fro) =
-  text "port" <+> docProcessPort to <+> text "->" <+> docProcessPort fro <> semi
+docProcConnection (EventConnection to fro) =
+  text "port" <+> docProcessPort to <+> arrow <+> docProcessPort fro <> semi
+docProcConnection (DataConnection dname port) =
+  text "data access" <+> text dname  <+> arrow <+> docProcessPort port <> semi
+
+arrow :: Doc
+arrow = text "->"
 
 docProcessPort :: ProcessPort -> Doc
 docProcessPort (ProcessPort n p) =
