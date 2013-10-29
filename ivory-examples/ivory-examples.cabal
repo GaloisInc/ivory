@@ -22,7 +22,9 @@ executable ivory-fibtutorial
                         wl-pprint,
                         ivory,
                         ivory-opts,
-                        ivory-backend-c
+                        ivory-backend-c,
+                        ivory-quickcheck,
+                        QuickCheck
   default-language:     Haskell2010
   ghc-options:          -Wall
 
@@ -40,7 +42,8 @@ executable ivory-c-clang-test
                         PublicPrivate,
                         Bits,
                         SizeOf,
-                        AddrOfRegression
+                        AddrOfRegression,
+                        QC
   hs-source-dirs:       examples
   build-depends:        base >= 4.6,
                         pretty >= 1.1,
@@ -50,8 +53,10 @@ executable ivory-c-clang-test
                         wl-pprint,
                         ivory,
                         ivory-opts,
+                        ivory-quickcheck,
                         ivory-backend-c,
-                        ivory-stdlib
+                        ivory-stdlib,
+                        QuickCheck
   default-language:     Haskell2010
   ghc-options:          -Wall
   if flag(debug-qq)
