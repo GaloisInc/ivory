@@ -32,7 +32,7 @@ mkType ty = case ty of
     I.TyChar              -> basetype "Char"
     I.TyInt i             -> intSize i
     I.TyWord w            -> wordSize w
-    I.TyBool              -> basetype "Bool"
+    I.TyBool              -> basetype "Boolean"
     I.TyFloat             -> basetype "Float"
     I.TyDouble            -> basetype "Double"
     I.TyStruct n          -> structType n
@@ -48,10 +48,10 @@ mkType ty = case ty of
   basetype t = qualTypeName "Base_Types" t
 
   intSize :: I.IntSize -> CompileM TypeName
-  intSize I.Int8  = basetype "Signed_8"
-  intSize I.Int16 = basetype "Signed_16"
-  intSize I.Int32 = basetype "Signed_32"
-  intSize I.Int64 = basetype "Signed_64"
+  intSize I.Int8  = basetype "Integer_8"
+  intSize I.Int16 = basetype "Integer_16"
+  intSize I.Int32 = basetype "Integer_32"
+  intSize I.Int64 = basetype "Integer_64"
 
   wordSize :: I.WordSize -> CompileM TypeName
   wordSize I.Word8  = basetype "Unsigned_8"
