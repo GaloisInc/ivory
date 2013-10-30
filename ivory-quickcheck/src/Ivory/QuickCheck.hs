@@ -6,7 +6,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -91,15 +90,26 @@ import           Ivory.QuickCheck.Monad
 
 import           Ivory.Language
 
+import           GHC.TypeLits
+
 --------------------------------------------------------------------------------
 
 type Size = Int
 
-class Samples a b | a -> b where
-  samples :: Size -> a -> IvoryGen [b]
+class Samples gen res where
+  samples :: Size -> gen -> IvoryGen [res]
 
 instance A.Arbitrary a => Samples (G.Gen a) a where
   samples = mkSamples
+
+instance (A.Arbitrary a, SingI len, IvoryInit a, IvoryType a)
+      => Samples (G.Gen a) (Init (Array len (Stored a))) where
+  samples i gen = mkSamples i mkArr
+    where
+    mkArr = do
+      let sz = fromSing (sing :: Sing len)
+      arr   <- G.vectorOf (fromInteger sz) gen
+      return $ iarray (map ival arr)
 
 instance (A.Arbitrary a, IvoryInit a)
       => Samples (Label sym (Stored a)) (InitStruct sym)

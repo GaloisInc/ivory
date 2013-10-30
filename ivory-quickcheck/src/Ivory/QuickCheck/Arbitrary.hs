@@ -80,6 +80,7 @@ instance (SingI len, A.Arbitrary a, IvoryType a, IvoryInit a)
     let sz  = fromSing (sing :: Sing len)
     arr    <- G.vectorOf (fromInteger sz) A.arbitrary
     return  $ iarray (map ival arr)
+
 --------------------------------------------------------------------------------
 
 -- | Random struct label (of 'Stored' values) initializer.
