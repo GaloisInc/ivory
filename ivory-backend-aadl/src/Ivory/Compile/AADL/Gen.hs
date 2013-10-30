@@ -24,7 +24,7 @@ compileStruct def = case def of
 mkField :: I.Typed String -> CompileM DTField
 mkField field = do
   t <- mkType (I.tType field)
-  return $ DTField (I.tValue field) t
+  return $ DTField (identifier (I.tValue field)) t
 
 mkType :: I.Type -> CompileM TypeName
 mkType ty = case ty of
