@@ -59,6 +59,11 @@ mkType ty = case ty of
   wordSize I.Word32 = basetype "Unsigned_32"
   wordSize I.Word64 = basetype "Unsigned_64"
 
+typeImpl :: TypeName -> TypeName
+typeImpl t@(DotTypeName _ _)             = t
+typeImpl t@(QualTypeName "Base_Types" _) = t
+typeImpl t                               = DotTypeName t "impl"
+
 arrayType :: Int -> TypeName -> CompileM TypeName
 arrayType len basetype = do
   writeImport "Data_Model"
