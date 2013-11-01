@@ -3,6 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Ivory.Language.Struct where
 
@@ -24,6 +25,9 @@ instance (IvoryStruct sym, SingI sym) => IvoryArea (Struct sym) where
 newtype StructDef (sym :: Symbol) = StructDef { getStructDef :: I.Struct }
 
 class (IvoryArea (Struct sym), SingI sym) => IvoryStruct (sym :: Symbol) where
+  type StructName (a :: Area *) :: Symbol
+  type StructName (Struct sym) = sym
+
   structDef :: StructDef sym
 
 -- | Struct field labels.

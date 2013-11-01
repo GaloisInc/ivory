@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Ivory.Language.Struct.Quote (
     ivory
@@ -11,6 +12,7 @@ import Ivory.Language.Area
 import Ivory.Language.Proxy
 import Ivory.Language.Scope
 import Ivory.Language.SizeOf
+import Ivory.Language.String
 import Ivory.Language.Struct
 import Ivory.Language.Type
 import qualified Ivory.Language.Struct.Parser as P
@@ -56,6 +58,8 @@ mkDef def = case def of
     sequence (mkIvoryStruct sym def ++ sizeOfDefs ++ mkFields sym fs)
 
   P.AbstractDef n _hdr -> sequence (mkIvoryStruct (mkSym n) def)
+
+  P.StringDef name len -> mkStringDef name len
   where
   mkSym n = litT (strTyLit n)
 
@@ -77,6 +81,7 @@ mkStructDef def = funD 'structDef
     P.StructDef n fs    -> [| AST.Struct $(stringE n)
                                          $(listE (map mkField fs)) |]
     P.AbstractDef n hdr -> [| AST.Abstract $(stringE n) $(stringE hdr) |]
+    P.StringDef _ _     -> error "unexpected string definition"
 
   mkField f =
     [| AST.Typed
@@ -160,16 +165,48 @@ flattenTApp ty = case ty of
 
 -- | Turn a parsed type into its AST representation.
 mkTypeE :: P.Type -> ExpQ
-mkTypeE ty = case flattenTApp ty of
+mkTypeE ty =
+  appE (varE 'ivoryArea)
+       (sigE (conE 'Proxy)
+             (appT (conT ''Proxy) (mkType ty)))
 
-  [P.TCon "Struct", P.TSym name] ->
-    [| AST.TyStruct $(stringE name) |]
+-- Note: The above is equivalent to:
+--
+--   [| ivoryArea (Proxy :: Proxy $(mkType ty)) |]
+--
+-- except I can't get TH to type-check that (maybe this will
+-- work in GHC 7.8?)
 
-  [P.TCon "Array", P.TNat len, e] ->
-    [| AST.TyArr $(litE (integerL len)) $(mkTypeE e) |]
+-- String Types ---------------------------------------------------------------
 
-  [P.TCon "Stored", s] ->
-    [| ivoryType (Proxy :: SProxy $(mkType s)) |]
+-- | Create an Ivory type for a string with a fixed capacity.
+mkStringDef :: String -> Integer -> Q [Dec]
+mkStringDef ty_s len = do
+  let ty_n       = mkName ty_s
+  let struct_s   = "ivory_string_" ++ ty_s
+  let struct_n   = mkName struct_s
+  let struct_t   = [t| Struct $(litT (strTyLit struct_s)) |]
+  let data_s     = struct_s ++ "_data"
+  let data_n     = mkName data_s
+  let len_s      = struct_s ++ "_len"
+  let len_n      = mkName len_s
 
-  _ ->
-    fail ("mkTypeE: unhandled case: " ++ show ty)
+  let data_t     = P.TApp (P.TApp (P.TCon "Array") (P.TNat len))
+                          (P.TApp (P.TCon "Stored") (P.TCon "Uint8"))
+  let data_f     = P.Field data_s data_t
+  let len_t      = P.TApp (P.TCon "Stored")
+                          (P.TApp (P.TCon "Ix") (P.TNat len))
+  let len_f      = P.Field len_s  len_t
+  let struct_def = P.StructDef struct_s [data_f, len_f]
+
+  d1 <- mkDef struct_def
+  d2 <- sequence $
+    [ tySynD ty_n [] struct_t
+    , instanceD (cxt []) (appT (conT ''IvoryString) struct_t)
+      [ tySynInstD ''Capacity [struct_t] (litT (numTyLit len))
+      , valD (varP 'stringDataL)   (normalB (varE data_n)) []
+      , valD (varP 'stringLengthL) (normalB (varE len_n)) []
+      ]
+    ]
+
+  return (d1 ++ d2)

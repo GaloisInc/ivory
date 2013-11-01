@@ -8,6 +8,7 @@ import Ivory.Language.Area (IvoryArea)
 import Ivory.Language.MemArea (MemArea(..),ConstMemArea(..))
 import Ivory.Language.Proc (Def(..))
 import Ivory.Language.Proxy (Proxy(..))
+import Ivory.Language.String (IvoryString(..))
 import Ivory.Language.Struct (IvoryStruct(..),StructDef(..))
 import qualified Ivory.Language.Syntax as I
 
@@ -67,6 +68,10 @@ defStruct _ = do
   where
   def :: StructDef sym
   def  = structDef
+
+-- | Include the definition of a string type's structure.
+defStringType :: forall str. (IvoryString str) => Proxy str -> ModuleDef
+defStringType _ = defStruct (Proxy :: Proxy (StructName str))
 
 -- | Include the definition of a memory area.
 defMemArea :: IvoryArea area => MemArea area -> ModuleDef

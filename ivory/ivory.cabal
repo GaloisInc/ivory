@@ -42,6 +42,7 @@ library
                         Ivory.Language.Scope,
                         Ivory.Language.Sint,
                         Ivory.Language.SizeOf,
+                        Ivory.Language.String,
                         Ivory.Language.Struct,
                         Ivory.Language.Syntax,
                         Ivory.Language.Syntax.AST,

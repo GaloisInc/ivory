@@ -127,6 +127,9 @@ module Ivory.Language (
   , SingI()
   , toCArray
 
+    -- ** Strings
+  , IvoryString(..)
+
     -- ** Looping
   , for, times
   , breakOut
@@ -151,6 +154,7 @@ module Ivory.Language (
     -- ** Module Definitions
   , AST.Module(), moduleName, package
   , ModuleDef, incl, depend, defStruct
+  , defStringType
   , defMemArea, defConstMemArea
   , inclHeader
   , private, public
@@ -187,6 +191,7 @@ import Ivory.Language.Ref
 import Ivory.Language.Scope
 import Ivory.Language.Sint
 import Ivory.Language.SizeOf
+import Ivory.Language.String
 import Ivory.Language.Struct
 import Ivory.Language.Struct.Quote (ivory)
 import Ivory.Language.Type

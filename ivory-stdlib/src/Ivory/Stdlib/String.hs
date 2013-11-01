@@ -28,60 +28,53 @@ import qualified Control.Monad as M
 ----------------------------------------------------------------------
 -- Yet Another Ivory String Type
 
--- XXX we will clean up these names, but some will be exported
--- and some will not (we definitely will not allow writing to
--- the string length, for example)
-
-class IvoryArea a => IvoryString a where
-  stringCapacity    :: ConstRef s a -> Sint32
-  stringData        :: Ref      s a -> Ref      s (CArray (Stored Uint8))
-  stringDataC       :: ConstRef s a -> ConstRef s (CArray (Stored Uint8))
-  stringLength      :: Ref      s a -> Ref      s (Stored Sint32)
-  stringLengthC     :: ConstRef s a -> ConstRef s (Stored Sint32)
-
 -- TODO: Should we generate a warning or error if the string
 -- is too long for the string type?
 gen_stringInit :: (IvoryStruct name, SingI len)
                => Label name (Array len (Stored Uint8))
-               -> Label name (Stored Sint32)
+               -> Label name (Stored (Ix len))
                -> String
                -> Init (Struct name)
 gen_stringInit l_data l_len xs =
   istruct
     [ l_data .= iarray (map (ival . fromIntegral . ord) xs)
-    , l_len  .= ival (fromIntegral (length xs))
+    , l_len  .= ival (toIx len)
     ]
+  where
+  len :: Sint32
+  len = fromIntegral (length xs)
 
-----------------------------------------------------------------------
--- Example Generated Code
-
-{-
-[ivory|
-string ParamName 16
-|]
-
-[ivory|
-struct string_ParamName
-  { string_ParamName_data :: Array 16 (Stored Uint8)
-  ; string_ParamName_len  :: Stored Sint32
-  }
-|]
-
-type ParamName = Struct "string_ParamName"
-
-init_ParamName :: String -> Init ParamName
-init_ParamName = gen_stringInit string_ParamName_data string_ParamName_len
-
-instance IvoryString (Struct "string_ParamName") where
-  stringCapacity x = arrayLen (x ~> string_ParamName_data)
-  stringData x     = toCArray (x ~> string_ParamName_data)
-  stringDataC x    = toCArray (x ~> string_ParamName_data)
-  stringLength x   = x ~> string_ParamName_len
-  stringLengthC x  = x ~> string_ParamName_len
--}
+stringInit :: IvoryString str => String -> Init str
+stringInit = gen_stringInit stringDataL stringLengthL
 
 ----------------------------------------------------------------------
 -- Generic Functions
+
+stringCapacity :: forall ref str s.
+                  (IvoryString str, IvoryRef ref)
+               => ref s str -> Ix (Capacity str)
+stringCapacity _ = toIx len
+  where
+  len :: Sint32
+  len = fromIntegral (fromSing (sing :: Sing (Capacity str)))
+
+-- Polymorphic "stringLength" function allowing read/write access
+-- to the string length.  This is not exported, only a specialized
+-- read-only version.
+stringLength :: ( IvoryString str
+                , IvoryRef ref
+                , IvoryExpr (ref s (Stored (Ix (Capacity str))))
+                , IvoryExpr (ref s str))
+             => ref s str -> ref s (Stored (Ix (Capacity str)))
+stringLength x = x ~> stringLengthL
+
+stringData :: ( IvoryString str
+              , IvoryRef ref
+              , IvoryExpr (ref s (Array (Capacity str) (Stored Uint8)))
+              , IvoryExpr (ref s (CArray (Stored Uint8)))
+              , IvoryExpr (ref s str))
+           => ref s str -> ref s (CArray (Stored Uint8))
+stringData x = toCArray (x ~> stringDataL)
 
 -- | Binding to the C "memcmp" function.
 memcmp :: Def ('[ ConstRef s1 (CArray (Stored Uint8))
@@ -98,9 +91,9 @@ memcpy = importProc "memcpy" "string.h"
 -- | Return the length of a string.
 istr_len :: IvoryString str
          => ConstRef s str
-         -> Ivory eff Sint32
+         -> Ivory eff (Ix (Capacity str))
 istr_len str = do
-  len <- deref (stringLengthC str)
+  len <- deref (stringLength str)
   assert (len <? stringCapacity str)
   return len
 
@@ -111,7 +104,7 @@ istr_copy :: IvoryString str
           -> Ivory eff ()
 istr_copy dest src = do
   len <- istr_len src
-  call_ memcpy (stringData dest) (stringDataC src) len
+  call_ memcpy (stringData dest) (stringData src) (fromIx len)
   store (stringLength dest) len
 
 -- | Copy one string to another of a possibly different type.  If
@@ -147,10 +140,10 @@ istr_eq :: (IvoryString str1, IvoryString str2)
         -> Ivory eff IBool
 istr_eq s1 s2 = do
   len1 <- istr_len s1
-  ptr1 <- assign (stringDataC s1)
+  ptr1 <- assign (stringData s1)
   len2 <- istr_len s2
-  ptr2 <- assign (stringDataC s2)
-  call do_istr_eq ptr1 len1 ptr2 len2
+  ptr2 <- assign (stringData s2)
+  call do_istr_eq ptr1 (fromIx len1) ptr2 (fromIx len2)
 
 -- | Primitive function to do a bounded string copy.
 string_copy :: Def ('[ Ref s1 (CArray (Stored Uint8))
@@ -186,9 +179,8 @@ istr_from_sz dest src = do
   ptr1     <- assign (stringData dest)
   let len2  = fromIntegral (fromSing (sing :: Sing len))
   ptr2     <- assign (toCArray src)
-  result   <- call string_copy_z ptr1 len1 ptr2 len2
-  assert (result <=? len1)
-  store (stringLength dest) result
+  result   <- call string_copy_z ptr1 (fromIx len1) ptr2 len2
+  store (stringLength dest) (toIx result)
 
 -- | Copy an Ivory string to a fixed-size, null-terminated C
 -- string.  The destination string is always properly terminated,
@@ -206,10 +198,9 @@ sz_from_istr dest src = do
   let dest_capacity = fromSing (sing :: Sing len)
   M.when (dest_capacity > 0) $ do
     let dest_len = fromIntegral (dest_capacity - 1)
-    src_data <- assign (stringDataC src)
+    src_data <- assign (stringData src)
     src_len  <- istr_len src
-    result   <- call string_copy (toCArray dest) dest_len src_data src_len
-    assert (result <=? dest_len)
+    result   <- call string_copy (toCArray dest) dest_len src_data (fromIx src_len)
     -- XXX is this right?  shouldn't it use "result"?
     store (dest ! toIx (dest_len - 1)) 0
 

@@ -18,6 +18,7 @@ import Text.Parsec.Prim (try)
 data StructDef
   = StructDef String [Field]
   | AbstractDef String String
+  | StringDef String Integer
     deriving (Show)
 
 data Field = Field
@@ -60,7 +61,7 @@ semi :: Parser ()
 semi  = token ";"
 
 parseStructDef :: Parser StructDef
-parseStructDef  = structDef <|> abstractDef
+parseStructDef  = structDef <|> abstractDef <|> stringDef
 
 structDef :: Parser StructDef
 structDef  = StructDef <$  token "struct"
@@ -72,6 +73,11 @@ abstractDef  = AbstractDef <$  token "abstract"
                            <*  token "struct"
                            <*> parseName
                            <*> parseString
+
+stringDef :: Parser StructDef
+stringDef  = StringDef <$  token "string"
+                       <*> parseName
+                       <*> number
 
 parseName :: Parser String
 parseName  = token' ((:) <$> satisfy isLetter <*> following)
