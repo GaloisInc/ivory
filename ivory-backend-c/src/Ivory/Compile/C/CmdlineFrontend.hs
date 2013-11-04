@@ -29,7 +29,7 @@ import Data.List (foldl')
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Environment (getArgs)
 import System.FilePath (takeDirectory,takeExtension,addExtension,(</>))
-import System.IO (withFile, IOMode(..), hPutStrLn)
+import System.IO (writeFile)
 import Text.PrettyPrint.Mainland
     ((<+>),(<>),line,text,stack,punctuate,render,empty,indent,displayS)
 import qualified System.FilePath.Posix as PFP
@@ -127,14 +127,26 @@ rc sm userSearchPath modules opts
   -- Transform a compiled unit into a header, and write to a .h file
   outputHeader :: FilePath -> C.CompileUnits -> IO ()
   outputHeader basename cm = do
-    C.writeHdr (verbose opts) (addExtension basename ".h")
-               (C.headers cm) (C.unitName cm)
+    let headerfname = addExtension basename ".h"
+        header = C.renderHdr headerfname (C.headers cm) (C.unitName cm)
+    outputHelper headerfname header
 
   -- Transform a compiled unit into a c src, and write to a .c file
   outputSrc :: FilePath -> C.CompileUnits -> IO ()
   outputSrc basename cm = do
-    C.writeSrc (verbose opts) (addExtension basename ".c")
-               (C.sources cm)
+    let srcfname = addExtension basename ".c"
+        src = C.renderSrc srcfname (C.sources cm)
+    outputHelper srcfname src
+
+  outputHelper :: FilePath -> String -> IO ()
+  outputHelper fname contents = case verbose opts of
+    False -> out
+    True -> do
+      putStr ("Writing to file " ++ fname ++ "...")
+      out
+      putStrLn " Done"
+    where
+    out = writeFile fname contents
 
 --------------------------------------------------------------------------------
 

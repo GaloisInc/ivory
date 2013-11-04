@@ -5,6 +5,8 @@ module Ivory.Compile.C
   , showModule
   , writeHdr
   , writeSrc
+  , renderHdr
+  , renderSrc
   , CompileUnits(..)
   , outputProcSyms
   ) where

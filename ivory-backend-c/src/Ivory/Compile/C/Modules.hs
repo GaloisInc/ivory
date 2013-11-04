@@ -51,10 +51,13 @@ writeHdr :: Bool                -- ^ Verbosity
          -> (Includes, Sources) -- ^ Source to translate
          -> String              -- ^ Unit name
          -> IO ()
-writeHdr verbose f s unitname = case verbose of
-    True  -> toFile f guardedHeader
-    False -> toFileQuiet f guardedHeader
+writeHdr True  f s unitname = toFile f $ renderHdr f s unitname
+writeHdr False f s unitname = toFileQuiet f $ renderHdr f s unitname
+
+renderHdr :: FilePath -> (Includes, Sources) -> String -> String
+renderHdr f s unitname = PP.displayS (PP.render width guardedHeader) ""
   where
+  width = 80
   guardedHeader = stack [ topComments
                         , topGuard
                         , topExternC
@@ -81,19 +84,23 @@ writeSrc :: Bool                 -- ^ Be verbose
          -> FilePath             -- ^ Output source name
          -> (Includes, Sources)  -- ^ Module to translate
          -> IO ()
-writeSrc verbose f s = vToFile f (topComments </> out)
+writeSrc verbose f s = vToFile f (renderSrc f s)
   where
   vToFile = if verbose then toFile else toFileQuiet
+
+renderSrc :: FilePath -> (Includes, Sources) -> String
+renderSrc f s = PP.displayS (PP.render width srcdoc) ""
+  where
+  width = 80
+  srcdoc = topComments </> out
   defs (incls,us) = map includeDef (S.toList incls) ++ us
   out = stack $ punctuate line $ map ppr $ defs s
 
 -- Utility
-toFileQuiet :: FilePath -> Doc -> IO ()
-toFileQuiet f v = do
-  let putf h = PP.hPutDoc h v
-  withFile f WriteMode putf
+toFileQuiet :: FilePath -> String -> IO ()
+toFileQuiet f v = writeFile f v
 
-toFile :: FilePath -> Doc -> IO ()
+toFile :: FilePath -> String -> IO ()
 toFile f v = do
   putStr $ "Writing to file " ++ f ++ "..."
   toFileQuiet f v
