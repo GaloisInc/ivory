@@ -52,8 +52,8 @@ stringInit = gen_stringInit stringDataL stringLengthL
 
 stringCapacity :: forall ref str s.
                   (IvoryString str, IvoryRef ref)
-               => ref s str -> Ix (Capacity str)
-stringCapacity _ = toIx len
+               => ref s str -> Sint32
+stringCapacity _ = len
   where
   len :: Sint32
   len = fromIntegral (fromSing (sing :: Sing (Capacity str)))
