@@ -14,6 +14,8 @@ library
   build-depends:        base >= 4.6,
                         containers,
                         filepath,
+                        process,
+                        directory,
                         bytestring,
                         monadLib,
                         ivory,

@@ -1,9 +1,5 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
--- {-# LANGUAGE NamedFieldPuns #-}
-
 module Ivory.ModelCheck.Ivory2CVC4
-  ( modelCheck ) where
+  ( modelCheckMod ) where
 
 import           Data.Word
 import qualified Ivory.Language.Syntax as I
@@ -12,18 +8,13 @@ import qualified Ivory.Language.Proc   as P
 import Ivory.ModelCheck.CVC4
 import Ivory.ModelCheck.Monad
 
--- XXX testing
-import Ivory.Language hiding (assert, true, false)
-import qualified Ivory.Language as L
-import qualified Data.ByteString.Char8 as B
-
 --------------------------------------------------------------------------------
 -- | Environment and variable store.
 
 --------------------------------------------------------------------------------
 
-modelCheck :: I.Module -> ModelCheck ()
-modelCheck m = mapM_ modelCheckProc (getProcs $ I.modProcs m)
+modelCheckMod :: I.Module -> ModelCheck ()
+modelCheckMod m = mapM_ modelCheckProc (getProcs $ I.modProcs m)
   where
   getProcs ps = I.public ps ++ I.private ps
 
@@ -167,19 +158,3 @@ toType t =
 
 --------------------------------------------------------------------------------
 
-fooProc :: Def ('[Uint8, Uint8] :-> ())
-fooProc = proc "foo" $ \y x -> body $ do
-  -- z <- assign x
-  -- L.assert (z <? 3)
-  ifte_ (y <? 3)
-    (do ifte_ (y ==? 3)
-              (L.assert L.false)
-              retVoid)
-    (do z <- assign x
-        L.assert (z >=? 3))
-  retVoid
-
-m :: Module
-m = package "foo" (incl fooProc)
-
-run = modelCheck m

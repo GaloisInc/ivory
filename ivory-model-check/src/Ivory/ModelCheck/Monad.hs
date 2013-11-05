@@ -10,6 +10,8 @@ module Ivory.ModelCheck.Monad
   , decls
   , eqns
   , ModelCheck()
+  , SymExecSt()
+  , funcSym
   , updateEnv
   , addDecl
   , addQuery
@@ -59,6 +61,13 @@ newtype ModelCheck a = ModelCheck
 
 initEnv :: Env
 initEnv = M.empty
+
+initSymSt :: SymExecSt
+initSymSt = SymExecSt { funcSym  = ""
+                      , symEnv   = mempty
+                      , symSt    = mempty
+                      , symQuery = mempty
+                      }
 
 -- | Take an AST variable, a variable store, and returns an updated store and
 -- the original variable if it's not in the store or the store variable if it
@@ -154,13 +163,14 @@ mergeSt st0 st1 = do
   let ps      = symSt st
   let decls'  = decls ps0 ++ decls ps1 ++ decls ps
   let ps'     = ps { decls = decls' }
-  set SymExecSt { symEnv   = env
+  set SymExecSt { funcSym  = funcSym st0
+                , symEnv   = env
                 , symSt    = ps'
                 , symQuery = query
                 }
 
 runMC :: ModelCheck a -> (a, SymExecSt)
-runMC (ModelCheck m) = runId (runStateT mempty m)
+runMC (ModelCheck m) = runId (runStateT initSymSt m)
 
 --------------------------------------------------------------------------------
 -- Instances
@@ -187,15 +197,15 @@ instance Monoid ProgramSt where
               , eqns  = e0 ++ e1
               }
 
-instance Monoid SymExecSt where
-  mempty = SymExecSt { symEnv   = mempty
-                     , symSt    = mempty
-                     , symQuery = mempty
-                     }
-  (SymExecSt e0 s0 q0) `mappend` (SymExecSt e1 s1 q1) =
-    SymExecSt { symEnv   = e0 `mappend` e1
-              , symSt    = s0 `mappend` s1
-              , symQuery = q0 `mappend` q1
-              }
+-- instance Monoid SymExecSt where
+--   mempty = SymExecSt { symEnv   = mempty
+--                      , symSt    = mempty
+--                      , symQuery = mempty
+--                      }
+--   (SymExecSt e0 s0 q0) `mappend` (SymExecSt e1 s1 q1) =
+--     SymExecSt { symEnv   = e0 `mappend` e1
+--               , symSt    = s0 `mappend` s1
+--               , symQuery = q0 `mappend` q1
+--               }
 
 --------------------------------------------------------------------------------
