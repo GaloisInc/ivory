@@ -22,7 +22,8 @@ library
                         Ivory.Stdlib.Operators,
                         Ivory.Stdlib.String,
                         Ivory.Stdlib.Trig,
-                        Ivory.Stdlib.SearchDir
+                        Ivory.Stdlib.SearchDir,
+                        Ivory.Stdlib.Maybe
 
   other-modules:        Paths_ivory_stdlib
 
