@@ -94,7 +94,7 @@ istr_len :: IvoryString str
          -> Ivory eff (Ix (Capacity str))
 istr_len str = do
   len <- deref (stringLength str)
-  assert (len <? stringCapacity str)
+  assert (fromIx len <? stringCapacity str)
   return len
 
 -- | Copy one string into another of the same type.
@@ -179,7 +179,7 @@ istr_from_sz dest src = do
   ptr1     <- assign (stringData dest)
   let len2  = fromIntegral (fromSing (sing :: Sing len))
   ptr2     <- assign (toCArray src)
-  result   <- call string_copy_z ptr1 (fromIx len1) ptr2 len2
+  result   <- call string_copy_z ptr1 len1 ptr2 len2
   store (stringLength dest) (toIx result)
 
 -- | Copy an Ivory string to a fixed-size, null-terminated C
