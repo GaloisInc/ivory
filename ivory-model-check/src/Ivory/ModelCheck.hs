@@ -157,8 +157,9 @@ foo2 :: Def ('[] :-> ())
 foo2 = L.proc "foo2" $ body $ do
   x <- local (ival (0 :: Uint8))
   store x 3
-  y <- deref x
-  L.assert (y ==? 3)
+  y <- assign x
+  z <- deref y
+  L.assert (z ==? 3)
   retVoid
 
 m2 :: Module
