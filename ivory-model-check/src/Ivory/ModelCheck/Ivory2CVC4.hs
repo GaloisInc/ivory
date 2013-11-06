@@ -1,12 +1,14 @@
 module Ivory.ModelCheck.Ivory2CVC4
-  ( modelCheckMod ) where
+--  ( modelCheckMod )
+ where
 
 import           Data.Word
+import           Control.Monad
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Proc   as P
 
-import Ivory.ModelCheck.CVC4
-import Ivory.ModelCheck.Monad
+import           Ivory.ModelCheck.CVC4
+import           Ivory.ModelCheck.Monad
 
 --------------------------------------------------------------------------------
 -- | Environment and variable store.
@@ -39,10 +41,8 @@ modelCheckProc I.Proc { I.procSym      = sym
 
 -- XXX implicit requirements here on sizes based on types.
 toParam :: I.Typed I.Var -> ModelCheck ()
-toParam (I.Typed t val) = do
-  v' <- updateEnv (toVar val)
-  addDecl (varDecl v' (toType t))
-
+toParam (I.Typed t val) =
+  void $ updateEnv (toType t) (toVar val)
 --------------------------------------------------------------------------------
 
 -- | Symbolically execute statements, carrying the return requirements forward
@@ -54,33 +54,55 @@ toBody ens stmt =
     I.Assign t v exp       -> toAssign t v exp
     I.ReturnVoid           -> return ()
     I.Assert exp           -> addQuery (toExpr I.TyBool exp)
-    I.IfTE exp blk0 blk1   -> do
-      let b = toExpr I.TyBool exp
-      let branch bexp blk = do
-            resetSt
-            addEqn bexp
-            mapM_ toBody' blk
-      -- Run each branch in a fresh context (keeping the environment).
-      let tbnch = runMC (branch b blk0)
-      let fbnch = runMC (branch (not' b) blk1)
-      mergeSt (snd tbnch) (snd fbnch)
+    I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
+    I.Local t v inits      -> toLocal t v inits
+    I.Store t ptr exp      -> toStore t ptr exp
+    I.AllocRef t ref name  -> toAlloc t ref name
+    I.Deref t v ref         -> toDeref t v ref
 
---------------------------------------------------------------------------------
+toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
+toDeref t v ref = do
+  v' <- updateEnv (toType t) (toVar v)
+  ref' <- lookupVar (fromRef ref)
+  addEqn (var v' .== var ref')
 
+toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
+toAlloc t ref name = do
+  v' <- updateEnv (toType t) (toVar ref)
+  addEqn (var v' .== var (toName name))
 
-toVar :: I.Var -> Var
-toVar v =
-  case v of
-    I.VarName n     -> n
-    I.VarInternal n -> n
-    I.VarLitName n  -> n
+toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
+toStore t ptr exp = do
+  v' <- updateEnv (toType t) (fromRef ptr)
+  addEqn (var v' .== toExpr t exp)
 
---------------------------------------------------------------------------------
+toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
+toLocal t v inits = do
+  v' <- updateEnv (toType t) (toVar v)
+  addEqn (var v' .== toInit inits)
+
+toInit :: I.Init -> Expr
+toInit init =
+  case init of
+--    I.InitZero       -> lit 0
+    I.InitExpr t exp -> toExpr t exp
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
-  v' <- updateEnv (toVar v)
-  addDecl $ varAssign v' (toType t) (toExpr t exp)
+  v' <- updateEnv (toType t) (toVar v)
+  addEqn $ (var v' .== toExpr t exp)
+
+toIfTE :: [I.Cond] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
+toIfTE ens exp blk0 blk1 = do
+  let b = toExpr I.TyBool exp
+  let branch bexp blk = do
+        resetSt
+        addEqn bexp
+        mapM_ (toBody ens) blk
+  -- Run each branch in a fresh context (keeping the environment).
+  let tbnch = runMC (branch b blk0)
+  let fbnch = runMC (branch (not' b) blk1)
+  mergeSt (snd tbnch) (snd fbnch)
 
 --------------------------------------------------------------------------------
 
@@ -115,6 +137,26 @@ toExprOp t op args =
   go t' op = (toExpr t' arg0) `op` (toExpr t' arg1)
 
 --------------------------------------------------------------------------------
+-- Helpers
+
+toName :: I.Name -> Var
+toName name =
+  case name of
+    I.NameSym s -> s
+    I.NameVar v -> toVar v
+
+toVar :: I.Var -> Var
+toVar v =
+  case v of
+    I.VarName n     -> n
+    I.VarInternal n -> n
+    I.VarLitName n  -> n
+
+fromRef :: I.Expr -> Var
+fromRef ref =
+  case ref of
+      I.ExpVar v -> toVar v
+      exp        -> error $ "Unexpected ref in fromRef: " ++ show exp
 
 toType :: I.Type -> Type
 toType t =

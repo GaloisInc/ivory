@@ -13,6 +13,7 @@ module Ivory.ModelCheck.Monad
   , SymExecSt()
   , funcSym
   , updateEnv
+  , lookupVar
   , addDecl
   , addQuery
   , addEqn
@@ -25,7 +26,10 @@ import           Control.Applicative
 import           MonadLib
 import qualified Data.Map.Lazy         as M
 
-import Ivory.ModelCheck.CVC4
+import           Ivory.ModelCheck.CVC4
+
+-- XXX
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- Types
@@ -69,18 +73,27 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symQuery = mempty
                       }
 
+constructVar :: Var -> Int -> Var
+constructVar v i = "mc_" ++ v ++ "_" ++ show i
+
 -- | Take an AST variable, a variable store, and returns an updated store and
--- the original variable if it's not in the store or the store variable if it
--- exists.
+-- the original variable if it's not in the store or the constructed variable if
+-- it exists.
 getEnvVar :: Var -> Env -> (Var, Env)
 getEnvVar v env =
   let (mi, env') = M.insertLookupWithKey f v 0 env in
   case mi of
     Nothing -> (v, env')
-    Just i -> let v' = "mc_" ++ v ++ "_" ++ show (i+1) in
-              (v', env')
+    Just i -> (constructVar v (i+1), env')
   where
   f _ _ old = old + 1
+
+lookupEnvVar :: Var -> Env -> Var
+lookupEnvVar v env =
+  let mv = M.lookup v env in
+  case mv of
+    Nothing -> error $ "Variable " ++ v ++ " not in env."
+    Just i  -> constructVar v i
 
 addDecl :: Statement -> ModelCheck ()
 addDecl decl = do
@@ -119,12 +132,24 @@ addEnsure exp = do
   q  <- getQueries
   setQueries q { ensureQueries = exp : ensureQueries q }
 
-updateEnv :: Var -> ModelCheck Var
-updateEnv v = do
+-- | Lookup a variable in the environment.  If it's not in there return a fresh
+-- variable (and update the environment) and declare it (which is why we need
+-- the type).  Otherwise, return the variable (and update the environment).
+updateEnv :: Type -> Var -> ModelCheck Var
+updateEnv t v = do
   st <- get
   let (v', env) = getEnvVar v (symEnv st)
   set st { symEnv = env }
-  return v'
+  addDecl (varDecl v' t)
+
+  -- XXX
+  st' <- get
+  trace (show (symEnv st')) return v'
+
+lookupVar :: Var -> ModelCheck Var
+lookupVar v = do
+  st <- get
+  return $ lookupEnvVar v (symEnv st)
 
 -- | Reset all the state except for the environment.
 resetSt :: ModelCheck ()
