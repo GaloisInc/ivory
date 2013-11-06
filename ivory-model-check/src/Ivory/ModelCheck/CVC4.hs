@@ -30,16 +30,16 @@ clBS = CL
 -- Statements
 
 data Statement = VarDecl Var Type
-               | VarAssign Var Type Expr
+--               | VarAssign Var Type Expr
                | Assert Expr
                | Query Expr
   deriving (Show)
 
 instance Concrete Statement where
   concrete (VarDecl v ty)       = statement [CL v, clBS ":", CL ty]
-  concrete (VarAssign v ty exp) = statement [ CL v, clBS ":", CL ty
-                                            , clBS "=", CL exp
-                                            ]
+  -- concrete (VarAssign v ty exp) = statement [ CL v, clBS ":", CL ty
+  --                                           , clBS "=", CL exp
+  --                                           ]
   concrete (Assert exp)         = statement [clBS "ASSERT", CL exp]
   concrete (Query exp)          = statement [clBS "QUERY", CL exp]
 
@@ -52,8 +52,8 @@ statement as =
 varDecl :: Var -> Type -> Statement
 varDecl = VarDecl
 
-varAssign :: Var -> Type -> Expr -> Statement
-varAssign = VarAssign
+-- varAssign :: Var -> Type -> Expr -> Statement
+-- varAssign = VarAssign
 
 assert :: Expr -> Statement
 assert = Assert
