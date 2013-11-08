@@ -11,7 +11,6 @@ module Ivory.Opts.Overflow
   ) where
 
 import Ivory.Opts.AssertFold
-import Ivory.Opts.Utils
 
 import qualified Ivory.Language.Syntax.AST as I
 import qualified Ivory.Language.Syntax.Type as I
@@ -26,30 +25,19 @@ import Data.Maybe
 --------------------------------------------------------------------------------
 
 overflowFold :: I.Proc -> I.Proc
-overflowFold = procFold expFold
+overflowFold = procFold (expFoldDefault arithAssert)
 
 --------------------------------------------------------------------------------
 
-expFold :: I.Type -> I.Expr -> Assert ()
-expFold ty e = case e of
-  I.ExpSym{} -> return ()
-  I.ExpVar{} -> return ()
-  I.ExpLit{} -> return ()
-  I.ExpOp op args      -> do
-    putExpr (arithAssert ty op args)
-    mapM_ (expFold $ expOpType ty op) args
-  I.ExpLabel ty' e0 _  -> expFold  ty' e0
-  I.ExpIndex tIdx eIdx tArr eArr -> do
-    expFold tIdx eIdx
-    expFold tArr eArr
-  I.ExpSafeCast ty' e0  -> expFold ty' e0
-  I.ExpToIx e0 _        -> expFold (I.TyInt I.Int32) e0
-  I.ExpAddrOfGlobal{}   -> return ()
-
 type Bounds a = (a,a)
 
-arithAssert :: I.Type -> I.ExpOp -> [I.Expr] -> Maybe I.Expr
-arithAssert ty op args = fmap T.unwrapExpr $
+arithAssert :: Asserter
+arithAssert ty e = case e of
+  I.ExpOp op args -> arithAssert' ty op args
+  _               -> Nothing
+
+arithAssert' :: I.Type -> I.ExpOp -> [I.Expr] -> Maybe I.Expr
+arithAssert' ty op args = fmap T.unwrapExpr $
   case op of
     I.ExpAdd -> case ty of
       I.TyWord I.Word8  -> addExprW (minMax :: Bounds Uint8)
@@ -107,12 +95,13 @@ arithAssert ty op args = fmap T.unwrapExpr $
       _                 -> Nothing
 
     _ -> Nothing
+
   where
   minMax :: forall t . (Bounded t) => Bounds t
   minMax = (minBound :: t, maxBound :: t)
 
   getArgs :: Maybe (I.Expr,I.Expr)
-  getArgs  = case args of
+  getArgs = case args of
     [e0,e1] -> return (e0,e1)
     _       -> mzero
 
