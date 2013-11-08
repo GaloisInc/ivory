@@ -7,7 +7,6 @@ module Ivory.Opts.DivZero
   ) where
 
 import Ivory.Opts.AssertFold
-import Ivory.Opts.Utils
 
 import qualified Ivory.Language.Syntax.AST as I
 import qualified Ivory.Language.Syntax.Type as I
@@ -15,37 +14,24 @@ import qualified Ivory.Language.Syntax.Type as I
 --------------------------------------------------------------------------------
 
 divZeroFold :: I.Proc -> I.Proc
-divZeroFold = procFold expFold
+divZeroFold = procFold (expFoldDefault divAssert)
 
 --------------------------------------------------------------------------------
 
-expFold :: I.Type -> I.Expr -> Assert ()
-expFold ty e = case e of
-  I.ExpSym{} -> return ()
-  I.ExpVar{} -> return ()
-  I.ExpLit{} -> return ()
-  I.ExpOp op args      -> do
-    putExpr (divAssert ty op args)
-    mapM_ (expFold $ expOpType ty op) args
-  I.ExpLabel ty' e0 _  -> expFold  ty' e0
-  I.ExpIndex tIdx eIdx tArr eArr -> do
-    expFold tIdx eIdx
-    expFold tArr eArr
-  I.ExpSafeCast ty' e0 -> expFold ty' e0
-  I.ExpToIx e0 _       -> expFold (I.TyInt I.Int32) e0
-  I.ExpAddrOfGlobal{}  -> return ()
+-- Claim that the divisor expression cannnot equal zero.  If we don't have a
+-- division-causing expression, return Nothing.
+divAssert :: Asserter
+divAssert ty e0 = case e0 of
+  I.ExpOp op args ->
+    case (op,args) of
+      (I.ExpDiv,[_,r])       -> ma r
+      (I.ExpMod,[_,r])       -> ma r
+      (I.ExpRecip,[e])       -> ma e
+      (I.ExpFLog,[e])        -> ma e
+      (I.ExpFLogBase,[_,r])  -> ma r
+      _                      -> Nothing
+  _               -> Nothing
 
---------------------------------------------------------------------------------
-
-divAssert :: I.Type -> I.ExpOp -> [I.Expr] -> Maybe I.Expr
-divAssert ty op args =
-  case (op,args) of
-    (I.ExpDiv,[_,r])      -> ma r
-    (I.ExpMod,[_,r])      -> ma r
-    (I.ExpRecip,[e])      -> ma e
-    (I.ExpFLog,[e])       -> ma e
-    (I.ExpFLogBase,[_,r]) -> ma r
-    _                     -> Nothing
   where
   ma x = return $ I.ExpOp (I.ExpNeq ty) [x,zeroExp]
   zeroExp = case ty of
@@ -54,7 +40,6 @@ divAssert ty op args =
               I.TyFloat  -> I.ExpLit (I.LitFloat 0)
               I.TyDouble -> I.ExpLit (I.LitDouble 0)
               _          -> error $
-                "unrecognized expression in Div by zero checking: " ++ show ty
-                ++ ", op: " ++ show op ++ ", args: " ++ show args
+                "ivory opts: unrecognized expression in Div by zero checking."
 
 --------------------------------------------------------------------------------
