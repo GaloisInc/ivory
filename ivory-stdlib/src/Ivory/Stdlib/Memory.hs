@@ -7,10 +7,11 @@
 module Ivory.Stdlib.Memory
   ( resultInto
   , into
-  , arrCopy
+  , arrayCopy
   ) where
 
 import Ivory.Language
+import Ivory.Stdlib.Control
 
 -- | handy shorthand for transfering members
 resultInto :: IvoryStore a =>
@@ -23,11 +24,13 @@ into a b = store b =<< deref a
 
 -- XXX Belongs with Pack.hs and SafePack.hs.
 
--- | Copy from array @from@ (either a 'Ref' or a 'ConstRef') into array @to@
--- starting at index @start@.  Copying continues until either the from array is
--- fully copied or the to array is full.  The start value being negative is
--- considered an error.
-arrCopy :: forall n m r s0 s1 s2 eff t.
+-- | Copies a prefix of an array into a postfix of another array.  That is, copy
+-- from array @from@ (either a 'Ref' or a 'ConstRef') into array @to@ starting
+-- at index @toOffset@ in @to@.  Copying continues until either the from array
+-- is fully copied, the @to@ array is full, or index @end@ in the @from@ array
+-- is reached (index @end@ is not copied).  to copy the full @from@ array, let
+-- @end@ equal 'arrayLen from'.
+arrayCopy :: forall n m r s0 s1 s2 eff t.
            ( SingI n, SingI m, IvoryRef r
            , IvoryExpr (r s2 (Array m (Stored t)))
            , IvoryExpr (r s2 (Stored t))
@@ -37,19 +40,29 @@ arrCopy :: forall n m r s0 s1 s2 eff t.
         => Ref s1 (Array n (Stored t))
         -> r s2 (Array m (Stored t))
         -> Sint32
+        -> Sint32
         -> Ivory eff ()
-arrCopy to from start =
-  ifte_ (start <? 0)
-        (assert false)
-        (arrayMap $ go)
+arrayCopy to from toOffset end = do
+  assert (toOffset >=? 0 .&& toOffset <? toLen)
+  assert (end      >=? 0 .&& end     <=? frLen)
+  arrayMap $ go
   where
-  mkIx :: Ix m -> Ix n
-  mkIx ix = toIx (start + fromIx ix)
-
+  -- The index is w.r.t. the from array.
   go ix =
-    ifte_
-      (fromIx ix + start >=? arrayLen to)
-      -- The from array is too big, so stop copying.
-      (return ()) -- XXX could be break but type constraints get hairy
-      -- We can copy the whole from array.
-      (deref (from ! ix) >>= store (to ! mkIx ix))
+    cond_
+      [   -- We've reached the @end@ index: stop copying.
+          (fromIx ix >=? end)
+      ==> return ()
+      ,   -- We've reached the end of the @to@ array: stop copying.
+          (fromIx ix + toOffset >=? toLen)
+      ==> return ()
+      ,   true
+      ==> (deref (from ! ix) >>= store (to ! mkIx ix))
+      ]
+
+  toLen = arrayLen to
+  frLen = arrayLen from
+
+  mkIx :: Ix m -> Ix n
+  mkIx ix = toIx (toOffset + fromIx ix)
+
