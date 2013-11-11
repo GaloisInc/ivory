@@ -24,8 +24,11 @@ library
   other-modules:       Ivory.BitData.DefBitRep,
                        Ivory.BitData.AST,
                        Ivory.BitData.TokenParser,
-                       Ivory.BitData.Parser
-  hs-source-dirs:      src
+                       Ivory.BitData.Parser,
+                       -- Example
+                       Example,
+                       ExampleTypes
+  hs-source-dirs:      src, examples
   ghc-options:         -Wall
   build-depends:       base >= 4.6,
                        ivory,
@@ -35,8 +38,9 @@ library
                        parsec
 
 executable ivory-bitdata-example
-  main-is:             Example.hs
-  other-modules:       ExampleTypes
+  main-is:             Main.hs
+  other-modules:       Example,
+                       ExampleTypes
   hs-source-dirs:      examples
   -- ghc-options:         -ddump-splices
   build-depends:       base >= 4.6,
