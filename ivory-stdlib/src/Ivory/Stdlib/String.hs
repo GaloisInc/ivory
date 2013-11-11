@@ -200,7 +200,7 @@ sz_from_istr dest src = do
     let dest_len = fromIntegral (dest_capacity - 1)
     src_data <- assign (stringData src)
     src_len  <- istr_len src
-    result   <- call string_copy (toCArray dest) dest_len src_data (fromIx src_len)
+    _result  <- call string_copy (toCArray dest) dest_len src_data (fromIx src_len)
     -- XXX is this right?  shouldn't it use "result"?
     store (dest ! toIx (dest_len - 1)) 0
 
