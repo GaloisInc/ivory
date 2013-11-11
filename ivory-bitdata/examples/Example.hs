@@ -6,16 +6,19 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+module Example where
+
 import Control.Monad
 
 import Ivory.Language
-import Ivory.Compile.C
+-- import Ivory.Compile.C
 import Ivory.Compile.C.CmdlineFrontend
 
 import Ivory.BitData
 import ExampleTypes
 
 [bitdata|
+
  bitdata SPI_CR1 :: Bits 16 = spi_cr1
    { spi_cr1_bidimode :: Bit
    , spi_cr1_bidioe   :: Bit
@@ -76,9 +79,9 @@ import ExampleTypes
 test1 :: Def ('[Uint16] :-> Uint16)
 test1 = proc "test1" $ \x -> body $ do
   ret $ withBits x $ do
-    clearBit spi_cr1_cpha
-    setBit   spi_cr1_cpol
-    setField spi_cr1_br spi_baud_div_8
+        clearBit spi_cr1_cpha
+        setBit   spi_cr1_cpol
+        setField spi_cr1_br spi_baud_div_8
 
 test2 :: Def ('[Uint32] :-> Uint8)
 test2 = proc "test2" $ \x -> body $ do
@@ -87,7 +90,7 @@ test2 = proc "test2" $ \x -> body $ do
 
 -- | Iterate over the elements of a bit array.
 forBitArray_ arr f =
-  forM_ [0..bitLength arr] $ \i -> do
+  forM_ [0..bitLength arr] $ \i ->
     f (arr #! i)
 
 -- | Test looping over the elements of a bit array:
@@ -96,9 +99,9 @@ test3 = proc "test3" $ \x -> body $ do
   let d = fromRep x
   total <- local (ival 0)
   forBitArray_ (d #. at_4bits) $ \i -> do
-    x <- deref total
+    x' <- deref total
     let y = safeCast (toRep i)
-    store total (x + y)
+    store total (x' + y)
   ret =<< deref total
 
 get_baud :: Def ('[Uint16] :-> Uint8)
