@@ -10,12 +10,16 @@ import Ivory.Compile.AADL.Identifier
 
 import qualified Ivory.Language.Syntax as I
 
+newtype TypeCtxM a = TypeCtxM
+  { unTypeCtxM :: StateT Document Id a }
+  deriving (Functor, Monad)
+
 newtype CompileM a = Compile
   { unCompile :: StateT Document                 -- Building compiled document
                   (ReaderT (I.Module,[I.Module]) -- Ivory module Environment
                     (StateT [(String,[String])]  -- Scope name and identifiers
                       (WriterT [Warning]         -- Log of warnings
-                      Id))) a }
+                      TypeCtxM))) a }
   deriving (Functor, Monad)
 
 data Warning
@@ -23,22 +27,43 @@ data Warning
 
 type Compile = CompileM ()
 
+runTypeCtx :: TypeCtxM a -> (a, Document)
+runTypeCtx (TypeCtxM c) = runId
+                        $ runStateT d c
+  where
+  d = mempty { doc_name    = "TowerArrays"
+             , doc_imports = ["Data_Model"]
+             }
+
+getTypeCtxM :: TypeCtxM Document
+getTypeCtxM = TypeCtxM $ get
+
+setTypeCtxM :: Document -> TypeCtxM ()
+setTypeCtxM d = TypeCtxM $ set d
+
+getTypeCtx :: CompileM Document
+getTypeCtx = Compile $ lift $ lift $ lift $ lift $ getTypeCtxM
+
+setTypeCtx :: Document -> CompileM ()
+setTypeCtx d = Compile $ lift $ lift $ lift $ lift $ setTypeCtxM d
+
+
 -- Using snoc to write to lists, reverse at end of run.
-runCompile :: [I.Module] -> I.Module -> Compile -> (Document, [Warning])
-runCompile allms m (Compile c) = (reversedDoc, ws)
+runCompile :: [I.Module] -> I.Module -> Compile -> TypeCtxM (Document, [Warning])
+runCompile allms m (Compile c) = do
+  (((_retv,d),_scope),ws) <- runWriterT
+                           $ runStateT [(dname ++ " document",[])]
+                           $ runReaderT modulectx
+                           $ runStateT mempty c
+  return (reversed d, ws)
   where
   dname = identifier (I.modName m)
-  reversedDoc = Document
+  reversed d = Document
     { doc_name        = identifier (I.modName m)
     , doc_imports     = reverse (doc_imports d)
     , doc_definitions = reverse (doc_definitions d)
     }
   modulectx = (m, allms)
-  (((_retv,d),_scope),ws) = runId
-                          $ runWriterT
-                          $ runStateT [(dname ++ " document",[])]
-                          $ runReaderT modulectx
-                          $ runStateT mempty c
 
 writeTypeDefinition :: DTypeDef -> Compile
 writeTypeDefinition dtdef = Compile $ do
@@ -46,6 +71,14 @@ writeTypeDefinition dtdef = Compile $ do
   when (td `notElem` (doc_definitions d)) $
     set d { doc_definitions = td:(doc_definitions d) }
   where td = TypeDefinition dtdef
+
+writeTypeCtxDefinition :: DTypeDef -> CompileM ()
+writeTypeCtxDefinition dtdef = do
+    d <- getTypeCtx
+    when (td `notElem` (doc_definitions d)) $
+      setTypeCtx d { doc_definitions = td:(doc_definitions d) }
+  where
+  td = TypeDefinition dtdef
 
 writeThreadDefinition :: ThreadDef -> Compile
 writeThreadDefinition tdef = Compile $ do
@@ -88,14 +121,14 @@ innerScope name k = do
   return r
 
 existsInScope :: String -> CompileM Bool
-existsInScope identifier = do
+existsInScope ident = do
   s <- getScope
-  return $ or $ map (elem identifier . snd) s
+  return $ or $ map (elem ident . snd) s
 
 addToScope :: String -> CompileM ()
-addToScope identifier = do
+addToScope ident = do
   ((name,s):ss) <- getScope
-  setScope ((name,(identifier:s)):ss)
+  setScope ((name,(ident:s)):ss)
 
 writeWarning :: Warning -> CompileM ()
 writeWarning w = Compile $ put [w]

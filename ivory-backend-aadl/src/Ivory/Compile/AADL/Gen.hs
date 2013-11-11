@@ -66,12 +66,13 @@ typeImpl t                               = DotTypeName t "impl"
 
 arrayType :: Int -> TypeName -> CompileM TypeName
 arrayType len basetype = do
-  writeImport "Data_Model"
-  writeTypeDefinition dtarray
-  return $ UnqualTypeName (identifier arraytn)
+  n <- doc_name `fmap` getTypeCtx
+  writeImport n
+  writeTypeCtxDefinition dtarray
+  return $ QualTypeName n arraytn
   where
-  dtarray = DTArray (identifier arraytn) len basetype
-  arraytn = arrayTypeNameS len basetype
+  dtarray = DTArray arraytn len basetype
+  arraytn = identifier $ arrayTypeNameS len basetype
 
 arrayTypeNameS :: Int -> TypeName -> String
 arrayTypeNameS len basetype = "ArrTy_" ++ l ++ bts
