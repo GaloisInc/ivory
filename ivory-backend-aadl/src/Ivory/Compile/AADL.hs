@@ -2,6 +2,7 @@
 
 module Ivory.Compile.AADL
   ( compileModule
+  , compileTypeCtx
   , documentToFile
   , module Ivory.Compile.AADL.AST
   ) where
