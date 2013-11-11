@@ -54,16 +54,20 @@ docDTypeDef (DTStruct tname fields) = vsep
   t  = string tname
   ti = t <> dot <> text "impl"
 
-docDTypeDef (DTArray tname len basetype) =
-  docBlock "data" t
-    [ docSection "properties"
-      [ dmodel "Data_Representation" $ text "Array"
-      , dmodel "Base_Type"           $ parens btype
-      , dmodel "Dimension"           $ parens (int len)
+docDTypeDef (DTArray tname len basetype) = vsep
+  [ docBlock "data" t []
+  , empty
+  , docBlock "data implementation" ti
+      [ docSection "properties"
+        [ dmodel "Data_Representation" $ text "Array"
+        , dmodel "Base_Type"           $ parens btype
+        , dmodel "Dimension"           $ parens (int len)
+        ]
       ]
-    ]
+  ]
   where
   t = text tname
+  ti = t <> dot <> text "impl"
   dmodel field v = kv (text ("Data_Model::" ++ field)) v
   btype = text "classifier" <+> parens (docTypeName basetype)
 
