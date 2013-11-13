@@ -10,7 +10,7 @@ module Ivory.Language.Struct where
 import Ivory.Language.Area
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
-import Ivory.Language.Type
+import Ivory.Language.Type(IvoryExpr(..), IvoryVar(..))
 import qualified Ivory.Language.Syntax as I
 
 import GHC.TypeLits (SingI,sing,Sing,Symbol)
@@ -20,7 +20,6 @@ import GHC.TypeLits (SingI,sing,Sing,Symbol)
 
 instance (IvoryStruct sym, SingI sym) => IvoryArea (Struct sym) where
   ivoryArea _ = I.TyStruct (fromTypeSym (sing :: Sing sym))
-
 
 newtype StructDef (sym :: Symbol) = StructDef { getStructDef :: I.Struct }
 
@@ -32,6 +31,9 @@ class (IvoryArea (Struct sym), SingI sym) => IvoryStruct (sym :: Symbol) where
 
 -- | Struct field labels.
 newtype Label (sym :: Symbol) (field :: Area *) = Label { getLabel :: String }
+
+instance Eq (Label (sym :: Symbol) (field :: Area *)) where
+  l0 == l1 = getLabel l0 == getLabel l1
 
 -- | Label indexing in a structure.
 (~>) :: forall ref s sym field.
