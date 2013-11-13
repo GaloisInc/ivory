@@ -14,7 +14,6 @@ import Ivory.Language.Scope
 import Ivory.Language.SizeOf
 import Ivory.Language.String
 import Ivory.Language.Struct
-import Ivory.Language.Type
 import qualified Ivory.Language.Struct.Parser as P
 import qualified Ivory.Language.Syntax.AST  as AST
 import qualified Ivory.Language.Syntax.Type as AST
