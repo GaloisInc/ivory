@@ -53,7 +53,7 @@ toBody ens stmt =
   case stmt of
     I.Assign t v exp       -> toAssign t v exp
     I.ReturnVoid           -> return ()
-    I.Assert exp           -> addQuery (toExpr I.TyBool exp)
+    I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
     I.Local t v inits      -> toLocal t v inits
     I.Store t ptr exp      -> toStore t ptr exp
@@ -63,8 +63,8 @@ toBody ens stmt =
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
   v' <- updateEnv (toType t) (toVar v)
-  ref' <- lookupVar (fromRef ref)
-  addEqn (var v' .== var ref')
+  r  <- toRef t ref
+  addEqn (var v' .== var r)
 
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
 toAlloc t ref name = do
@@ -73,15 +73,18 @@ toAlloc t ref name = do
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t ptr exp = do
-  v' <- updateEnv (toType t) (fromRef ptr)
-  addEqn (var v' .== toExpr t exp)
+  r  <- toRef t ptr
+  v' <- updateEnv (toType t) r
+  e  <- toExpr t exp
+  addEqn (var v' .== e)
 
 toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
 toLocal t v inits = do
   v' <- updateEnv (toType t) (toVar v)
-  addEqn (var v' .== toInit inits)
+  is <- toInit inits
+  addEqn (var v' .== is)
 
-toInit :: I.Init -> Expr
+toInit :: I.Init -> ModelCheck Expr
 toInit init =
   case init of
 --    I.InitZero       -> lit 0
@@ -90,11 +93,12 @@ toInit init =
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
   v' <- updateEnv (toType t) (toVar v)
-  addEqn $ (var v' .== toExpr t exp)
+  e  <- toExpr t exp
+  addEqn $ (var v' .== e)
 
 toIfTE :: [I.Cond] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens exp blk0 blk1 = do
-  let b = toExpr I.TyBool exp
+  b <- toExpr I.TyBool exp
   let branch bexp blk = do
         resetSt
         addEqn bexp
@@ -106,19 +110,19 @@ toIfTE ens exp blk0 blk1 = do
 
 --------------------------------------------------------------------------------
 
-toExpr :: I.Type -> I.Expr -> Expr
+toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp =
   case exp of
-    I.ExpLit lit    ->
+    I.ExpLit lit    -> return $
       case lit of
         I.LitInteger i -> intLit i
         I.LitBool b    -> if b then T else F
-    I.ExpVar v      -> var (toVar v)
+    I.ExpVar v      -> lookupVar (toVar v) >>= return . var
     I.ExpOp op args -> toExprOp t op args
 
 --------------------------------------------------------------------------------
 
-toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> Expr
+toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args =
   case op of
     I.ExpEq t'      -> go t' (.==)
@@ -134,7 +138,10 @@ toExprOp t op args =
   where
   arg0 = args !! 0
   arg1 = args !! 1
-  go t' op = (toExpr t' arg0) `op` (toExpr t' arg1)
+  go t' op = do
+    e0 <- toExpr t' arg0
+    e1 <- toExpr t' arg1
+    return (e0 `op` e1)
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -152,12 +159,6 @@ toVar v =
     I.VarInternal n -> n
     I.VarLitName n  -> n
 
-fromRef :: I.Expr -> Var
-fromRef ref =
-  case ref of
-      I.ExpVar v -> toVar v
-      exp        -> error $ "Unexpected ref in fromRef: " ++ show exp
-
 toType :: I.Type -> Type
 toType t =
   case t of
@@ -166,6 +167,16 @@ toType t =
     (I.TyInt  _) -> Integer
     I.TyFloat    -> Real
     I.TyDouble   -> Real
+    I.TyRef t'   -> toType t'
+    -- _            -> error $ show t
+
+toRef :: I.Type -> I.Expr -> ModelCheck Var
+toRef t ref = do
+  e <- toExpr t ref
+  case e of
+    Var v -> return v
+    _     -> error $ "Unepectd expression " ++ show e
+          ++ " to toRef."
 
 -- toRequire = undefined
 -- toRequire :: I.Cond -> C.BlockItem

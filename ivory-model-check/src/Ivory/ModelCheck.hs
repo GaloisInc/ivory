@@ -48,7 +48,6 @@ modelCheck' = modelCheck initArgs
 
 modelCheck :: Args -> I.Module -> IO ()
 modelCheck args m = do
-
   let (_, st) = runMC (modelCheckMod m)
   let bs = B.unlines (mkScript st)
   debugging args st bs
@@ -60,16 +59,16 @@ modelCheck args m = do
 debugging :: Args -> SymExecSt -> B.ByteString -> IO ()
 debugging args st bs = do
   when (printQuery args) $ do
-    putStrLn "                  **** QUERY ****"
+    putStrLn "**** QUERY ************************************"
     B.putStrLn bs
-    B.putStrLn "                    ******"
-    B.putStrLn ""
+    putStrLn "***********************************************"
+    putStrLn ""
 
   when (printEnv args) $ do
-    putStrLn "                  **** ENV ****"
+    putStrLn "**** ENV **************************************"
     print (symEnv st)
-    B.putStrLn "                   ******"
-    B.putStrLn ""
+    putStrLn "***********************************************"
+    putStrLn ""
 
 --------------------------------------------------------------------------------
 
