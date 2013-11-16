@@ -28,9 +28,6 @@ import qualified Data.Map.Lazy         as M
 
 import           Ivory.ModelCheck.CVC4
 
--- XXX
-import Debug.Trace
-
 --------------------------------------------------------------------------------
 -- Types
 
@@ -73,6 +70,7 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symQuery = mempty
                       }
 
+-- Make a program variable in a model-check variable.
 constructVar :: Var -> Int -> Var
 constructVar v i = "mc_" ++ v ++ "_" ++ show i
 
@@ -84,7 +82,7 @@ getEnvVar v env =
   let (mi, env') = M.insertLookupWithKey f v 0 env in
   case mi of
     Nothing -> (v, env')
-    Just i -> (constructVar v (i+1), env')
+    Just i  -> (constructVar v (i+1), env')
   where
   f _ _ old = old + 1
 
@@ -93,6 +91,9 @@ lookupEnvVar v env =
   let mv = M.lookup v env in
   case mv of
     Nothing -> error $ "Variable " ++ v ++ " not in env."
+    -- The variable has only been used once, so we'll use the original program
+    -- variable to make tracability easier.
+    Just 0  -> v
     Just i  -> constructVar v i
 
 addDecl :: Statement -> ModelCheck ()
@@ -142,9 +143,7 @@ updateEnv t v = do
   set st { symEnv = env }
   addDecl (varDecl v' t)
 
-  -- XXX
-  st' <- get
-  trace (show (symEnv st')) return v'
+  return v'
 
 lookupVar :: Var -> ModelCheck Var
 lookupVar v = do
