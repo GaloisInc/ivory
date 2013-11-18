@@ -10,6 +10,10 @@ import           Data.List
 import qualified Data.ByteString.Char8 as B
 
 --------------------------------------------------------------------------------
+
+type Var = String
+
+--------------------------------------------------------------------------------
 -- Concrete syntax
 
 class Concrete a where
@@ -83,9 +87,7 @@ instance Concrete Type where
   concrete Real    = "REAL"
   concrete Integer = "INT"
 
-type Var = String
-
-data Expr = Var String
+data Expr = Var Var
           -- Boolean expressions
           | T
           | F
@@ -101,6 +103,7 @@ data Expr = Var String
           -- Numeric expressions
           | forall a . (Show a, Concrete a, Num a) => NumLit a
           | Add      Expr Expr
+          | Sub      Expr Expr
 
 deriving instance Show Expr
 
@@ -134,6 +137,7 @@ instance Concrete Expr where
   concrete (Geq e0 e1)  = B.unwords [parens e0, ">=" , parens e1]
   concrete (NumLit n)   = concrete n
   concrete (Add e0 e1)  = B.unwords [parens e0, "+", parens e1]
+  concrete (Sub e0 e1)  = B.unwords [parens e0, "-", parens e1]
 
 var :: String -> Expr
 var = Var
@@ -178,6 +182,12 @@ or' ls = foldl1' (.||) ls
 
 (.>=) :: Expr -> Expr -> Expr
 (.>=) = Geq
+
+(.+) :: Expr -> Expr -> Expr
+(.+) = Add
+
+(.-) :: Expr -> Expr -> Expr
+(.-) = Sub
 
 lit :: (Show a, Concrete a, Num a) => a -> Expr
 lit = NumLit
