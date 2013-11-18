@@ -19,8 +19,9 @@ import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 
 -- XXX testing
-import Ivory.Language hiding (assert, true, false, proc)
+import Ivory.Language hiding (assert, true, false, proc, (.&&))
 import qualified Ivory.Language as L
+import Ivory.Compile.C.CmdlineFrontend
 
 --------------------------------------------------------------------------------
 
@@ -84,18 +85,25 @@ mkScript st =
   [ ""
   , "% program encoding ---------------------------"
   , ""
-  ] ++ writeStmts (map assert . eqns . symSt)
+  ] ++ writeStmts (map assert . invars . symSt)
   ++
-  [""
+  [ ""
   , "% queries ------------------------------------"
   , ""
-  ] ++ writeStmts (map query . assertQueries . symQuery)
-
+  ] ++ writeStmts allQueries
   where
   writeStmts :: Concrete a
              => (SymExecSt -> [a])
              -> [B.ByteString]
   writeStmts f = map concrete (reverse $ f st)
+
+-- | Are the assertions consistent?  If not, there's a bug in the
+-- model-checking.
+consistencyQuery :: Statement
+consistencyQuery = query false
+
+allQueries st =
+  consistencyQuery : (map query . assertQueries . symQuery) st
 
 -- | Write model inputs to a temp file.
 writeInput :: B.ByteString -> IO FilePath
@@ -104,7 +112,7 @@ writeInput bs = do
   let tempDir = dir </> "cvc4-inputs"
   createDirectoryIfMissing False tempDir
   (file, hd) <- openTempFile tempDir "cvc4input.cvc"
-  putStrLn $ "Created temp file " ++ file
+  putStrLn $ "Created temp file " ++ file ++ "\n"
   B.hPut hd bs
   hClose hd
   return file
@@ -124,8 +132,9 @@ printResults :: SymExecSt -> [String] -> IO ()
 printResults st results = do
   let queries = map concrete
               $ reverse
-              $ (map query . assertQueries . symQuery) st
+              $ allQueries st
   let match = reverse (zip queries results)
+  B.putStrLn "*** If \'Query FALSE\' is valid, the assertions are inconsistent. ***\n"
   mapM_ printRes match
   where
   printRes (q,res) = B.putStr q >> putStr "  :  " >> putStrLn res
@@ -137,8 +146,6 @@ str = B.pack "QUERY TRUE;"
 
 foo1 :: Def ('[Uint8, Uint8] :-> ())
 foo1 = L.proc "foo1" $ \y x -> body $ do
-  -- z <- assign x
-  -- L.assert (z <? 3)
   ifte_ (y <? 3)
     (do ifte_ (y ==? 3)
               (L.assert L.false)
@@ -163,3 +170,29 @@ foo2 = L.proc "foo2" $ body $ do
 
 m2 :: Module
 m2 = package "foo2" (incl foo2)
+
+-----------------------
+
+foo3 :: Def ('[] :-> ())
+foo3 = L.proc "foo3" $ body $ do
+  x <- local (ival (1 :: Sint32))
+  for (toIx (2 :: Sint32) :: Ix 4) $ \ix -> do
+    store x (fromIx ix)
+    y <- deref x
+    L.assert ((y <? 4) L..&& (y >=? 0))
+
+m3 :: Module
+m3 = package "foo3" (incl foo3)
+
+-----------------------
+
+foo4 :: Def ('[] :-> ())
+foo4 = L.proc "foo4" $ body $ do
+  x <- local (ival (1 :: Sint32))
+  store x (7 .% 2)
+  store x (4 .% 3)
+  y <- deref x
+  L.assert (y <? 2)
+
+m4 :: Module
+m4 = package "foo4" (incl foo4)

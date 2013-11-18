@@ -10,6 +10,9 @@ import qualified Ivory.Language.Proc   as P
 import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
 
+-- XXX testing
+import Debug.Trace
+
 --------------------------------------------------------------------------------
 -- | Environment and variable store.
 
@@ -58,31 +61,32 @@ toBody ens stmt =
     I.Local t v inits      -> toLocal t v inits
     I.Store t ptr exp      -> toStore t ptr exp
     I.AllocRef t ref name  -> toAlloc t ref name
-    I.Deref t v ref         -> toDeref t v ref
+    I.Deref t v ref        -> toDeref t v ref
+    I.Loop v exp inc blk   -> toLoop v exp inc blk
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
   v' <- updateEnv (toType t) (toVar v)
   r  <- toRef t ref
-  addEqn (var v' .== var r)
+  addInvariant (var v' .== var r)
 
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
 toAlloc t ref name = do
   v' <- updateEnv (toType t) (toVar ref)
-  addEqn (var v' .== var (toName name))
+  addInvariant (var v' .== var (toName name))
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t ptr exp = do
-  r  <- toRef t ptr
-  v' <- updateEnv (toType t) r
+  p  <- toRef t ptr
+  v' <- updateEnv (toType t) p
   e  <- toExpr t exp
-  addEqn (var v' .== e)
+  addInvariant (var v' .== e)
 
 toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
 toLocal t v inits = do
   v' <- updateEnv (toType t) (toVar v)
   is <- toInit inits
-  addEqn (var v' .== is)
+  addInvariant (var v' .== is)
 
 toInit :: I.Init -> ModelCheck Expr
 toInit init =
@@ -94,14 +98,37 @@ toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
   v' <- updateEnv (toType t) (toVar v)
   e  <- toExpr t exp
-  addEqn $ (var v' .== e)
+  addInvariant $ (var v' .== e)
+
+-- Ignore whether the counter moves up or down.  Abstract all loop iterations as
+-- just one iteration with a predicate on the index.
+toLoop :: I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
+toLoop v exp end blk = do
+  v'    <- return . var =<< updateEnv (toType t) (toVar v)
+  start <- toExpr t exp
+  -- The loop index is greater or equal to the initial value (for increments).
+  (endExpr, op) <- end'
+  trace "a" $ addInvariant (v' `op` start)
+  -- The loop index is smaller or equal to the termination condition (for
+  -- increments)
+  addInvariant (endExpr `op` v')
+  trace "b" $ mapM_ (toBody undefined) blk
+
+  where
+  t = I.TyInt I.Int32
+  end' = case end of
+              I.IncrTo e -> aux e (.>=)
+              I.DecrTo e -> aux e (.<=)
+    where
+    aux e o = do e' <- toExpr t e
+                 return (e', o)
 
 toIfTE :: [I.Cond] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens exp blk0 blk1 = do
   b <- toExpr I.TyBool exp
   let branch bexp blk = do
         resetSt
-        addEqn bexp
+        addInvariant bexp
         mapM_ (toBody ens) blk
   -- Run each branch in a fresh context (keeping the environment).
   let tbnch = runMC (branch b blk0)
@@ -117,7 +144,7 @@ toExpr t exp =
       case lit of
         I.LitInteger i -> intLit i
         I.LitBool b    -> if b then T else F
-    I.ExpVar v      -> lookupVar (toVar v) >>= return . var
+    I.ExpVar v      -> trace ("var: " ++ show v) $ lookupVar (toVar v) >>= return . var
     I.ExpOp op args -> toExprOp t op args
 
 --------------------------------------------------------------------------------
@@ -126,6 +153,9 @@ toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args =
   case op of
     I.ExpEq t'      -> go t' (.==)
+    I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
+    I.ExpAnd        -> go t (.&&)
+    I.ExpOr         -> go t (.||)
     I.ExpLt orEq t' ->
       case orEq of
         True  -> go t' (.<=)
@@ -134,14 +164,47 @@ toExprOp t op args =
       case orEq of
         True  -> go t' (.>=)
         False -> go t' (.>)
+    I.ExpMod        -> toMod t arg0 arg1
+    I.ExpSub        -> go t (.-)
+    I.ExpNegate     ->
+      let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
+      toExpr t neg
+    _               -> error $ "no op " ++ show op
 
   where
   arg0 = args !! 0
   arg1 = args !! 1
+
   go t' op = do
     e0 <- toExpr t' arg0
     e1 <- toExpr t' arg1
     return (e0 `op` e1)
+
+-- Abstraction: a % b (C semantics) implies
+--
+-- (   ((a => 0) && (a % b => 0) && (a % b < b) && (a % b <= a))
+--  || ((a < 0)  && (a % b <= 0) && (a % b > b) && (a % b => a)))
+--
+-- make a fresh variable v == a % b
+-- and assert the above for v then returning it.
+toMod :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
+toMod t e0 e1 = do
+  -- XXX
+  v <- return . varOp =<< incReservedVar (toType t)
+  let z = litOp t 0
+  let disj0 =   (        (geqOp t e0 z)
+                 `andOp` (geqOp t v  z)
+                 `andOp` (leOp  t v  e1)
+                 `andOp` (leqOp t v  e0)
+                )
+  let disj1 =   (        (leOp  t e0 z)
+                 `andOp` (leqOp t v  z)
+                 `andOp` (geOp  t v  e1)
+                 `andOp` (geqOp  t v e0)
+                )
+  e <- trace "c" $ toExpr t (disj0 `orOp` disj1)
+  trace "d" $ addInvariant e
+  toExpr t v
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -175,8 +238,36 @@ toRef t ref = do
   e <- toExpr t ref
   case e of
     Var v -> return v
-    _     -> error $ "Unepectd expression " ++ show e
+    _     -> error $ "Unexpected expression " ++ show e
           ++ " to toRef."
+
+--------------------------------------------------------------------------------
+-- Language construction helpers
+binOp :: I.ExpOp -> I.Expr -> I.Expr -> I.Expr
+binOp op e0 e1 = I.ExpOp op [e0, e1]
+
+orOp, andOp :: I.Expr -> I.Expr -> I.Expr
+orOp  = binOp I.ExpOr
+andOp = binOp I.ExpAnd
+
+leOp, leqOp, geOp, geqOp :: I.Type -> I.Expr -> I.Expr -> I.Expr
+leOp  t = binOp (I.ExpLt False t)
+leqOp t = binOp (I.ExpLt True  t)
+geOp  t = binOp (I.ExpGt False t)
+geqOp t = binOp (I.ExpGt True  t)
+
+litOp :: I.Type -> Integer -> I.Expr
+litOp t n = I.ExpLit e
+  where
+  e = case t of
+        I.TyWord _ -> I.LitInteger n
+        I.TyInt  _ -> I.LitInteger n
+        I.TyFloat  -> I.LitFloat   (fromIntegral n)
+        I.TyDouble -> I.LitDouble  (fromIntegral n)
+        _          -> error $ "impossible lit in litOp: " ++ show t
+
+varOp :: Var -> I.Expr
+varOp = I.ExpVar . I.VarName
 
 -- toRequire = undefined
 -- toRequire :: I.Cond -> C.BlockItem

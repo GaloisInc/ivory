@@ -8,25 +8,32 @@ module Ivory.ModelCheck.Monad
   , symQuery
   , symSt
   , decls
-  , eqns
+  , invars
   , ModelCheck()
   , SymExecSt()
   , funcSym
   , updateEnv
   , lookupVar
+  , incReservedVar
   , addDecl
   , addQuery
-  , addEqn
+  , addInvariant
   , resetSt
   , mergeSt
   ) where
 
+import           Prelude hiding (exp)
+import           Data.Maybe
+import           Data.List
 import           Data.Monoid
 import           Control.Applicative
 import           MonadLib
 import qualified Data.Map.Lazy         as M
 
-import           Ivory.ModelCheck.CVC4
+import           Ivory.ModelCheck.CVC4 hiding (query, var)
+
+-- XXX
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- Types
@@ -42,8 +49,8 @@ data Queries = Queries
 
 -- | The program state: declarations and equations.
 data ProgramSt = ProgramSt
-  { decls :: [Statement]
-  , eqns  :: [Expr]
+  { decls  :: [Statement]
+  , invars :: [Expr]
   } deriving Show
 
 -- | The full simulation state.
@@ -54,14 +61,15 @@ data SymExecSt = SymExecSt
   , symQuery :: Queries
   } deriving Show
 
-newtype ModelCheck a = ModelCheck
-  { unModelCheck :: StateT SymExecSt Id a
-  } deriving (Functor, Applicative, Monad)
+newtype ModelCheck a = ModelCheck (StateT SymExecSt Id a)
+  -- { unModelCheck ::
+  -- }
+    deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
 
-initEnv :: Env
-initEnv = M.empty
+-- initEnv :: Env
+-- initEnv = M.empty
 
 initSymSt :: SymExecSt
 initSymSt = SymExecSt { funcSym  = ""
@@ -70,30 +78,47 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symQuery = mempty
                       }
 
+mcVar :: String
+mcVar = "mc_"
+
 -- Make a program variable in a model-check variable.
 constructVar :: Var -> Int -> Var
-constructVar v i = "mc_" ++ v ++ "_" ++ show i
+constructVar v i
+  | i == 0    = v
+  | otherwise = mcVar ++ show i ++ v
+  where
+
+takeInt :: Char -> Bool
+takeInt c = case reads [c] :: [(Int, String)] of
+              [(_, "")] -> True
+              _         -> False
+
+parseVar :: Var -> Var
+parseVar v = fromMaybe v (parseMcVar v)
+
+parseMcVar :: Var -> Maybe Var
+parseMcVar v = return . dropWhile takeInt =<< stripPrefix mcVar v
 
 -- | Take an AST variable, a variable store, and returns an updated store and
--- the original variable if it's not in the store or the constructed variable if
--- it exists.
+-- an evironment variable.
 getEnvVar :: Var -> Env -> (Var, Env)
-getEnvVar v env =
+getEnvVar var env =
+  let v = trace ("getEnv " ++ var) $ parseVar var in
   let (mi, env') = M.insertLookupWithKey f v 0 env in
   case mi of
     Nothing -> (v, env')
-    Just i  -> (constructVar v (i+1), env')
+    Just i  -> (constructVar v (newIx i), env')
   where
-  f _ _ old = old + 1
+  f _ _ old = newIx old
+  newIx i = i+1
 
+-- | Lookup a variable in the store.
 lookupEnvVar :: Var -> Env -> Var
-lookupEnvVar v env =
+lookupEnvVar var env =
+  let v = trace ("lookup " ++ var) $ parseVar var in
   let mv = M.lookup v env in
   case mv of
-    Nothing -> error $ "Variable " ++ v ++ " not in env."
-    -- The variable has only been used once, so we'll use the original program
-    -- variable to make tracability easier.
-    Just 0  -> v
+    Nothing -> error $ "Variable " ++ v ++ " not in env:\n" ++ show env
     Just i  -> constructVar v i
 
 addDecl :: Statement -> ModelCheck ()
@@ -103,15 +128,15 @@ addDecl decl = do
   let ps' = ps { decls = decl : decls ps }
   set st { symSt = ps' }
 
-addEqn :: Expr -> ModelCheck ()
-addEqn exp = do
+addInvariant :: Expr -> ModelCheck ()
+addInvariant exp = do
   st <- get
   let ps = symSt st
-  let ps' = ps { eqns = exp : eqns ps }
+  let ps' = ps { invars = exp : invars ps }
   set st { symSt = ps' }
 
-getProgramSt :: ModelCheck ProgramSt
-getProgramSt = return . symSt =<< get
+-- getProgramSt :: ModelCheck ProgramSt
+-- getProgramSt = return . symSt =<< get
 
 getQueries :: ModelCheck Queries
 getQueries = do
@@ -128,23 +153,36 @@ addQuery exp = do
   q  <- getQueries
   setQueries q { assertQueries = exp : assertQueries q }
 
-addEnsure :: Expr -> ModelCheck ()
-addEnsure exp = do
-  q  <- getQueries
-  setQueries q { ensureQueries = exp : ensureQueries q }
+-- addEnsure :: Expr -> ModelCheck ()
+-- addEnsure exp = do
+--   q  <- getQueries
+--   setQueries q { ensureQueries = exp : ensureQueries q }
 
 -- | Lookup a variable in the environment.  If it's not in there return a fresh
 -- variable (and update the environment) and declare it (which is why we need
--- the type).  Otherwise, return the variable (and update the environment).
+-- the type).  Otherwise, return the environment variable (and update the
+-- environment).
 updateEnv :: Type -> Var -> ModelCheck Var
 updateEnv t v = do
   st <- get
   let (v', env) = getEnvVar v (symEnv st)
   set st { symEnv = env }
   addDecl (varDecl v' t)
+  trace ("up " ++ v ++ " " ++ v') $ return v'
 
-  return v'
+-- | A special reserved variable the model-checker will use when it wants to
+-- create new program variables.
+--
+-- XXX We assume this is in a separate namespace from ordinary program
+-- variables.
+reservedVar :: Var
+reservedVar = "mcTmp"
 
+-- | Increment the count of uses of 'reservedVar'.
+incReservedVar :: Type -> ModelCheck Var
+incReservedVar t = updateEnv t reservedVar
+
+-- | Find a variable in the store.  Throws an error if it does not exist.
 lookupVar :: Var -> ModelCheck Var
 lookupVar v = do
   st <- get
@@ -158,9 +196,8 @@ resetSt = do
          , symQuery = mempty
          }
 
--- | Merge at a join point by taking the disjunction of equations.  Take the
--- disjunction of equations about program state.  Append everything else (Ivory
--- AST should guarantee unique names).
+-- | Merge at a join point by taking the disjunction of equations about program
+-- state.  Append everything else (Ivory AST should guarantee unique names).
 mergeSt :: SymExecSt -> SymExecSt -> ModelCheck ()
 mergeSt st0 st1 = do
   st <- get
@@ -173,8 +210,8 @@ mergeSt st0 st1 = do
   let qs1     = symQuery st1
 
   let impls assts q   = and' assts .=> q
-  let mkAssts pss qss = map (impls (eqns pss)) (assertQueries qss)
-  let mkEns pss qss   = map (impls (eqns pss)) (ensureQueries qss)
+  let mkAssts pss qss = map (impls (invars pss)) (assertQueries qss)
+  let mkEns pss qss   = map (impls (invars pss)) (ensureQueries qss)
   let asst0   = mkAssts ps0 qs0
   let asst1   = mkAssts ps1 qs1
   let ens0    = mkEns ps0 qs0
@@ -213,12 +250,12 @@ instance Monoid Queries where
             }
 
 instance Monoid ProgramSt where
-  mempty = ProgramSt { decls = []
-                     , eqns  = []
+  mempty = ProgramSt { decls  = []
+                     , invars = []
                      }
   (ProgramSt d0 e0) `mappend` (ProgramSt d1 e1) =
-    ProgramSt { decls = d0 ++ d1
-              , eqns  = e0 ++ e1
+    ProgramSt { decls  = d0 ++ d1
+              , invars = e0 ++ e1
               }
 
 -- instance Monoid SymExecSt where
