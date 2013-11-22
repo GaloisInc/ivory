@@ -19,6 +19,7 @@ library
                         bytestring,
                         monadLib,
                         ivory,
+                        ivory-opts,
                         -- XXX debugging
                         pretty-show,
                         ivory-backend-c

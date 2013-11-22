@@ -6,7 +6,6 @@
 module Ivory.ModelCheck.CVC4 where
 
 import           Prelude hiding (exp)
-import           Data.List
 import qualified Data.ByteString.Char8 as B
 
 --------------------------------------------------------------------------------
@@ -160,13 +159,13 @@ not' = Not
 (.=>) :: Expr -> Expr -> Expr
 (.=>) = Impl
 
-and' :: [Expr] -> Expr
-and' [] = true
-and' ls = foldl1' (.&&) ls
+-- and' :: [Expr] -> Expr
+-- and' [] = true
+-- and' ls = foldl1' (.&&) ls
 
-or' :: [Expr] -> Expr
-or' [] = false
-or' ls = foldl1' (.||) ls
+-- or' :: [Expr] -> Expr
+-- or' [] = false
+-- or' ls = foldl1' (.||) ls
 
 (.==) :: Expr -> Expr -> Expr
 (.==) = Eq

@@ -102,6 +102,7 @@ mkScript st =
 consistencyQuery :: Statement
 consistencyQuery = query false
 
+allQueries :: SymExecSt -> [Statement]
 allQueries st =
   consistencyQuery : (map query . assertQueries . symQuery) st
 
@@ -142,13 +143,14 @@ printResults st results = do
 --------------------------------------------------------------------------------
 -- XXX testing
 
+str :: B.ByteString
 str = B.pack "QUERY TRUE;"
 
 foo1 :: Def ('[Uint8, Uint8] :-> ())
 foo1 = L.proc "foo1" $ \y x -> body $ do
   ifte_ (y <? 3)
     (do ifte_ (y ==? 3)
-              (L.assert L.false)
+              (L.assert $ y ==? 0)
               retVoid)
     (do z <- assign x
         L.assert (z >=? 3))
@@ -196,3 +198,16 @@ foo4 = L.proc "foo4" $ body $ do
 
 m4 :: Module
 m4 = package "foo4" (incl foo4)
+
+-----------------------
+
+foo5 :: Def ('[] :-> ())
+foo5 = L.proc "foo5" $ body $ do
+  x <- local (ival (1 :: Sint32))
+  for (toIx (9 :: Sint32) :: Ix 10) $ \ix -> do
+    store x (fromIx ix)
+  y <- deref x
+  L.assert ((y ==? 8))
+
+m5 :: Module
+m5 = package "foo5" (incl foo5)
