@@ -4,8 +4,12 @@ module Ivory.ModelCheck.Ivory2CVC4
 
 import           Data.Word
 import           Control.Monad
+import           MonadLib (set, get)
+import           Data.Monoid
+import           Data.List
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Proc   as P
+import           Ivory.Opts.ConstFold (constFold)
 
 import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
@@ -19,7 +23,10 @@ import Debug.Trace
 --------------------------------------------------------------------------------
 
 modelCheckMod :: I.Module -> ModelCheck ()
-modelCheckMod m = mapM_ modelCheckProc (getProcs $ I.modProcs m)
+modelCheckMod m =
+  -- We rely on constant folding having happend in the model-checker.  E.g., in
+  -- computing the number of loop iterations.
+  mapM_ (modelCheckProc . constFold) (getProcs $ I.modProcs m)
   where
   getProcs ps = I.public ps ++ I.private ps
 
@@ -44,8 +51,7 @@ modelCheckProc I.Proc { I.procSym      = sym
 
 -- XXX implicit requirements here on sizes based on types.
 toParam :: I.Typed I.Var -> ModelCheck ()
-toParam (I.Typed t val) =
-  void $ updateEnv (toType t) (toVar val)
+toParam (I.Typed t val) = void $ updateEnv (toType t) (toVar val)
 --------------------------------------------------------------------------------
 
 -- | Symbolically execute statements, carrying the return requirements forward
@@ -72,7 +78,7 @@ toDeref t v ref = do
 
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
 toAlloc t ref name = do
-  v' <- updateEnv (toType t) (toVar ref)
+  v' <- trace ("toalloc " ++ toVar ref) $ updateEnv (toType t) (toVar ref)
   addInvariant (var v' .== var (toName name))
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
@@ -100,76 +106,78 @@ toAssign t v exp = do
   e  <- toExpr t exp
   addInvariant $ (var v' .== e)
 
--- Ignore whether the counter moves up or down.  Abstract all loop iterations as
--- just one iteration with a predicate on the index.
+-- XXX Abstraction (to implement): If there is load/stores in the block, the we
+-- don't care how many times it iterates.  It's pure.
 toLoop :: I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
-toLoop v exp end blk = do
-  v'    <- return . var =<< updateEnv (toType t) (toVar v)
-  start <- toExpr t exp
-  -- The loop index is greater or equal to the initial value (for increments).
-  (endExpr, op) <- end'
-  trace "a" $ addInvariant (v' `op` start)
-  -- The loop index is smaller or equal to the termination condition (for
-  -- increments)
-  addInvariant (endExpr `op` v')
-  trace "b" $ mapM_ (toBody undefined) blk
-
+toLoop v start end blk =
+  mapM_ go ixs
   where
+  go :: Integer -> ModelCheck ()
+  go ix = do
+    v'  <- updateEnv (toType t) (toVar v)
+    addInvariant (var v' .== intLit ix)
+    mapM_ (toBody undefined) blk
+
   t = I.TyInt I.Int32
-  end' = case end of
-              I.IncrTo e -> aux e (.>=)
-              I.DecrTo e -> aux e (.<=)
-    where
-    aux e o = do e' <- toExpr t e
-                 return (e', o)
+
+  loopData = loopIterations start end
+
+  ixs | loopOp loopData == Incr
+      = takeWhile (<= endVal loopData) $
+          iterate (+ 1) (startVal loopData)
+      | loopOp loopData == Decr
+      = takeWhile (>= endVal loopData) $
+          iterate (flip (-) 1) (startVal loopData)
 
 toIfTE :: [I.Cond] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
-toIfTE ens exp blk0 blk1 = do
-  b <- toExpr I.TyBool exp
-  let branch bexp blk = do
-        resetSt
-        addInvariant bexp
-        mapM_ (toBody ens) blk
-  -- Run each branch in a fresh context (keeping the environment).
-  let tbnch = runMC (branch b blk0)
-  let fbnch = runMC (branch (not' b) blk1)
-  mergeSt (snd tbnch) (snd fbnch)
+toIfTE ens cond blk0 blk1 = do
+  st  <- getState
+  b   <- toExpr I.TyBool cond
+  runBranch b blk0
+  st' <- joinState st
+  runBranch (not' b) blk1
+  void (joinState st')
+  where
+  runBranch :: Expr -> [I.Stmt] -> ModelCheck ()
+  runBranch b blk = do
+    resetSt                      -- Empty state except environment
+    mapM_ (toBody undefined) blk -- Body under the invariant
+    branchSt b                   -- Make conditions under hypothesis b
 
 --------------------------------------------------------------------------------
 
 toExpr :: I.Type -> I.Expr -> ModelCheck Expr
-toExpr t exp =
-  case exp of
-    I.ExpLit lit    -> return $
-      case lit of
-        I.LitInteger i -> intLit i
-        I.LitBool b    -> if b then T else F
-    I.ExpVar v      -> trace ("var: " ++ show v) $ lookupVar (toVar v) >>= return . var
-    I.ExpOp op args -> toExprOp t op args
+toExpr t exp = case exp of
+  I.ExpLit lit    -> return $
+    case lit of
+      I.LitInteger i -> intLit i
+      I.LitBool b    -> if b then T else F
+  I.ExpVar v      -> lookupVar (toVar v) >>= return . var
+  I.ExpOp op args -> toExprOp t op args
 
 --------------------------------------------------------------------------------
 
 toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
-toExprOp t op args =
-  case op of
-    I.ExpEq t'      -> go t' (.==)
-    I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
-    I.ExpAnd        -> go t (.&&)
-    I.ExpOr         -> go t (.||)
-    I.ExpLt orEq t' ->
-      case orEq of
-        True  -> go t' (.<=)
-        False -> go t' (.<)
-    I.ExpGt orEq t' ->
-      case orEq of
-        True  -> go t' (.>=)
-        False -> go t' (.>)
-    I.ExpMod        -> toMod t arg0 arg1
-    I.ExpSub        -> go t (.-)
-    I.ExpNegate     ->
-      let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
-      toExpr t neg
-    _               -> error $ "no op " ++ show op
+toExprOp t op args = case op of
+  I.ExpEq t'      -> go t' (.==)
+  I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
+  I.ExpAnd        -> go t (.&&)
+  I.ExpOr         -> go t (.||)
+  I.ExpLt orEq t' ->
+    case orEq of
+      True  -> go t' (.<=)
+      False -> go t' (.<)
+  I.ExpGt orEq t' ->
+    case orEq of
+      True  -> go t' (.>=)
+      False -> go t' (.>)
+  I.ExpMod        -> toMod t arg0 arg1
+  I.ExpAdd        -> go t (.+)
+  I.ExpSub        -> go t (.-)
+  I.ExpNegate     ->
+    let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
+    toExpr t neg
+  _               -> error $ "no op " ++ show op
 
   where
   arg0 = args !! 0
@@ -202,8 +210,8 @@ toMod t e0 e1 = do
                  `andOp` (geOp  t v  e1)
                  `andOp` (geqOp  t v e0)
                 )
-  e <- trace "c" $ toExpr t (disj0 `orOp` disj1)
-  trace "d" $ addInvariant e
+  e <- toExpr t (disj0 `orOp` disj1)
+  addInvariant e
   toExpr t v
 
 --------------------------------------------------------------------------------
@@ -241,6 +249,31 @@ toRef t ref = do
     _     -> error $ "Unexpected expression " ++ show e
           ++ " to toRef."
 
+
+data LoopOp = Incr | Decr deriving (Show, Read, Eq)
+data Loop = Loop
+  { startVal :: Integer
+  , endVal   :: Integer
+  , loopOp   :: LoopOp
+  } deriving (Show, Read, Eq)
+
+-- Compute the number of iterations in a loop.  Assume the constant folder has
+-- run.
+loopIterations :: I.Expr -> I.LoopIncr -> Loop
+loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
+  where
+  getLit e = case e of
+    I.ExpLit l   -> case l of
+      I.LitInteger i -> i
+      _              -> err
+    _            -> err
+
+  fromIncr = case end of
+               I.IncrTo e -> (Incr, getLit e)
+               I.DecrTo e -> (Decr, getLit e)
+
+  err = error "Error in loopIterations"
+
 --------------------------------------------------------------------------------
 -- Language construction helpers
 binOp :: I.ExpOp -> I.Expr -> I.Expr -> I.Expr
@@ -255,6 +288,21 @@ leOp  t = binOp (I.ExpLt False t)
 leqOp t = binOp (I.ExpLt True  t)
 geOp  t = binOp (I.ExpGt False t)
 geqOp t = binOp (I.ExpGt True  t)
+
+-- negOp :: I.Expr -> I.Expr
+-- negOp e = I.ExpOp I.ExpNot [e]
+
+-- addOp :: I.Expr -> I.Expr -> I.Expr
+-- addOp e0 e1 = binOp I.ExpAdd e0 e1
+
+-- subOp :: I.Expr -> I.Expr -> I.Expr
+-- subOp e0 e1 = binOp I.ExpSub e0 e1
+
+-- incrOp :: I.Type -> I.Expr -> I.Expr
+-- incrOp t e = addOp e (litOp t 1)
+
+-- decrOp :: I.Type -> I.Expr -> I.Expr
+-- decrOp t e = subOp e (litOp t 1)
 
 litOp :: I.Type -> Integer -> I.Expr
 litOp t n = I.ExpLit e

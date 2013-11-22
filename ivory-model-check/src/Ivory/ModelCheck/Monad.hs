@@ -3,24 +3,23 @@
 
 module Ivory.ModelCheck.Monad
   ( runMC
-  , symEnv
   , assertQueries
-  , symQuery
-  , symSt
   , decls
   , invars
   , ModelCheck()
-  , SymExecSt()
-  , funcSym
+  , SymExecSt(..)
+  , getState
+  , setState
+  , joinState
   , updateEnv
   , lookupVar
   , incReservedVar
-  , addDecl
   , addQuery
   , addInvariant
   , resetSt
-  , mergeSt
-  ) where
+  , branchSt
+  )
+ where
 
 import           Prelude hiding (exp)
 import           Data.Maybe
@@ -47,7 +46,7 @@ data Queries = Queries
   , ensureQueries :: [Expr]
   } deriving Show
 
--- | The program state: declarations and equations.
+-- | The program state: declarations of variables and invariants.
 data ProgramSt = ProgramSt
   { decls  :: [Statement]
   , invars :: [Expr]
@@ -103,7 +102,7 @@ parseMcVar v = return . dropWhile takeInt =<< stripPrefix mcVar v
 -- an evironment variable.
 getEnvVar :: Var -> Env -> (Var, Env)
 getEnvVar var env =
-  let v = trace ("getEnv " ++ var) $ parseVar var in
+  let v = parseVar var in
   let (mi, env') = M.insertLookupWithKey f v 0 env in
   case mi of
     Nothing -> (v, env')
@@ -115,7 +114,7 @@ getEnvVar var env =
 -- | Lookup a variable in the store.
 lookupEnvVar :: Var -> Env -> Var
 lookupEnvVar var env =
-  let v = trace ("lookup " ++ var) $ parseVar var in
+  let v = parseVar var in
   let mv = M.lookup v env in
   case mv of
     Nothing -> error $ "Variable " ++ v ++ " not in env:\n" ++ show env
@@ -168,7 +167,7 @@ updateEnv t v = do
   let (v', env) = getEnvVar v (symEnv st)
   set st { symEnv = env }
   addDecl (varDecl v' t)
-  trace ("up " ++ v ++ " " ++ v') $ return v'
+  trace ("env " ++ show env) $ return v'
 
 -- | A special reserved variable the model-checker will use when it wants to
 -- create new program variables.
@@ -196,39 +195,35 @@ resetSt = do
          , symQuery = mempty
          }
 
--- | Merge at a join point by taking the disjunction of equations about program
--- state.  Append everything else (Ivory AST should guarantee unique names).
-mergeSt :: SymExecSt -> SymExecSt -> ModelCheck ()
-mergeSt st0 st1 = do
+-- | Makes the invariants and queries in the current state conditional on the
+-- given expression holding.
+branchSt :: Expr -> ModelCheck ()
+branchSt exp = do
   st <- get
-  let env     = M.unions [symEnv st, symEnv st0, symEnv st1]
+  let ps = symSt st
+  let invars' = implies (invars ps)
+  let ps' = ps { decls  = decls ps
+               , invars = invars' }
+  let qs = symQuery st
+  let asserts' = implies (assertQueries qs)
+  let ensures' = implies (ensureQueries qs)
+  let queries' = qs { assertQueries = asserts'
+                    , ensureQueries = ensures' }
+  let st' = SymExecSt { funcSym  = funcSym st
+                      , symEnv   = symEnv st
+                      , symSt    = ps'
+                      , symQuery = queries'
+                      }
+  set st'
+  where
+  implies = map (exp .=>)
 
-  let ps0     = symSt st0
-  let ps1     = symSt st1
-
-  let qs0     = symQuery st0
-  let qs1     = symQuery st1
-
-  let impls assts q   = and' assts .=> q
-  let mkAssts pss qss = map (impls (invars pss)) (assertQueries qss)
-  let mkEns pss qss   = map (impls (invars pss)) (ensureQueries qss)
-  let asst0   = mkAssts ps0 qs0
-  let asst1   = mkAssts ps1 qs1
-  let ens0    = mkEns ps0 qs0
-  let ens1    = mkEns ps1 qs1
-
-  let query   =         symQuery st
-              `mappend` Queries asst0 ens0
-              `mappend` Queries asst1 ens1
-
-  let ps      = symSt st
-  let decls'  = decls ps0 ++ decls ps1 ++ decls ps
-  let ps'     = ps { decls = decls' }
-  set SymExecSt { funcSym  = funcSym st0
-                , symEnv   = env
-                , symSt    = ps'
-                , symQuery = query
-                }
+joinState :: SymExecSt -> ModelCheck SymExecSt
+joinState st0 = do
+  st1 <- get
+  let st = st0 `mappend` st1
+  set st
+  return st
 
 runMC :: ModelCheck a -> (a, SymExecSt)
 runMC (ModelCheck m) = runId (runStateT initSymSt m)
@@ -239,6 +234,12 @@ runMC (ModelCheck m) = runId (runStateT initSymSt m)
 instance StateM ModelCheck SymExecSt where
   get = ModelCheck get
   set = ModelCheck . set
+
+getState :: ModelCheck SymExecSt
+getState = get
+
+setState :: SymExecSt -> ModelCheck ()
+setState = set
 
 instance Monoid Queries where
   mempty = Queries { assertQueries = []
@@ -258,15 +259,19 @@ instance Monoid ProgramSt where
               , invars = e0 ++ e1
               }
 
--- instance Monoid SymExecSt where
---   mempty = SymExecSt { symEnv   = mempty
---                      , symSt    = mempty
---                      , symQuery = mempty
---                      }
---   (SymExecSt e0 s0 q0) `mappend` (SymExecSt e1 s1 q1) =
---     SymExecSt { symEnv   = e0 `mappend` e1
---               , symSt    = s0 `mappend` s1
---               , symQuery = q0 `mappend` q1
---               }
+instance Monoid SymExecSt where
+  mempty = SymExecSt { funcSym  = ""
+                     , symEnv   = mempty
+                     , symSt    = mempty
+                     , symQuery = mempty
+                     }
+  (SymExecSt f0 e0 s0 q0) `mappend` (SymExecSt f1 e1 s1 q1)
+    | f0 /= f1 = error "Sym states have different function symbols."
+    | otherwise =
+      SymExecSt { funcSym  = f0
+                , symEnv   = e0 `M.union` e1
+                , symSt    = s0 `mappend` s1
+                , symQuery = q0 `mappend` q1
+                }
 
 --------------------------------------------------------------------------------
