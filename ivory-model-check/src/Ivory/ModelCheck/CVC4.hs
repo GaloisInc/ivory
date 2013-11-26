@@ -128,7 +128,7 @@ instance Concrete Expr where
   concrete (Not e)      = B.unwords ["NOT", parens e]
   concrete (And e0 e1)  = B.unwords [parens e0, "AND", parens e1]
   concrete (Or e0 e1)   = B.unwords [parens e0, "OR" , parens e1]
-  concrete (Impl e0 e1) = B.unwords [parens e0, "=>" , parens e1]
+  concrete (Impl e0 e1) = B.unwords [parens e0, ">=" , parens e1]
   concrete (Eq e0 e1)   = B.unwords [parens e0, "=" , parens e1]
   concrete (Le e0 e1)   = B.unwords [parens e0, "<" , parens e1]
   concrete (Leq e0 e1)  = B.unwords [parens e0, "<=" , parens e1]

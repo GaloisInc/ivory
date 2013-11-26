@@ -7,6 +7,7 @@
 module Ivory.ModelCheck where
 
 import qualified Ivory.Language.Syntax       as I
+import           Text.Printf
 import           Ivory.ModelCheck.Ivory2CVC4
 import           Ivory.ModelCheck.Monad
 import           Ivory.ModelCheck.CVC4
@@ -49,7 +50,7 @@ modelCheck' = modelCheck initArgs
 
 modelCheck :: Args -> I.Module -> IO ()
 modelCheck args m = do
-  let (_, st) = runMC (modelCheckMod processM)
+  let (_, st) = runMC (modelCheckMod m)
   let bs = B.unlines (mkScript st)
   debugging args st bs
   file <- writeInput bs
@@ -138,7 +139,7 @@ printResults st results = do
   B.putStrLn "*** If \'Query FALSE\' is valid, the assertions are inconsistent. ***\n"
   mapM_ printRes match
   where
-  printRes (q,res) = B.putStr q >> putStr "  :  " >> putStrLn res
+  printRes (q,res) = printf "%-40s : %s\n" (B.unpack q) res
 
 --------------------------------------------------------------------------------
 -- XXX testing
@@ -232,3 +233,12 @@ foo6 = L.proc "foo1" $ \x -> body $ do
 
 m6 :: Module
 m6 = package "foo6" (incl foo6)
+
+-----------------------
+
+foo7 :: Def ('[Uint8, Uint8] :-> Uint8)
+foo7 = L.proc "foo7" $ \x y -> body $ do
+  ret (x + y)
+
+m7 :: Module
+m7 = package "foo7" (incl foo7)
