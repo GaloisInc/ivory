@@ -15,12 +15,9 @@ import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
 
 -- XXX testing
-import Debug.Trace
+--import Debug.Trace
 
---------------------------------------------------------------------------------
--- | Environment and variable store.
-
---------------------------------------------------------------------------------
+=--------------------------------------------------------------------------------
 
 modelCheckMod :: I.Module -> ModelCheck ()
 modelCheckMod m =
@@ -51,7 +48,7 @@ modelCheckProc I.Proc { I.procSym      = sym
 
 -- XXX implicit requirements here on sizes based on types.
 toParam :: I.Typed I.Var -> ModelCheck ()
-toParam (I.Typed t val) = void $ updateEnv (toType t) (toVar val)
+toParam (I.Typed t val) = void $ addEnvVar (toType t) (toVar val)
 --------------------------------------------------------------------------------
 
 -- | Symbolically execute statements, carrying the return requirements forward
@@ -72,25 +69,25 @@ toBody ens stmt =
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
-  v' <- updateEnv (toType t) (toVar v)
+  v' <- addEnvVar (toType t) (toVar v)
   r  <- toRef t ref
   addInvariant (var v' .== var r)
 
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
 toAlloc t ref name = do
-  v' <- trace ("toalloc " ++ toVar ref) $ updateEnv (toType t) (toVar ref)
+  v' <- addEnvVar (toType t) (toVar ref)
   addInvariant (var v' .== var (toName name))
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t ptr exp = do
   p  <- toRef t ptr
-  v' <- updateEnv (toType t) p
+  v' <- addEnvVar (toType t) p
   e  <- toExpr t exp
   addInvariant (var v' .== e)
 
 toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
 toLocal t v inits = do
-  v' <- updateEnv (toType t) (toVar v)
+  v' <- addEnvVar (toType t) (toVar v)
   is <- toInit inits
   addInvariant (var v' .== is)
 
@@ -102,7 +99,7 @@ toInit init =
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
-  v' <- updateEnv (toType t) (toVar v)
+  v' <- addEnvVar (toType t) (toVar v)
   e  <- toExpr t exp
   addInvariant $ (var v' .== e)
 
@@ -114,7 +111,7 @@ toLoop v start end blk =
   where
   go :: Integer -> ModelCheck ()
   go ix = do
-    v'  <- updateEnv (toType t) (toVar v)
+    v'  <- addEnvVar (toType t) (toVar v)
     addInvariant (var v' .== intLit ix)
     mapM_ (toBody undefined) blk
 
@@ -133,14 +130,14 @@ toIfTE :: [I.Cond] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens cond blk0 blk1 = do
   st  <- getState
   b   <- toExpr I.TyBool cond
-  runBranch b blk0
+  runBranch st b blk0
   st' <- joinState st
-  runBranch (not' b) blk1
+  runBranch st (not' b) blk1
   void (joinState st')
   where
-  runBranch :: Expr -> [I.Stmt] -> ModelCheck ()
-  runBranch b blk = do
-    resetSt                      -- Empty state except environment
+  runBranch :: SymExecSt -> Expr -> [I.Stmt] -> ModelCheck ()
+  runBranch st b blk = do
+    resetSt st                   -- Empty state except environment
     mapM_ (toBody undefined) blk -- Body under the invariant
     branchSt b                   -- Make conditions under hypothesis b
 
@@ -150,12 +147,36 @@ toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
   I.ExpLit lit    -> return $
     case lit of
-      I.LitInteger i -> intLit i
+      I.LitInteger i -> toBoundedInt t i
       I.LitBool b    -> if b then T else F
   I.ExpVar v      -> lookupVar (toVar v) >>= return . var
   I.ExpOp op args -> toExprOp t op args
 
 --------------------------------------------------------------------------------
+
+assertBoundedVar :: I.Type -> Var -> Expr
+assertBoundedVar t v = getBounds t
+
+  where
+
+
+  getBounds t = case t of
+    I.TyWord w -> case w of
+      Word8  -> fi (minBound :: Word8 , maxBound :: Word8)
+      Word16 -> fi (minBound :: Word16, maxBound :: Word16)
+      Word32 -> fi (minBound :: Word32, maxBound :: Word32)
+      Word64 -> fi (minBound :: Word64, maxBound :: Word164)
+
+    I.TyInt i -> case i of
+      Int8  -> fi (minBound :: Int8 , maxBound :: Int8)
+      Int16 -> fi (minBound :: Int16, maxBound :: Int16)
+      Int32 -> fi (minBound :: Int32, maxBound :: Int32)
+      Int64 -> fi (minBound :: Int64, maxBound :: Int164)
+
+    _         -> 
+
+  fi (a,b) = fromBounds (fromIntegral a, fromIntegral b)
+  fromBounds (a,b) = (intLit a .<= v) .&& (intLit b .=> v)
 
 toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args = case op of
@@ -347,6 +368,14 @@ varOp = I.ExpVar . I.VarName
 --       let res = (toBody []) (I.Deref t var (trans e)) in
 --       let c1  = toAssertion trans call c in
 --       [cstm| { $items:res $item:c1 } |]
+
+--------------------------------------------------------------------------------
+
+addEnvVar :: I.Type -> Var -> ModelCheck ()
+addEnvVar t v = do
+  updateEnv (toType t) v
+  assertBoundedVar t v
+
 
 --------------------------------------------------------------------------------
 

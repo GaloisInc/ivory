@@ -49,7 +49,7 @@ modelCheck' = modelCheck initArgs
 
 modelCheck :: Args -> I.Module -> IO ()
 modelCheck args m = do
-  let (_, st) = runMC (modelCheckMod m)
+  let (_, st) = runMC (modelCheckMod processM)
   let bs = B.unlines (mkScript st)
   debugging args st bs
   file <- writeInput bs
@@ -211,3 +211,24 @@ foo5 = L.proc "foo5" $ body $ do
 
 m5 :: Module
 m5 = package "foo5" (incl foo5)
+
+-----------------------
+
+foo6 :: Def ('[Uint8] :-> ())
+foo6 = L.proc "foo1" $ \x -> body $ do
+  y <- local (ival (0 :: Uint8))
+  ifte_ (x <? 3)
+        (do a <- local (ival (9 :: Uint8))
+            b <- deref a
+            store y b
+        )
+        (do a <- local (ival (7 :: Uint8))
+            b <- deref a
+            store y b
+        )
+  z <- deref y
+  L.assert (z <=? 9)
+  L.assert (z >=? 7)
+
+m6 :: Module
+m6 = package "foo6" (incl foo6)

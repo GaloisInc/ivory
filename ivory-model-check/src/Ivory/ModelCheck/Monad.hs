@@ -32,7 +32,7 @@ import qualified Data.Map.Lazy         as M
 import           Ivory.ModelCheck.CVC4 hiding (query, var)
 
 -- XXX
-import Debug.Trace
+--import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- Types
@@ -167,7 +167,7 @@ updateEnv t v = do
   let (v', env) = getEnvVar v (symEnv st)
   set st { symEnv = env }
   addDecl (varDecl v' t)
-  trace ("env " ++ show env) $ return v'
+  return v'
 
 -- | A special reserved variable the model-checker will use when it wants to
 -- create new program variables.
@@ -188,9 +188,8 @@ lookupVar v = do
   return $ lookupEnvVar v (symEnv st)
 
 -- | Reset all the state except for the environment.
-resetSt :: ModelCheck ()
-resetSt = do
-  st <- get
+resetSt :: SymExecSt -> ModelCheck ()
+resetSt st =
   set st { symSt    = mempty
          , symQuery = mempty
          }
@@ -221,7 +220,8 @@ branchSt exp = do
 joinState :: SymExecSt -> ModelCheck SymExecSt
 joinState st0 = do
   st1 <- get
-  let st = st0 `mappend` st1
+  -- This is the right order.
+  let st = st1 `mappend` st0
   set st
   return st
 
