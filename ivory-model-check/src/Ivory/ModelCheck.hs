@@ -79,6 +79,11 @@ mkScript st =
   [ "% Script auto-generated for model-checking Ivory function "
   , B.pack (funcSym st)
   , ""
+  , "% CVC4 Lib -----------------------------------"
+  , ""
+  ] ++ (map concrete cvc4Lib)
+  ++
+  [ ""
   , "% declarations -------------------------------"
   , ""
   ] ++ writeStmts (decls . symSt)
@@ -139,7 +144,7 @@ printResults st results = do
   B.putStrLn "*** If \'Query FALSE\' is valid, the assertions are inconsistent. ***\n"
   mapM_ printRes match
   where
-  printRes (q,res) = printf "%-40s : %s\n" (B.unpack q) res
+  printRes (q,res) = printf "%-30s : %s\n" (B.unpack q) res
 
 --------------------------------------------------------------------------------
 -- XXX testing
@@ -242,3 +247,16 @@ foo7 = L.proc "foo7" $ \x y -> body $ do
 
 m7 :: Module
 m7 = package "foo7" (incl foo7)
+
+-----------------------
+
+foo8 :: Def ('[Uint8] :-> Uint8)
+foo8 = L.proc "foo8" $ \x -> body $ do
+  let y = x .% 3
+  L.assert (y <? 4)
+  ret y
+
+m8 :: Module
+m8 = package "foo8" (incl foo8)
+
+-----------------------
