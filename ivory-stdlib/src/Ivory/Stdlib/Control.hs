@@ -7,7 +7,7 @@ module Ivory.Stdlib.Control
   ( ifte
   , when
   , unless
-  , cond_, (==>)
+  , cond_, cond, (==>)
   ) where
 
 import Ivory.Language
@@ -32,9 +32,9 @@ when c t = ifte_ c t (return ())
 unless :: IBool -> Ivory eff () -> Ivory eff ()
 unless c f =  ifte_ c (return ()) f
 
-data Cond eff = Cond IBool (Ivory eff ())
+data Cond eff a = Cond IBool (Ivory eff a)
 
-(==>) :: IBool -> Ivory eff () -> Cond eff
+(==>) :: IBool -> Ivory eff a -> Cond eff a
 (==>) = Cond
 
 infix 0 ==>
@@ -70,6 +70,18 @@ infix 0 ==>
 -- rather than:
 --
 -- > cond_ [ f $ g x ==> y ]
-cond_ :: [Cond eff] -> Ivory eff ()
+cond_ :: [Cond eff ()] -> Ivory eff ()
 cond_ [] = return ()
 cond_ ((Cond b f):cs) = ifte_ b f (cond_ cs)
+
+cond :: ( IvoryStore a
+        , IvoryZero (Stored a)
+        , GetAlloc eff ~ Scope s
+        ) => [Cond eff a] -> Ivory eff a
+cond as = do
+  r <- local izero
+  aux as r
+  deref r
+  where
+  aux [] r = return ()
+  aux ((Cond b f):cs) r = ifte_ b (f >>= store r) (aux cs r)
