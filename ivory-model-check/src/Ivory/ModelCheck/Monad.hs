@@ -50,7 +50,7 @@ data Queries = Queries
 data ProgramSt = ProgramSt
   { decls  :: [Statement]
   , invars :: [Expr]
-  } deriving Show
+  }
 
 -- | The full simulation state.
 data SymExecSt = SymExecSt
@@ -58,7 +58,7 @@ data SymExecSt = SymExecSt
   , symEnv   :: Env
   , symSt    :: ProgramSt
   , symQuery :: Queries
-  } deriving Show
+  }
 
 newtype ModelCheck a = ModelCheck (StateT SymExecSt Id a)
   -- { unModelCheck ::

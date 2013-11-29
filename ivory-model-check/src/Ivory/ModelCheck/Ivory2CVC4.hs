@@ -61,8 +61,7 @@ toBody ens stmt =
   let toBody' = toBody ens in
   case stmt of
     I.Assign t v exp       -> toAssign t v exp
-    -- XXX is this right?
-    I.Return _             -> return ()
+    I.Return (I.Typed t e) -> void (toExpr t e)
     I.ReturnVoid           -> return ()
     I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
@@ -162,6 +161,7 @@ toExpr t exp = case exp of
 toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args = case op of
   I.ExpEq t'      -> go t' (.==)
+  I.ExpNeq t'     -> toExpr t (I.ExpOp I.ExpNot [I.ExpOp (I.ExpEq t') args])
   I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
   I.ExpAnd        -> go t (.&&)
   I.ExpOr         -> go t (.||)
@@ -179,8 +179,7 @@ toExprOp t op args = case op of
   I.ExpNegate     ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg
-  _               -> error $ "no op " ++ show op
-
+  _               -> error $ "toExprOp error: no op " ++ show op
   where
   arg0 = args !! 0
   arg1 = args !! 1
@@ -199,22 +198,12 @@ toExprOp t op args = case op of
 -- and assert the above for v then returning it.
 toMod :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
 toMod t e0 e1 = do
-  -- XXX
-  v <- return . varOp =<< incReservedVar (toType t)
-  let z = litOp t 0
-  let disj0 =   (        (geqOp t e0 z)
-                 `andOp` (geqOp t v  z)
-                 `andOp` (leOp  t v  e1)
-                 `andOp` (leqOp t v  e0)
-                )
-  let disj1 =   (        (leOp  t e0 z)
-                 `andOp` (leqOp t v  z)
-                 `andOp` (geOp  t v  e1)
-                 `andOp` (geqOp  t v e0)
-                )
-  e <- toExpr t (disj0 `orOp` disj1)
-  addInvariant e
-  toExpr t v
+  v <- incReservedVar (toType t)
+  a <- toExpr t e0
+  b <- toExpr t e1
+  let v' = var v
+  addInvariant (call modAbs [v', a, b])
+  return v'
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -281,15 +270,15 @@ loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
 binOp :: I.ExpOp -> I.Expr -> I.Expr -> I.Expr
 binOp op e0 e1 = I.ExpOp op [e0, e1]
 
-orOp, andOp :: I.Expr -> I.Expr -> I.Expr
-orOp  = binOp I.ExpOr
-andOp = binOp I.ExpAnd
+-- orOp, andOp :: I.Expr -> I.Expr -> I.Expr
+-- orOp  = binOp I.ExpOr
+-- andOp = binOp I.ExpAnd
 
-leOp, leqOp, geOp, geqOp :: I.Type -> I.Expr -> I.Expr -> I.Expr
-leOp  t = binOp (I.ExpLt False t)
-leqOp t = binOp (I.ExpLt True  t)
-geOp  t = binOp (I.ExpGt False t)
-geqOp t = binOp (I.ExpGt True  t)
+-- leOp, leqOp, geOp, geqOp :: I.Type -> I.Expr -> I.Expr -> I.Expr
+-- leOp  t = binOp (I.ExpLt False t)
+-- leqOp t = binOp (I.ExpLt True  t)
+-- geOp  t = binOp (I.ExpGt False t)
+-- geqOp t = binOp (I.ExpGt True  t)
 
 -- negOp :: I.Expr -> I.Expr
 -- negOp e = I.ExpOp I.ExpNot [e]
@@ -358,29 +347,26 @@ addEnvVar t v = do
   assertBoundedVar t v
   return v'
 
+-- Call the appropriate cvc4lib functions.
 assertBoundedVar :: I.Type -> Var -> ModelCheck ()
 assertBoundedVar t v = getBounds t
   where
   getBounds t = case t of
     I.TyWord w -> case w of
-      I.Word8  -> fi (minBound :: Word8 , maxBound :: Word8)
-      I.Word16 -> fi (minBound :: Word16, maxBound :: Word16)
-      I.Word32 -> fi (minBound :: Word32, maxBound :: Word32)
-      I.Word64 -> fi (minBound :: Word64, maxBound :: Word64)
+      I.Word8  -> c word8
+      I.Word16 -> c word16
+      I.Word32 -> c word32
+      I.Word64 -> c word64
 
     I.TyInt i -> case i of
-      I.Int8  -> fi (minBound :: Int8 , maxBound :: Int8)
-      I.Int16 -> fi (minBound :: Int16, maxBound :: Int16)
-      I.Int32 -> fi (minBound :: Int32, maxBound :: Int32)
-      I.Int64 -> fi (minBound :: Int64, maxBound :: Int64)
+      I.Int8  -> c int8
+      I.Int16 -> c int16
+      I.Int32 -> c int32
+      I.Int64 -> c int64
 
     _         -> return ()
 
-  fi :: (Integral a, Bounded a) => (a, a) -> ModelCheck ()
-  fi = addInvariant . fromInt
-  fromInt (a,b) = fromBounds (fromIntegral a, fromIntegral b)
-  fromBounds (a,b) = (intLit a .<= v') .&& (intLit b .>= v')
-  v' = var v
+  c f = addInvariant (call f [var v])
 
 --------------------------------------------------------------------------------
 

@@ -2,15 +2,20 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Ivory.ModelCheck.CVC4 where
 
-import           Prelude hiding (exp)
+import           Prelude hiding (exp, modAbs)
+import           Data.List (intersperse)
+import           Data.Word
+import           Data.Int
 import qualified Data.ByteString.Char8 as B
 
 --------------------------------------------------------------------------------
 
-type Var = String
+type Var  = String
+type Func = String
 
 --------------------------------------------------------------------------------
 -- Concrete syntax
@@ -33,18 +38,16 @@ clBS = CL
 -- Statements
 
 data Statement = VarDecl Var Type
---               | VarAssign Var Type Expr
                | Assert Expr
                | Query Expr
-  deriving (Show)
+               -- Arbitrary statement constructed by-hand.
+               | forall a . Concrete a => Statement a
 
 instance Concrete Statement where
-  concrete (VarDecl v ty)       = statement [CL v, clBS ":", CL ty]
-  -- concrete (VarAssign v ty exp) = statement [ CL v, clBS ":", CL ty
-  --                                           , clBS "=", CL exp
-  --                                           ]
-  concrete (Assert exp)         = statement [clBS "ASSERT", CL exp]
-  concrete (Query exp)          = statement [clBS "QUERY", CL exp]
+  concrete (VarDecl v ty)  = statement [CL v, clBS ":", CL ty]
+  concrete (Assert exp)    = statement [clBS "ASSERT", CL exp]
+  concrete (Query exp)     = statement [clBS "QUERY", CL exp]
+  concrete (Statement a)   = statement [CL a]
 
 statement :: [ConcreteList] -> B.ByteString
 statement as =
@@ -54,9 +57,6 @@ statement as =
 
 varDecl :: Var -> Type -> Statement
 varDecl = VarDecl
-
--- varAssign :: Var -> Type -> Expr -> Statement
--- varAssign = VarAssign
 
 assert :: Expr -> Statement
 assert = Assert
@@ -103,6 +103,7 @@ data Expr = Var Var
           | forall a . (Show a, Concrete a, Num a) => NumLit a
           | Add      Expr Expr
           | Sub      Expr Expr
+          | Call     Func [Expr]
 
 deriving instance Show Expr
 
@@ -122,23 +123,27 @@ parens exp =
     else  '(' `B.cons` (concrete exp `B.snoc` ')')
 
 instance Concrete Expr where
-  concrete (Var v)      = concrete v
-  concrete T            = "TRUE"
-  concrete F            = "FALSE"
-  concrete (Not e)      = B.unwords ["NOT", parens e]
-  concrete (And e0 e1)  = B.unwords [parens e0, "AND", parens e1]
-  concrete (Or e0 e1)   = B.unwords [parens e0, "OR" , parens e1]
-  concrete (Impl e0 e1) = B.unwords [parens e0, ">=" , parens e1]
-  concrete (Eq e0 e1)   = B.unwords [parens e0, "=" , parens e1]
-  concrete (Le e0 e1)   = B.unwords [parens e0, "<" , parens e1]
-  concrete (Leq e0 e1)  = B.unwords [parens e0, "<=" , parens e1]
-  concrete (Ge e0 e1)   = B.unwords [parens e0, ">" , parens e1]
-  concrete (Geq e0 e1)  = B.unwords [parens e0, ">=" , parens e1]
-  concrete (NumLit n)   = concrete n
-  concrete (Add e0 e1)  = B.unwords [parens e0, "+", parens e1]
-  concrete (Sub e0 e1)  = B.unwords [parens e0, "-", parens e1]
+  concrete (Var v)       = concrete v
+  concrete T             = "TRUE"
+  concrete F             = "FALSE"
+  concrete (Not e)       = B.unwords ["NOT", parens e]
+  concrete (And e0 e1)   = B.unwords [parens e0, "AND", parens e1]
+  concrete (Or e0 e1)    = B.unwords [parens e0, "OR" , parens e1]
+  concrete (Impl e0 e1)  = B.unwords [parens e0, ">=" , parens e1]
+  concrete (Eq e0 e1)    = B.unwords [parens e0, "=" , parens e1]
+  concrete (Le e0 e1)    = B.unwords [parens e0, "<" , parens e1]
+  concrete (Leq e0 e1)   = B.unwords [parens e0, "<=" , parens e1]
+  concrete (Ge e0 e1)    = B.unwords [parens e0, ">" , parens e1]
+  concrete (Geq e0 e1)   = B.unwords [parens e0, ">=" , parens e1]
+  concrete (NumLit n)    = concrete n
+  concrete (Add e0 e1)   = B.unwords [parens e0, "+", parens e1]
+  concrete (Sub e0 e1)   = B.unwords [parens e0, "-", parens e1]
+  concrete (Call f args) = concrete f
+                `B.append` ('(' `B.cons` (args' `B.snoc` ')'))
+    where
+    args' = B.unwords $ intersperse "," (map concrete args)
 
-var :: String -> Expr
+var :: Var -> Expr
 var = Var
 
 true :: Expr
@@ -158,14 +163,6 @@ not' = Not
 
 (.=>) :: Expr -> Expr -> Expr
 (.=>) = Impl
-
--- and' :: [Expr] -> Expr
--- and' [] = true
--- and' ls = foldl1' (.&&) ls
-
--- or' :: [Expr] -> Expr
--- or' [] = false
--- or' ls = foldl1' (.||) ls
 
 (.==) :: Expr -> Expr -> Expr
 (.==) = Eq
@@ -196,6 +193,87 @@ intLit = lit
 
 realLit :: Integer -> Expr
 realLit = lit
+
+call :: Func -> [Expr] -> Expr
+call = Call
+
+--------------------------------------------------------------------------------
+-- CVC4 Lib
+
+----------------------------------------
+-- Bounded int types
+
+boundedFunc :: forall a . (Show a, Integral a, Bounded a)
+                => Func -> a -> Statement
+boundedFunc f _sz = Statement $ B.unwords
+  [ B.pack f, ":", "INT", "->", "BOOLEAN"
+  , "=", "LAMBDA", "(x:INT)", ":"
+  , exp (toInt minBound) (toInt maxBound)
+  ]
+  where
+  toInt a = fromIntegral (a :: a)
+  x = var "x"
+  exp l h = concrete $ (intLit l .<= x) .&& (x .<= intLit h)
+
+word8, word16, word32, word64, int8, int16, int32, int64 :: Func
+word8  = "word8"
+word16 = "word16"
+word32 = "word32"
+word64 = "word64"
+int8   = "int8"
+int16  = "int16"
+int32  = "int32"
+int64  = "int64"
+
+word8Bound  :: Statement
+word8Bound  = boundedFunc word8  (0 :: Word8)
+word16Bound :: Statement
+word16Bound = boundedFunc word16 (0 :: Word16)
+word32Bound :: Statement
+word32Bound = boundedFunc word32 (0 :: Word32)
+word64Bound :: Statement
+word64Bound = boundedFunc word64 (0 :: Word64)
+int8Bound   :: Statement
+int8Bound   = boundedFunc int8    (0 :: Int8)
+int16Bound  :: Statement
+int16Bound  = boundedFunc int16   (0 :: Int16)
+int32Bound  :: Statement
+int32Bound  = boundedFunc int32   (0 :: Int32)
+int64Bound  :: Statement
+int64Bound  = boundedFunc int64   (0 :: Int64)
+
+----------------------------------------
+-- Mod
+
+modAbs :: Func
+modAbs = "mod"
+
+-- | Abstraction: a % b (C semantics) implies
+--
+-- (   ((a >= 0) && (a % b >= 0) && (a % b < b) && (a % b <= a))
+--  || ((a < 0)  && (a % b <= 0) && (a % b > b) && (a % b >= a)))
+--
+-- a % b is abstracted with a fresh var v.
+modFunc :: Statement
+modFunc = Statement $ B.unwords
+  [ B.pack modAbs, ":", "(INT, INT, INT)", "->", "BOOLEAN"
+  , "=", "LAMBDA", "(v:INT, a:INT, b:INT)", ":"
+  , concrete exp
+  ]
+  where
+  v = var "v"
+  a = var "a"
+  b = var "b"
+  z = intLit 0
+  exp =   ((a .>= z) .&& (v .>= z) .&& (v .< b) .&& (v .<= a))
+      .|| ((a .< z)  .&& (v .<= z) .&& (v .> b) .&& (v .>= a))
+
+cvc4Lib :: [Statement]
+cvc4Lib =
+  [ word8Bound, word16Bound, word32Bound, word64Bound
+  , int8Bound,  int16Bound,  int32Bound,  int64Bound
+  , modFunc
+  ]
 
 --------------------------------------------------------------------------------
 -- Testing
