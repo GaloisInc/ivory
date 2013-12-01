@@ -4,14 +4,14 @@
 module Ivory.ModelCheck.Monad
   ( runMC
   , assertQueries
-  , decls
-  , invars
   , ModelCheck()
   , SymExecSt(..)
+  , ProgramSt(..)
   , getState
   , setState
   , joinState
-  , updateEnv
+  , addType
+  , declUpdateEnv
   , lookupVar
   , incReservedVar
   , addQuery
@@ -46,9 +46,11 @@ data Queries = Queries
   , ensureQueries :: [Expr]
   } deriving Show
 
--- | The program state: declarations of variables and invariants.
+-- | The program state: user-defined types, declarations of variables, and
+-- invariants.
 data ProgramSt = ProgramSt
-  { decls  :: [Statement]
+  { types  :: [Type]
+  , decls  :: [Statement]
   , invars :: [Expr]
   }
 
@@ -127,6 +129,14 @@ addDecl decl = do
   let ps' = ps { decls = decl : decls ps }
   set st { symSt = ps' }
 
+addType :: Type -> ModelCheck ()
+addType ty = do
+  st <- get
+  let ps = symSt st
+  if ty `elem` types ps then return ()
+    else do let ps' = ps { types = ty : types ps }
+            set st { symSt = ps' }
+
 addInvariant :: Expr -> ModelCheck ()
 addInvariant exp = do
   st <- get
@@ -161,12 +171,18 @@ addQuery exp = do
 -- variable (and update the environment) and declare it (which is why we need
 -- the type).  Otherwise, return the environment variable (and update the
 -- environment).
-updateEnv :: Type -> Var -> ModelCheck Var
-updateEnv t v = do
+declUpdateEnv :: Type -> Var -> ModelCheck Var
+declUpdateEnv t v = do
+  v' <- updateEnv v
+  addDecl (varDecl v' t)
+  return v'
+
+-- | Update the environment without declaring it.
+updateEnv :: Var -> ModelCheck Var
+updateEnv v = do
   st <- get
   let (v', env) = getEnvVar v (symEnv st)
   set st { symEnv = env }
-  addDecl (varDecl v' t)
   return v'
 
 -- | A special reserved variable the model-checker will use when it wants to
@@ -179,7 +195,7 @@ reservedVar = "mcTmp"
 
 -- | Increment the count of uses of 'reservedVar'.
 incReservedVar :: Type -> ModelCheck Var
-incReservedVar t = updateEnv t reservedVar
+incReservedVar t = declUpdateEnv t reservedVar
 
 -- | Find a variable in the store.  Throws an error if it does not exist.
 lookupVar :: Var -> ModelCheck Var
@@ -251,11 +267,13 @@ instance Monoid Queries where
             }
 
 instance Monoid ProgramSt where
-  mempty = ProgramSt { decls  = []
+  mempty = ProgramSt { types  = []
+                     , decls  = []
                      , invars = []
                      }
-  (ProgramSt d0 e0) `mappend` (ProgramSt d1 e1) =
-    ProgramSt { decls  = d0 ++ d1
+  (ProgramSt t0 d0 e0) `mappend` (ProgramSt t1 d1 e1) =
+    ProgramSt { types  = t0 ++ t1
+              , decls  = d0 ++ d1
               , invars = e0 ++ e1
               }
 

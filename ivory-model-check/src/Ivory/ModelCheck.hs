@@ -2,7 +2,8 @@
 --XXX testing
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
-
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Ivory.ModelCheck where
 
@@ -20,7 +21,7 @@ import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 
 -- XXX testing
-import Ivory.Language hiding (assert, true, false, proc, (.&&))
+import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
 import qualified Ivory.Language as L
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -82,6 +83,11 @@ mkScript st =
   , "% CVC4 Lib -----------------------------------"
   , ""
   ] ++ (map concrete cvc4Lib)
+  ++
+  [ ""
+  , "% user-defined types -------------------------"
+  , ""
+  ] ++ writeStmts (map typeDecl . types . symSt)
   ++
   [ ""
   , "% declarations -------------------------------"
@@ -197,10 +203,12 @@ m3 = package "foo3" (incl foo3)
 foo4 :: Def ('[] :-> ())
 foo4 = L.proc "foo4" $ body $ do
   x <- local (ival (1 :: Sint32))
-  store x (7 .% 2)
-  store x (4 .% 3)
+  -- store x (7 .% 2)
+  -- store x (4 .% 3)
+  store x 1
   y <- deref x
-  L.assert (y <? 2)
+  -- L.assert (y <? 2)
+  L.assert (y ==? 1)
 
 m4 :: Module
 m4 = package "foo4" (incl foo4)
@@ -260,3 +268,22 @@ m8 :: Module
 m8 = package "foo8" (incl foo8)
 
 -----------------------
+
+[ivory|
+struct foo
+{ aFoo :: Stored Uint8
+; bFoo :: Stored Uint8
+}
+|]
+
+foo9 :: Def ('[Ref s (L.Struct "foo")] :-> ())
+foo9 = L.proc "foo9" $ \f -> body $ do
+  store (f ~> aFoo) 3
+  store (f ~> bFoo) 1
+  store (f ~> aFoo) 4
+  x <- deref (f ~> aFoo)
+  y <- deref (f ~> bFoo)
+  L.assert (x ==? 4 L..&& y ==? 1)
+
+m9 :: Module
+m9 = package "foo9" (incl foo9)

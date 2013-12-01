@@ -31,19 +31,22 @@ instance Concrete String where
 
 data ConcreteList = forall a. Concrete a => CL a
 
+-- Specialization
 clBS :: B.ByteString -> ConcreteList
 clBS = CL
 
 --------------------------------------------------------------------------------
 -- Statements
 
-data Statement = VarDecl Var Type
+data Statement = TypeDecl Type
+               | VarDecl Var Type
                | Assert Expr
                | Query Expr
                -- Arbitrary statement constructed by-hand.
                | forall a . Concrete a => Statement a
 
 instance Concrete Statement where
+  concrete (TypeDecl ty)   = statement [CL ty, clBS ":", clBS "TYPE"]
   concrete (VarDecl v ty)  = statement [CL v, clBS ":", CL ty]
   concrete (Assert exp)    = statement [clBS "ASSERT", CL exp]
   concrete (Query exp)     = statement [clBS "QUERY", CL exp]
@@ -54,6 +57,9 @@ statement as =
   let unList (CL a) = concrete a in
   let toks = B.unwords (map unList as) in
   B.snoc toks ';'
+
+typeDecl :: Type -> Statement
+typeDecl = TypeDecl
 
 varDecl :: Var -> Type -> Statement
 varDecl = VarDecl
@@ -79,12 +85,14 @@ instance Concrete Integer where
 data Type = Bool
           | Integer
           | Real
+          | Struct String
   deriving (Show, Read, Eq)
 
 instance Concrete Type where
-  concrete Bool    = "BOOLEAN"
-  concrete Real    = "REAL"
-  concrete Integer = "INT"
+  concrete Bool          = "BOOLEAN"
+  concrete Real          = "REAL"
+  concrete Integer       = "INT"
+  concrete (Struct name) = B.pack name
 
 data Expr = Var Var
           -- Boolean expressions
