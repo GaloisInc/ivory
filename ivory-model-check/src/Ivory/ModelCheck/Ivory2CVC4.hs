@@ -49,9 +49,9 @@ modelCheckProc I.Proc { I.procSym      = sym
 
 --------------------------------------------------------------------------------
 
--- XXX implicit requirements here on sizes based on types.
 toParam :: I.Typed I.Var -> ModelCheck ()
 toParam (I.Typed t val) = void $ addEnvVar t (toVar val)
+
 --------------------------------------------------------------------------------
 
 -- | Symbolically execute statements, carrying the return requirements forward
@@ -84,8 +84,9 @@ toAlloc t ref name = do
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t ptr exp = do
-  p  <- toRef t ptr
-  v' <- addEnvVar t p
+  v' <- updateEnvRef t ptr
+  -- p  <- toRef t ptr
+  -- v' <- addEnvVar t p
   e  <- toExpr t exp
   addInvariant (var v' .== e)
 
@@ -149,12 +150,14 @@ toIfTE ens cond blk0 blk1 = do
 
 toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
-  I.ExpLit lit    -> return $
+  I.ExpVar v                 -> lookupVar (toVar v) >>= return . var
+  I.ExpLit lit               -> return $
     case lit of
       I.LitInteger i -> intLit i
       I.LitBool b    -> if b then T else F
-  I.ExpVar v      -> lookupVar (toVar v) >>= return . var
-  I.ExpOp op args -> toExprOp t op args
+  I.ExpOp op args            -> toExprOp t op args
+  -- Refs covered
+  -- Labels covered
 
 --------------------------------------------------------------------------------
 
@@ -198,7 +201,7 @@ toExprOp t op args = case op of
 -- and assert the above for v then returning it.
 toMod :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
 toMod t e0 e1 = do
-  v <- incReservedVar (toType t)
+  v <- incReservedVar =<< toType t
   a <- toExpr t e0
   b <- toExpr t e1
   let v' = var v
@@ -221,25 +224,48 @@ toVar v =
     I.VarInternal n -> n
     I.VarLitName n  -> n
 
-toType :: I.Type -> Type
-toType t =
-  case t of
-    I.TyBool     -> Bool
-    (I.TyWord _) -> Integer
-    (I.TyInt  _) -> Integer
-    I.TyFloat    -> Real
-    I.TyDouble   -> Real
-    I.TyRef t'   -> toType t'
-    -- _            -> error $ show t
+baseType :: I.Type -> Bool
+baseType t = case t of
+  I.TyBool     -> True
+  (I.TyWord _) -> True
+  (I.TyInt  _) -> True
+  I.TyFloat    -> True
+  I.TyDouble   -> True
+  _            -> False
+
+toType :: I.Type -> ModelCheck Type
+toType t = case t of
+  I.TyBool        -> return Bool
+  (I.TyWord _)    -> return Integer
+  (I.TyInt  _)    -> return Integer
+  I.TyFloat       -> return Real
+  I.TyDouble      -> return Real
+  I.TyRef t'      -> toType t'
+  I.TyStruct name -> do let ty = Struct name
+                        addType ty
+                        return ty
+  -- _            -> error $ show t
+
+updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
+updateEnvRef t ref =
+  case ref of
+    I.ExpLabel ty (I.ExpVar struct) field
+      -> do struct' <- addEnvVar ty (toVar struct)
+            addEnvVar t (struct' ++ '_' : field)
+    I.ExpVar v
+      -> addEnvVar t (toVar v)
+    _ -> error $ "Unexpected expression " ++ show ref
+      ++ " to updateEnvRef."
 
 toRef :: I.Type -> I.Expr -> ModelCheck Var
-toRef t ref = do
-  e <- toExpr t ref
-  case e of
-    Var v -> return v
-    _     -> error $ "Unexpected expression " ++ show e
-          ++ " to toRef."
-
+toRef t ref =
+  case ref of
+    I.ExpLabel _ty (I.ExpVar struct) field
+      -> lookupVar (toVar struct ++ '_' : field)
+    I.ExpVar v
+      -> lookupVar (toVar v)
+    _ -> error $ "Unexpected expression " ++ show ref
+      ++ " to toRef."
 
 data LoopOp = Incr | Decr deriving (Show, Read, Eq)
 data Loop = Loop
@@ -343,8 +369,9 @@ varOp = I.ExpVar . I.VarName
 
 addEnvVar :: I.Type -> Var -> ModelCheck Var
 addEnvVar t v = do
-  v' <- updateEnv (toType t) v
-  assertBoundedVar t v
+  t' <- toType t
+  v' <- declUpdateEnv t' v
+  assertBoundedVar t v'
   return v'
 
 -- Call the appropriate cvc4lib functions.
