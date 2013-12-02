@@ -155,7 +155,7 @@ instance (IvoryZero area, IvoryArea area, SingI len) =>
 iarray :: forall len area. (IvoryArea area, SingI len)
        => [Init area] -> Init (Array len area)
 iarray is = Init (IArray ty (take len (map getInit is)))
-            -- ^ truncate to known length
+            -- truncate to known length
   where
   len = fromInteger (fromTypeNat (sing :: Sing len))
   ty = ivoryArea (Proxy :: Proxy (Array len area))
