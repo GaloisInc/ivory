@@ -4,6 +4,7 @@
 module Ivory.Language.Uint where
 
 import Ivory.Language.Area
+import Ivory.Language.BoundedInteger
 import Ivory.Language.SizeOf
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
@@ -36,7 +37,7 @@ instance Num Uint8 where
   abs         = id
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Uint8 . fromInteger
+  fromInteger = boundedFromInteger Uint8 (0 :: Word8)
 
 instance Bounded Uint8 where
   minBound = 0
@@ -66,7 +67,7 @@ instance Num Uint16 where
   abs         = id
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Uint16 . fromInteger
+  fromInteger = boundedFromInteger Uint16 (0 :: Word16)
 
 instance Bounded Uint16 where
   minBound = 0
@@ -96,7 +97,7 @@ instance Num Uint32 where
   abs         = id
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Uint32 . fromInteger
+  fromInteger = boundedFromInteger Uint32 (0 :: Word32)
 
 instance Bounded Uint32 where
   minBound = 0
@@ -126,7 +127,7 @@ instance Num Uint64 where
   abs         = id
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Uint64 . fromInteger
+  fromInteger = boundedFromInteger Uint64 (0 :: Word64)
 
 instance Bounded Uint64 where
   minBound = 0
