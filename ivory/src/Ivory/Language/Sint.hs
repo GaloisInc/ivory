@@ -4,12 +4,12 @@
 module Ivory.Language.Sint where
 
 import Ivory.Language.Area
+import Ivory.Language.BoundedInteger
 import Ivory.Language.SizeOf
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
 import Data.Int (Int8,Int16,Int32,Int64)
-
 
 -- Signed Types ----------------------------------------------------------------
 
@@ -36,7 +36,7 @@ instance Num Sint8 where
   abs         = exprUnary abs
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Sint8 . fromInteger
+  fromInteger = boundedFromInteger Sint8 (0 :: Int8)
 
 instance Bounded Sint8 where
   minBound = fromIntegral (minBound :: Int8)
@@ -66,7 +66,7 @@ instance Num Sint16 where
   abs         = exprUnary abs
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Sint16 . fromInteger
+  fromInteger = boundedFromInteger Sint16 (0 :: Int16)
 
 instance Bounded Sint16 where
   minBound = fromIntegral (minBound :: Int16)
@@ -96,7 +96,7 @@ instance Num Sint32 where
   abs         = exprUnary abs
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Sint32 . fromInteger
+  fromInteger = boundedFromInteger Sint32 (0 :: Int32)
 
 instance Bounded Sint32 where
   minBound = fromIntegral (minBound :: Int32)
@@ -126,7 +126,7 @@ instance Num Sint64 where
   abs         = exprUnary abs
   signum      = exprUnary signum
   negate      = exprUnary negate
-  fromInteger = Sint64 . fromInteger
+  fromInteger = boundedFromInteger Sint64 (0 :: Int64)
 
 instance Bounded Sint64 where
   minBound = fromIntegral (minBound :: Int64)
