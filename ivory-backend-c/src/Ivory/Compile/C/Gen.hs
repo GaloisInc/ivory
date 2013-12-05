@@ -346,7 +346,7 @@ toExpr _ (I.ExpVar var)  = [cexp| $id:(toVar var) |]
 toExpr t (I.ExpLit lit)  =
   case lit of
     -- XXX hack: should make type-correct literals.
-    I.LitInteger i -> [cexp| $id:fromInt |]
+    I.LitInteger i -> [cexp| ($ty:(toType t))$id:fromInt |]
       where fromInt = case t of
                         I.TyWord _ -> show i ++ "U"
                         I.TyInt  _ -> show i
@@ -361,7 +361,7 @@ toExpr t (I.ExpLit lit)  =
     I.LitFloat f   -> [cexp| $id:(show f ++ "f") |]
     I.LitDouble d  -> [cexp| $id:(show d) |]
 ----------------------------------------
-toExpr t (I.ExpOp op args) = toExpOp t op args
+toExpr t (I.ExpOp op args) = [cexp| ($ty:(toType t)) $exp:(toExpOp t op args) |]
 ----------------------------------------
 toExpr _ (I.ExpSym sym) = [cexp| $id:sym |]
 ----------------------------------------

@@ -17,7 +17,6 @@ import Data.Version (showVersion)
 import Control.Applicative ((<$>))
 import qualified Data.Set as S
 import Control.Monad
-import System.IO
 import System.FilePath.Posix ((<.>)) -- Always use posix convention in C code
 import MonadLib (put,runM)
 
@@ -51,11 +50,11 @@ writeHdr :: Bool                -- ^ Verbosity
          -> (Includes, Sources) -- ^ Source to translate
          -> String              -- ^ Unit name
          -> IO ()
-writeHdr True  f s unitname = toFile f $ renderHdr f s unitname
-writeHdr False f s unitname = toFileQuiet f $ renderHdr f s unitname
+writeHdr True  f s unitname = toFile f $ renderHdr s unitname
+writeHdr False f s unitname = toFileQuiet f $ renderHdr s unitname
 
-renderHdr :: FilePath -> (Includes, Sources) -> String -> String
-renderHdr f s unitname = PP.displayS (PP.render width guardedHeader) ""
+renderHdr :: (Includes, Sources) -> String -> String
+renderHdr s unitname = PP.displayS (PP.render width guardedHeader) ""
   where
   width = 80
   guardedHeader = stack [ topComments
@@ -84,12 +83,12 @@ writeSrc :: Bool                 -- ^ Be verbose
          -> FilePath             -- ^ Output source name
          -> (Includes, Sources)  -- ^ Module to translate
          -> IO ()
-writeSrc verbose f s = vToFile f (renderSrc f s)
+writeSrc verbose f s = vToFile f (renderSrc s)
   where
   vToFile = if verbose then toFile else toFileQuiet
 
-renderSrc :: FilePath -> (Includes, Sources) -> String
-renderSrc f s = PP.displayS (PP.render width srcdoc) ""
+renderSrc :: (Includes, Sources) -> String
+renderSrc s = PP.displayS (PP.render width srcdoc) ""
   where
   width = 80
   srcdoc = topComments </> out

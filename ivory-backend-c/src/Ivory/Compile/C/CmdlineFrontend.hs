@@ -29,7 +29,6 @@ import Data.List (foldl')
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Environment (getArgs)
 import System.FilePath (takeDirectory,takeExtension,addExtension,(</>))
-import System.IO (writeFile)
 import Text.PrettyPrint.Mainland
     ((<+>),(<>),line,text,stack,punctuate,render,empty,indent,displayS)
 import qualified System.FilePath.Posix as PFP
@@ -128,14 +127,14 @@ rc sm userSearchPath modules opts
   outputHeader :: FilePath -> C.CompileUnits -> IO ()
   outputHeader basename cm = do
     let headerfname = addExtension basename ".h"
-        header = C.renderHdr headerfname (C.headers cm) (C.unitName cm)
+        header = C.renderHdr (C.headers cm) (C.unitName cm)
     outputHelper headerfname header
 
   -- Transform a compiled unit into a c src, and write to a .c file
   outputSrc :: FilePath -> C.CompileUnits -> IO ()
   outputSrc basename cm = do
     let srcfname = addExtension basename ".c"
-        src = C.renderSrc srcfname (C.sources cm)
+        src = C.renderSrc (C.sources cm)
     outputHelper srcfname src
 
   outputHelper :: FilePath -> String -> IO ()
