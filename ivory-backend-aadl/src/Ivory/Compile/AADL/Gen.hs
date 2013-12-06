@@ -13,7 +13,7 @@ import Ivory.Compile.AADL.Identifier
 
 --------------------------------------------------------------------------------
 -- | Compile a struct.
-compileStruct :: I.Struct -> Compile
+compileStruct :: I.Struct -> CompileM n ()
 compileStruct def = case def of
   I.Struct n fs -> do
     ftypes <- mapM mkField fs
@@ -21,12 +21,12 @@ compileStruct def = case def of
     writeTypeDefinition $ DTStruct (identifier n) ftypes
   _ -> return ()
 
-mkField :: I.Typed String -> CompileM DTField
+mkField :: I.Typed String -> CompileM n DTField
 mkField field = do
   t <- mkType (I.tType field)
   return $ DTField (identifier (I.tValue field)) t
 
-mkType :: I.Type -> CompileM TypeName
+mkType :: I.Type -> CompileM n TypeName
 mkType ty = case ty of
     I.TyVoid              -> basetype "Void"
     I.TyChar              -> basetype "Char"
@@ -44,16 +44,16 @@ mkType ty = case ty of
     I.TyProc _retT _argTs -> error "cannot translate TyProc"
     I.TyOpaque            -> error "cannot translate TyOpaque"
   where
-  basetype :: String -> CompileM TypeName
+  basetype :: String -> CompileM n TypeName
   basetype t = qualTypeName "Base_Types" t
 
-  intSize :: I.IntSize -> CompileM TypeName
+  intSize :: I.IntSize -> CompileM n TypeName
   intSize I.Int8  = basetype "Integer_8"
   intSize I.Int16 = basetype "Integer_16"
   intSize I.Int32 = basetype "Integer_32"
   intSize I.Int64 = basetype "Integer_64"
 
-  wordSize :: I.WordSize -> CompileM TypeName
+  wordSize :: I.WordSize -> CompileM n TypeName
   wordSize I.Word8  = basetype "Unsigned_8"
   wordSize I.Word16 = basetype "Unsigned_16"
   wordSize I.Word32 = basetype "Unsigned_32"
@@ -64,7 +64,7 @@ typeImpl t@(DotTypeName _ _)             = t
 typeImpl t@(QualTypeName "Base_Types" _) = t
 typeImpl t                               = DotTypeName t "impl"
 
-arrayType :: Int -> TypeName -> CompileM TypeName
+arrayType :: Int -> TypeName -> CompileM n TypeName
 arrayType len basetype = do
   n <- doc_name `fmap` getTypeCtx
   writeImport n
@@ -85,7 +85,7 @@ typeNameS (UnqualTypeName s) = "Ty" ++ s
 typeNameS (QualTypeName q s) = "Ty" ++ q ++ "_" ++ s
 typeNameS (DotTypeName t a) = typeNameS t ++ "_" ++ a
 
-structType :: String -> CompileM TypeName
+structType :: String -> CompileM n TypeName
 structType s = do
   its <- importedTypes
   case find aux its of
@@ -100,7 +100,7 @@ structType s = do
   aux (UnqualTypeName n) = n == ss
   aux (DotTypeName t _)  = aux t
 
-importedTypes :: CompileM [TypeName]
+importedTypes :: CompileM n [TypeName]
 importedTypes = getIModContext >>= \(m,ms) -> return (aux m ms)
   where
   aux :: I.Module -> [I.Module] -> [TypeName]
