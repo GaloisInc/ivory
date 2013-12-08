@@ -7,8 +7,10 @@ module Ivory.Opts.Index
   ( ixFold
   ) where
 
-import Ivory.Opts.AssertFold
-import Ivory.Opts.Utils
+import qualified Data.DList as D
+
+import           Ivory.Opts.AssertFold
+import           Ivory.Opts.Utils
 
 import qualified Ivory.Language.Syntax.AST as I
 import qualified Ivory.Language.Syntax.Type as I
@@ -20,23 +22,27 @@ ixFold = procFold expFold
 
 --------------------------------------------------------------------------------
 
+-- | Default expression folder that performs the recursion for an asserter.
+expFold :: I.Type -> I.Expr -> [I.Expr]
+expFold ty e =
+  let (_, ds) = runFolderM (expFold' ty e) in
+  D.toList ds
+
 -- Here was use a custom folder (and not the expFoldDefault in AssertFold) since
 -- the index checks are indepdent of control-flow (from the (x ? y : z)
 -- expression) and we want to explicitly pattern-match for Ix expressions.
-expFold :: I.Type -> I.Expr -> Assert ()
-expFold ty e = case e of
+expFold' :: I.Type -> I.Expr -> FolderExpr ()
+expFold' ty e = case e of
   I.ExpSym{}                     -> return ()
   I.ExpVar{}                     -> return ()
   I.ExpLit{}                     -> return ()
-  I.ExpOp op args                -> mapM_ (expFold $ expOpType ty op) args
-  I.ExpLabel ty' e0 _            -> expFold  ty' e0
-  I.ExpIndex tIdx eIdx tArr eArr -> do
-    expFold tIdx eIdx
-    expFold tArr eArr
-  I.ExpSafeCast ty' e0           -> expFold ty' e0
-  I.ExpToIx e0 maxSz             -> do
-    putExpr (Just $ toIxAssert e0 maxSz)
-    expFold ixTy e0
+  I.ExpLabel ty' e0 _str         -> expFold' ty' e0
+  I.ExpIndex tIdx eIdx tArr eArr -> do expFold' tIdx eIdx
+                                       expFold' tArr eArr
+  I.ExpToIx e0 maxSz             -> do insert (toIxAssert e0 maxSz)
+                                       expFold' ixTy e0
+  I.ExpSafeCast ty' e0           -> expFold' ty' e0
+  I.ExpOp op args                -> mapM_ (expFold' $ expOpType ty op) args
   I.ExpAddrOfGlobal{}            -> return ()
 
 --------------------------------------------------------------------------------

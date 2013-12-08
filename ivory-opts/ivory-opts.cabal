@@ -19,8 +19,7 @@ library
                         Ivory.Opts.FP,
                         Ivory.Opts.Overflow
 
-  other-modules:        Ivory.Opts.PreProc,
-                        Ivory.Opts.Utils
+  other-modules:        Ivory.Opts.Utils
 
   build-depends:        base >= 4.6,
                         ivory,

@@ -24,12 +24,12 @@ fpFold = procFold (expFoldDefault fpAssert)
 
 -- We're assuming we don't have to check lits---that you'd never actually
 -- construct a literal inf or NaN value!
-fpAssert :: I.Type -> I.Expr -> Maybe I.Expr
+fpAssert :: I.Type -> I.Expr -> [I.Expr]
 fpAssert ty e = case ty of
   I.TyFloat   -> asst
   I.TyDouble  -> asst
-  _           -> Nothing
-  where asst = Just (mkAssert ty e)
+  _           -> []
+  where asst = [mkAssert ty e]
 
 mkAssert :: I.Type -> I.Expr -> I.Expr
 mkAssert ty e = I.ExpOp I.ExpAnd
