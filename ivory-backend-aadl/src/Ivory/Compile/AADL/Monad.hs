@@ -24,9 +24,6 @@ newtype CompileM n a = CompileM
                       TypeCtxM))) a }            -- AADL Type context
   deriving (Functor, Monad)
 
-data Warning
-  = UniquenessWarning String
-
 
 runTypeCtx :: TypeCtxM a -> (a, Document)
 runTypeCtx (TypeCtxM c) = runId $ runStateT d c

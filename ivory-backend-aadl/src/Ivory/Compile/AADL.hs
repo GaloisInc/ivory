@@ -4,6 +4,7 @@ module Ivory.Compile.AADL
   ( compileModule
   , compileTypeCtx
   , documentToFile
+  , warningsToFile
   , module Ivory.Compile.AADL.AST
   ) where
 

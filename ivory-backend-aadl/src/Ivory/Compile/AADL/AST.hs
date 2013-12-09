@@ -84,4 +84,6 @@ data ProcessConnection
   | DataConnection String ProcessPort -- data name, i/o port
   deriving (Eq, Show)
 
-
+data Warning
+  = UniquenessWarning String
+  deriving (Eq, Show)
