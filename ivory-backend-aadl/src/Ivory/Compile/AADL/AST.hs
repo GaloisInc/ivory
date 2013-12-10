@@ -82,6 +82,8 @@ data ProcessPort
 data ProcessConnection
   = EventConnection ProcessPort ProcessPort -- From, To
   | DataConnection String ProcessPort -- data name, i/o port
+  | NamedConnection String ProcessConnection -- Name annotation is optional
+    -- warning, the NamedConnection case does not compose with itself...
   deriving (Eq, Show)
 
 data Warning

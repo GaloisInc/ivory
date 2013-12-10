@@ -165,6 +165,8 @@ docProcConnection (EventConnection to fro) =
   text "port" <+> docProcessPort to <+> arrow <+> docProcessPort fro <> semi
 docProcConnection (DataConnection dname port) =
   text "data access" <+> text dname  <+> arrow <+> docProcessPort port <> semi
+docProcConnection (NamedConnection name c) =
+  text name <+> colon <+> docProcConnection c
 
 arrow :: Doc
 arrow = text "->"
