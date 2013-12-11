@@ -77,7 +77,10 @@ stmtFold cxt opt blk stmt =
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
         _                      -> snoc (I.Assert e')
-
+    -- We'll say it's OK to have "dead" compiler-inserted asserts.
+    I.CompilerAssert e        ->
+      let e' = opt I.TyBool e in
+      snoc (I.CompilerAssert e')
     I.Assume e           ->
       let e' = opt I.TyBool e in
       case e' of

@@ -22,29 +22,32 @@
     }                             \
   } while (0)
 
-#define REQUIRES(arg) ivory_assert(arg)
-#define ENSURES(arg)  ivory_assert(arg)
-#define ASSUMES(arg)  ivory_assert(arg)
-#define ASSERTS(arg)  ivory_assert(arg)
+#define REQUIRES(arg)         ivory_assert(arg)
+#define ENSURES(arg)          ivory_assert(arg)
+#define ASSUMES(arg)          ivory_assert(arg)
+#define ASSERTS(arg)          ivory_assert(arg)
+#define COMPILER_ASSERTS(arg) ivory_assert(arg)
 
 #else /* ! __arm__ */
 
 #include <assert.h>
 
-#define REQUIRES(arg) assert(arg)
-#define ENSURES(arg)  assert(arg)
-#define ASSUMES(arg)  assert(arg)
-#define ASSERTS(arg)  assert(arg)
+#define REQUIRES(arg)         assert(arg)
+#define ENSURES(arg)          assert(arg)
+#define ASSUMES(arg)          assert(arg)
+#define ASSERTS(arg)          assert(arg)
+#define COMPILER_ASSERTS(arg) assert(arg)
 
 #endif /* __arm__ */
 #endif /* IVORY_TEST */
 
 #ifdef IVORY_CBMC
 
-#define REQUIRES(arg) __CPROVER_assume(arg)
-#define ENSURES(arg)  __CPROVER_assert(arg, "")
-#define ASSERTS(arg)  __CPROVER_assert(arg, "")
-#define ASSUMES(arg)  __CPROVER_assume(arg)
+#define REQUIRES(arg)         __CPROVER_assume(arg)
+#define ENSURES(arg)          __CPROVER_assert(arg, "")
+#define ASSUMES(arg)          __CPROVER_assume(arg)
+#define ASSERTS(arg)          __CPROVER_assert(arg, "")
+#define COMPILER_ASSERTS(arg) __CPROVER_assert(arg, "")
 
 #endif /* IVORY_CBMC */
 
@@ -52,8 +55,9 @@
 
 #define REQUIRES(arg)
 #define ENSURES(arg)
-#define ASSERTS(arg)
 #define ASSUMES(arg)
+#define ASSERTS(arg)
+#define COMPILER_ASSERTS(arg)
 
 #endif /* IVORY_DEPLOY */
 

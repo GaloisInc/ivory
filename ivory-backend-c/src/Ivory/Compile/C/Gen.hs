@@ -253,7 +253,7 @@ toBody ens stmt =
     I.RefCopy t vto vfrom  ->
       [C.BlockStm [cstm| if( $exp:toRef != $exp:fromRef) {
          memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); }
-                           else { ASSERTS(false); }
+                           else { COMPILER_ASSERTS(false); }
       |]]
       where
       toRef   = toExpr (I.TyRef t) vto
@@ -270,6 +270,8 @@ toBody ens stmt =
         _             -> ([cexp| &($id:name) |], t)
     I.Assert exp           -> [C.BlockStm
       [cstm| ASSERTS($exp:(toExpr I.TyBool exp)); |]]
+    I.CompilerAssert exp   -> [C.BlockStm
+      [cstm| COMPILER_ASSERTS($exp:(toExpr I.TyBool exp)); |]]
     I.Assume exp           -> [C.BlockStm
       [cstm| ASSUMES($exp:(toExpr I.TyBool exp)); |]]
     I.Call t mVar sym args ->

@@ -151,6 +151,10 @@ data Stmt
     -- ^ Boolean-valued assertions.  The @Expr@ argument will be typed as an
     -- @IBool@.
 
+  | CompilerAssert Expr
+    -- ^ Compiler-inserted assertion (as opposed to user-level assertions).
+    -- These are expected to be correct (e.g., no overflow, etc).  Not exported.
+
   | Assume Expr
     -- ^ Boolean-valued assumptions.  The @Expr@ argument will be typed as an
     -- @IBool@.
@@ -176,7 +180,7 @@ data Stmt
 
   | Call Type (Maybe Var) Name [Typed Expr]
     -- ^ Function call.  The optional variable is where to store the result.  It
-    -- is expectedc that the @Expr@ passed for the function symbol will have the
+    -- is expected that the @Expr@ passed for the function symbol will have the
     -- same type as the combination of the types for the arguments, and the
     -- return type.
 

@@ -56,10 +56,10 @@ type FolderStmt a = FolderM I.Stmt a
 type ExpFold = I.Type -> I.Expr -> [I.Expr]
 
 insertAssert :: I.Expr -> FolderStmt ()
-insertAssert = insert . I.Assert
+insertAssert = insert . I.CompilerAssert
 
 insertAsserts :: [I.Expr] -> FolderStmt ()
-insertAsserts = insertList . map I.Assert
+insertAsserts = insertList . map I.CompilerAssert
 
 --------------------------------------------------------------------------------
 
@@ -82,6 +82,8 @@ stmtFold ef stmt = case stmt of
                                         let b1' = runEmptyState ef b1
                                         insert (I.IfTE e b0' b1')
   I.Assert e                      -> do insertAsserts (ef I.TyBool e)
+                                        insert stmt
+  I.CompilerAssert e              -> do insertAsserts (ef I.TyBool e)
                                         insert stmt
   I.Assume e                      -> do insertAsserts (ef I.TyBool e)
                                         insert stmt
@@ -160,14 +162,21 @@ expFoldDefault' asserter ty e = case e of
 
 --------------------------------------------------------------------------------
 
--- We need one special case for one expression, ExpCond, which really violates
--- the spirit of an expression by implementing control-flow.  We need a
--- pre-condition here, since we might have expressions like
+-- We need a special case for expressions that may affect control flow:
+--
+--   ExpCond
+--   ExpOr
+--   ExpAnd
+--
+-- (The later two can introduce shortcutting.)  ExpCond is in the spirit of an
+-- expression by implementing control-flow.  We need a pre-condition here, since
+-- we might have expressions like
 --
 -- x /= 0 ? 3.0/x : 0.0
 --
 expFoldOps :: ExpFold -> I.Type -> (I.ExpOp, [I.Expr]) -> FolderExpr ()
 expFoldOps asserter ty (op, args) = case (op, args) of
+
   (I.ExpCond, [cond, texp, fexp])
     -> do
     fold ty cond
@@ -181,7 +190,14 @@ expFoldOps asserter ty (op, args) = case (op, args) of
     inserts tSt
     inserts fSt
 
+  (I.ExpAnd, [exp0, exp1])
+    -> runBool exp0 exp1 id
+
+  (I.ExpOr, [exp0, exp1])
+    -> runBool exp0 exp1 neg
+
   _ -> mapM_ (fold $ expOpType ty op) args
+
   where
   fold = expFoldDefault' asserter
 
@@ -190,6 +206,23 @@ expFoldOps asserter ty (op, args) = case (op, args) of
     fold ty e
     withEnv cond
     get
+
+  runBool exp0 exp1 f = do
+    preSt <- get
+
+    st0 <- runCase exp0
+    st1 <- runBranch (f exp0) exp1
+    resetState
+
+    inserts preSt
+    inserts st0
+    inserts st1
+
+    where
+    runCase e = do
+      resetState
+      fold ty e
+      get
 
 --------------------------------------------------------------------------------
 -- Helpers

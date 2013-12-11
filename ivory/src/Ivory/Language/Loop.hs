@@ -37,7 +37,7 @@ loop incr fromIdx toIdx body = do
   ix        <- freshVar "ix"
   let ixVar = wrapExpr (AST.ExpVar ix)
   (_,block) <- collect (body ixVar)
-  let asst v = assert (wrapExpr v <? maxSz .&& (-1::IxRep) <=? wrapExpr v)
+  let asst v = compilerAssert (wrapExpr v <? maxSz .&& (-1::IxRep) <=? wrapExpr v)
   asst from
   asst to
   emit (AST.Loop ix (trans from) (incr $ trans to) (blockStmts block))
