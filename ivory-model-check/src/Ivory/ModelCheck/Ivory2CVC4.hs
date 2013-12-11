@@ -2,15 +2,10 @@ module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
+import           Prelude hiding (exp)
 import           Data.Word
 import           Control.Monad
-import           MonadLib (set, get)
-import           Data.Monoid
-import           Data.List
-import           Data.Word
-import           Data.Int
 import qualified Ivory.Language.Syntax as I
-import qualified Ivory.Language.Proc   as P
 import           Ivory.Opts.ConstFold (constFold)
 import           Ivory.Opts.Overflow (overflowFold)
 
@@ -60,21 +55,24 @@ toBody :: [I.Cond] -> I.Stmt -> ModelCheck ()
 toBody ens stmt =
   let toBody' = toBody ens in
   case stmt of
-    I.Assign t v exp       -> toAssign t v exp
+    I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
+    I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.Return (I.Typed t e) -> void (toExpr t e)
     I.ReturnVoid           -> return ()
-    I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
-    I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
-    I.Local t v inits      -> toLocal t v inits
-    I.Store t ptr exp      -> toStore t ptr exp
-    I.AllocRef t ref name  -> toAlloc t ref name
     I.Deref t v ref        -> toDeref t v ref
+    I.Store t ptr exp      -> toStore t ptr exp
+    I.Assign t v exp       -> toAssign t v exp
+    I.Call t retV nm args  ->
+    I.Local t v inits      -> toLocal t v inits
+
+    I.AllocRef t ref name  -> toAlloc t ref name
+
     I.Loop v exp inc blk   -> toLoop v exp inc blk
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
   v' <- addEnvVar t (toVar v)
-  r  <- toRef t ref
+  r  <- toRef ref
   addInvariant (var v' .== var r)
 
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
@@ -85,8 +83,6 @@ toAlloc t ref name = do
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t ptr exp = do
   v' <- updateEnvRef t ptr
-  -- p  <- toRef t ptr
-  -- v' <- addEnvVar t p
   e  <- toExpr t exp
   addInvariant (var v' .== e)
 
@@ -150,14 +146,19 @@ toIfTE ens cond blk0 blk1 = do
 
 toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
+  I.ExpSym s                 -> return (var s)
   I.ExpVar v                 -> lookupVar (toVar v) >>= return . var
   I.ExpLit lit               -> return $
     case lit of
       I.LitInteger i -> intLit i
       I.LitBool b    -> if b then T else F
+  I.ExpLabel{}               -> err "toExpr" (show exp) -- Already covered
+  I.ExpToIx e i              -> err "toExpr" (show exp)
+  I.ExpSafeCast t' e         -> do e' <- toExpr t' e
+                                   assertBoundedVar t e'
+                                   return e'
   I.ExpOp op args            -> toExprOp t op args
-  -- Refs covered
-  -- Labels covered
+  I.ExpAddrOfGlobal s        -> return (var s)
 
 --------------------------------------------------------------------------------
 
@@ -233,17 +234,26 @@ baseType t = case t of
   I.TyDouble   -> True
   _            -> False
 
+-- Abstraction: collapse references.
 toType :: I.Type -> ModelCheck Type
 toType t = case t of
-  I.TyBool        -> return Bool
-  (I.TyWord _)    -> return Integer
-  (I.TyInt  _)    -> return Integer
-  I.TyFloat       -> return Real
-  I.TyDouble      -> return Real
-  I.TyRef t'      -> toType t'
-  I.TyStruct name -> do let ty = Struct name
-                        addType ty
-                        return ty
+  I.TyVoid         -> return Void
+  (I.TyWord _)     -> return Integer
+  (I.TyInt  _)     -> return Integer
+  I.TyBool         -> return Bool
+  I.TyChar         -> return Char
+  I.TyFloat        -> return Real
+  I.TyDouble       -> return Real
+  I.TyProc t' [ts] -> err "toType" "proc"
+  I.TyRef t'       -> toType t'
+  I.TyConstRef t'  -> toType t'
+  I.TyPtr t'       -> toType t'
+  I.TyArr i t'     -> err "toType" "arr"
+  I.TyCArray t'    -> err "toType" "carray"
+  I.TyOpaque       -> return Opaque
+  I.TyStruct name  -> do let ty = Struct name
+                         addType ty
+                         return ty
   -- _            -> error $ show t
 
 updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
@@ -257,8 +267,8 @@ updateEnvRef t ref =
     _ -> error $ "Unexpected expression " ++ show ref
       ++ " to updateEnvRef."
 
-toRef :: I.Type -> I.Expr -> ModelCheck Var
-toRef t ref =
+toRef :: I.Expr -> ModelCheck Var
+toRef ref =
   case ref of
     I.ExpLabel _ty (I.ExpVar struct) field
       -> lookupVar (toVar struct ++ '_' : field)
@@ -282,17 +292,16 @@ loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
   getLit e = case e of
     I.ExpLit l   -> case l of
       I.LitInteger i -> i
-      _              -> err
-    _            -> err
+      _              -> err "loopIterations" (show e)
+    _            -> err "loopIterations" (show e)
 
   fromIncr = case end of
                I.IncrTo e -> (Incr, getLit e)
                I.DecrTo e -> (Decr, getLit e)
 
-  err = error "Error in loopIterations"
-
 --------------------------------------------------------------------------------
 -- Language construction helpers
+
 binOp :: I.ExpOp -> I.Expr -> I.Expr -> I.Expr
 binOp op e0 e1 = I.ExpOp op [e0, e1]
 
@@ -371,14 +380,14 @@ addEnvVar :: I.Type -> Var -> ModelCheck Var
 addEnvVar t v = do
   t' <- toType t
   v' <- declUpdateEnv t' v
-  assertBoundedVar t v'
+  assertBoundedVar t (var v')
   return v'
 
 -- Call the appropriate cvc4lib functions.
-assertBoundedVar :: I.Type -> Var -> ModelCheck ()
-assertBoundedVar t v = getBounds t
+assertBoundedVar :: I.Type -> Expr -> ModelCheck ()
+assertBoundedVar t e = getBounds t
   where
-  getBounds t = case t of
+  getBounds t' = case t' of
     I.TyWord w -> case w of
       I.Word8  -> c word8
       I.Word16 -> c word16
@@ -393,7 +402,12 @@ assertBoundedVar t v = getBounds t
 
     _         -> return ()
 
-  c f = addInvariant (call f [var v])
+  c f = addInvariant (call f [e])
+
+
+err :: String -> String -> a
+err f msg = error $ "in ivory-model-check. Unexpected: " ++ msg
+         ++ " in function " ++ f
 
 --------------------------------------------------------------------------------
 

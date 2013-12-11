@@ -6,7 +6,7 @@
 
 module Ivory.ModelCheck.CVC4 where
 
-import           Prelude hiding (exp, modAbs)
+import           Prelude hiding (exp)
 import           Data.List (intersperse)
 import           Data.Word
 import           Data.Int
@@ -82,10 +82,13 @@ instance Concrete Double where
 instance Concrete Integer where
   concrete = concrete . show
 
-data Type = Bool
+data Type = Void
           | Integer
           | Real
+          | Char
+          | Bool
           | Struct String
+          | Opaque
   deriving (Show, Read, Eq)
 
 instance Concrete Type where
