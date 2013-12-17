@@ -129,6 +129,7 @@ docThreadProperty :: ThreadProperty -> Doc
 docThreadProperty (ThreadProperty k v) = kv (text k) (docPropValue v)
 docThreadProperty (UnprintableThreadProperty str) = text ("-- " ++ str)
 
+docPropValue :: PropValue -> Doc
 docPropValue (PropInteger n) = integer n
 docPropValue (PropUnit n unit) = integer n <+> text unit
 docPropValue (PropString s) = dquotes (text s)
