@@ -83,5 +83,5 @@ cond as = do
   aux as r
   deref r
   where
-  aux [] r = return ()
+  aux [] _ = return ()
   aux ((Cond b f):cs) r = ifte_ b (f >>= store r) (aux cs r)
