@@ -216,4 +216,4 @@ ret :: (GetReturn eff ~ Returns r, IvoryVar r) => r -> Ivory eff ()
 ret r = emit (AST.Return (typedExpr r))
 
 retVoid :: (GetReturn eff ~ Returns ()) => Ivory eff ()
-retVoid  = emit AST.ReturnVoid
+retVoid  = let x = 3 in emit AST.ReturnVoid
