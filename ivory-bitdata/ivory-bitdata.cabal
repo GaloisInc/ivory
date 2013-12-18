@@ -14,6 +14,10 @@ maintainer:          jamesjb@galois.com
 build-type:          Simple
 cabal-version:       >=1.8
 
+flag werror
+  default:              False
+  description:          Pass -Werror to GHC.
+
 library
   exposed-modules:     Ivory.BitData,
                        Ivory.BitData.Bits,
@@ -29,13 +33,17 @@ library
                        Example,
                        ExampleTypes
   hs-source-dirs:      src, examples
-  ghc-options:         -Wall
   build-depends:       base >= 4.6,
                        ivory,
                        ivory-backend-c,
                        monadLib,
                        template-haskell,
                        parsec
+
+  if flag(werror)
+    ghc-options:        -Wall -Werror
+  else
+    ghc-options:        -Wall
 
 executable ivory-bitdata-example
   main-is:             Main.hs
