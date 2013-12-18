@@ -6,7 +6,7 @@ module Cond where
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Compile.C.Modules
-
+import Prelude hiding (exp)
 
 add :: Def ('[Uint32,Uint32] :-> Uint32)
 add  = proc "add"
