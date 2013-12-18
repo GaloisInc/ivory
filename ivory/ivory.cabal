@@ -13,7 +13,6 @@ flag debug-qq
   default:              False
   description:          Enable dumping of template-haskell splices on the
                         examples
-
 flag werror
   default:              False
   description:          Pass -Werror to GHC.
