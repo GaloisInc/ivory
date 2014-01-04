@@ -12,6 +12,8 @@ import Ivory.Language.Cast (toMaxSize, toMinSize)
 import Control.Monad (mzero,msum)
 import Data.Maybe
 import Data.List
+import Data.Word
+import Data.Int
 import qualified Data.DList as D
 
 --------------------------------------------------------------------------------
@@ -32,7 +34,7 @@ cf ty e =
     I.ExpVar{} -> e
     I.ExpLit{} -> e
 
-    I.ExpOp op args       -> cfOp ty op (map (cf ty) args)
+    I.ExpOp op args       -> cfOp ty op args
 
     I.ExpLabel t e0 s     -> I.ExpLabel t (cf t e0) s
 
@@ -77,10 +79,14 @@ stmtFold cxt opt blk stmt =
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
         _                      -> snoc (I.Assert e')
-    -- We'll say it's OK to have "dead" compiler-inserted asserts.
     I.CompilerAssert e        ->
       let e' = opt I.TyBool e in
-      snoc (I.CompilerAssert e')
+      let go = snoc (I.CompilerAssert e') in
+      case e' of
+        I.ExpLit (I.LitBool b) ->
+          -- It's OK to have false but unreachable compiler asserts.
+          if b then blk else go
+        _                      -> go
     I.Assume e           ->
       let e' = opt I.TyBool e in
       case e' of
@@ -136,98 +142,114 @@ arg1 = flip (!!) 1
 arg2 :: [a] -> a
 arg2 = flip (!!) 2
 
--- | Reconstruct an operator, folding away operations when possible.  It's
--- assumed that the argument list has already had constant folding applied.
+mkArgs :: I.Type -> [I.Expr] -> [I.Expr]
+mkArgs ty = map (cf ty)
+
+mkCfArgs :: [I.Expr] -> [CfVal]
+mkCfArgs = map toCfVal
+
+mkCfBool :: [I.Expr] -> [Maybe Bool]
+mkCfBool = map destBoolLit
+
+-- | Reconstruct an operator, folding away operations when possible.
 cfOp :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
 cfOp ty op args =
-  let args' = map toCfVal args in
-  let dArgs = map destBoolLit args in
-  let noop = I.ExpOp op args in
   case op of
-    I.ExpEq _  -> toExpr (cfOrd2 op (==) args')
-    I.ExpNeq _ -> toExpr (cfOrd2 op (/=) args')
-
+    I.ExpEq t  -> cfOrd t
+    I.ExpNeq t -> cfOrd t
     I.ExpCond
-      | Just b <- arg0 dArgs
-      -> if b then arg1 args else arg2 args
-      | otherwise -> noop
+      | Just b <- arg0 goBoolArgs
+      -> if b then arg1 (toExpr' ty) else arg2 (toExpr' ty)
+      | otherwise -> noop ty
     I.ExpGt orEq t
-      | orEq      -> fromOrdChecks (toExpr (cfOrd2 op (>=) args'))
-                                   (gteCheck t args')
-      | otherwise -> fromOrdChecks (toExpr (cfOrd2 op (>) args'))
-                                   (gtCheck t args')
+      | orEq      -> goOrd t gteCheck args
+      | otherwise -> goOrd t gtCheck args
     I.ExpLt orEq t
-      | orEq      -> fromOrdChecks (toExpr (cfOrd2 op (<=) args'))
-                                   (gteCheck t (reverse args'))
-      | otherwise -> fromOrdChecks (toExpr (cfOrd2 op (<) args'))
-                                   (gtCheck t (reverse args'))
+      | orEq      -> goOrd t gteCheck (reverse args)
+      | otherwise -> goOrd t gtCheck  (reverse args)
     I.ExpNot
-      | Just b <- arg0 dArgs
+      | Just b <- arg0 goBoolArgs
       -> I.ExpLit (I.LitBool (not b))
-      | otherwise -> noop
+      | otherwise -> noop ty
     I.ExpAnd
-      | Just lb <- arg0 dArgs
-      , Just rb <- arg1 dArgs
+      | Just lb <- arg0 goBoolArgs
+      , Just rb <- arg1 goBoolArgs
       -> I.ExpLit (I.LitBool (lb && rb))
-      | Just lb <- arg0 dArgs
-      -> if lb then arg1 args else I.ExpLit (I.LitBool False)
-      | Just rb <- arg1 dArgs
-      -> if rb then arg0 args else I.ExpLit (I.LitBool False)
-      | otherwise -> noop
+      | Just lb <- arg0 goBoolArgs
+      -> if lb then arg1 (toExpr' ty) else I.ExpLit (I.LitBool False)
+      | Just rb <- arg1 goBoolArgs
+      -> if rb then arg0 (toExpr' ty) else I.ExpLit (I.LitBool False)
+      | otherwise -> noop ty
     I.ExpOr
-      | Just lb <- arg0 dArgs
-      , Just rb <- arg1 dArgs
+      | Just lb <- arg0 goBoolArgs
+      , Just rb <- arg1 goBoolArgs
       -> I.ExpLit (I.LitBool (lb || rb))
-      | Just lb <- arg0 dArgs
-      -> if lb then I.ExpLit (I.LitBool True) else arg1 args
-      | Just rb <- arg1 dArgs
-      -> if rb then I.ExpLit (I.LitBool True) else arg0 args
-      | otherwise -> noop
+      | Just lb <- arg0 goBoolArgs
+      -> if lb then I.ExpLit (I.LitBool True) else arg1 (toExpr' ty)
+      | Just rb <- arg1 goBoolArgs
+      -> if rb then I.ExpLit (I.LitBool True) else arg0 (toExpr' ty)
+      | otherwise -> noop ty
 
-    I.ExpMul      -> toExpr (cfNum2 op (*)    args')
-    I.ExpAdd      -> toExpr (cfNum2 op (+)    args')
-    I.ExpSub      -> toExpr (cfNum2 op (-)    args')
-    I.ExpNegate   -> toExpr (cfNum1 op negate args')
-    I.ExpAbs      -> toExpr (cfNum1 op abs    args')
-    I.ExpSignum   -> toExpr (cfNum1 op signum args')
+    I.ExpMul      -> goNum
+    I.ExpAdd      -> goNum
+    I.ExpSub      -> goNum
+    I.ExpNegate   -> goNum
+    I.ExpAbs      -> goNum
+    I.ExpSignum   -> goNum
 
-    I.ExpDiv      -> toExpr (cfDiv args')
-    I.ExpMod      -> toExpr (cfMod args')
-    I.ExpRecip    -> toExpr (cfFloating1 op recip args')
+    I.ExpDiv      -> goI2
+    I.ExpMod      -> goI2
+    I.ExpRecip    -> goF
 
-    I.ExpIsNan _  -> toExpr (cfFloatingB op isNaN   args')
-    I.ExpIsInf _  -> toExpr (cfFloatingB op isInfinite args')
+    I.ExpIsNan t  -> goFB t
+    I.ExpIsInf t  -> goFB t
 
-    I.ExpFExp     -> toExpr (cfFloating1 op exp     args')
-    I.ExpFSqrt    -> toExpr (cfFloating1 op sqrt    args')
-    I.ExpFLog     -> toExpr (cfFloating1 op log     args')
-    I.ExpFPow     -> toExpr (cfFloating2 op (**)    args')
-    I.ExpFLogBase -> toExpr (cfFloating2 op logBase args')
-    I.ExpFSin     -> toExpr (cfFloating1 op sin     args')
-    I.ExpFCos     -> toExpr (cfFloating1 op cos     args')
-    I.ExpFTan     -> toExpr (cfFloating1 op tan     args')
-    I.ExpFAsin    -> toExpr (cfFloating1 op asin    args')
-    I.ExpFAcos    -> toExpr (cfFloating1 op acos    args')
-    I.ExpFAtan    -> toExpr (cfFloating1 op atan    args')
-    I.ExpFSinh    -> toExpr (cfFloating1 op sinh    args')
-    I.ExpFCosh    -> toExpr (cfFloating1 op cosh    args')
-    I.ExpFTanh    -> toExpr (cfFloating1 op tanh    args')
-    I.ExpFAsinh   -> toExpr (cfFloating1 op asinh   args')
-    I.ExpFAcosh   -> toExpr (cfFloating1 op acosh   args')
-    I.ExpFAtanh   -> toExpr (cfFloating1 op atanh   args')
+    I.ExpFExp     -> goF
+    I.ExpFSqrt    -> goF
+    I.ExpFLog     -> goF
+    I.ExpFPow     -> goF
+    I.ExpFLogBase -> goF
+    I.ExpFSin     -> goF
+    I.ExpFCos     -> goF
+    I.ExpFTan     -> goF
+    I.ExpFAsin    -> goF
+    I.ExpFAcos    -> goF
+    I.ExpFAtan    -> goF
+    I.ExpFSinh    -> goF
+    I.ExpFCosh    -> goF
+    I.ExpFTanh    -> goF
+    I.ExpFAsinh   -> goF
+    I.ExpFAcosh   -> goF
+    I.ExpFAtanh   -> goF
+
+    I.ExpBitAnd        -> toExpr (cfBitAnd ty $ goArgs ty)
+    I.ExpBitOr         -> toExpr (cfBitOr ty  $ goArgs ty)
 
     -- Unimplemented right now
-    I.ExpToFloat _     -> noop
-    I.ExpFromFloat _   -> noop
-    I.ExpRoundF        -> noop
-    I.ExpCeilF         -> noop
-    I.ExpFloorF        -> noop
-    I.ExpBitAnd        -> toExpr (cfBitAnd ty args')
-    I.ExpBitOr         -> toExpr (cfBitOr ty args')
-    I.ExpBitXor        -> noop
-    I.ExpBitComplement -> noop
-    I.ExpBitShiftL     -> noop
-    I.ExpBitShiftR     -> noop
+    I.ExpToFloat t     -> noop t
+    I.ExpFromFloat t   -> noop t
+    I.ExpRoundF        -> noop ty
+    I.ExpCeilF         -> noop ty
+    I.ExpFloorF        -> noop ty
+    I.ExpBitXor        -> noop ty
+    I.ExpBitComplement -> noop ty
+    I.ExpBitShiftL     -> noop ty
+    I.ExpBitShiftR     -> noop ty
+
+  where
+  goArgs ty'    = mkCfArgs $ mkArgs ty' args
+  toExpr'       = map toExpr . goArgs
+  goBoolArgs    = mkCfBool $ mkArgs I.TyBool args
+  noop          = I.ExpOp op . map toExpr . goArgs
+  goI2          = toExpr (cfIntOp2 ty op $ goArgs ty)
+  goF           = toExpr (cfFloating op $ goArgs ty)
+  goFB ty'      = toExpr (cfFloatingB op $ goArgs ty')
+  cfOrd ty'     = toExpr (cfOrd2 op $ goArgs ty')
+  goOrd ty' chk args' =
+    let args0 = mkCfArgs $ mkArgs ty' args' in
+    fromOrdChecks (cfOrd ty') (chk ty' args0)
+  goNum         = toExpr (cfNum ty op $ goArgs ty)
+
 
 cfBitAnd :: I.Type -> [CfVal] -> CfVal
 cfBitAnd ty [l,r]
@@ -236,7 +258,7 @@ cfBitAnd ty [l,r]
   | zeros ty l = CfInteger 0
   | zeros ty r = CfInteger 0
   | otherwise  = CfExpr (I.ExpOp I.ExpBitAnd [toExpr l, toExpr r])
-cfBitAnd _ _ = error "Wrong number of args to cfBitAnd in constant folder."
+cfBitAnd _ _ = err "Wrong number of args to cfBitAnd in constant folder."
 
 cfBitOr :: I.Type -> [CfVal] -> CfVal
 cfBitOr ty [l,r]
@@ -245,7 +267,7 @@ cfBitOr ty [l,r]
   | ones ty  l = CfInteger 1
   | ones ty  r = CfInteger 1
   | otherwise  = CfExpr (I.ExpOp I.ExpBitOr [toExpr l, toExpr r])
-cfBitOr _ _ = error "Wrong number of args to cfBitOr in constant folder."
+cfBitOr _ _ = err "Wrong number of args to cfBitOr in constant folder."
 
 -- Min values for word types.
 zeros :: I.Type -> CfVal -> Bool
@@ -301,7 +323,7 @@ data CfVal
   | CfExpr I.Expr
     deriving (Show)
 
--- | Convert to a constant-folded value.
+-- | Convert to a constant-folded value.  Picks the one successful lit, if any.
 toCfVal :: I.Expr -> CfVal
 toCfVal ex = fromMaybe (CfExpr ex) $ msum
   [ CfBool    `fmap` destBoolLit    ex
@@ -319,11 +341,7 @@ toExpr val = case val of
   CfDouble d  -> I.ExpLit (I.LitDouble d)
   CfExpr ex   -> ex
 
-fromOrdChecks :: I.Expr -> Maybe Bool -> I.Expr
-fromOrdChecks expr =
-  maybe expr (\b -> toExpr (CfBool b))
-
--- | Check if we're comparing the max or min bound for >=.
+-- | Check if we're comparing the max or min bound for >= and optimize.
 gteCheck :: I.Type -> [CfVal] -> Maybe Bool
 gteCheck t [l,r]
   -- forall a. max >= a
@@ -335,9 +353,9 @@ gteCheck t [l,r]
   , Just s <- toMinSize t
   , y == s = Just True
   | otherwise                            = Nothing
-gteCheck _ _ = error "wrong number of args to gtCheck."
+gteCheck _ _ = err "wrong number of args to gtCheck."
 
--- | Check if we're comparing the max or min bound for >.
+-- | Check if we're comparing the max or min bound for > and optimize.
 gtCheck :: I.Type -> [CfVal] -> Maybe Bool
 gtCheck t [l,r]
   -- forall a. not (min > a)
@@ -349,86 +367,211 @@ gtCheck t [l,r]
   , Just s <- toMaxSize t
   , y == s = Just False
   | otherwise                            = Nothing
-gtCheck _ _ = error "wrong number of args to gtCheck."
+gtCheck _ _ = err "wrong number of args to gtCheck."
+
+fromOrdChecks :: I.Expr -> Maybe Bool -> I.Expr
+fromOrdChecks expr = maybe expr (toExpr . CfBool)
 
 -- | Apply a binary operation that requires an ord instance.
 cfOrd2 :: I.ExpOp
-       -> (forall a. Ord a => a -> a -> Bool)
        -> [CfVal]
        -> CfVal
-cfOrd2 n op [l,r] = case (l,r) of
-  (CfBool x,   CfBool y)    -> CfBool (op x y)
-  (CfInteger x,CfInteger y) -> CfBool (op x y)
-  (CfFloat x,  CfFloat y)   -> CfBool (op x y)
-  (CfDouble x, CfDouble y)  -> CfBool (op x y)
-  _                         -> CfExpr (I.ExpOp n [toExpr l,toExpr r])
-cfOrd2 _ _ _ = error "wrong number of args to cfOrd2"
+cfOrd2 op [l,r] = case (l,r) of
+  (CfBool x,   CfBool y)    -> CfBool (op' x y)
+  (CfInteger x,CfInteger y) -> CfBool (op' x y)
+  (CfFloat x,  CfFloat y)   -> CfBool (op' x y)
+  (CfDouble x, CfDouble y)  -> CfBool (op' x y)
+  _                         -> CfExpr (I.ExpOp op [toExpr l, toExpr r])
+  where
+  op' :: Ord a => a -> a -> Bool
+  op' = case op of
+    I.ExpEq _     -> (==)
+    I.ExpNeq _    -> (/=)
+    I.ExpGt orEq _
+      | orEq      -> (>=)
+      | otherwise -> (>)
+    I.ExpLt orEq _
+      | orEq      -> (<=)
+      | otherwise -> (<)
+    _ -> err "bad op to cfOrd2"
+cfOrd2 _ _ = err "wrong number of args to cfOrd2"
 
--- | Apply a unary operation that requires a num intance.
-cfNum1 :: I.ExpOp
-       -> (forall a. Num a => a -> a)
-       -> ([CfVal] -> CfVal)
-cfNum1 n op [x] = case x of
-  CfInteger l -> CfInteger (op l)
-  CfFloat l   -> CfFloat   (op l)
-  CfDouble l  -> CfDouble  (op l)
-  _           -> CfExpr    (I.ExpOp n [toExpr x])
-cfNum1 _ _ _ = error "wrong number of args to cfNum1"
+--------------------------------------------------------------------------------
 
--- | Apply a binary operation that requires a num intance.
-cfNum2 :: I.ExpOp
-       -> (forall a. Num a => a -> a -> a)
-       -> ([CfVal] -> CfVal)
-cfNum2 n op [x,y] = case (x,y) of
-  (CfInteger l,CfInteger r) -> CfInteger (op l r)
-  (CfFloat l,  CfFloat r)   -> CfFloat   (op l r)
-  (CfDouble l, CfDouble r)  -> CfDouble  (op l r)
-  _                         -> CfExpr    (I.ExpOp n [toExpr x,toExpr y])
-cfNum2 _ _ _ = error "wrong number of args to cfNum2"
+class Integral a => IntegralOp a where
+  appI1 :: (a -> a) -> a -> CfVal
+  appI1 op x = CfInteger $ toInteger $ op x
 
--- | Constant folding for div on integer literals.  There's probably some
--- strange behavior here, without knowing the type where the computation should
--- take place.
-cfDiv :: [CfVal] -> CfVal
-cfDiv [l,r] = case (l,r) of
-  (CfInteger x,CfInteger y) -> CfInteger (x `div` y)
-  _                         -> CfExpr    (I.ExpOp I.ExpDiv [toExpr l,toExpr r])
-cfDiv _ = error "wrong number of args to cfDiv"
+  appI2 :: (a -> a -> a) -> a -> a -> CfVal
+  appI2 op x y = CfInteger $ toInteger $ op x y
 
--- | Constant folding for mod on integer literals.  We use Haskell's `rem` which
--- matches C ISO 1999 semantics of the remainder having the same sign as the
--- dividend.
-cfMod :: [CfVal] -> CfVal
-cfMod [l,r] = case (l,r) of
-  (CfInteger x,CfInteger y) -> CfInteger (x `rem` y)
-  _                         -> CfExpr    (I.ExpOp I.ExpMod [toExpr l, toExpr r])
-cfMod _ = error "wrong number of args to cfMod"
+instance IntegralOp Int8
+instance IntegralOp Int16
+instance IntegralOp Int32
+instance IntegralOp Int64
+instance IntegralOp Word8
+instance IntegralOp Word16
+instance IntegralOp Word32
+instance IntegralOp Word64
+
+--------------------------------------------------------------------------------
+
+cfNum :: I.Type
+      -> I.ExpOp
+      -> [CfVal]
+      -> CfVal
+cfNum ty op args = case args of
+  [x]   -> case x of
+    CfInteger l -> case ty of
+      I.TyInt isz -> case isz of
+        I.Int8        -> appI1 op1 (fromInteger l :: Int8)
+        I.Int16       -> appI1 op1 (fromInteger l :: Int16)
+        I.Int32       -> appI1 op1 (fromInteger l :: Int32)
+        I.Int64       -> appI1 op1 (fromInteger l :: Int64)
+      I.TyWord isz -> case isz of
+        I.Word8       -> appI1 op1 (fromInteger l :: Word8)
+        I.Word16      -> appI1 op1 (fromInteger l :: Word16)
+        I.Word32      -> appI1 op1 (fromInteger l :: Word32)
+        I.Word64      -> appI1 op1 (fromInteger l :: Word64)
+      _ -> err $ "bad type to cfNum loc 1 " ++ show ty ++ " " ++ show op ++ " " ++ show args
+    CfFloat   l -> CfFloat   (op1 l)
+    CfDouble  l -> CfDouble  (op1 l)
+    _           -> CfExpr    (I.ExpOp op [toExpr x])
+
+  [x,y] -> case (x,y) of
+    (CfInteger l, CfInteger r) -> case ty of
+      I.TyInt isz -> case isz of
+        I.Int8        -> appI2 op2 (fromInteger l :: Int8)
+                                   (fromInteger r :: Int8)
+        I.Int16       -> appI2 op2 (fromInteger l :: Int16)
+                                   (fromInteger r :: Int16)
+        I.Int32       -> appI2 op2 (fromInteger l :: Int32)
+                                   (fromInteger r :: Int32)
+        I.Int64       -> appI2 op2 (fromInteger l :: Int64)
+                                   (fromInteger r :: Int64)
+      I.TyWord isz -> case isz of
+        I.Word8       -> appI2 op2 (fromInteger l :: Word8)
+                                   (fromInteger r :: Word8)
+        I.Word16      -> appI2 op2 (fromInteger l :: Word16)
+                                   (fromInteger r :: Word16)
+        I.Word32      -> appI2 op2 (fromInteger l :: Word32)
+                                   (fromInteger r :: Word32)
+        I.Word64      -> appI2 op2 (fromInteger l :: Word64)
+                                   (fromInteger r :: Word64)
+      _ -> err "bad type to cfNum loc 2"
+    (CfFloat   l, CfFloat r)   -> CfFloat   (op2 l r)
+    (CfDouble l,  CfDouble r)  -> CfDouble  (op2 l r)
+    _                          -> CfExpr    (I.ExpOp op [toExpr x, toExpr y])
+
+  _ -> err "wrong num args to cfNum"
+  where
+  op2 :: Num a => a -> a -> a
+  op2 = case op of
+    I.ExpMul    -> (*)
+    I.ExpAdd    -> (+)
+    I.ExpSub    -> (-)
+    _ -> err "bad op to cfNum loc 3"
+  op1 :: Num a => a -> a
+  op1 = case op of
+    I.ExpNegate -> negate
+    I.ExpAbs    -> abs
+    I.ExpSignum -> signum
+    _ -> err "bad op to cfNum loc 4"
+
+cfIntOp2 :: I.Type -> I.ExpOp -> [CfVal] -> CfVal
+cfIntOp2 ty iOp [CfInteger l, CfInteger r] = case ty of
+  I.TyInt isz -> case isz of
+    I.Int8        -> appI2 op2 (fromInteger l :: Int8)
+                               (fromInteger r :: Int8)
+    I.Int16       -> appI2 op2 (fromInteger l :: Int16)
+                               (fromInteger r :: Int16)
+    I.Int32       -> appI2 op2 (fromInteger l :: Int32)
+                               (fromInteger r :: Int32)
+    I.Int64       -> appI2 op2 (fromInteger l :: Int64)
+                               (fromInteger r :: Int64)
+  I.TyWord isz -> case isz of
+    I.Word8       -> appI2 op2 (fromInteger l :: Word8)
+                               (fromInteger r :: Word8)
+    I.Word16      -> appI2 op2 (fromInteger l :: Word16)
+                               (fromInteger r :: Word16)
+    I.Word32      -> appI2 op2 (fromInteger l :: Word32)
+                               (fromInteger r :: Word32)
+    I.Word64      -> appI2 op2 (fromInteger l :: Word64)
+                               (fromInteger r :: Word64)
+  _ -> err "bad type to cfIntOp2 loc 1"
+
+  where
+  op2 :: Integral a => a -> a -> a
+  op2 = case iOp of
+    I.ExpDiv -> quot
+    -- Haskell's `rem` matches C ISO 1999 semantics of the remainder having the
+    -- same sign as the dividend.
+    I.ExpMod -> rem
+    _ -> err "bad op to cfIntOp2"
+
+cfIntOp2 _ iOp [x, y] = CfExpr (I.ExpOp iOp [toExpr x, toExpr y])
+cfIntOp2 _ _ _        = err "wrong number of args to cfOp2"
+
+--------------------------------------------------------------------------------
 
 -- | Constant folding for unary operations that require a floating instance.
-cfFloating1 :: I.ExpOp
-            -> (forall a. Floating a => a -> a)
-            -> ([CfVal] -> CfVal)
-cfFloating1 n op [x] = case x of
-  CfFloat f  -> CfFloat  (op f)
-  CfDouble d -> CfDouble (op d)
-  _          -> CfExpr   (I.ExpOp n [toExpr x])
-cfFloating1 _ _ _ = error "wrong number of args to cfFloating1"
+cfFloating :: I.ExpOp
+           -> [CfVal]
+           -> CfVal
+cfFloating op args = case args of
+  [x]   -> case x of
+             CfFloat f  -> CfFloat  (op1 f)
+             CfDouble d -> CfDouble (op1 d)
+             _          -> CfExpr   (I.ExpOp op [toExpr x])
+  [x,y] -> case (x,y) of
+             (CfFloat l,  CfFloat r)  -> CfFloat (op2 l r)
+             (CfDouble l, CfDouble r) -> CfDouble (op2 l r)
+             _                        -> CfExpr   (I.ExpOp op [toExpr x
+                                                              , toExpr y])
+  _     -> err "wrong number of args to cfFloating"
+  where
+  op1 :: Floating a => a -> a
+  op1 = case op of
+    I.ExpRecip   -> recip
+    I.ExpFExp    -> exp
+    I.ExpFSqrt   -> sqrt
+    I.ExpFLog    -> log
+    I.ExpFSin    -> sin
+    I.ExpFCos    -> cos
+    I.ExpFTan    -> tan
+    I.ExpFAsin   -> asin
+    I.ExpFAcos   -> acos
+    I.ExpFAtan   -> atan
+    I.ExpFSinh   -> sinh
+    I.ExpFCosh   -> cosh
+    I.ExpFTanh   -> tanh
+    I.ExpFAsinh  -> asinh
+    I.ExpFAcosh  -> acosh
+    I.ExpFAtanh  -> atanh
+    _            -> err "wrong op1 to cfFloating"
+
+  op2 :: Floating a => a -> a -> a
+  op2 = case op of
+    I.ExpFPow     -> (**)
+    I.ExpFLogBase -> logBase
+    _            -> err "wrong op2 to cfFloating"
 
 cfFloatingB :: I.ExpOp
-            -> (forall a. RealFloat a => a -> Bool)
-            -> ([CfVal] -> CfVal)
-cfFloatingB n op [x] = case x of
-  CfFloat f  -> CfBool  (op f)
-  CfDouble d -> CfBool  (op d)
-  _          -> CfExpr   (I.ExpOp n [toExpr x])
-cfFloatingB _ _ _ = error "wrong number of args to cfFloatingB"
+            -> [CfVal]
+            -> CfVal
+cfFloatingB op [x] = case x of
+  CfFloat f  -> CfBool  (op' f)
+  CfDouble d -> CfBool  (op' d)
+  _          -> CfExpr  (I.ExpOp op [toExpr x])
+  where
+  op' :: RealFloat a => a -> Bool
+  op' = case op of
+    I.ExpIsNan _ -> isNaN
+    I.ExpIsInf _ -> isInfinite
+    _            -> err "wrong op to cfFloatingB"
+cfFloatingB _ _ = err "wrong number of args to cfFloatingB"
 
--- | Constant folding for binary operations that require a floating instance.
-cfFloating2 :: I.ExpOp
-            -> (forall a. Floating a => a -> a -> a)
-            -> ([CfVal] -> CfVal)
-cfFloating2 n op [x,y] = case (x,y) of
-  (CfFloat l, CfFloat r)   -> CfFloat  (op l r)
-  (CfDouble l, CfDouble r) -> CfDouble (op l r)
-  _                        -> CfExpr   (I.ExpOp n [toExpr x, toExpr y])
-cfFloating2 _ _ _ = error "wrong number of args to cfFloating2"
+--------------------------------------------------------------------------------
+
+err :: String -> a
+err msg = error $ "Ivory-Opts internal error: " ++ msg
