@@ -41,16 +41,6 @@
 #endif /* __arm__ */
 #endif /* IVORY_TEST */
 
-#ifdef IVORY_CBMC
-
-#define REQUIRES(arg)         __CPROVER_assume(arg)
-#define ENSURES(arg)          __CPROVER_assert(arg, "")
-#define ASSUMES(arg)          __CPROVER_assume(arg)
-#define ASSERTS(arg)          __CPROVER_assert(arg, "")
-#define COMPILER_ASSERTS(arg) __CPROVER_assert(arg, "")
-
-#endif /* IVORY_CBMC */
-
 #ifdef IVORY_DEPLOY
 
 #define REQUIRES(arg)
@@ -60,15 +50,6 @@
 #define COMPILER_ASSERTS(arg)
 
 #endif /* IVORY_DEPLOY */
-
-/* So CBMC can handle forever loops. */
-#ifdef IVORY_CBMC
-#define FOREVER forever_loop < 1
-#define FOREVER_INC forever_loop++
-#else
-#define FOREVER true
-#define FOREVER_INC
-#endif
 
 /* abs implementations */
 
