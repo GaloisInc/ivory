@@ -10,6 +10,7 @@ import qualified Ivory.Language.Syntax.AST as I
 -- | Integral, without the baggage from Haskell (i.e., supertypes of 'Real' and
 -- 'Enum').
 class (IvoryExpr a, Num a) => IvoryIntegral a where
+  -- | Has C semantics: like Haskell's `quot` (truncate towards 0).
   iDiv :: a -> a -> a
   iDiv l r = wrapExpr (iDivE (unwrapExpr l) (unwrapExpr r))
 
@@ -17,6 +18,7 @@ class (IvoryExpr a, Num a) => IvoryIntegral a where
   (.%) :: a -> a -> a
   l .% r = wrapExpr (iModE (unwrapExpr l) (unwrapExpr r))
 
+-- | Has C semantics: like Haskell's `quot` (truncate towards 0).
 iDivE :: I.Expr -> I.Expr -> I.Expr
 iDivE l r = I.ExpOp I.ExpDiv [l,r]
 

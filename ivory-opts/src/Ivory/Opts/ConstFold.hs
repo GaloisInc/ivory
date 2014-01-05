@@ -433,7 +433,7 @@ cfNum ty op args = case args of
         I.Word16      -> appI1 op1 (fromInteger l :: Word16)
         I.Word32      -> appI1 op1 (fromInteger l :: Word32)
         I.Word64      -> appI1 op1 (fromInteger l :: Word64)
-      _ -> err $ "bad type to cfNum loc 1 " ++ show ty ++ " " ++ show op ++ " " ++ show args
+      _ -> err $ "bad type to cfNum loc 1 "
     CfFloat   l -> CfFloat   (op1 l)
     CfDouble  l -> CfDouble  (op1 l)
     _           -> CfExpr    (I.ExpOp op [toExpr x])
