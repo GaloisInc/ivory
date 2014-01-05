@@ -126,32 +126,30 @@ arithAssert' ty op args = fmap T.unwrapExpr $
 
   addExprI :: forall t . (Num t, IvoryOrd t, T.IvoryExpr t)
            => Bounds t -> T.IBool
-  addExprI m@(min,_) =
+  addExprI (min,max) =
     let w :: I.Expr -> t
         w  = T.wrapExpr in
-        ((w e0 >?  0) .&& (w e1 >?  0) .&& addExprW m)
-    .|| ((w e0 >=? 0) .&& (w e1 <=? 0))
-    .|| ((w e0 <=? 0) .&& (w e1 >=? 0))
-    .|| ((w e0 <?  0) .&& (w e1 <?  0) .&& (min - w e0 <=? w e1))
+        (w e0 >=? 0 .&& w e1 >=? 0 .&& max - w e0 >=? w e1)
+    .|| (w e0 <=? 0 .&& w e1 <=? 0 .&& min - w e0 <=? w e1)
+    .|| (signum (w e0) /=? signum (w e1))
 
   addExprW :: forall t. (Num t, IvoryOrd t, T.IvoryExpr t)
            => Bounds t -> T.IBool
   addExprW (_,max) = do
     let w :: I.Expr -> t
         w  = T.wrapExpr
-    max - w e0  >=? w e1
+    max - w e0 >=? w e1
 
   ----------------------------------------------------------
 
   subExprI :: forall t. (Num t, IvoryOrd t, T.IvoryExpr t)
            => Bounds t -> T.IBool
-  subExprI (_,max) =
+  subExprI (min,max) =
     let w :: I.Expr -> t
         w  = T.wrapExpr in
-        ((w e0 >?  0) .&& (w e1 <?  0) .&& ((max - w e0) + w e1 >=? 0))
-    .|| ((w e1 >?  0) .&& (w e0 <?  0) .&& ((max - w e1) + w e0 >=? 0))
-    .|| ((w e0 >=? 0) .&& (w e1 >=? 0))
-    .|| ((w e0 <=? 0) .&& (w e1 <=? 0))
+        (w e0 >=? 0 .&& w e1 <=? 0 .&& max - w e1 >=? w e0)
+    .|| (w e0 <=? 0 .&& w e1 >=? 0 .&& min - w e1 <=? w e0)
+    .|| (signum (w e0) ==? signum (w e1))
 
   subExprW :: forall t. (Num t, IvoryOrd t, T.IvoryExpr t)
            => Bounds t -> T.IBool
@@ -162,15 +160,20 @@ arithAssert' ty op args = fmap T.unwrapExpr $
 
   ----------------------------------------------------------
 
+  minNegOne :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
+            => t -> t -> t -> T.IBool
+  minNegOne min x y = x /=? min .|| y /=? (-1)
+
   mulExprI :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
            => Bounds t -> T.IBool
-  mulExprI m@(min,_) =
+  mulExprI (min,max) =
     let w :: I.Expr -> t
         w  = T.wrapExpr in
-        ((w e0 >=? 0) .&& (w e1 >=? 0) .&& mulExprW m)
-    .|| ((w e0 <?  0) .&& (w e1 <?  0) .&& mulExprW m)
-    .|| ((w e0 <?  0) .&& (w e1 >?  0) .&& (w e1 <=? min `iDiv` w e0))
-    .|| ((w e0 >?  0) .&& (w e1 <?  0) .&& (w e0 <=? min `iDiv` w e1))
+        (minNegOne min (w e0) (w e1) .|| minNegOne min (w e1) (w e0))
+    .&& (    w e0 ==? 0
+         .|| w e1 ==? 0
+         .|| (    max `iDiv` abs (w e0) >=? abs (w e1)
+              .&& min `iDiv` abs (w e0) <=? abs (w e1)))
 
   mulExprW :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
            => Bounds t -> T.IBool
@@ -183,10 +186,10 @@ arithAssert' ty op args = fmap T.unwrapExpr $
 
   divExpr :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
            => Bounds t -> T.IBool
-  divExpr (_,_) =
+  divExpr (min,_) =
     let w :: I.Expr -> t
         w  = T.wrapExpr in
-    w e1 /=? (0 :: t)
+    w e1 /=? (0 :: t) .&& minNegOne min (w e0) (w e1)
 
 ----------------------------------------------------------
 
