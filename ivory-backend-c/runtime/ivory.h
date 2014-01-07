@@ -51,6 +51,10 @@
 
 #endif /* IVORY_DEPLOY */
 
+#define FOREVER true
+#define FOREVER_INC
+
+
 /* abs implementations */
 
 static inline char abs_char(char i) {

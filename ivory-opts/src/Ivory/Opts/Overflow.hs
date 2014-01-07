@@ -147,8 +147,8 @@ arithAssert' ty op args = fmap T.unwrapExpr $
   subExprI (min,max) =
     let w :: I.Expr -> t
         w  = T.wrapExpr in
-        (w e0 >=? 0 .&& w e1 <=? 0 .&& max - w e1 >=? w e0)
-    .|| (w e0 <=? 0 .&& w e1 >=? 0 .&& min - w e1 <=? w e0)
+        (w e0 >=? 0 .&& w e1 <=? 0 .&& max + w e1 >=? w e0)
+    .|| (w e0 <=? 0 .&& w e1 >=? 0 .&& min + w e1 <=? w e0)
     .|| (signum (w e0) ==? signum (w e1))
 
   subExprW :: forall t. (Num t, IvoryOrd t, T.IvoryExpr t)

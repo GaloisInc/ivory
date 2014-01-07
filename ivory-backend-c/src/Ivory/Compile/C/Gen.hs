@@ -350,12 +350,12 @@ toExpr t (I.ExpLit lit)  =
     -- XXX hack: should make type-correct literals.
     I.LitInteger i -> [cexp| ($ty:(toType t))$id:fromInt |]
       where fromInt = case t of
-                        I.TyWord _ -> show i ++ "U"
-                        I.TyInt  _ -> show i
-                        I.TyFloat  -> show (fromIntegral i :: Float) ++ "F"
-                        I.TyDouble -> show (fromIntegral i :: Double)
-                        _          -> error ("Nonint type " ++ (show t) ++
-                                             " of literal " ++ (show i) )
+                        I.TyWord sz -> show i ++ "U"
+                        I.TyInt  sz -> show i
+                        I.TyFloat   -> show (fromIntegral i :: Float) ++ "F"
+                        I.TyDouble  -> show (fromIntegral i :: Double)
+                        _           -> error ("Nonint type " ++ (show t) ++
+                                              " of literal " ++ (show i) )
     I.LitChar c    -> [cexp| $char:c |]
     I.LitBool b    -> [cexp| $id:(if b then "true" else "false") |]
     I.LitNull      -> [cexp| NULL |]
@@ -400,6 +400,31 @@ toExpr tTo (I.ExpAddrOfGlobal sym) = case tTo of
   I.TyConstRef (I.TyCArray _) -> [cexp| $id:sym |]
   _                           -> [cexp| & $id:sym |]
 ----------------------------------------
+toExpr ty (I.ExpMaxMin b) = [cexp| $id:macro |]
+  where
+  macro = case b of
+    True  -> case ty of
+      I.TyInt sz -> case sz of
+        I.Int8     -> "INT8_MAX"
+        I.Int16    -> "INT16_MAX"
+        I.Int32    -> "INT32_MAX"
+        I.Int64    -> "INT64_MAX"
+      I.TyWord sz -> case sz of
+        I.Word8     -> "UINT8_MAX"
+        I.Word16    -> "UINT16_MAX"
+        I.Word32    -> "UINT32_MAX"
+        I.Word64    -> "UINT64_MAX"
+      _           -> err
+    False -> case ty of
+      I.TyInt sz -> case sz of
+        I.Int8     -> "INT8_MIN"
+        I.Int16    -> "INT16_MIN"
+        I.Int32    -> "INT32_MIN"
+        I.Int64    -> "INT64_MIN"
+      _          -> err
+  err = error $ "unexpected type " ++ show ty ++ " in ExpMaxMin."
+----------------------------------------
+
 
 exp0 :: [C.Exp] -> C.Exp
 exp0 = flip (!!) 0

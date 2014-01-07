@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- | Rewrite ensures variable with return expression.
 
 module Ivory.Compile.C.Prop where
@@ -22,5 +20,6 @@ ensTrans retE = loop
     I.ExpSafeCast t e0     -> I.ExpSafeCast t (loop e0)
     I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
     I.ExpAddrOfGlobal{}    -> e
+    I.ExpMaxMin{}          -> e
 
 --------------------------------------------------------------------------------

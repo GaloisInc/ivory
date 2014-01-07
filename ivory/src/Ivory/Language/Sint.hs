@@ -39,9 +39,8 @@ instance Num Sint8 where
   fromInteger = boundedFromInteger Sint8 (0 :: Int8)
 
 instance Bounded Sint8 where
-  minBound = fromIntegral (minBound :: Int8)
-  maxBound = fromIntegral (maxBound :: Int8)
-
+  minBound = wrapExpr (I.ExpMaxMin False)
+  maxBound = wrapExpr (I.ExpMaxMin True)
 
 -- | 16-bit integers.
 newtype Sint16 = Sint16 { getSint16 :: I.Expr }
@@ -69,9 +68,8 @@ instance Num Sint16 where
   fromInteger = boundedFromInteger Sint16 (0 :: Int16)
 
 instance Bounded Sint16 where
-  minBound = fromIntegral (minBound :: Int16)
-  maxBound = fromIntegral (maxBound :: Int16)
-
+  minBound = wrapExpr (I.ExpMaxMin False)
+  maxBound = wrapExpr (I.ExpMaxMin True)
 
 -- | 32-bit integers.
 newtype Sint32 = Sint32 { getSint32 :: I.Expr }
@@ -99,9 +97,8 @@ instance Num Sint32 where
   fromInteger = boundedFromInteger Sint32 (0 :: Int32)
 
 instance Bounded Sint32 where
-  minBound = fromIntegral (minBound :: Int32)
-  maxBound = fromIntegral (maxBound :: Int32)
-
+  minBound = wrapExpr (I.ExpMaxMin False)
+  maxBound = wrapExpr (I.ExpMaxMin True)
 
 -- | 64-bit integers.
 newtype Sint64 = Sint64 { getSint64 :: I.Expr }
@@ -129,5 +126,5 @@ instance Num Sint64 where
   fromInteger = boundedFromInteger Sint64 (0 :: Int64)
 
 instance Bounded Sint64 where
-  minBound = fromIntegral (minBound :: Int64)
-  maxBound = fromIntegral (maxBound :: Int64)
+  minBound = wrapExpr (I.ExpMaxMin False)
+  maxBound = wrapExpr (I.ExpMaxMin True)

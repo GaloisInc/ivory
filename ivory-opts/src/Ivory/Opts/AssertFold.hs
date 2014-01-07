@@ -156,6 +156,7 @@ expFoldDefault' asserter ty e = case e of
   I.ExpOp op args                -> do go e
                                        expFoldOps asserter ty (op, args)
   I.ExpAddrOfGlobal{}            -> go e
+  I.ExpMaxMin{}                  -> go e
   where
   go = insertList . asserter ty
   expFold = expFoldDefault' asserter

@@ -44,6 +44,7 @@ expFold' ty e = case e of
   I.ExpSafeCast ty' e0           -> expFold' ty' e0
   I.ExpOp op args                -> mapM_ (expFold' $ expOpType ty op) args
   I.ExpAddrOfGlobal{}            -> return ()
+  I.ExpMaxMin{}                  -> return ()
 
 --------------------------------------------------------------------------------
 

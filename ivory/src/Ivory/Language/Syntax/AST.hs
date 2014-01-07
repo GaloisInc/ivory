@@ -281,6 +281,9 @@ data Expr
     -- ^ Take the address of a global memory area, introduced through a MemArea
     -- *only*.
 
+  | ExpMaxMin Bool
+    -- ^ True is max value, False is min value for the type.
+
     deriving (Show, Eq, Ord)
 
 
@@ -292,9 +295,9 @@ data ExpOp
   | ExpCond
 
   | ExpGt Bool Type
-  -- ^ True means >=, False means >
+  -- ^ True is >=, False is >
   | ExpLt Bool Type
-  -- ^ True means <=, False means <
+  -- ^ True is <=, False is <
 
   | ExpNot
   | ExpAnd
@@ -355,6 +358,10 @@ instance Num Expr where
   signum e      = ExpOp ExpSignum [e]
   negate e      = ExpOp ExpNegate [e]
   fromInteger i = ExpLit (LitInteger i)
+
+instance Bounded Expr where
+  minBound = ExpMaxMin False
+  maxBound = ExpMaxMin True
 
 instance Fractional Expr where
   l / r        = ExpOp ExpDiv [l,r]

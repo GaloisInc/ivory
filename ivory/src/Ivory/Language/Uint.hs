@@ -41,7 +41,7 @@ instance Num Uint8 where
 
 instance Bounded Uint8 where
   minBound = 0
-  maxBound = fromIntegral (maxBound :: Word8)
+  maxBound = wrapExpr (I.ExpMaxMin True)
 
 
 -- | 16-bit words.
@@ -71,7 +71,7 @@ instance Num Uint16 where
 
 instance Bounded Uint16 where
   minBound = 0
-  maxBound = fromIntegral (maxBound :: Word16)
+  maxBound = wrapExpr (I.ExpMaxMin True)
 
 
 -- | 32-bit words.
@@ -101,7 +101,7 @@ instance Num Uint32 where
 
 instance Bounded Uint32 where
   minBound = 0
-  maxBound = fromIntegral (maxBound :: Word32)
+  maxBound = wrapExpr (I.ExpMaxMin True)
 
 
 -- | 64-bit words.
@@ -131,4 +131,4 @@ instance Num Uint64 where
 
 instance Bounded Uint64 where
   minBound = 0
-  maxBound = fromIntegral (maxBound :: Word64)
+  maxBound = wrapExpr (I.ExpMaxMin True)

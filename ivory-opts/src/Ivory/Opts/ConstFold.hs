@@ -54,6 +54,7 @@ cf ty e =
         Nothing -> I.ExpToIx e0' maxSz
 
     I.ExpAddrOfGlobal{}   -> e
+    I.ExpMaxMin{}         -> e
 
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
