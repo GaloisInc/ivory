@@ -350,8 +350,8 @@ toExpr t (I.ExpLit lit)  =
     -- XXX hack: should make type-correct literals.
     I.LitInteger i -> [cexp| ($ty:(toType t))$id:fromInt |]
       where fromInt = case t of
-                        I.TyWord sz -> show i ++ "U"
-                        I.TyInt  sz -> show i
+                        I.TyWord _  -> show i ++ "U"
+                        I.TyInt  _  -> show i
                         I.TyFloat   -> show (fromIntegral i :: Float) ++ "F"
                         I.TyDouble  -> show (fromIntegral i :: Double)
                         _           -> error ("Nonint type " ++ (show t) ++
