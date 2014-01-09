@@ -12,9 +12,9 @@ import qualified Paths_ivory_backend_c
 import qualified Ivory.Compile.C as C
 import qualified Ivory.Compile.C.SourceDeps as C
 
-import Ivory.Compile.C.CmdlineFrontend.Options
+import           Ivory.Compile.C.CmdlineFrontend.Options
 
-import Ivory.Language
+import           Ivory.Language
 import qualified Ivory.Opts.ConstFold as O
 import qualified Ivory.Opts.Overflow as O
 import qualified Ivory.Opts.DivZero as O
@@ -61,6 +61,8 @@ rc sm userSearchPath modules opts
       let maxstacks = map ms (zip cfgps cfs)
       mapM_ maxStackMsg (zip cfgps maxstacks)
   where
+  ivoryHeaders = ["ivory.h", "ivory_asserts.h"]
+
   run = do
     searchPath <- mkSearchPath opts userSearchPath
     createDirectoryIfMissing True (includeDir opts)
@@ -68,7 +70,7 @@ rc sm userSearchPath modules opts
     outputHeaders (includeDir opts) cmodules
     outputSources (srcDir opts) cmodules
     C.outputSourceDeps (includeDir opts) (srcDir opts)
-       ("runtime/ivory.h":(C.collectSourceDeps modules)) searchPath
+       (map ("runtime/" ++) ivoryHeaders ++ (C.collectSourceDeps modules)) searchPath
 
   runDeps =
     outputDeps (deps opts) (depPrefix opts) (genHs ++ cpyHs) (genSs ++ cpySs)

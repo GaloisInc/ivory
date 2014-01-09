@@ -10,7 +10,8 @@ build-type:          Simple
 cabal-version:       >= 1.10
 license:             BSD3
 
-data-files:             runtime/ivory.h
+data-files:             runtime/ivory.h,
+                        runtime/ivory_asserts.h
 
 flag debug-qq
   default:              False

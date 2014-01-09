@@ -119,13 +119,13 @@ runOpt opt m =
 
 -- | Compile a module.
 compileModule :: I.Module -> CompileUnits
-compileModule I.Module { I.modName    = nm
-                       , I.modDepends = deps
-                       , I.modHeaders = hdrs
-                       , I.modExterns = exts
-                       , I.modImports = imports
-                       , I.modProcs   = procs
-                       , I.modStructs = structs
+compileModule I.Module { I.modName        = nm
+                       , I.modDepends     = deps
+                       , I.modHeaders     = hdrs
+                       , I.modExterns     = exts
+                       , I.modImports     = imports
+                       , I.modProcs       = procs
+                       , I.modStructs     = structs
                        , I.modAreas       = areas
                        , I.modAreaImports = ais
                        }
@@ -146,11 +146,9 @@ compileModule I.Module { I.modName    = nm
     unless (null (snd (headers c))) (putSrcInc unitHdr)
     Compile (put c)
 
-  ivoryHdr = LocalInclude "ivory.h"
-
   comp0 :: Compile
   comp0 = do
-    putHdrInc ivoryHdr
+    putHdrInc (LocalInclude "ivory.h")
     -- module names don't have a .h on the end
     mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) (S.toList deps)
     mapM_ (putHdrInc . SysInclude)   (S.toList hdrs)

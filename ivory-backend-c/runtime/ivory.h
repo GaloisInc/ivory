@@ -5,85 +5,60 @@
 #include<math.h>
 #include<stdbool.h>
 #include<string.h>
+#include<limits.h>
 
-/* Requires and Provides statements */
-
-#ifdef IVORY_TEST
-
-#ifdef __arm__
-
-/* TODO: We could write a better "assert" that suspends all RTOS
- * tasks and tries to write a debug string somewhere, but this is at
- * least somewhat useful while running under GDB. */
-#define ivory_assert(arg)         \
-  do {                            \
-    if (!(arg)) {                 \
-      asm volatile("bkpt");       \
-    }                             \
-  } while (0)
-
-#define REQUIRES(arg)         ivory_assert(arg)
-#define ENSURES(arg)          ivory_assert(arg)
-#define ASSUMES(arg)          ivory_assert(arg)
-#define ASSERTS(arg)          ivory_assert(arg)
-#define COMPILER_ASSERTS(arg) ivory_assert(arg)
-
-#else /* ! __arm__ */
-
-#include <assert.h>
-
-#define REQUIRES(arg)         assert(arg)
-#define ENSURES(arg)          assert(arg)
-#define ASSUMES(arg)          assert(arg)
-#define ASSERTS(arg)          assert(arg)
-#define COMPILER_ASSERTS(arg) assert(arg)
-
-#endif /* __arm__ */
-#endif /* IVORY_TEST */
-
-#ifdef IVORY_DEPLOY
-
-#define REQUIRES(arg)
-#define ENSURES(arg)
-#define ASSUMES(arg)
-#define ASSERTS(arg)
-#define COMPILER_ASSERTS(arg)
-
-#endif /* IVORY_DEPLOY */
+#include "ivory_asserts.h"
 
 #define FOREVER true
 #define FOREVER_INC
 
-
 /* abs implementations */
 
+#if (CHAR_MIN < 0)
 static inline char abs_char(char i) {
+  COMPILER_ASSERTS(i != CHAR_MIN);
   return i >= 0 ? i : -i;
 }
+#else
+static inline char abs_char(char i) {
+  return i;
+}
+#endif
 
 static inline int8_t abs_i8(int8_t i) {
+  COMPILER_ASSERTS(i != INT8_MIN);
   return i >= 0 ? i : -i;
 }
 
 static inline int16_t abs_i16(int16_t i) {
+  COMPILER_ASSERTS(i != INT16_MIN);
   return i >= 0 ? i : -i;
 }
 
 static inline int32_t abs_i32(int32_t i) {
+  COMPILER_ASSERTS(i != INT32_MIN);
   return i >= 0 ? i : -i;
 }
 
 static inline int64_t abs_i64(int64_t i) {
+  COMPILER_ASSERTS(i != INT64_MIN);
   return i >= 0 ? i : -i;
 }
 
 /* signum implementations */
 
+#if (CHAR_MIN < 0)
 static inline char signum_char(char i) {
   if (i > 0) return 1;
   if (i < 0) return (-1);
   return 0;
 }
+#else
+static inline char signum_char(char i) {
+  if (i > 0) return 1;
+  return 0;
+}
+#endif
 
 static inline int8_t signum_i8(int8_t i) {
   if (i > 0) return 1;
