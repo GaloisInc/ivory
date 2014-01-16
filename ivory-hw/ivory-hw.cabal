@@ -31,12 +31,14 @@ library
                        Ivory.HW.STM32F4,
                        Ivory.HW.Machine,
                        Ivory.HW.Prim,
-                       Paths_ivory_hw
-  hs-source-dirs:      src
+                       Paths_ivory_hw,
+                       ExampleTypes
+  hs-source-dirs:      src, examples
   build-depends:       base ==4.6.*,
                        filepath,
                        ivory,
-                       ivory-bitdata
+                       ivory-bitdata,
+                       ivory-backend-c
 
   if flag(werror)
     ghc-options:        -Wall -Werror

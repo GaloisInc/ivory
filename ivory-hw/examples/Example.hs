@@ -6,16 +6,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
 --
--- Example.hs
---
 -- Copyright (C) 2013, Galois, Inc.
 -- All Rights Reserved.
 --
 
+module Example where
+
 import Ivory.BitData
 import Ivory.HW
 import Ivory.Language
-import Ivory.Compile.C
 import Ivory.Compile.C.CmdlineFrontend
 
 import ExampleTypes
@@ -52,7 +51,16 @@ import ExampleTypes
    , spi_cr2_txdmaen  :: Bit
    , spi_cr2_rxdmaen  :: Bit
    }
+
+ bitdata SPI_CR3 :: Bits 4 = foo
+   { _                :: Bits 1
+   , foo1  :: Bit
+   , foo2  :: Bit
+   }
 |]
+
+fooit :: Reg Uint8
+fooit = mkReg 30000000
 
 regSPI1_CR1 :: BitDataReg SPI_CR1
 regSPI1_CR1 = mkBitDataReg 0x40013000
