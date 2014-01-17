@@ -46,13 +46,13 @@ library
     ghc-options:        -Wall
 
 
-executable ivory-hw-example
-  main-is:             Example.hs
-  other-modules:       ExampleTypes
-  hs-source-dirs:      examples
-  build-depends:       base >= 4.6,
-                       ivory,
-                       ivory-backend-c,
-                       ivory-bitdata,
-                       ivory-hw
+-- executable ivory-hw-example
+--   main-is:             Example.hs
+--   other-modules:       ExampleTypes
+--   hs-source-dirs:      examples
+--   build-depends:       base >= 4.6,
+--                        ivory,
+--                        ivory-backend-c,
+--                        ivory-bitdata,
+--                        ivory-hw
 
