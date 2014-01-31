@@ -19,6 +19,4 @@ instance IvoryExpr IString where
   wrapExpr = IString
 
 instance IsString IString where
-  fromString str = wrapExpr $ AST.ExpLit $ case str of
-    [] -> AST.LitNull
-    _  -> AST.LitString str
+  fromString str = wrapExpr $ AST.ExpLit $ AST.LitString str
