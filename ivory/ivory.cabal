@@ -50,6 +50,9 @@ library
                         Ivory.Language.SizeOf,
                         Ivory.Language.String,
                         Ivory.Language.Struct,
+                        Ivory.Language.CSyntax,
+                        Ivory.Language.CSyntax.Parser,
+                        Ivory.Language.CSyntax.QQ,
                         Ivory.Language.Syntax,
                         Ivory.Language.Syntax.AST,
                         Ivory.Language.Syntax.Type,
@@ -64,6 +67,8 @@ library
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
                         parsec >= 3.1.3,
+                        syb,
+                        haskell-src-meta,
                         -- QuickCheck >= 2.5.1,
                         th-lift >= 0.5.5
   hs-source-dirs:       src
