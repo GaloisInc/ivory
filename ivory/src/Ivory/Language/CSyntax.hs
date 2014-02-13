@@ -20,9 +20,11 @@ import Ivory.Language
   -- a = 3;
   -- b = 4;
 
+-- foo
 foo :: Def ('[] :-> Sint32)
 foo = proc "foo" $ body [c|
   return 3 + 4;
+
 |]
 
 
@@ -30,7 +32,10 @@ bar :: Def ('[] :-> Sint32)
 bar = proc "bar" $ body [c|
   if (true) {
     a = 5;
+  -- foo
+  -- bar
     return a;
+  -- goo
   }
   else {
     b = 3;
@@ -48,19 +53,15 @@ bar2 = proc "bar" $ body [c|
   }
 |]
 
+
+x = (4::Sint32) >? 3
+  -- *x = ival 3;
+  -- *y = ival 5;
+
 --   x := *v;
-bar3 :: Def ('[] :-> Sint32)
+bar3 :: Def ('[] :-> IBool)
 bar3 = proc "bar" $ body [c|
-  *x = ival 3;
-  return *x;
+  return :i x;
 |]
 
--- bar4 :: Def ('[] :-> Sint32)
--- bar4 = proc "bar" $ body $ do
---   v <- local (ival 3)
---   x <- deref v
---   ret x
-
- -- v <- local (ival 3)
- -- x <- deref v
- -- ret x
+  -- return *y + *x;
