@@ -15,17 +15,17 @@ module Ivory.Language.CSyntax.Parser
   , Literal(..)
   , Init(..)
   , RefVar
---  , IvoryAnti(..)
   ) where
 
 import Prelude hiding (exp, init)
+import Data.Maybe (catMaybes)
 import Text.Parsec
 import Text.Parsec.String (Parser)
 
 import Language.Haskell.TH hiding (Stmt, Exp)
 
 import Control.Monad
-import Data.Generics
+--import Data.Generics
 
 --------------------------------------------------------------------------------
 
@@ -65,7 +65,7 @@ type RefVar    = String
 
 data Literal
   = LitInteger Integer
-  deriving (Show, Read, Typeable, Data)
+  deriving (Show, Read)
 
 data Exp
   = ExpLit Literal
@@ -73,16 +73,17 @@ data Exp
   | ExpDeref RefVar -- Note: these are statements in Ivory.  We constrain the
                  -- language here: you can only deref a RefVar.
   | ExpOp ExpOp [Exp]
-  | IvoryAnti String
+  | ExpAnti String
     -- ^ Ivory antiquotation
-  deriving (Show, Read, Typeable, Data)
+  deriving (Show, Read)
 
 data ExpOp
   = AddOp
-  deriving (Show, Read, Typeable, Data)
+  deriving (Show, Read)
 
-data Init = Init String
-  deriving (Show, Read, Typeable, Data)
+data Init
+  = Ival Exp
+  deriving (Show, Read)
 
 -- | AST for parsing C-like statements.
 data Stmt
@@ -108,7 +109,7 @@ data Stmt
 --  | Loop
 --  | Forever
 --  | Break
-  deriving (Show, Read, Typeable, Data)
+  deriving (Show, Read)
 
 --------------------------------------------------------------------------------
 
@@ -133,28 +134,20 @@ skipSym = void . symbol
 betSym :: String -> String -> P a -> P a
 betSym start end = between (symbol start) (symbol end)
 
--- Parse until the argument, without consuming it.
--- parseUntil :: Char -> P String
--- parseUntil c = do
---   s <- manyTill (noneOf [c]) (lookAhead $ char c); spaces; return s
-
 initializer :: P ()
 initializer = skipSym "="
 
 refDecl :: P RefVar
 refDecl = do skipSym "*"; var
 
--- derefExp :: P String -> P Exp
--- derefExp p = do skipSym "*"; exp <- p; return (Deref exp)
-
 parseEnd :: P ()
 parseEnd = skipSym ";"
 
 -- | Parse until the end of a statement, consuming, but not returning, the end
 -- token.
-parseTilEnd :: P String
-parseTilEnd = do
-  s <- manyTill (noneOf [';']) (try $ char ';'); spaces; return s
+-- parseTilEnd :: P String
+-- parseTilEnd = do
+--   s <- manyTill (noneOf [';']) (try $ char ';'); spaces; return s
 
 -- | Parse antiquoted Ivory expression.
 -- antiExp :: P Exp
@@ -193,12 +186,20 @@ parseOpExp :: P (Exp -> Exp -> Exp)
 parseOpExp =
   try parseAddExp
 
+
+-- Parse antiquotation (Ivory) expression.
+parseAnitExp :: P Exp
+parseAnitExp = do
+  skipSym ":i"
+  v <- var
+  return (ExpAnti v)
+
 parseTermExp :: P Exp
 parseTermExp =
       try parseLitExp
   <|> try parseVarExp
   <|> try parseDerefExp
---  <|> try parseAnit
+  <|> try parseAnitExp
   <?> "<other term expression>"
 
 factor :: P Exp
@@ -213,8 +214,8 @@ parseExp =
 
 --------------------------------------------------------------------------------
 
-parseInit :: P String -> P Init
-parseInit p = do init <- p; return (Init init)
+-- parseInit :: P String -> P Init
+-- parseInit p = do init <- p; return (Ival init)
 
 parens :: P a -> P a
 parens p = betSym "(" ")" p
@@ -222,6 +223,28 @@ parens p = betSym "(" ")" p
 -- | Parse a block of statements in curly braces.
 parseBlock :: P [Stmt]
 parseBlock = betSym "{" "}" programP
+
+-- | Comments parser: starts with -- and goes until a newline is reached.
+parseComment :: P ()
+parseComment = do spaces; skipSym "--"; rst; spaces
+  where
+  rst = do
+    c <- anyChar
+    if c == '\n'
+      then return ()
+      else rst
+
+programP :: P [Stmt]
+programP = do stmts <- many programP'; return (catMaybes stmts)
+  where
+  programP' :: P (Maybe Stmt)
+  programP' = try fromComment <|> fromStmt
+
+  fromComment = do parseComment; return Nothing
+  fromStmt    = do stmt <- stmtsP; return (Just stmt)
+
+--------------------------------------------------------------------------------
+-- Statement parsers
 
 stmtsP :: P Stmt
 stmtsP = try ifteP
@@ -231,11 +254,13 @@ stmtsP = try ifteP
      <|> try storeP
      <?> "<other statement parser>"
 
-programP :: P [Stmt]
-programP = many stmtsP
-
---------------------------------------------------------------------------------
--- Statement parsers
+stmtP :: P Stmt -> P Stmt
+stmtP p = do
+  spaces
+  res <- p
+  parseEnd
+  (try parseComment <|> spaces)
+  return res
 
 -- | if-then-else parser.  Then and else blocks must appear within curly braces.
 ifteP :: P Stmt
@@ -248,52 +273,46 @@ ifteP = do
   blk1  <- parseBlock
   return (IfTE cond blk0 blk1)
 
--- $ case cond of
-    -- Exp exp ->
-    -- Deref _ -> unexpected "<dereference in if-then-else branch condition>"
-
 -- Assignment parser.
 assignP :: P Stmt
-assignP = do
-  spaces
-  v <- var
-  initializer
-  exp <- parseExp
-  parseEnd
-  return (Assign v exp)
+assignP = stmtP p
+  where
+  p = do
+    v <- var
+    initializer
+    exp <- parseExp
+    return (Assign v exp)
 
 -- | Stack-allocation parser.
 refP :: P Stmt
-refP = do
-  spaces
-  p <- refDecl
-  initializer
-  init <- parseInit parseTilEnd
-  return (AllocRef p init)
+refP = stmtP p
+  where
+  p = do
+    r <- refDecl
+    initializer
+    init <- parseExp
+    return (AllocRef r (Ival init))
 
 -- | Parse a return statement.
 returnP :: P Stmt
-returnP = do
-  spaces
-  skipSym "return"
-  mexp <- optionMaybe parseExp
-  parseEnd
-  return $ case mexp of
-             Nothing -> ReturnVoid
-             Just e  -> Return e
-  -- exp <- parseExp
-  -- return $ case exp of
-  --   Exp ""  -> ReturnVoid
-  --   e       -> Return e
+returnP = stmtP p
+  where
+  p = do
+    skipSym "return"
+    mexp <- optionMaybe parseExp
+    return $ case mexp of
+               Nothing -> ReturnVoid
+               Just e  -> Return e
 
 -- | Parse assignment to a reference.
 storeP :: P Stmt
-storeP = do
-  spaces
-  p <- refDecl
-  skipSym "="
-  exp <- parseExp
-  return (Store p exp)
+storeP = stmtP p
+  where
+  p = do
+    r <- refDecl
+    skipSym "="
+    exp <- parseExp
+    return (Store r exp)
 
 {-
 test :: String -> IO Stmt

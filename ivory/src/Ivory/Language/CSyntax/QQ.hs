@@ -51,9 +51,6 @@ insert a = do
   st <- get
   set (D.snoc st a)
 
--- resetState :: StmtM a ()
--- resetState = set D.empty
-
 runToQ :: StmtM a b -> Q (b, D.DList a)
 runToQ m = M.runStateT mempty (unStmtM m)
 
@@ -96,28 +93,36 @@ fromStmt stmt = case stmt of
     b0 <- fromBlock blk0
     b1 <- fromBlock blk1
     insert $ NoBindS (AppE (AppE (AppE (VarE 'ifte_) cd) b0) b1)
-  Return ivoryExp
+  Return exp
     -> do
-    exp <- fromExp ivoryExp
+    exp <- fromExp exp
     insert $ NoBindS (AppE (VarE 'ret) exp)
   ReturnVoid
     ->
     insert $ NoBindS (VarE 'retVoid)
-  Store ptr ivoryExp
+  Store ptr exp
     -> do
     let p = iVar ptr
-    exp <- fromExp ivoryExp
-    insert $ NoBindS (AppE (AppE (VarE 'store) p) exp)
-  Assign var ivoryExp
+    e <- fromExp exp
+    insert $ NoBindS (AppE (AppE (VarE 'store) p) e)
+  Assign var exp
     -> do
-    exp <- fromExp ivoryExp
+    e <- fromExp exp
     let v = mkName var
-    insert $ BindS (VarP v) (AppE (VarE 'assign) exp)
-  AllocRef ptr ivoryInit
+    insert $ BindS (VarP v) (AppE (VarE 'assign) e)
+  AllocRef ptr init
     -> do
-    let init = iInit ivoryInit
-    let p    = mkName ptr
-    insert $ BindS (VarP p) (AppE (VarE 'local) init)
+    i <- fromInit init
+    let p = mkName ptr
+    insert $ BindS (VarP p) (AppE (VarE 'local) i)
+
+--------------------------------------------------------------------------------
+-- Initializers
+
+fromInit :: Init -> TStmtM T.Exp
+fromInit init = case init of
+  Ival exp -> do e <- fromExp exp
+                 return (AppE (VarE 'ival) e)
 
 --------------------------------------------------------------------------------
 -- Expressions
@@ -132,14 +137,6 @@ fromOpExp env op args = case op of
   where
   mkArg i = Just $ toExp env $ args !! i
 
-type DerefVarEnv = [(RefVar, Name)]
-
-lookupDerefVar :: RefVar -> DerefVarEnv -> Name
-lookupDerefVar refVar env =
-  case lookup refVar env of
-    Nothing -> error "Internal error in lookupDerefVar"
-    Just rv -> rv
-
 toExp :: DerefVarEnv -> Exp -> T.Exp
 toExp env exp = case exp of
   ExpLit lit
@@ -150,6 +147,19 @@ toExp env exp = case exp of
     -> VarE (lookupDerefVar refVar env)
   ExpOp op args
     -> fromOpExp env op args
+  ExpAnti str
+    -> VarE (mkName str)
+
+-----------------------------------------
+-- Dereference expression environment
+
+type DerefVarEnv = [(RefVar, Name)]
+
+lookupDerefVar :: RefVar -> DerefVarEnv -> Name
+lookupDerefVar refVar env =
+  case lookup refVar env of
+    Nothing -> error "Internal error in lookupDerefVar"
+    Just rv -> rv
 
 -----------------------------------------
 -- Insert dereference statements
@@ -175,6 +185,7 @@ collectRefVars exp = do
     ExpDeref refVar    -> return [refVar]
     ExpOp _ args       -> do refVars <- mapM collectRefVars args
                              return (concat refVars)
+    ExpAnti _          -> return []
 
 insertDeref :: RefVar -> TStmtM Name
 insertDeref refVar = do
@@ -184,31 +195,28 @@ insertDeref refVar = do
 
 --------------------------------------------------------------------------------
 
-  -- case exp of
-  -- ExpLit lit ->
-  -- LitInteger int -> undefined
-  -- Deref e -> InfixE AppE (VarE '=<<) (AppE (VarE 'deref), e)
-  -- Exp e   -> (id, e)
-
--- -- | Parse an Ivory expression.
--- iExp :: Exp -> T.Exp
--- iExp exp =
---   let (th, e) = fromExp exp in
---   th (iParser e)
-
 -- | Parse a Ivory variable.
 iVar :: String -> T.Exp
 iVar = iParser
 
-fromInit :: Init -> String
-fromInit (Init init) = init
+-- fromInit :: Init -> String
+-- fromInit (Init init) = init
 
--- | Parse a Ivory initializer.
-iInit :: Init -> T.Exp
-iInit = iParser . fromInit
+-- -- | Parse a Ivory initializer.
+-- iInit :: Init -> T.Exp
+-- iInit = iParser . fromInit
 
 iParser :: String -> T.Exp
 iParser str = case parseExp str of
   Left err -> error err
   Right e  -> e
 
+--------------------------------------------------------------------------------
+-- Testing
+
+{-
+dump :: QuasiQuoter
+dump = QuasiQuoter
+  { quoteExp  = \str -> return $ LitE (StringL str)
+  }
+-}
