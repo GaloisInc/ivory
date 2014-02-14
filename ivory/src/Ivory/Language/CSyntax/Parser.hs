@@ -13,8 +13,8 @@ module Ivory.Language.CSyntax.Parser
   , Exp(..)
   , ExpOp(..)
   , Literal(..)
-  , Init(..)
   , RefVar
+  , AllocRef(..)
   ) where
 
 import Prelude hiding (exp, init)
@@ -22,7 +22,7 @@ import Data.Maybe (catMaybes)
 import Text.Parsec
 import Text.Parsec.String (Parser)
 
-import Language.Haskell.TH hiding (Stmt, Exp)
+import Language.Haskell.TH hiding (Stmt, Exp, litP)
 
 import Control.Monad
 --import Data.Generics
@@ -62,10 +62,11 @@ ivoryCParser = qParse programP
 
 type Var       = String
 type RefVar    = String
+--type Size      = Integer
 
 data Literal
   = LitInteger Integer
-  deriving (Show, Read)
+  deriving (Eq, Show, Read)
 
 data Exp
   = ExpLit Literal
@@ -73,17 +74,19 @@ data Exp
   | ExpDeref RefVar -- Note: these are statements in Ivory.  We constrain the
                  -- language here: you can only deref a RefVar.
   | ExpOp ExpOp [Exp]
+  | ExpArrIx RefVar Exp
   | ExpAnti String
     -- ^ Ivory antiquotation
-  deriving (Show, Read)
+  deriving (Eq, Show, Read)
 
 data ExpOp
   = AddOp
-  deriving (Show, Read)
+  deriving (Eq, Show, Read)
 
-data Init
-  = Ival Exp
-  deriving (Show, Read)
+data AllocRef
+  = AllocBase RefVar Exp
+  | AllocArr  RefVar [Exp]
+  deriving (Eq, Show, Read)
 
 -- | AST for parsing C-like statements.
 data Stmt
@@ -96,7 +99,7 @@ data Stmt
     -- ^ return exp;
   | ReturnVoid
     -- ^ return;
---  | Deref
+--  | Deref XXX dereferencing is an expression in our language here.
   | Store RefVar Exp
     -- ^ * var = exp;
   | Assign Var Exp
@@ -104,12 +107,13 @@ data Stmt
 --  | Call
 --  | Local
 --  | RefCopy
-  | AllocRef RefVar Init
+  | AllocRef AllocRef
     -- ^ * var = init;
+    -- ^ arr[] = {0,1,2};
 --  | Loop
 --  | Forever
 --  | Break
-  deriving (Show, Read)
+  deriving (Eq, Show, Read)
 
 --------------------------------------------------------------------------------
 
@@ -130,18 +134,20 @@ var = lexeme (many1 symbolChar)
 skipSym :: String -> P ()
 skipSym = void . symbol
 
--- | Between symbol pairs.
+-- | Between symbol pairs, ignoring whitespace.
 betSym :: String -> String -> P a -> P a
-betSym start end = between (symbol start) (symbol end)
+betSym start end = between (withWS start) (withWS end)
+  where
+  withWS sym = do spaces; (symbol sym)
 
-initializer :: P ()
-initializer = skipSym "="
+assign :: P ()
+assign = skipSym "="
 
 refDecl :: P RefVar
 refDecl = do skipSym "*"; var
 
-parseEnd :: P ()
-parseEnd = skipSym ";"
+endP :: P ()
+endP = skipSym ";"
 
 -- | Parse until the end of a statement, consuming, but not returning, the end
 -- token.
@@ -154,62 +160,67 @@ parseEnd = skipSym ";"
 -- antiExp = undefined
 
 -- | Parse an expression.
--- parseExp :: P String -> P Exp
--- parseExp p = try (derefExp p)
+-- expP :: P String -> P Exp
+-- expP p = try (derefExp p)
 --          <|> (do exp <- try p; return (Exp exp))
 --          <?> "<other Ivory expression>"
 
 --------------------------------------------------------------------------------
 -- Expression parsers
 
-parseLit :: P Literal
-parseLit = do
+litP :: P Literal
+litP = do
   str <- lexeme (many1 digit)
   return (LitInteger $ read str)
 
-parseLitExp :: P Exp
-parseLitExp = do l <- parseLit; return (ExpLit l)
+litExpP :: P Exp
+litExpP = do l <- litP; return (ExpLit l)
 
-parseVarExp :: P Exp
-parseVarExp = do v <- var; return (ExpVar v)
+varExpP :: P Exp
+varExpP = do v <- var; return (ExpVar v)
 
 -- *var
-parseDerefExp :: P Exp
-parseDerefExp = do skipSym "*"; ref <- var; return (ExpDeref ref)
+derefExpP :: P Exp
+derefExpP = do skipSym "*"; ref <- var; return (ExpDeref ref)
 
-parseAddExp :: P (Exp -> Exp -> Exp)
-parseAddExp = do
+addExpP :: P (Exp -> Exp -> Exp)
+addExpP = do
   skipSym "+"
   return (\e0 e1 -> ExpOp AddOp [e0, e1])
 
-parseOpExp :: P (Exp -> Exp -> Exp)
-parseOpExp =
-  try parseAddExp
+opExpP :: P (Exp -> Exp -> Exp)
+opExpP = try addExpP
 
+arrIndexP :: P Exp
+arrIndexP = do
+  arr <- var
+  exp <- betSym "[" "]" expP
+  return (ExpArrIx arr exp)
 
 -- Parse antiquotation (Ivory) expression.
-parseAnitExp :: P Exp
-parseAnitExp = do
+antiExpP :: P Exp
+antiExpP = do
   skipSym ":i"
   v <- var
   return (ExpAnti v)
 
-parseTermExp :: P Exp
-parseTermExp =
-      try parseLitExp
-  <|> try parseVarExp
-  <|> try parseDerefExp
-  <|> try parseAnitExp
+termExpP :: P Exp
+termExpP =
+      try litExpP
+  <|> try arrIndexP
+  <|> try derefExpP
+  <|> try antiExpP
+  <|> try varExpP -- Try plain variable last
   <?> "<other term expression>"
 
-factor :: P Exp
-factor =
-      parens parseExp
-  <|> parseTermExp
+factorP :: P Exp
+factorP =
+      parens expP
+  <|> termExpP
 
-parseExp :: P Exp
-parseExp =
-      factor `chainl1` parseOpExp
+expP :: P Exp
+expP =
+      factorP `chainl1` opExpP
   <?> "<other expression>"
 
 --------------------------------------------------------------------------------
@@ -221,12 +232,12 @@ parens :: P a -> P a
 parens p = betSym "(" ")" p
 
 -- | Parse a block of statements in curly braces.
-parseBlock :: P [Stmt]
-parseBlock = betSym "{" "}" programP
+blockP :: P [Stmt]
+blockP = betSym "{" "}" programP
 
 -- | Comments parser: starts with -- and goes until a newline is reached.
-parseComment :: P ()
-parseComment = do spaces; skipSym "--"; rst; spaces
+commentP :: P ()
+commentP = do spaces; skipSym "--"; rst; spaces
   where
   rst = do
     c <- anyChar
@@ -240,26 +251,65 @@ programP = do stmts <- many programP'; return (catMaybes stmts)
   programP' :: P (Maybe Stmt)
   programP' = try fromComment <|> fromStmt
 
-  fromComment = do parseComment; return Nothing
+  fromComment = do commentP; return Nothing
   fromStmt    = do stmt <- stmtsP; return (Just stmt)
+
+--------------------------------------------------------------------------------
+-- Memory allocation
+
+----------------------------------------
+-- Array allocation
+
+-- | Parse var[]; return var.
+arrLValue :: P String
+arrLValue = do
+  arr <- var
+  skipSym "[]"
+  return arr
+
+-- | Parse { e0, e1, ... en}
+-- where ei is an expression.
+arrInitP :: P [Exp]
+arrInitP =
+  let initsP = expP `sepBy1` (do skipSym ","; spaces) in
+  betSym "{" "}" initsP
+
+arrAllocP :: P AllocRef
+arrAllocP = do
+  arr <- arrLValue
+  assign
+  init <- arrInitP
+  return (AllocArr arr init)
+
+----------------------------------------
+-- Ref allocation
+
+allocRefP :: P AllocRef
+allocRefP = do
+  r <- refDecl
+  assign
+  exp <- expP
+  return (AllocBase r exp)
 
 --------------------------------------------------------------------------------
 -- Statement parsers
 
 stmtsP :: P Stmt
 stmtsP = try ifteP
-     <|> try assignP
-     <|> try returnP
-     <|> try refP
-     <|> try storeP
+     <|> go assignP
+     <|> go returnP
+     <|> go allocP
+     <|> go storeP
      <?> "<other statement parser>"
+  where
+  go = try . stmtP
 
 stmtP :: P Stmt -> P Stmt
 stmtP p = do
   spaces
   res <- p
-  parseEnd
-  (try parseComment <|> spaces)
+  endP
+  (try commentP <|> spaces)
   return res
 
 -- | if-then-else parser.  Then and else blocks must appear within curly braces.
@@ -267,52 +317,44 @@ ifteP :: P Stmt
 ifteP = do
   spaces
   skipSym "if"
-  cond  <- parseExp
-  blk0  <- parseBlock
+  cond  <- expP
+  blk0  <- blockP
   skipSym "else"
-  blk1  <- parseBlock
+  blk1  <- blockP
   return (IfTE cond blk0 blk1)
 
 -- Assignment parser.
 assignP :: P Stmt
-assignP = stmtP p
-  where
-  p = do
-    v <- var
-    initializer
-    exp <- parseExp
-    return (Assign v exp)
+assignP = do
+  skipSym "let"
+  v <- var
+  assign
+  exp <- expP
+  return (Assign v exp)
 
 -- | Stack-allocation parser.
-refP :: P Stmt
-refP = stmtP p
-  where
-  p = do
-    r <- refDecl
-    initializer
-    init <- parseExp
-    return (AllocRef r (Ival init))
+allocP :: P Stmt
+allocP = do
+  skipSym "let"
+  alloc <- try allocRefP <|> arrAllocP
+  return (AllocRef alloc)
 
 -- | Parse a return statement.
 returnP :: P Stmt
-returnP = stmtP p
-  where
-  p = do
-    skipSym "return"
-    mexp <- optionMaybe parseExp
-    return $ case mexp of
-               Nothing -> ReturnVoid
-               Just e  -> Return e
+returnP = do
+  skipSym "return"
+  mexp <- optionMaybe expP
+  return $ case mexp of
+             Nothing -> ReturnVoid
+             Just e  -> Return e
 
 -- | Parse assignment to a reference.
 storeP :: P Stmt
-storeP = stmtP p
-  where
-  p = do
-    r <- refDecl
-    skipSym "="
-    exp <- parseExp
-    return (Store r exp)
+storeP = do
+  r <- refDecl
+  skipSym "="
+  exp <- expP
+  return (Store r exp)
 
 {-
 test :: String -> IO Stmt
