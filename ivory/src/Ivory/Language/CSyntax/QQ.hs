@@ -95,8 +95,8 @@ fromStmt stmt = case stmt of
     insert $ NoBindS (AppE (AppE (AppE (VarE 'ifte_) cd) b0) b1)
   Return exp
     -> do
-    exp <- fromExp exp
-    insert $ NoBindS (AppE (VarE 'ret) exp)
+    e <- fromExp exp
+    insert $ NoBindS (AppE (VarE 'ret) e)
   ReturnVoid
     ->
     insert $ NoBindS (VarE 'retVoid)
@@ -110,19 +110,26 @@ fromStmt stmt = case stmt of
     e <- fromExp exp
     let v = mkName var
     insert $ BindS (VarP v) (AppE (VarE 'assign) e)
-  AllocRef ptr init
-    -> do
-    i <- fromInit init
-    let p = mkName ptr
-    insert $ BindS (VarP p) (AppE (VarE 'local) i)
+  AllocRef alloc
+    -> fromAlloc alloc
 
 --------------------------------------------------------------------------------
 -- Initializers
 
-fromInit :: Init -> TStmtM T.Exp
-fromInit init = case init of
-  Ival exp -> do e <- fromExp exp
-                 return (AppE (VarE 'ival) e)
+fromAlloc :: AllocRef -> TStmtM ()
+fromAlloc alloc = case alloc of
+  AllocBase ref exp
+    -> do e <- fromExp exp
+          let p = mkName ref
+          insert $ BindS (VarP p)
+                         (AppE (VarE 'local) (AppE (VarE 'ival) e))
+  AllocArr arr exps
+    -> do es <- mapM fromExp exps
+          let mkIval = AppE (VarE 'ival)
+          let init = ListE (map mkIval es)
+          let p = mkName arr
+          insert $ BindS (VarP p)
+                         (AppE (VarE 'local) (AppE (VarE 'iarray) init))
 
 --------------------------------------------------------------------------------
 -- Expressions
@@ -144,18 +151,24 @@ toExp env exp = case exp of
   ExpVar v
     -> VarE (mkName v)
   ExpDeref refVar
-    -> VarE (lookupDerefVar refVar env)
+    -> lookupV (RefExp refVar)
   ExpOp op args
     -> fromOpExp env op args
+  ExpArrIx arr ix
+    -> lookupV (ArrIxExp arr ix)
   ExpAnti str
     -> VarE (mkName str)
+  where
+  lookupV de = VarE (lookupDerefVar de env)
 
 -----------------------------------------
 -- Dereference expression environment
 
-type DerefVarEnv = [(RefVar, Name)]
+type DerefVarEnv = [(DerefExp, Name)]
 
-lookupDerefVar :: RefVar -> DerefVarEnv -> Name
+-- Returns the fresh variable that is the do-block binding from the dereference
+-- statement.
+lookupDerefVar :: DerefExp -> DerefVarEnv -> Name
 lookupDerefVar refVar env =
   case lookup refVar env of
     Nothing -> error "Internal error in lookupDerefVar"
@@ -165,33 +178,49 @@ lookupDerefVar refVar env =
 -- Insert dereference statements
 
 -- Collect up dereference expressions, which turn into Ivory statements.  We
--- only need one dereference statement for each dereferenced variable.
+-- only need one dereference statement for each unique dereferenced equation.
 fromExp :: Exp -> TStmtM T.Exp
 fromExp exp = do
-  refVars <- collectRefVars exp
-  newVars <- mapM insertDeref refVars
-  let env = zip refVars newVars
+  env <- mkDerefStmts exp
   return (toExp env exp)
 
-collectRefVars :: Exp -> TStmtM [RefVar]
-collectRefVars exp = do
-  refVars <- collectRefVars'
-  return (nub refVars)
-  where
-  collectRefVars' :: TStmtM [RefVar]
-  collectRefVars' = case exp of
-    ExpLit _           -> return []
-    ExpVar _           -> return []
-    ExpDeref refVar    -> return [refVar]
-    ExpOp _ args       -> do refVars <- mapM collectRefVars args
-                             return (concat refVars)
-    ExpAnti _          -> return []
+mkDerefStmts :: Exp -> TStmtM DerefVarEnv
+mkDerefStmts exp = do
+  envs <- mapM insertDerefStmt (collectRefExps exp)
+  return (concat envs)
 
-insertDeref :: RefVar -> TStmtM Name
-insertDeref refVar = do
-  v <- liftQ (newName refVar)
-  insert $ BindS (VarP v) (AppE (VarE 'deref) (VarE (mkName refVar)))
-  return v
+data DerefExp
+  = RefExp RefVar
+  | ArrIxExp RefVar Exp
+  deriving (Eq, Show)
+
+-- For each unique expression that requires a dereference, insert a dereference
+-- statement.
+insertDerefStmt :: DerefExp -> TStmtM DerefVarEnv
+insertDerefStmt dv = case dv of
+  RefExp var    -> do
+    nm <- liftQ (newName var)
+    insert $ BindS (VarP nm) (AppE (VarE 'deref) (nmVar var))
+    return [(dv, nm)]
+  ArrIxExp arr ixExp -> do
+    env <- mkDerefStmts ixExp
+    let e = toExp env ixExp
+    nm <- liftQ (newName arr)
+    let arrIx = InfixE (Just (nmVar arr)) (VarE '(!)) (Just e)
+    insert $ BindS (VarP nm) (AppE (VarE 'deref) arrIx)
+    return ((dv, nm) : env)
+  where
+  nmVar = VarE . mkName
+
+collectRefExps :: Exp -> [DerefExp]
+collectRefExps exp = nub $ case exp of
+  ExpLit _           -> []
+  ExpVar _           -> []
+  ExpDeref refVar    -> [RefExp refVar]
+  ExpOp _ args       -> concatMap collectRefExps args
+  -- ix is an expression that is processed when the statement is inserted.
+  ExpArrIx arr ix    -> [ArrIxExp arr ix]
+  ExpAnti _          -> []
 
 --------------------------------------------------------------------------------
 
