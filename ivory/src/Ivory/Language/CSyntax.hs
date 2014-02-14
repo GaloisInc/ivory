@@ -23,7 +23,9 @@ import Ivory.Language
 -- foo
 foo :: Def ('[] :-> Sint32)
 foo = proc "foo" $ body [c|
-  return 3 + 4;
+  let *x = 3;
+  *x = 4;
+  return *x + 4;
 
 |]
 
@@ -31,14 +33,14 @@ foo = proc "foo" $ body [c|
 bar :: Def ('[] :-> Sint32)
 bar = proc "bar" $ body [c|
   if (true) {
-    a = 5;
+    let a = 5;
   -- foo
   -- bar
     return a;
   -- goo
   }
   else {
-    b = 3;
+    let b = 3;
     return b + 3;
   }
 |]
@@ -53,15 +55,48 @@ bar2 = proc "bar" $ body [c|
   }
 |]
 
-
-x = (4::Sint32) >? 3
+e = (4::Sint32) >? 3
   -- *x = ival 3;
   -- *y = ival 5;
 
 --   x := *v;
 bar3 :: Def ('[] :-> IBool)
 bar3 = proc "bar" $ body [c|
-  return :i x;
+
+--  arr[30] = {0}
+  return :i e;
 |]
 
   -- return *y + *x;
+
+
+bar5 :: Def ('[Uint32] :-> Uint32)
+bar5 = proc "bar" $ \x -> body [c|
+--  arr[30] = {0}
+  return x;
+|]
+
+bar6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
+bar6 = proc "bar" $ \arr -> body [c|
+--  arr[30] = {0}
+  return arr [1] ;
+
+|]
+
+bar7 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
+bar7 = proc "bar" $ \arr -> body $ do
+  foo <- local (iarray (map ival [1,2,3]))
+  arrayMap $ \ix -> do
+    x <- deref (foo ! ix)
+    store (arr ! ix) x
+  y <- deref (arr ! 1)
+  ret y
+
+-- bar8 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
+-- bar8 = proc "bar" $ \arr -> body [c|
+-- --  arr[30] = {0}
+--   let foo[] = {1,2, 4};
+--   return arr [1] ;
+
+-- |]
+
