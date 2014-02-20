@@ -1,6 +1,6 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE CPP#-}
+{-# LANGUAGE CPP #-}
 
 -- | Ivory backend targeting language-c-quote.
 
