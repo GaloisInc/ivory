@@ -25,6 +25,7 @@ import Ivory.Language.CSyntax.ParseAST
 import qualified Ivory.Language.CSyntax.TokenParser as T
 
 --------------------------------------------------------------------------------
+-- Turn a parser into a QuasiQuoter.
 
 -- | Run a parser on a string with file, line, and column info.
 mParse :: Monad m => Parser a -> (String, Int, Int) -> String -> m a
@@ -59,17 +60,14 @@ ivoryCParser = qParse programP
 
 type P s = Parsec String () s
 
-symbolChar :: P Char
-symbolChar = alphaNum <|> char '_'
-
-skipSym :: String -> P ()
-skipSym = void . T.symbol
+--------------------------------------------------------------------------------
+-- Tokens
 
 assign :: P ()
-assign = skipSym "="
+assign = void (T.symbol "=")
 
 refDecl :: P RefVar
-refDecl = skipSym "*" *> T.identifier
+refDecl = T.symbol "*" *> T.identifier
 
 endP :: P ()
 endP = T.semi *> pure ()
@@ -77,66 +75,58 @@ endP = T.semi *> pure ()
 --------------------------------------------------------------------------------
 -- Expression parsers
 
+-- | Parse a literal integer.
 litP :: P Literal
 litP = LitInteger <$> T.integer
 
+-- | Parse a literal integer as an expression.
 litExpP :: P Exp
 litExpP = ExpLit <$> litP
 
+-- | Parse an Ivory variable.
 varExpP :: P Exp
 varExpP = ExpVar <$> T.identifier
 
--- *var
+-- | Parse a dereference expression (*var).
 derefExpP :: P Exp
-derefExpP = skipSym "*" *> (ExpDeref <$> T.identifier)
+derefExpP = T.symbol "*" *> (ExpDeref <$> T.identifier)
 
+-- | Parse addition.
 addExpP :: P (Exp -> Exp -> Exp)
-addExpP = skipSym "+"
+addExpP = T.symbol "+"
        *> pure (\e0 e1 -> ExpOp AddOp [e0, e1])
 
+-- | Parse a binary operator.
 opExpP :: P (Exp -> Exp -> Exp)
 opExpP = try addExpP
 
+-- | Parse an array index: arr[e0]
 arrIndexP :: P Exp
 arrIndexP = liftA2 ExpArrIx T.identifier (T.brackets expP)
 
--- Parse antiquotation (Ivory) expression.
-antiExpP :: P Exp
-antiExpP = skipSym ":i" *> (ExpAnti <$> T.identifier)
-
-termExpP :: P Exp
-termExpP =
-      try litExpP
-  <|> try arrIndexP
-  <|> try derefExpP
-  <|> try antiExpP
-  <|> try varExpP -- Try plain variable last
-  <?> "<other term expression>"
-
-factorP :: P Exp
-factorP = T.parens expP <|> termExpP
-
+-- | Parse an expression.
 expP :: P Exp
 expP = factorP `chainl1` opExpP
    <?> "<other expression>"
+  where
+  factorP :: P Exp
+  factorP = T.parens expP <|> termExpP
 
---------------------------------------------------------------------------------
+-- | Parse antiquotation (Ivory) expression.
+antiExpP :: P Exp
+antiExpP = T.symbol ":i" *> (ExpAnti <$> T.identifier)
 
--- parseInit :: P String -> P Init
--- parseInit p = do init <- p; return (Ival init)
-
--- | Parse a block of statements in curly braces.
-blockP :: P [Stmt]
-blockP = T.braces programP
-
-programP :: P [Stmt]
-programP = many stmtsP
+-- | Parse an expression.
+termExpP :: P Exp
+termExpP = try litExpP
+       <|> try arrIndexP
+       <|> try derefExpP
+       <|> try antiExpP
+       <|> try varExpP -- Try plain variable last
+       <?> "<other term expression>"
 
 --------------------------------------------------------------------------------
 -- Memory allocation
-
-----------------------------------------
--- Array allocation
 
 -- | Parse var[]; return var.
 arrLValue :: P String
@@ -147,12 +137,15 @@ arrLValue = T.identifier <* T.braces T.whiteSpace
 arrInitP :: P [Exp]
 arrInitP = T.braces (T.commaSep expP)
 
+-- | Parse assignment: var lval = init
+parseAssign :: P a -> P b -> (a -> b -> c) -> P c
+parseAssign lval rval constr =
+     T.symbol "alloc"
+  *> liftA2 constr (lval <* assign) rval
+
 -- | Parse arr[] = { e0, e1, ... en}
 arrAllocP :: P AllocRef
 arrAllocP = parseAssign arrLValue arrInitP AllocArr
-
-----------------------------------------
--- Ref allocation
 
 -- | Parse *ref = e
 allocRefP :: P AllocRef
@@ -160,22 +153,6 @@ allocRefP = parseAssign refDecl expP AllocBase
 
 --------------------------------------------------------------------------------
 -- Statement parsers
-
--- | Parse and assignment
-parseAssign :: P a -> P b -> (a -> b -> c) -> P c
-parseAssign lval rval constr =
-     skipSym "let"
-  *> liftA2 constr (lval <* assign) rval
-
-stmtsP :: P Stmt
-stmtsP = try ifteP
-     <|> go assignP
-     <|> go returnP
-     <|> go allocP
-     <|> go storeP
-     <?> "<other statement parser>"
-  where
-  go = try . stmtP
 
 -- | Parse a statement or comment.
 stmtP :: P Stmt -> P Stmt
@@ -187,8 +164,8 @@ stmtP p = T.whiteSpace
 -- | if-then-else parser.  Then and else blocks must appear within curly braces.
 ifteP :: P Stmt
 ifteP = T.whiteSpace
-     *> skipSym "if"
-     *> liftA3 IfTE expP blockP (skipSym "else" *> blockP)
+     *> T.symbol "if"
+     *> liftA3 IfTE expP blockP (T.symbol "else" *> blockP)
 
 -- Assignment parser.
 assignP :: P Stmt
@@ -200,16 +177,40 @@ allocP = AllocRef <$> (try allocRefP <|> arrAllocP)
 
 -- | Parse a return statement.
 returnP :: P Stmt
-returnP = skipSym "return"
-       *> (    \case
-                 Nothing -> ReturnVoid
-                 Just e  -> Return e
-           <$> optionMaybe expP
-          )
+returnP = T.symbol "return"
+       *> (someExp <$> optionMaybe expP)
+  where
+  someExp = \case
+              Nothing -> ReturnVoid
+              Just e  -> Return e
 
 -- | Parse assignment to a reference.
 storeP :: P Stmt
-storeP = liftA2 Store refDecl (skipSym "=" *> expP)
+storeP = liftA2 Store refDecl (T.symbol "=" *> expP)
+
+stmtsP :: P Stmt
+stmtsP = try ifteP
+     <|> go assignP
+     <|> go returnP
+     <|> go allocP
+     <|> go storeP
+     <?> "<other statement parser>"
+  where
+  go = try . stmtP
+
+--------------------------------------------------------------------------------
+-- Program parsers.
+
+-- parseInit :: P String -> P Init
+-- parseInit p = do init <- p; return (Ival init)
+
+-- | Parse a block of statements in curly braces.
+blockP :: P [Stmt]
+blockP = T.braces programP
+
+programP :: P [Stmt]
+programP = many stmtsP
+--------------------------------------------------------------------------------
 
 {-
 test :: String -> IO Stmt
