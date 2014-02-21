@@ -34,6 +34,8 @@ import qualified MonadLib   as M
 import           Data.Monoid
 import qualified Data.DList as D
 
+import Ivory.Language.CSyntax.ParseAST
+
 --------------------------------------------------------------------------------
 -- Monad for inserting statements.  Necessary since we'll parse dereferences as
 -- expressions but they become Ivory/Haskell statements.
