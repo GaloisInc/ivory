@@ -19,7 +19,7 @@ import Ivory.Language
 
 foo :: Def ('[] :-> Sint32)
 foo = proc "foo" $ body [c|
-  let *x = 3;
+  alloc *x = 3;
   *x = 4;
   return *x + 4;
 
@@ -28,12 +28,12 @@ foo = proc "foo" $ body [c|
 bar :: Def ('[] :-> Sint32)
 bar = proc "bar" $ body [c|
   if (true) {
-    let a = 5;
+    alloc a = 5;
     return a;
   -- goo
   }
   else {
-    let b = 3;
+    alloc b = 3;
     return b + 3;
   }
 |]
@@ -58,7 +58,7 @@ bar3 = proc "bar" $ body [c|
 
 -- bar6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 -- bar6 = proc "bar" $ \arr -> body [c|
---   let arr[30] = {0};
+--   alloc arr[30] = {0};
 --   return arr[1];
 -- |]
 
@@ -74,7 +74,7 @@ bar7 = proc "bar" $ \arr -> body $ do
 -- bar8 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 -- bar8 = proc "bar" $ \arr -> body [c|
 -- --  arr[30] = {0}
---   let foo[] = {1,2, 4};
+--   alloc foo[] = {1,2, 4};
 --   return arr [1] ;
 
 -- |]
