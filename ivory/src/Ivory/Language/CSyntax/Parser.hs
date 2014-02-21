@@ -22,6 +22,7 @@ import Control.Applicative hiding ((<|>), many)
 import Control.Monad
 
 import Ivory.Language.CSyntax.ParseAST
+import qualified Ivory.Language.CSyntax.TokenParser as T
 
 --------------------------------------------------------------------------------
 
@@ -39,7 +40,7 @@ mParse parser (file, line, col) str =
         $ (flip setSourceLine) line
         $ (flip setSourceColumn) col
         pos
-      spaces
+      T.whiteSpace
       p <- parser
       eof -- Ensure end of input reached
       return p
@@ -56,57 +57,38 @@ ivoryCParser = qParse programP
 
 --------------------------------------------------------------------------------
 
-
---------------------------------------------------------------------------------
-
 type P s = Parsec String () s
-
-lexeme :: P a -> P a
-lexeme p = p <* spaces
 
 symbolChar :: P Char
 symbolChar = alphaNum <|> char '_'
 
-symbol :: String -> P String
-symbol = lexeme . string
-
-var :: P String
-var = lexeme (many1 symbolChar)
-
 skipSym :: String -> P ()
-skipSym = void . symbol
-
--- | Between symbol pairs, ignoring whitespace.
-betSym :: String -> String -> P a -> P a
-betSym start end = between (withWS start) (withWS end)
-  where
-  withWS sym = spaces *> (symbol sym)
+skipSym = void . T.symbol
 
 assign :: P ()
 assign = skipSym "="
 
 refDecl :: P RefVar
-refDecl = skipSym "*" *> var
+refDecl = skipSym "*" *> T.identifier
 
 endP :: P ()
-endP = skipSym ";"
+endP = T.semi *> pure ()
 
 --------------------------------------------------------------------------------
 -- Expression parsers
 
 litP :: P Literal
-litP = (LitInteger . read) <$> lexeme (many1 digit)
+litP = LitInteger <$> T.integer
 
 litExpP :: P Exp
 litExpP = ExpLit <$> litP
 
 varExpP :: P Exp
-varExpP = ExpVar <$> var
+varExpP = ExpVar <$> T.identifier
 
 -- *var
 derefExpP :: P Exp
-derefExpP = skipSym "*"
-         *> (ExpDeref <$> var)
+derefExpP = skipSym "*" *> (ExpDeref <$> T.identifier)
 
 addExpP :: P (Exp -> Exp -> Exp)
 addExpP = skipSym "+"
@@ -116,12 +98,11 @@ opExpP :: P (Exp -> Exp -> Exp)
 opExpP = try addExpP
 
 arrIndexP :: P Exp
-arrIndexP = liftA2 ExpArrIx var (betSym "[" "]" expP)
+arrIndexP = liftA2 ExpArrIx T.identifier (T.brackets expP)
 
 -- Parse antiquotation (Ivory) expression.
 antiExpP :: P Exp
-antiExpP = skipSym ":i"
-       *> (ExpAnti <$> var)
+antiExpP = skipSym ":i" *> (ExpAnti <$> T.identifier)
 
 termExpP :: P Exp
 termExpP =
@@ -133,8 +114,7 @@ termExpP =
   <?> "<other term expression>"
 
 factorP :: P Exp
-factorP = parens expP
-      <|> termExpP
+factorP = T.parens expP <|> termExpP
 
 expP :: P Exp
 expP = factorP `chainl1` opExpP
@@ -145,32 +125,12 @@ expP = factorP `chainl1` opExpP
 -- parseInit :: P String -> P Init
 -- parseInit p = do init <- p; return (Ival init)
 
-parens :: P a -> P a
-parens p = betSym "(" ")" p
-
 -- | Parse a block of statements in curly braces.
 blockP :: P [Stmt]
-blockP = betSym "{" "}" programP
-
--- | Comments parser: starts with -- and goes until a newline is reached.
-commentP :: P ()
-commentP = spaces *> skipSym "--" *> rst *> spaces
-  where
-  rst = do
-    c <- anyChar
-    if c == '\n'
-      then return ()
-      else rst
-
+blockP = T.braces programP
 
 programP :: P [Stmt]
-programP = catMaybes <$> many programP'
-  where
-  programP' :: P (Maybe Stmt)
-  programP' = try fromComment <|> fromStmt
-
-  fromComment = commentP *> pure Nothing
-  fromStmt    = Just <$> stmtsP
+programP = many stmtsP
 
 --------------------------------------------------------------------------------
 -- Memory allocation
@@ -180,14 +140,12 @@ programP = catMaybes <$> many programP'
 
 -- | Parse var[]; return var.
 arrLValue :: P String
-arrLValue = var <* skipSym "[]"
+arrLValue = T.identifier <* T.braces T.whiteSpace
 
 -- | Parse { e0, e1, ... en}
 -- where ei is an expression.
 arrInitP :: P [Exp]
-arrInitP =
-  let initsP = expP `sepBy1` (skipSym "," *> spaces) in
-  betSym "{" "}" initsP
+arrInitP = T.braces (T.commaSep expP)
 
 -- | Parse arr[] = { e0, e1, ... en}
 arrAllocP :: P AllocRef
@@ -221,20 +179,20 @@ stmtsP = try ifteP
 
 -- | Parse a statement or comment.
 stmtP :: P Stmt -> P Stmt
-stmtP p = spaces
+stmtP p = T.whiteSpace
        *> p
        <* endP
-       <* (try commentP <|> spaces)
+       <* T.whiteSpace
 
 -- | if-then-else parser.  Then and else blocks must appear within curly braces.
 ifteP :: P Stmt
-ifteP = spaces
+ifteP = T.whiteSpace
      *> skipSym "if"
      *> liftA3 IfTE expP blockP (skipSym "else" *> blockP)
 
 -- Assignment parser.
 assignP :: P Stmt
-assignP = parseAssign var expP Assign
+assignP = parseAssign T.identifier expP Assign
 
 -- | Stack-allocation parser.
 allocP :: P Stmt
