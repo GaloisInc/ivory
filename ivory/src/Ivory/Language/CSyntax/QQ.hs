@@ -100,13 +100,18 @@ fromStmt stmt = case stmt of
     e <- fromExp exp
     insert $ NoBindS (AppE (VarE 'ret) e)
   ReturnVoid
-    ->
-    insert $ NoBindS (VarE 'retVoid)
+    -> insert $ NoBindS (VarE 'retVoid)
   Store ptr exp
     -> do
-    let p = iVar ptr
-    e <- fromExp exp
-    insert $ NoBindS (AppE (AppE (VarE 'store) p) e)
+      e <- fromExp exp
+      let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'store) p) e)
+      case ptr of
+        RefVar ref      ->    -- ref
+          storeIt (iVar ref)
+        ArrIx ref ixExp -> do -- (arr ! ix)
+          ix <- fromExp ixExp
+          let p' = InfixE (Just $ iVar ref) (VarE '(!)) (Just ix)
+          storeIt p'
   Assign var exp
     -> do
     e <- fromExp exp
@@ -114,6 +119,10 @@ fromStmt stmt = case stmt of
     insert $ BindS (VarP v) (AppE (VarE 'assign) e)
   AllocRef alloc
     -> fromAlloc alloc
+  Loop ixVar blk
+    -> do
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (VarE 'arrayMap) (LamE [VarP (mkName ixVar)] b))
 
 --------------------------------------------------------------------------------
 -- Initializers
