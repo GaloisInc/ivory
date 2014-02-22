@@ -4,7 +4,13 @@ module Ivory.Language.CSyntax.ParseAST where
 
 type Var       = String
 type RefVar    = String
+type IxVar     = String
 --type Size      = Integer
+
+data RefLVal
+  = RefVar RefVar
+  | ArrIx RefVar Exp
+  deriving (Eq, Show, Read)
 
 data Literal
   = LitInteger Integer
@@ -42,7 +48,7 @@ data Stmt
   | ReturnVoid
     -- ^ return;
 --  | Deref XXX dereferencing is an expression in our language here.
-  | Store RefVar Exp
+  | Store RefLVal Exp
     -- ^ * var = exp;
   | Assign Var Exp
     -- ^ var = exp;
@@ -52,7 +58,7 @@ data Stmt
   | AllocRef AllocRef
     -- ^ * var = init;
     -- ^ arr[] = {0,1,2};
---  | Loop
+  | Loop IxVar [Stmt]
 --  | Forever
 --  | Break
   deriving (Eq, Show, Read)

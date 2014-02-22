@@ -12,7 +12,6 @@ module Ivory.Language.CSyntax.Parser
   ) where
 
 import Prelude hiding (exp, init)
-import Data.Maybe (catMaybes)
 import Text.Parsec
 import Text.Parsec.String (Parser)
 
@@ -63,12 +62,25 @@ type P s = Parsec String () s
 --------------------------------------------------------------------------------
 -- Tokens
 
+-- | Parse assignment.
 assign :: P ()
 assign = void (T.symbol "=")
 
-refDecl :: P RefVar
-refDecl = T.symbol "*" *> T.identifier
+-- | Parse a pointer: *var
+ref :: P RefVar
+ref = T.symbol "*" *> T.identifier
 
+-- | Parse an array index: arr[exp]
+arrIx :: P RefLVal
+arrIx = liftA2 ArrIx T.identifier (T.brackets expP)
+
+-- | Parse either an reference or array index.
+refLVar :: P RefLVal
+refLVar = try ref' <|> try arrIx <?> noParse "ref lvar parser"
+  where
+  ref' = RefVar <$> ref
+
+-- | Parse statement end.
 endP :: P ()
 endP = T.semi *> pure ()
 
@@ -107,7 +119,7 @@ arrIndexP = liftA2 ExpArrIx T.identifier (T.brackets expP)
 -- | Parse an expression.
 expP :: P Exp
 expP = factorP `chainl1` opExpP
-   <?> "<other expression>"
+   <?> "expression parser"
   where
   factorP :: P Exp
   factorP = T.parens expP <|> termExpP
@@ -123,36 +135,40 @@ termExpP = try litExpP
        <|> try derefExpP
        <|> try antiExpP
        <|> try varExpP -- Try plain variable last
-       <?> "<other term expression>"
+       <?> "term expression parser"
 
 --------------------------------------------------------------------------------
 -- Memory allocation
-
--- | Parse var[]; return var.
-arrLValue :: P String
-arrLValue = T.identifier <* T.braces T.whiteSpace
 
 -- | Parse { e0, e1, ... en}
 -- where ei is an expression.
 arrInitP :: P [Exp]
 arrInitP = T.braces (T.commaSep expP)
 
--- | Parse assignment: var lval = init
-parseAssign :: P a -> P b -> (a -> b -> c) -> P c
-parseAssign lval rval constr =
-     T.symbol "alloc"
-  *> liftA2 constr (lval <* assign) rval
+-- | Parse alloc: var lval = init
+parseAlloc :: P a -> P b -> (a -> b -> c) -> P c
+parseAlloc = parseAssign "alloc"
 
--- | Parse arr[] = { e0, e1, ... en}
+-- | Parse var[]; return var.
+arrLValue :: P String
+arrLValue = T.identifier <* T.whiteSpace <* T.brackets T.whiteSpace
+
+-- | Parse alloc arr[] = { e0, e1, ... en }
 arrAllocP :: P AllocRef
-arrAllocP = parseAssign arrLValue arrInitP AllocArr
+arrAllocP = parseAlloc arrLValue arrInitP AllocArr
 
--- | Parse *ref = e
+-- | Parse alloc *ref = e
 allocRefP :: P AllocRef
-allocRefP = parseAssign refDecl expP AllocBase
+allocRefP = parseAlloc ref expP AllocBase
 
 --------------------------------------------------------------------------------
 -- Statement parsers
+
+-- | Generic assignment parser
+parseAssign :: String -> P a -> P b -> (a -> b -> c) -> P c
+parseAssign key lval rval constr =
+     T.symbol key
+  *> liftA2 constr (lval <* assign) rval
 
 -- | Parse a statement or comment.
 stmtP :: P Stmt -> P Stmt
@@ -167,14 +183,6 @@ ifteP = T.whiteSpace
      *> T.symbol "if"
      *> liftA3 IfTE expP blockP (T.symbol "else" *> blockP)
 
--- Assignment parser.
-assignP :: P Stmt
-assignP = parseAssign T.identifier expP Assign
-
--- | Stack-allocation parser.
-allocP :: P Stmt
-allocP = AllocRef <$> (try allocRefP <|> arrAllocP)
-
 -- | Parse a return statement.
 returnP :: P Stmt
 returnP = T.symbol "return"
@@ -186,7 +194,20 @@ returnP = T.symbol "return"
 
 -- | Parse assignment to a reference.
 storeP :: P Stmt
-storeP = liftA2 Store refDecl (T.symbol "=" *> expP)
+storeP = liftA2 Store refLVar (T.symbol "=" *> expP)
+
+-- | Simple ssignment parser: var = exp
+assignP :: P Stmt
+assignP = parseAssign "let" T.identifier expP Assign
+
+-- | Stack-allocation parser.
+allocP :: P Stmt
+allocP = AllocRef <$> (try allocRefP <|> arrAllocP)
+
+-- | Loop parser.
+loopP :: P Stmt
+loopP = T.symbol "map"
+     *> liftA2 Loop T.identifier blockP
 
 stmtsP :: P Stmt
 stmtsP = try ifteP
@@ -194,7 +215,8 @@ stmtsP = try ifteP
      <|> go returnP
      <|> go allocP
      <|> go storeP
-     <?> "<other statement parser>"
+     <|> try loopP
+     <?> noParse "statement parser"
   where
   go = try . stmtP
 
@@ -210,6 +232,11 @@ blockP = T.braces programP
 
 programP :: P [Stmt]
 programP = many stmtsP
+--------------------------------------------------------------------------------
+
+noParse :: String -> String
+noParse str = "<no valid parse: " ++ str ++ ">"
+
 --------------------------------------------------------------------------------
 
 {-
