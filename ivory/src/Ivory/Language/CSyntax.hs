@@ -56,12 +56,6 @@ foo3 = proc "foo" $ body [c|
   return :i e;
 |]
 
--- foo6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
--- foo6 = proc "foo" $ \arr -> body [c|
---   alloc arr[30] = {0};
---   return arr[1];
--- |]
-
 foo4 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 foo4 = proc "foo" $ \arr0 -> body $ do
   arr1 <- local (iarray (map ival [1,2,3]))
@@ -80,6 +74,8 @@ foo6 = proc "foo" $ \arr0 -> body [c|
   return arr0[1];
 |]
 
---   -- alloc foo[] = {1,2, 4};
---   return arr [1] ;
-
+-- foo7 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
+-- foo7 = proc "foo" $ \arr -> body [c|
+--   alloc arr[] = {0};
+--   return arr[1];
+-- |]
