@@ -14,10 +14,6 @@ maintainer:          jamesjb@galois.com
 build-type:          Simple
 cabal-version:       >=1.8
 
-flag werror
-  default:              False
-  description:          Pass -Werror to GHC.
-
 library
   exposed-modules:     Ivory.BitData,
                        Ivory.BitData.Bits,
@@ -40,10 +36,7 @@ library
                        template-haskell,
                        parsec
 
-  if flag(werror)
-    ghc-options:        -Wall -Werror
-  else
-    ghc-options:        -Wall
+  ghc-options:         -Wall
 
 executable ivory-bitdata-example
   main-is:             Main.hs
