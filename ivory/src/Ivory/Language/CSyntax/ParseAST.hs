@@ -28,7 +28,26 @@ data Exp
   deriving (Eq, Show, Read)
 
 data ExpOp
-  = AddOp
+  = EqOp
+  | NeqOp
+  | CondOp
+
+  | GtOp Bool
+  -- ^ True is >=, False is >
+  | LtOp Bool
+  -- ^ True is <=, False is <
+
+  | NotOp
+  | AndOp
+  | OrOp
+
+  | MulOp
+  | AddOp
+  | SubOp
+  | NegateOp
+  | AbsOp
+  | SignumOp
+
   deriving (Eq, Show, Read)
 
 data AllocRef
