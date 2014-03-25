@@ -16,11 +16,6 @@ cabal-version:       >=1.8
 
 data-files: support/ivory_hw_prim.h
 
-
-flag werror
-  default:              False
-  description:          Pass -Werror to GHC.
-
 library
   exposed-modules:     Ivory.HW,
                        Ivory.HW.Reg,
@@ -40,10 +35,7 @@ library
                        ivory-bitdata,
                        ivory-backend-c
 
-  if flag(werror)
-    ghc-options:        -Wall -Werror
-  else
-    ghc-options:        -Wall
+  ghc-options:         -Wall
 
 
 -- executable ivory-hw-example
