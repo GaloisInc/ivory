@@ -151,9 +151,31 @@ fromLit lit = case lit of
 
 fromOpExp :: DerefVarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of
-  AddOp -> InfixE (mkArg 0) (VarE '(+)) (mkArg 1)
+  EqOp     -> mkInfix '(==)
+  NeqOp    -> mkInfix '(/=)
+  CondOp   -> mkTert  '(?)
+
+  GtOp g   -> mkInfix $ if g then '(>=) else '(>)
+  LtOp g   -> mkInfix $ if g then '(<=) else '(<)
+
+  NotOp    -> mkUn 'iNot
+  AndOp    -> mkInfix '(.&&)
+  OrOp     -> mkInfix '(.||)
+
+  MulOp    -> mkInfix '(*)
+  AddOp    -> mkInfix '(+)
+  SubOp    -> mkInfix '(-)
+  NegateOp -> mkInfix 'negate
+  AbsOp    -> mkUn 'abs
+  SignumOp -> mkUn 'signum
+
   where
-  mkArg i = Just $ toExp env $ args !! i
+  getArg i = toExp env (args !! i)
+  mkArg    = Just . getArg
+  mkInfix op = InfixE (mkArg 0) (VarE op) (mkArg 1)
+  mkTert  op =
+    InfixE (mkArg 0) (VarE op) (Just $ TupE [getArg 1, getArg 2])
+  mkUn op = AppE (VarE op) (getArg 0)
 
 toExp :: DerefVarEnv -> Exp -> T.Exp
 toExp env exp = case exp of
