@@ -8,7 +8,15 @@ maintainer:          leepike@galois.com
 category:            Language
 build-type:          Simple
 cabal-version:       >= 1.10
+synopsis:            Ivory compiler optimizations.
+description:         Ivory compiler optimizations as well as compiler insertions.  Primarily used by backends.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 license:             BSD3
+license-file:        LICENSE
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory-opts
+  tag:      hackage-0100
 
 library
   exposed-modules:      Ivory.Opts.AssertFold,
@@ -21,7 +29,7 @@ library
 
   other-modules:        Ivory.Opts.Utils
 
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 4.7,
                         ivory,
                         monadLib >= 3.7,
                         filepath,
