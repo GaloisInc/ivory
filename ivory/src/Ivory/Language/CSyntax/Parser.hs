@@ -103,26 +103,81 @@ varExpP = ExpVar <$> T.identifier
 derefExpP :: P Exp
 derefExpP = T.symbol "*" *> (ExpDeref <$> T.identifier)
 
--- | Parse addition.
-addExpP :: P (Exp -> Exp -> Exp)
-addExpP = T.symbol "+"
-       *> pure (\e0 e1 -> ExpOp AddOp [e0, e1])
+-- C's operator precedences: http://www.swansontec.com/sopc.html
+-- 0: highest precedence.
 
--- | Parse a binary operator.
-opExpP :: P (Exp -> Exp -> Exp)
-opExpP = try addExpP
+binExpP0 :: P (Exp -> Exp -> Exp)
+binExpP0 =  binOpP "*"  MulOp
+
+binExpP1 :: P (Exp -> Exp -> Exp)
+binExpP1 = binOpP "+"  AddOp
+       <|> binOpP "-"  SubOp
+
+binExpP3 :: P (Exp -> Exp -> Exp)
+binExpP3 = binOpP ">=" (GtOp True)
+       <|> binOpP ">"  (GtOp False)
+       <|> binOpP "<=" (LtOp True)
+       <|> binOpP "<"  (LtOp False)
+
+binExpP4 :: P (Exp -> Exp -> Exp)
+binExpP4 = binOpP "==" EqOp
+       <|> binOpP "!=" NeqOp
+
+binExpP8 :: P (Exp -> Exp -> Exp)
+binExpP8 = binOpP "&&" AndOp
+
+binExpP9 :: P (Exp -> Exp -> Exp)
+binExpP9 = binOpP "||" OrOp
+
+binOpP :: String -> ExpOp -> P (Exp -> Exp -> Exp)
+binOpP op opAST = try $
+  T.symbol op *> pure (\e0 e1 -> ExpOp opAST [e0, e1])
+
+-- | Unary operators.
+unaryExpP :: P Exp
+unaryExpP = un "!"      NotOp
+        <|> un "-"      NegateOp
+        <|> un "abs"    AbsOp
+        <|> un "signum" SignumOp
+  where
+  -- Parse a factorP: parenthesized exp or a simple term.  Otherwise, binary
+  -- operators are sucked up.
+  un op opAST = try (T.symbol op *> (ExpOp opAST <$> (:[]) <$> factorP))
+
+-- | Parse a conditional expression.
+condExpP :: P Exp
+condExpP = ExpOp CondOp <$> args
+  where
+  -- Turn a list of parsers into P [args]
+  args = foldr (liftA2 (:)) (pure [])
+    [expP', T.symbol "?" *> expP', T.symbol ":" *> expP']
 
 -- | Parse an array index: arr[e0]
 arrIndexP :: P Exp
 arrIndexP = liftA2 ExpArrIx T.identifier (T.brackets expP)
 
--- | Parse an expression.
-expP :: P Exp
-expP = factorP `chainl1` opExpP
+-- XXX need to set precedence of operators.
+-- | Top level expression parser.
+expP = try (T.parens expP)
+   <|> try condExpP
+   <|> try expP' -- Should be last
    <?> "expression parser"
-  where
-  factorP :: P Exp
-  factorP = T.parens expP <|> termExpP
+
+-- | Expressions without 'condExpP'.
+expP' :: P Exp
+expP' =     factorP
+  `chainl1` binExpP0
+  `chainl1` binExpP1
+  `chainl1` binExpP3
+  `chainl1` binExpP4
+  `chainl1` binExpP8
+  `chainl1` binExpP9
+  <?> "expression' parser"
+
+-- | Parse a parenthesized expression or a simple term.  This should be the
+-- argument to a operator that takes an expression.
+factorP :: P Exp
+factorP = T.parens expP' <|> termExpP
 
 -- | Parse antiquotation (Ivory) expression.
 antiExpP :: P Exp
@@ -134,6 +189,7 @@ termExpP = try litExpP
        <|> try arrIndexP
        <|> try derefExpP
        <|> try antiExpP
+       <|> try unaryExpP
        <|> try varExpP -- Try plain variable last
        <?> "term expression parser"
 
@@ -170,13 +226,6 @@ parseAssign key lval rval constr =
      T.symbol key
   *> liftA2 constr (lval <* assign) rval
 
--- | Parse a statement or comment.
-stmtP :: P Stmt -> P Stmt
-stmtP p = T.whiteSpace
-       *> p
-       <* endP
-       <* T.whiteSpace
-
 -- | if-then-else parser.  Then and else blocks must appear within curly braces.
 ifteP :: P Stmt
 ifteP = T.whiteSpace
@@ -209,6 +258,13 @@ loopP :: P Stmt
 loopP = T.symbol "map"
      *> liftA2 Loop T.identifier blockP
 
+-- | Parse a statement or comment.
+stmtP :: P Stmt -> P Stmt
+stmtP p = T.whiteSpace
+       *> p
+       <* endP
+       <* T.whiteSpace
+
 stmtsP :: P Stmt
 stmtsP = try ifteP
      <|> go assignP
@@ -239,12 +295,14 @@ noParse str = "<no valid parse: " ++ str ++ ">"
 
 --------------------------------------------------------------------------------
 
-{-
-test :: String -> IO Stmt
-test = mParse ifteP ("",0,0)
+
+test :: String -> IO Exp
+test = mParse expP ("",0,0)
 
 a = " a :=  3 ; b = 4;   return (a + b); "
-d = " a :=  3 ; "
 b = " if(a;) {b;} {c;} "
 c = "if (abas) {a := 3;} {asadf := 4;}"
--}
+d = " a :=  3 ; "
+e = "7 ? 8 : 3+4"
+f = "return (4+5)"
+g = "return (a ? 3 : 4)"
