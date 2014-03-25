@@ -74,6 +74,17 @@ foo6 = proc "foo" $ \arr0 -> body [c|
   return arr0[1];
 |]
 
+foo7 :: Def ('[IBool, Uint32] :-> Uint32)
+foo7 = proc "foo" $ \b a -> body [c|
+    return (b && !b ? a+3 : abs a - 4);
+|]
+
+-- myMod :: Module
+-- myMod = package "myMod" $ do
+--   incl foo4
+
+--runit = runCompiler [myMod] initialOpts {stdOut = True}
+
 -- foo7 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 -- foo7 = proc "foo" $ \arr -> body [c|
 --   alloc arr[] = {0};
