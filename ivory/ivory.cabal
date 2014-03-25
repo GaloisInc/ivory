@@ -6,13 +6,18 @@ version:             0.1.0.0
 author:              Galois, Inc.
 maintainer:          trevor@galois.com
 category:            Language
+synopsis:            Safe embedded C programming.
+description:         Using GHC type-system extensions, enforces safe low-level programming, while maintaining expressiveness.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 build-type:          Simple
 cabal-version:       >= 1.10
+license:             BSD3
+license-file:        LICENSE
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-0100
 
-flag debug-qq
-  default:              False
-  description:          Enable dumping of template-haskell splices on the
-                        examples
 library
   exposed-modules:      Ivory.Language,
                         Ivory.Language.Effects,
@@ -57,7 +62,7 @@ library
                         Ivory.Language.Uint
   other-modules:        Ivory.Language.Struct.Parser,
                         Ivory.Language.Struct.Quote
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 4.7,
                         pretty >= 1.1,
                         containers >= 0.5,
                         monadLib >= 3.7,
@@ -71,6 +76,4 @@ library
   hs-source-dirs:       src
   default-language:     Haskell2010
 
-  if flag(debug-qq)
-    ghc-options:        -ddump-splices
   ghc-options:          -Wall
