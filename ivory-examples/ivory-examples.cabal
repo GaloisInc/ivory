@@ -1,5 +1,5 @@
 name:                ivory-examples
-version:             0.1.0.1
+version:             0.1.0.2
 author:              Galois, Inc
 maintainer:          trevor@galois.com
 copyright:           2013 Galois, Inc.
@@ -14,7 +14,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-examples-0101
+  tag:      hackage-examples-0102
 
 
 executable ivory-fibtutorial
@@ -37,20 +37,22 @@ executable ivory-fibtutorial
 
 executable ivory-c-clang-test
   main-is:              TestClang.hs
-  other-modules:        Factorial,
+  other-modules:        PID,
                         FibLoop,
-                        PID,
+                        Factorial,
                         String,
                         FunPtr,
+                        Overflow,
                         Float,
+                        Alloc,
                         Area,
                         Cond,
                         Forever,
                         PublicPrivate,
                         Bits,
                         SizeOf,
-                        Array,
                         AddrOfRegression,
+                        Array,
                         QC
   hs-source-dirs:       examples
   build-depends:        base >= 4.6 && < 4.7,
