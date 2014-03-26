@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory-opts
-version:             0.1.0.0
+version:             0.1.0.1
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language
@@ -15,8 +15,8 @@ license:             BSD3
 license-file:        LICENSE
 source-repository    this
   type:     git
-  location: https://github.com/GaloisInc/ivory-opts
-  tag:      hackage-opts-0100a
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-opts-0101
 
 library
   exposed-modules:      Ivory.Opts.AssertFold,
