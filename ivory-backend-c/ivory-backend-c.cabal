@@ -17,8 +17,8 @@ license:             BSD3
 license-file:        LICENSE
 source-repository    this
   type:     git
-  location: https://github.com/GaloisInc/ivory-backend-c
-  tag:      hackage-backend-0100
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-backend-0100a
 
 library
   exposed-modules:      Ivory.Compile.C,
