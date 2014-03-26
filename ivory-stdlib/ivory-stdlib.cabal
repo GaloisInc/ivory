@@ -2,17 +2,21 @@ name:                ivory-stdlib
 version:             0.1.0.0
 author:              Galois, Inc.
 maintainer:          pat@galois.com
+copyright:           2013 Galois, Inc.
 category:            Language
+synopsis:            Ivory standard library.
+description:         A standard library for Ivory.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 build-type:          Simple
 cabal-version:       >= 1.10
 license:             BSD3
-
+license-file:        LICENSE
 data-files: support/ivory_stdlib_string_prim.h,
             support/ivory_stdlib_string_prim.c
-
-flag debug-qq
-  default:              False
-  description:          Enable dumping of template-haskell splices
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-stdlib-0100
 
 library
   exposed-modules:      Ivory.Stdlib,
@@ -26,12 +30,10 @@ library
 
   other-modules:        Paths_ivory_stdlib
 
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 4.7,
                         filepath,
                         ivory
 
   hs-source-dirs:       src
   default-language:     Haskell2010
-  if flag(debug-qq)
-    ghc-options:        -ddump-splices
   ghc-options:          -Wall
