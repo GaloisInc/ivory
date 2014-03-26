@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory-backend-c
-version:             0.1.0.0
+version:             0.1.0.1
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language
@@ -18,7 +18,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-backend-0100a
+  tag:      hackage-backend-0101
 
 library
   exposed-modules:      Ivory.Compile.C,
