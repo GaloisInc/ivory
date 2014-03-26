@@ -6,16 +6,19 @@ version:             0.1.0.0
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language
+synopsis:            Ivory C backend.
+description:         Ivory compiler, to a subset of C99.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 build-type:          Simple
 cabal-version:       >= 1.10
-license:             BSD3
-
 data-files:             runtime/ivory.h,
                         runtime/ivory_asserts.h
-
-flag debug-qq
-  default:              False
-  description:          Enable dumping of template-haskell splices
+license:             BSD3
+license-file:        LICENSE
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory-backend-c
+  tag:      hackage-backend-0100
 
 library
   exposed-modules:      Ivory.Compile.C,
@@ -28,7 +31,7 @@ library
                         Ivory.Compile.C.SourceDeps
   other-modules:        Paths_ivory_backend_c
 
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 4.7,
                         language-c-quote >= 0.7.1,
                         -- XXX remove when inits quasi-quote escape is added
                         srcloc,
@@ -46,6 +49,4 @@ library
   hs-source-dirs:       src
   default-language:     Haskell2010
 
-  if flag(debug-qq)
-    ghc-options:        -ddump-splices
   ghc-options:          -Wall
