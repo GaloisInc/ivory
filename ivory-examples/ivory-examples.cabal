@@ -1,15 +1,21 @@
-name:                   ivory-examples
-version:                0.1.0.0
-author:                 Galois, Inc
-maintainer:             trevor@galois.com
-category:               Language
-build-type:             Simple
-cabal-version:          >= 1.10
-license:                BSD3
+name:                ivory-examples
+version:             0.1.0.0
+author:              Galois, Inc
+maintainer:          trevor@galois.com
+copyright:           2013 Galois, Inc.
+category:            Language
+synopsis:            Ivory examples.
+description:         Various examples demonstrating the use of Ivory.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+build-type:          Simple
+cabal-version:       >= 1.10
+license:             BSD3
+license-file:        LICENSE
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-examples-0100
 
-flag debug-qq
-  default:              False
-  description:          Enable dumping of template-haskell splices
 
 executable ivory-fibtutorial
   main-is:              FibTutorial.hs
@@ -46,7 +52,7 @@ executable ivory-c-clang-test
                         AddrOfRegression,
                         QC
   hs-source-dirs:       examples
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 4.7,
                         pretty >= 1.1,
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
@@ -59,6 +65,4 @@ executable ivory-c-clang-test
                         ivory-stdlib,
                         QuickCheck
   default-language:     Haskell2010
-  if flag(debug-qq)
-    ghc-options:        -ddump-splices
   ghc-options:          -Wall
