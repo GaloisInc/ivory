@@ -1,5 +1,5 @@
 name:                ivory-examples
-version:             0.1.0.0
+version:             0.1.0.1
 author:              Galois, Inc
 maintainer:          trevor@galois.com
 copyright:           2013 Galois, Inc.
@@ -14,7 +14,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-examples-0100
+  tag:      hackage-examples-0101
 
 
 executable ivory-fibtutorial
@@ -49,6 +49,7 @@ executable ivory-c-clang-test
                         PublicPrivate,
                         Bits,
                         SizeOf,
+                        Array,
                         AddrOfRegression,
                         QC
   hs-source-dirs:       examples
