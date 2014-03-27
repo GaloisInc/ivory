@@ -26,6 +26,7 @@ module Ivory.Language (
 
     -- ** Stack Allocation
   , IvoryInit(..), Init()
+  , IvoryZeroVal(izeroval)
   , IvoryZero(izero)
   , iarray
   , InitStruct(), (.=), istruct
