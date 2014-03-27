@@ -48,6 +48,43 @@ data ExpOp
   | AbsOp
   | SignumOp
 
+  | DivOp
+  | ModOp
+-- Don't need in language
+--  | RecipOp
+
+  | FExpOp
+  | FSqrtOp
+  | FLogOp
+  | FPowOp
+-- Don't need in language
+--  | FLogBaseOp
+  | FSinOp
+  | FTanOp
+  | FCosOp
+  | FAsinOp
+  | FAtanOp
+  | FAcosOp
+  | FSinhOp
+  | FTanhOp
+  | FCoshOp
+  | FAsinhOp
+  | FAtanhOp
+  | FAcoshOp
+
+  | IsNanOp
+  | IsInfOp
+  | RoundFOp
+  | CeilFOp
+  | FloorFOp
+
+  | BitAndOp
+  | BitOrOp
+  | BitXorOp
+  | BitComplementOp
+  | BitShiftLOp
+  | BitShiftROp
+
   deriving (Eq, Show, Read)
 
 data AllocRef

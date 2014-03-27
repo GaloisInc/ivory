@@ -49,6 +49,7 @@ foo2 = proc "foo" $ body [c|
   }
 |]
 
+e :: IBool
 e = (4::Sint32) >? 3
 
 foo3 :: Def ('[] :-> IBool)
@@ -76,7 +77,7 @@ foo6 = proc "foo" $ \arr0 -> body [c|
 
 foo7 :: Def ('[IBool, Uint32] :-> Uint32)
 foo7 = proc "foo" $ \b a -> body [c|
-    return (b && !b ? a+3 : abs a - 4);
+    return (b && !b ? a+3 : signum abs a - 4);
 |]
 
 -- myMod :: Module

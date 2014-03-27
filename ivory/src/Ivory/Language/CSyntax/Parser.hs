@@ -107,13 +107,16 @@ derefExpP = T.symbol "*" *> (ExpDeref <$> T.identifier)
 -- 0: highest precedence.
 
 binExpP0 :: P (Exp -> Exp -> Exp)
-binExpP0 =  binOpP "*"  MulOp
+binExpP0 = binOpP "*"  MulOp
+       <|> binOpP "/"  DivOp
+       <|> binOpP "%"  ModOp
 
 binExpP1 :: P (Exp -> Exp -> Exp)
 binExpP1 = binOpP "+"  AddOp
        <|> binOpP "-"  SubOp
 
 binExpP3 :: P (Exp -> Exp -> Exp)
+-- Put <=, >= parsers before their counterparts.
 binExpP3 = binOpP ">=" (GtOp True)
        <|> binOpP ">"  (GtOp False)
        <|> binOpP "<=" (LtOp True)
@@ -123,15 +126,39 @@ binExpP4 :: P (Exp -> Exp -> Exp)
 binExpP4 = binOpP "==" EqOp
        <|> binOpP "!=" NeqOp
 
-binExpP8 :: P (Exp -> Exp -> Exp)
-binExpP8 = binOpP "&&" AndOp
+-- | Expressions without 'condExpP'.  Chaining must be in this order to get
+-- operator presedences right.
+expP' :: P Exp
+expP' =     factorP
+  `chainl1` binExpP0
+  `chainl1` binExpP1
+  `chainl1` binExpP3
+  `chainl1` binExpP4
+  `chainl1` (binOpPDisambig "&" "&&" BitAndOp)
+  `chainl1` (binOpP "^" BitXorOp)
+  `chainl1` (binOpPDisambig "|" "||" BitOrOp)
+  `chainl1` (binOpP "&&" AndOp)
+  `chainl1` (binOpP "||" OrOp)
+  <?> "expression' parser"
 
-binExpP9 :: P (Exp -> Exp -> Exp)
-binExpP9 = binOpP "||" OrOp
+-- | Parse a parenthesized expression or a simple term.  This should be the
+-- argument to a operator that takes an expression.
+factorP :: P Exp
+factorP = T.parens expP' <|> termExpP
 
 binOpP :: String -> ExpOp -> P (Exp -> Exp -> Exp)
-binOpP op opAST = try $
-  T.symbol op *> pure (\e0 e1 -> ExpOp opAST [e0, e1])
+binOpP op = binOpP' (T.symbol op)
+
+-- Look ahead to disambiguate against a partially-matching operator.
+binOpPDisambig :: String -> String -> ExpOp -> P (Exp -> Exp -> Exp)
+binOpPDisambig op0 op1 opAST = binOpP' getSym opAST
+  where
+  getSym = try (lookAhead $ T.symbol op1)
+       <|> T.symbol op0
+
+binOpP' :: P String -> ExpOp -> P (Exp -> Exp -> Exp)
+binOpP' opP opAST =
+  opP *> pure (\e0 e1 -> ExpOp opAST [e0, e1])
 
 -- | Unary operators.
 unaryExpP :: P Exp
@@ -139,6 +166,30 @@ unaryExpP = un "!"      NotOp
         <|> un "-"      NegateOp
         <|> un "abs"    AbsOp
         <|> un "signum" SignumOp
+        <|> un "exp"    FExpOp
+        <|> un "sqrt"   FSqrtOp
+        <|> un "log"    FLogOp
+        <|> un "pow"    FPowOp
+        <|> un "sin"    FSinOp
+        <|> un "cos"    FCosOp
+        <|> un "tan"    FTanOp
+        <|> un "asin"   FAsinOp
+        <|> un "acos"   FAcosOp
+        <|> un "atan"   FAtanOp
+        <|> un "sinh"   FSinhOp
+        <|> un "cosh"   FCoshOp
+        <|> un "tanh"   FTanhOp
+        <|> un "asinh"  FAsinhOp
+        <|> un "acosh"  FAcoshOp
+        <|> un "atanh"  FAtanhOp
+        <|> un "isnan"  IsNanOp
+        <|> un "isinf"  IsInfOp
+        <|> un "round"  RoundFOp
+        <|> un "ceil"   CeilFOp
+        <|> un "floor"  FloorFOp
+        <|> un "~"      BitComplementOp
+        <|> un "<<"     BitShiftLOp
+        <|> un ">>"     BitShiftROp
   where
   -- Parse a factorP: parenthesized exp or a simple term.  Otherwise, binary
   -- operators are sucked up.
@@ -156,28 +207,12 @@ condExpP = ExpOp CondOp <$> args
 arrIndexP :: P Exp
 arrIndexP = liftA2 ExpArrIx T.identifier (T.brackets expP)
 
--- XXX need to set precedence of operators.
 -- | Top level expression parser.
+expP :: P Exp
 expP = try (T.parens expP)
    <|> try condExpP
    <|> try expP' -- Should be last
    <?> "expression parser"
-
--- | Expressions without 'condExpP'.
-expP' :: P Exp
-expP' =     factorP
-  `chainl1` binExpP0
-  `chainl1` binExpP1
-  `chainl1` binExpP3
-  `chainl1` binExpP4
-  `chainl1` binExpP8
-  `chainl1` binExpP9
-  <?> "expression' parser"
-
--- | Parse a parenthesized expression or a simple term.  This should be the
--- argument to a operator that takes an expression.
-factorP :: P Exp
-factorP = T.parens expP' <|> termExpP
 
 -- | Parse antiquotation (Ivory) expression.
 antiExpP :: P Exp
@@ -295,7 +330,6 @@ noParse str = "<no valid parse: " ++ str ++ ">"
 
 --------------------------------------------------------------------------------
 
-
 test :: String -> IO Exp
 test = mParse expP ("",0,0)
 
@@ -306,3 +340,5 @@ d = " a :=  3 ; "
 e = "7 ? 8 : 3+4"
 f = "return (4+5)"
 g = "return (a ? 3 : 4)"
+h = "a & b"
+i = "a >= b"

@@ -14,7 +14,8 @@ module Ivory.Language.CSyntax.QQ
   ( c
   ) where
 
-import Prelude hiding (exp, init)
+import           Prelude hiding (exp, init)
+import qualified Prelude as P
 
 import           Language.Haskell.TH       hiding (Stmt, Exp)
 import qualified Language.Haskell.TH as T
@@ -151,31 +152,64 @@ fromLit lit = case lit of
 
 fromOpExp :: DerefVarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of
-  EqOp     -> mkInfix '(==)
-  NeqOp    -> mkInfix '(/=)
-  CondOp   -> mkTert  '(?)
+  EqOp            -> mkInfix '(==)
+  NeqOp           -> mkInfix '(/=)
+  CondOp          -> mkTert  '(?)
 
-  GtOp g   -> mkInfix $ if g then '(>=) else '(>)
-  LtOp g   -> mkInfix $ if g then '(<=) else '(<)
+  GtOp g          -> mkInfix $ if g then '(>=) else '(>)
+  LtOp g          -> mkInfix $ if g then '(<=) else '(<)
 
-  NotOp    -> mkUn 'iNot
-  AndOp    -> mkInfix '(.&&)
-  OrOp     -> mkInfix '(.||)
+  NotOp           -> mkUn 'iNot
+  AndOp           -> mkInfix '(.&&)
+  OrOp            -> mkInfix '(.||)
 
-  MulOp    -> mkInfix '(*)
-  AddOp    -> mkInfix '(+)
-  SubOp    -> mkInfix '(-)
-  NegateOp -> mkInfix 'negate
-  AbsOp    -> mkUn 'abs
-  SignumOp -> mkUn 'signum
+  MulOp           -> mkInfix '(*)
+  AddOp           -> mkInfix '(+)
+  SubOp           -> mkInfix '(-)
+  NegateOp        -> mkInfix 'negate
+  AbsOp           -> mkUn 'abs
+  SignumOp        -> mkUn 'signum
+
+  DivOp           -> mkInfix 'iDiv -- truncate toward 0 (Haskell's 'quot')
+  ModOp           -> mkInfix '(.%)
+
+  FExpOp          -> mkUn 'P.exp
+  FSqrtOp         -> mkUn 'sqrt
+  FLogOp          -> mkUn 'log
+  FPowOp          -> mkInfix '(**)
+  FSinOp          -> mkUn 'sin
+  FTanOp          -> mkUn 'tan
+  FCosOp          -> mkUn 'cos
+  FAsinOp         -> mkUn 'asin
+  FAtanOp         -> mkUn 'atan
+  FAcosOp         -> mkUn 'acos
+  FSinhOp         -> mkUn 'sinh
+  FTanhOp         -> mkUn 'tanh
+  FCoshOp         -> mkUn 'cosh
+  FAsinhOp        -> mkUn 'asinh
+  FAtanhOp        -> mkUn 'atanh
+  FAcoshOp        -> mkUn 'acosh
+
+  IsNanOp         -> mkUn 'isnan
+  IsInfOp         -> mkUn 'isinf
+  RoundFOp        -> mkUn 'roundF
+  CeilFOp         -> mkUn 'ceilF
+  FloorFOp        -> mkUn 'floorF
+
+  BitAndOp        -> mkInfix '(.&)
+  BitOrOp         -> mkInfix '(.|)
+  BitXorOp        -> mkInfix '(.^)
+  BitComplementOp -> mkUn 'iComplement
+  BitShiftLOp     -> mkUn 'iShiftL
+  BitShiftROp     -> mkUn 'iShiftR
 
   where
   getArg i = toExp env (args !! i)
   mkArg    = Just . getArg
-  mkInfix op = InfixE (mkArg 0) (VarE op) (mkArg 1)
-  mkTert  op =
-    InfixE (mkArg 0) (VarE op) (Just $ TupE [getArg 1, getArg 2])
-  mkUn op = AppE (VarE op) (getArg 0)
+  mkInfix op' = InfixE (mkArg 0) (VarE op') (mkArg 1)
+  mkTert  op' =
+    InfixE (mkArg 0) (VarE op') (Just $ TupE [getArg 1, getArg 2])
+  mkUn op' = AppE (VarE op') (getArg 0)
 
 toExp :: DerefVarEnv -> Exp -> T.Exp
 toExp env exp = case exp of
