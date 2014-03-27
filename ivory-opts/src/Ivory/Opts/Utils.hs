@@ -20,8 +20,6 @@ expOpType t0 op = case op of
   I.ExpLt _      t1 -> t1
   I.ExpIsNan     t1 -> t1
   I.ExpIsInf     t1 -> t1
-  I.ExpToFloat   t1 -> t1
-  I.ExpFromFloat t1 -> t1
   _                 -> t0
 
 --------------------------------------------------------------------------------
