@@ -338,9 +338,6 @@ data ExpOp
   | ExpCeilF
   | ExpFloorF
 
-  | ExpToFloat Type
-  | ExpFromFloat Type -- ^ Truncate towards zero.
-
   | ExpBitAnd
   | ExpBitOr
   | ExpBitXor

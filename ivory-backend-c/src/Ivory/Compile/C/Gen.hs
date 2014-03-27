@@ -518,11 +518,11 @@ toExpOp ty op args = case op of
   I.ExpCeilF     -> floatingBinary ty "ceil" args
   I.ExpFloorF    -> floatingBinary ty "floor" args
 
-  -- float casting
-  I.ExpToFloat ety   -> let xs = mkArgs ety args in
-                        [cexp| ($ty:(toType ty))($exp:(exp0 xs)) |]
-  I.ExpFromFloat ety ->
-    [cexp| ($ty:(toType ty))($exp:(floatingUnary ety "trunc" args)) |]
+  -- -- float casting
+  -- I.ExpToFloat ety   -> let xs = mkArgs ety args in
+  --                       [cexp| ($ty:(toType ty))($exp:(exp0 xs)) |]
+  -- I.ExpFromFloat ety ->
+  --   [cexp| ($ty:(toType ty))($exp:(floatingUnary ety "trunc" args)) |]
 
   -- bit operations
   I.ExpBitAnd        -> let xs = mkArgs ty args in

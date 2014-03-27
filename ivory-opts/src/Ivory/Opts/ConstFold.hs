@@ -227,8 +227,6 @@ cfOp ty op args =
     I.ExpBitOr         -> toExpr (cfBitOr ty  $ goArgs ty)
 
     -- Unimplemented right now
-    I.ExpToFloat t     -> noop t
-    I.ExpFromFloat t   -> noop t
     I.ExpRoundF        -> noop ty
     I.ExpCeilF         -> noop ty
     I.ExpFloorF        -> noop ty
