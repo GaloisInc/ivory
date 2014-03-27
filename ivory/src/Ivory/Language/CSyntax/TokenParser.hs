@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Ivory.Language.CSyntax.TokenParser where
 
