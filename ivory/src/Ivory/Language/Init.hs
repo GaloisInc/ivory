@@ -131,18 +131,32 @@ instance ProcType proc => IvoryInit (ProcPtr proc)
 instance IvoryArea area => IvoryInit (Ptr Global area)
 instance SingI len => IvoryInit (Ix len)
 
-instance IvoryZero (Stored IBool) where
-  izero = ival false
+class (IvoryVar a) => IvoryZeroVal a where
+  izeroval :: Init (Stored a)
 
-instance IvoryZero (Stored IChar) where
-  izero = ival (char '\0')
+instance IvoryZeroVal IBool where
+  izeroval = ival false
 
-instance IvoryArea area => IvoryZero (Stored (Ptr Global area)) where
-  izero = ival nullPtr
+instance IvoryZeroVal IChar where
+  izeroval = ival (char '\0')
 
--- catch-all case for numeric things
-instance (Num a, IvoryInit a) => IvoryZero (Stored a) where
-  izero = ival 0
+-- IvoryZero instances for numeric things
+instance IvoryZeroVal Uint8    where izeroval = ival 0
+instance IvoryZeroVal Uint16   where izeroval = ival 0
+instance IvoryZeroVal Uint32   where izeroval = ival 0
+instance IvoryZeroVal Uint64   where izeroval = ival 0
+instance IvoryZeroVal Sint8    where izeroval = ival 0
+instance IvoryZeroVal Sint16   where izeroval = ival 0
+instance IvoryZeroVal Sint32   where izeroval = ival 0
+instance IvoryZeroVal Sint64   where izeroval = ival 0
+instance IvoryZeroVal IFloat   where izeroval = ival 0
+instance IvoryZeroVal IDouble  where izeroval = ival 0
+
+instance IvoryArea area => IvoryZeroVal (Ptr Global area) where
+  izeroval = ival nullPtr
+
+instance IvoryZeroVal a => IvoryZero (Stored a) where
+  izero = izeroval
 
 -- Array Initializers ----------------------------------------------------------
 
