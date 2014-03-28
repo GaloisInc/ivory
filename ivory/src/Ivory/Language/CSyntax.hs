@@ -80,6 +80,14 @@ foo7 = proc "foo" $ \b a -> body [c|
     return (b && !b ? a+3 : signum abs a - 4);
 |]
 
+foo8 :: Def ('[IBool, Uint32] :-> Uint32)
+foo8 = proc "foo" $ \b a -> body [c|
+    foo2();
+    x = foo7 (b, a);
+    foo7 (b, a);
+    return (b && !b ? a+3 : signum abs a - 4);
+|]
+
 -- myMod :: Module
 -- myMod = package "myMod" $ do
 --   incl foo4

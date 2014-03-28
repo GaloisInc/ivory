@@ -26,13 +26,20 @@ import qualified Ivory.Language.CSyntax.TokenParser as T
 parseAssign :: String -> P a -> P b -> (a -> b -> c) -> P c
 parseAssign key lval rval constr =
      T.symbol key
-  *> liftA2 constr (lval <* assign) rval
+  *> liftA2 constr (lval <* assignSym) rval
 
 -- | if-then-else parser.  Then and else blocks must appear within curly braces.
 ifteP :: P Stmt
-ifteP = T.whiteSpace
-     *> T.symbol "if"
+ifteP = T.symbol "if"
      *> liftA3 IfTE expP blockP (T.symbol "else" *> blockP)
+
+-- | Assertion parser.
+assertP :: P Stmt
+assertP = T.symbol "assert" *> (Assert <$> expP)
+
+-- | Assumption parser.
+assumeP :: P Stmt
+assumeP = T.symbol "assert" *> (Assume <$> expP)
 
 -- | Parse a return statement.
 returnP :: P Stmt
@@ -47,9 +54,22 @@ returnP = T.symbol "return"
 storeP :: P Stmt
 storeP = liftA2 Store refLVar (T.symbol "=" *> expP)
 
--- | Simple ssignment parser: var = exp
+-- | Simple assignment parser: let var = exp
 assignP :: P Stmt
 assignP = parseAssign "let" T.identifier expP Assign
+
+-- | Function calls.  Either
+-- > v = foo(e0, e1, ..., en)
+-- or
+-- > foo(e0, e1, ..., en)
+-- if the function has a void return type.
+callP :: P Stmt
+callP = try (parseAssign "" T.identifier rvalP constr)
+    <|> Call Nothing <$> T.identifier <*> argsP
+  where
+  argsP              = T.parens (T.commaSep expP)
+  rvalP              = (,) <$> T.identifier <*> argsP
+  constr v (f, args) = Call (Just v) f args
 
 -- | Stack-allocation parser.
 allocP :: P Stmt
@@ -62,17 +82,18 @@ loopP = T.symbol "map"
 
 -- | Parse a statement or comment.
 stmtP :: P Stmt -> P Stmt
-stmtP p = T.whiteSpace
-       *> p
+stmtP p = p
        <* endP
-       <* T.whiteSpace
 
 stmtsP :: P Stmt
 stmtsP = try ifteP
+     <|> go assertP
+     <|> go assumeP
      <|> go assignP
      <|> go returnP
      <|> go allocP
      <|> go storeP
+     <|> go callP
      <|> try loopP
      <?> noParse "statement parser"
   where
@@ -99,7 +120,7 @@ parseAlloc = parseAssign "alloc"
 
 -- | Parse var[]; return var.
 arrLValue :: P String
-arrLValue = T.identifier <* T.whiteSpace <* T.brackets T.whiteSpace
+arrLValue = T.identifier <* T.brackets T.whiteSpace
 
 -- | Parse alloc arr[] = { e0, e1, ... en }
 arrAllocP :: P AllocRef
@@ -120,8 +141,8 @@ refLVar = try ref' <|> try arrIx <?> noParse "ref lvar parser"
   ref' = RefVar <$> ref
 
 -- | Parse assignment.
-assign :: P ()
-assign = void (T.symbol "=")
+assignSym :: P ()
+assignSym = void (T.symbol "=")
 
 -- | Parse a pointer: *var
 ref :: P RefVar
@@ -132,3 +153,4 @@ endP :: P ()
 endP = T.semi *> pure ()
 
 --------------------------------------------------------------------------------
+

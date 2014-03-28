@@ -2,6 +2,7 @@ module Ivory.Language.CSyntax.ParseAST where
 
 --------------------------------------------------------------------------------
 
+type FnSym     = String
 type Var       = String
 type RefVar    = String
 type IxVar     = String
@@ -95,25 +96,17 @@ data AllocRef
 -- | AST for parsing C-like statements.
 data Stmt
   = IfTE Exp [Stmt] [Stmt]
-    -- ^ if (exp) { stmts } else { stmts }
---  | Assert
---  | CompilerAssert
---  | Assume
+  | Assert Exp
+  | Assume Exp
   | Return Exp
-    -- ^ return exp;
   | ReturnVoid
-    -- ^ return;
---  | Deref XXX dereferencing is an expression in our language here.
+--  | Deref dereferencing is an expression in our language here.
   | Store RefLVal Exp
-    -- ^ * var = exp;
   | Assign Var Exp
-    -- ^ var = exp;
---  | Call
+  | Call (Maybe Var) FnSym [Exp]
 --  | Local
 --  | RefCopy
   | AllocRef AllocRef
-    -- ^ * var = init;
-    -- ^ arr[] = {0,1,2};
   | Loop IxVar [Stmt]
 --  | Forever
 --  | Break
