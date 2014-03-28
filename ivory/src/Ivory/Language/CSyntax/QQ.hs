@@ -96,6 +96,14 @@ fromStmt stmt = case stmt of
     b0 <- fromBlock blk0
     b1 <- fromBlock blk1
     insert $ NoBindS (AppE (AppE (AppE (VarE 'ifte_) cd) b0) b1)
+  Assert exp
+    -> do
+    e <- fromExp exp
+    insert $ NoBindS (AppE (VarE 'assert) e)
+  Assume exp
+    -> do
+    e <- fromExp exp
+    insert $ NoBindS (AppE (VarE 'assume) e)
   Return exp
     -> do
     e <- fromExp exp
@@ -118,6 +126,15 @@ fromStmt stmt = case stmt of
     e <- fromExp exp
     let v = mkName var
     insert $ BindS (VarP v) (AppE (VarE 'assign) e)
+  Call mres sym exps
+    -> do
+    es <- mapM fromExp exps
+    let func c   = AppE (VarE c) (VarE $ mkName sym)
+    let callit c = foldl AppE (func c) es
+    insert $ case mres of
+      Nothing  -> NoBindS (callit 'call_)
+      Just res -> let r = mkName res in
+                  BindS (VarP r) (callit 'call)
   AllocRef alloc
     -> fromAlloc alloc
   Loop ixVar blk
