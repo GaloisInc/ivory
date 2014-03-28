@@ -38,7 +38,7 @@ defBitRep ''BitRep ''Uint64 [33..64]
 
 -- | Set of constraints we require on a bit representation type.
 type IvoryRep a = (IvoryBits a, IvoryOrd a, IvoryInit a,
-                   IvoryStore a, IvoryType a)
+                   IvoryStore a, IvoryType a, IvoryZeroVal a)
 
 ----------------------------------------------------------------------
 -- Bit Data Type
@@ -47,10 +47,13 @@ type IvoryRep a = (IvoryBits a, IvoryOrd a, IvoryInit a,
 -- integer.
 newtype Bits (n :: Nat) = Bits { unBits :: BitRep n }
 
-deriving instance (IvoryRep (BitRep n)) => IvoryType (Bits n)
-deriving instance (IvoryRep (BitRep n)) => IvoryVar  (Bits n)
-deriving instance (IvoryRep (BitRep n)) => IvoryExpr (Bits n)
-deriving instance (IvoryRep (BitRep n)) => IvoryEq   (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryType  (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryVar   (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryExpr  (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryEq    (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryStore (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryInit  (Bits n)
+deriving instance (IvoryRep (BitRep n)) => IvoryZeroVal (Bits n)
 
 -- | "Bit" is a type alias for "Bits 1".
 type Bit = Bits 1
