@@ -371,7 +371,8 @@ mkDef d = do
 mkDefNewtype :: THDef -> [DecQ]
 mkDefNewtype def = [newtypeD (cxt []) name []
                     (normalC name [strictType notStrict (return ty)])
-                    [''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr, ''I.IvoryEq]]
+                    [ ''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr , ''I.IvoryEq
+                    , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ]]
   where
     name = thDefName def
     ty   = thDefType def
