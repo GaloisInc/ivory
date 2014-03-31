@@ -60,17 +60,17 @@ ivoryCParser = qParse programP
 
 --------------------------------------------------------------------------------
 
-test :: String -> IO Stmt
-test = mParse callP ("",0,0)
+-- test :: String -> IO Stmt
+-- test = mParse callP ("",0,0)
 
-a = " a :=  3 ; b = 4;   return (a + b); "
-b = " if(a;) {b;} {c;} "
-c = "if (abas) {a := 3;} {asadf := 4;}"
-d = " a :=  3 ; "
-e = "7 ? 8 : 3+4"
-f = "return (4+5)"
-g = "return (a ? 3 : 4)"
-h = "a & b"
-i = "a >= b"
-j = "foo()"
-k = "v = foo()"
+-- a = " a :=  3 ; b = 4;   return (a + b); "
+-- b = " if(a;) {b;} {c;} "
+-- c = "if (abas) {a := 3;} {asadf := 4;}"
+-- d = " a :=  3 ; "
+-- e = "7 ? 8 : 3+4"
+-- f = "return (4+5)"
+-- g = "return (a ? 3 : 4)"
+-- h = "a & b"
+-- i = "a >= b"
+-- j = "foo()"
+-- k = "v = foo()"

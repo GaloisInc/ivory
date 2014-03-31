@@ -75,10 +75,17 @@ callP = try (parseAssign "" T.identifier rvalP constr)
 allocP :: P Stmt
 allocP = AllocRef <$> (try allocRefP <|> arrAllocP)
 
+-- | Reference copy parser.
+refCopyP :: P Stmt
+refCopyP = T.symbol "memcpy" *> (RefCopy <$> expP <*> expP)
+
 -- | Loop parser.
 loopP :: P Stmt
-loopP = T.symbol "map"
-     *> liftA2 Loop T.identifier blockP
+loopP = T.symbol "map" *> liftA2 Loop T.identifier blockP
+
+-- | Forever loop parser.
+foreverP :: P Stmt
+foreverP = T.symbol "forever" *> (Forever <$> blockP)
 
 -- | Parse a statement or comment.
 stmtP :: P Stmt -> P Stmt
@@ -92,9 +99,11 @@ stmtsP = try ifteP
      <|> go assignP
      <|> go returnP
      <|> go allocP
+     <|> go refCopyP
      <|> go storeP
      <|> go callP
      <|> try loopP
+     <|> try foreverP
      <?> noParse "statement parser"
   where
   go = try . stmtP

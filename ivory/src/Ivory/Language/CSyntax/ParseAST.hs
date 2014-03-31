@@ -104,10 +104,10 @@ data Stmt
   | Store RefLVal Exp
   | Assign Var Exp
   | Call (Maybe Var) FnSym [Exp]
---  | Local
---  | RefCopy
+  | RefCopy Exp Exp
+-- Local is AllocRef
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
---  | Forever
---  | Break
+  | Forever [Stmt]
+--  | Break Too dangerous (and difficult) for non-macro use?
   deriving (Eq, Show, Read)
