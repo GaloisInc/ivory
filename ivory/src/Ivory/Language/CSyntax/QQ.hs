@@ -23,7 +23,7 @@ import           Language.Haskell.TH.Quote
 
 import Language.Haskell.Meta.Parse (parseExp)
 
-import Ivory.Language hiding (Init)
+import Ivory.Language hiding (Init, Break)
 --import qualified Ivory.Language as I
 
 import Ivory.Language.CSyntax.Parser
@@ -129,12 +129,22 @@ fromStmt stmt = case stmt of
   Call mres sym exps
     -> do
     es <- mapM fromExp exps
-    let func c   = AppE (VarE c) (VarE $ mkName sym)
-    let callit c = foldl AppE (func c) es
+    let func f   = AppE (VarE f) (VarE $ mkName sym)
+    let callit f = foldl AppE (func f) es
     insert $ case mres of
       Nothing  -> NoBindS (callit 'call_)
       Just res -> let r = mkName res in
                   BindS (VarP r) (callit 'call)
+  RefCopy refDest refSrc
+    -> do
+    eDest <- fromExp refDest
+    eSrc  <- fromExp refSrc
+    insert $ NoBindS (AppE (AppE (VarE 'refCopy) eDest) eSrc)
+  Forever blk
+    -> do
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (VarE 'forever) b)
+--  Break -> insert $ NoBindS (VarE 'break)
   AllocRef alloc
     -> fromAlloc alloc
   Loop ixVar blk

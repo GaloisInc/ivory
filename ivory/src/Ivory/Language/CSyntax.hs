@@ -88,6 +88,19 @@ foo8 = proc "foo" $ \b a -> body [c|
     return (b && !b ? a+3 : signum abs a - 4);
 |]
 
+foo9 :: Def ('[Uint32] :-> ())
+foo9 = proc "foo" $ \a -> body [c|
+  forever {
+    let b = a + 3;
+    return;
+  }
+|]
+
+foo10 :: Def ('[Ref s (Array 3 (Stored Uint32)), Ref s (Array 3 (Stored Uint32))] :-> ())
+foo10 = proc "foo" $ \r0 r1 -> body [c|
+  memcpy r0 r1;
+|]
+
 -- myMod :: Module
 -- myMod = package "myMod" $ do
 --   incl foo4
@@ -99,3 +112,4 @@ foo8 = proc "foo" $ \b a -> body [c|
 --   alloc arr[] = {0};
 --   return arr[1];
 -- |]
+
