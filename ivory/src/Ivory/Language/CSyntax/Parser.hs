@@ -14,9 +14,10 @@ import Prelude hiding (exp, init)
 import Text.Parsec
 import Text.Parsec.String (Parser)
 
-import Language.Haskell.TH hiding (Stmt, Exp, litP)
+import Language.Haskell.TH hiding (Stmt, Exp, litP, Type)
 
 import Ivory.Language.CSyntax.Parsers.StmtParser
+import Ivory.Language.CSyntax.Parsers.TypeParser
 import Ivory.Language.CSyntax.ParseAST
 import qualified Ivory.Language.CSyntax.TokenParser as T
 
@@ -49,6 +50,8 @@ qParse parser str = do
   let body = loc_start loc
   mParse parser (loc_filename loc, fst body, snd body) str
 
+
+
 ivoryCParser :: String -> Q [Stmt]
 ivoryCParser = qParse programP
 
@@ -60,17 +63,18 @@ ivoryCParser = qParse programP
 
 --------------------------------------------------------------------------------
 
--- test :: String -> IO Stmt
--- test = mParse callP ("",0,0)
+test :: String -> IO TyProc
+test = mParse procTyP ("",0,0)
 
--- a = " a :=  3 ; b = 4;   return (a + b); "
--- b = " if(a;) {b;} {c;} "
--- c = "if (abas) {a := 3;} {asadf := 4;}"
--- d = " a :=  3 ; "
--- e = "7 ? 8 : 3+4"
--- f = "return (4+5)"
--- g = "return (a ? 3 : 4)"
--- h = "a & b"
--- i = "a >= b"
--- j = "foo()"
--- k = "v = foo()"
+a = " a :=  3 ; b = 4;   return (a + b); "
+b = " if(a;) {b;} {c;} "
+c = "if (abas) {a := 3;} {asadf := 4;}"
+d = " a :=  3 ; "
+e = "7 ? 8 : 3+4"
+f = "return (4+5)"
+g = "return (a ? 3 : 4)"
+h = "a & b"
+i = "a >= b"
+j = "foo()"
+k = "v = foo()"
+l = "void foo (g*uint16_t, s* uint8_t, *uint8_t);"
