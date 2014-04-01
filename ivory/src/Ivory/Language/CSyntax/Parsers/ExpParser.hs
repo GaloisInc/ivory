@@ -142,7 +142,7 @@ expP :: P Exp
 expP = try (T.parens expP)
    <|> try condExpP
    <|> try expP' -- Should be last
-   <?> "expression parser"
+   <?> noParse "expression parser"
 
 -- | Parse antiquotation (Ivory) expression.
 antiExpP :: P Exp
@@ -156,5 +156,5 @@ termExpP = try litExpP
        <|> try antiExpP
        <|> try unaryExpP
        <|> try varExpP -- Try plain variable last
-       <?> "term expression parser"
+       <?> noParse "term expression parser"
 

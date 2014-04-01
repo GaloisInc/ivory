@@ -8,6 +8,54 @@ type RefVar    = String
 type IxVar     = String
 --type Size      = Integer
 
+--------------------------------------------------------------------------------
+
+-- data Program = Stmts [Stmt]
+--              | Type
+
+--------------------------------------------------------------------------------
+
+data Type
+  = TyVoid                    -- ^ Unit type
+  | TyInt IntSize             -- ^ Signed ints
+  | TyWord WordSize           -- ^ Unsigned ints
+  | TyBool                    -- ^ Booleans
+  | TyChar                    -- ^ Characters
+  | TyFloat                   -- ^ Floats
+  | TyDouble                  -- ^ Doubles
+  | TyRef MemArea Type        -- ^ References
+  -- | TyConstRef Type           -- ^ Constant References
+  -- | TyPtr Type                -- ^ Pointers
+  | TyArr Integer Type        -- ^ Arrays
+  | TyStruct String           -- ^ Structures
+--  | TyCArray Type             -- ^ C Arrays
+--  | TyOpaque                  -- ^ Opaque type---not implementable.
+    deriving (Show, Eq, Ord)
+
+data MemArea = Stack   -- ^ Stack allocated
+             | Global  -- ^ Globally allocated
+             | PolyMem -- ^ Either allocation
+  deriving (Show, Eq, Ord)
+
+data TyProc = TyProc Type String [Type] -- ^ Procedures
+  deriving (Show, Eq, Ord)
+
+data IntSize
+  = Int8
+  | Int16
+  | Int32
+  | Int64
+  deriving (Show,Eq,Ord)
+
+data WordSize
+  = Word8
+  | Word16
+  | Word32
+  | Word64
+  deriving (Show,Eq,Ord)
+
+--------------------------------------------------------------------------------
+
 data RefLVal
   = RefVar RefVar
   | ArrIx RefVar Exp
@@ -109,5 +157,5 @@ data Stmt
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
   | Forever [Stmt]
---  | Break Too dangerous (and difficult) for non-macro use?
+--  | Break XXX Too dangerous (and difficult) for non-macro use?
   deriving (Eq, Show, Read)
