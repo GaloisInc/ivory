@@ -35,13 +35,6 @@ uintSzP = go "uint8_t" Word8
       <|> go "uint32_t" Word32
       <|> go "uint64_t" Word64
 
--- Function prototype parser
--- > retType foo(argTy0, argTy1, ...);
-procTyP :: P TyProc
-procTyP = TyProc <$> tyP <*> T.identifier <*> tyArgs <* T.semi
-  where
-  tyArgs = T.parens (T.commaSep tyP)
-
 -- | Parse a memory area designator: "g *" (global), "s *" (stack), "*"
 -- (either).
 memAreaP :: P MemArea
@@ -83,6 +76,3 @@ tyP :: P Type
 tyP = baseTypeP
   <|> try refTyP
   <?> noParse "type parser"
-
-
-
