@@ -2,16 +2,26 @@ module Ivory.Language.CSyntax.ParseAST where
 
 --------------------------------------------------------------------------------
 
+-- data Grammar = Grammar
+--   | Typ 
+--   Stmts [Stmt]
+
+
+--------------------------------------------------------------------------------
+
 type FnSym     = String
 type Var       = String
 type RefVar    = String
 type IxVar     = String
---type Size      = Integer
 
 --------------------------------------------------------------------------------
 
--- data Program = Stmts [Stmt]
---              | Type
+data ProcDef = ProcDef
+  Type         -- ^ Return type
+  FnSym        -- ^ Function name
+  [(Type,Var)] -- ^ Argument types
+  [Stmt]       -- ^ Body
+  deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 
@@ -30,40 +40,37 @@ data Type
   | TyStruct String           -- ^ Structures
 --  | TyCArray Type             -- ^ C Arrays
 --  | TyOpaque                  -- ^ Opaque type---not implementable.
-    deriving (Show, Eq, Ord)
+    deriving (Show, Read, Eq, Ord)
 
 data MemArea = Stack   -- ^ Stack allocated
              | Global  -- ^ Globally allocated
              | PolyMem -- ^ Either allocation
-  deriving (Show, Eq, Ord)
-
-data TyProc = TyProc Type String [Type] -- ^ Procedures
-  deriving (Show, Eq, Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data IntSize
   = Int8
   | Int16
   | Int32
   | Int64
-  deriving (Show,Eq,Ord)
+  deriving (Show, Read, Eq, Ord)
 
 data WordSize
   = Word8
   | Word16
   | Word32
   | Word64
-  deriving (Show,Eq,Ord)
+  deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 
 data RefLVal
   = RefVar RefVar
   | ArrIx RefVar Exp
-  deriving (Eq, Show, Read)
+  deriving (Show, Read, Eq, Ord)
 
 data Literal
   = LitInteger Integer
-  deriving (Eq, Show, Read)
+  deriving (Show, Read, Eq, Ord)
 
 data Exp
   = ExpLit Literal
@@ -74,7 +81,7 @@ data Exp
   | ExpArrIx RefVar Exp
   | ExpAnti String
     -- ^ Ivory antiquotation
-  deriving (Eq, Show, Read)
+  deriving (Show, Read, Eq, Ord)
 
 data ExpOp
   = EqOp
@@ -134,12 +141,12 @@ data ExpOp
   | BitShiftLOp
   | BitShiftROp
 
-  deriving (Eq, Show, Read)
+  deriving (Show, Read, Eq, Ord)
 
 data AllocRef
   = AllocBase RefVar Exp
   | AllocArr  RefVar [Exp]
-  deriving (Eq, Show, Read)
+  deriving (Show, Read, Eq, Ord)
 
 -- | AST for parsing C-like statements.
 data Stmt
@@ -158,4 +165,4 @@ data Stmt
   | Loop IxVar [Stmt]
   | Forever [Stmt]
 --  | Break XXX Too dangerous (and difficult) for non-macro use?
-  deriving (Eq, Show, Read)
+  deriving (Show, Read, Eq, Ord)
