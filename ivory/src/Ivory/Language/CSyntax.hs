@@ -40,7 +40,6 @@ int32_t foo1() {
   }
 }
 
-
 void foo2() {
   if (true) {
     return;
@@ -76,33 +75,32 @@ uint32_t foo6(*uint32_t[3] arr0) {
   }
   return arr0[1];
 }
+
+--foo7 :: Def ('[IBool, Uint32] :-> Uint32)
+uint32_t foo7(bool b, uint32_t a) {
+    return (b && !b ? a+3 : signum abs a - 4);
+}
+
+--foo8 :: Def ('[IBool, Uint32] :-> Uint32)
+uint32_t foo8(bool b, uint32_t a) {
+    foo2();
+    x = foo7 (b, a);
+    foo7 (b, a);
+    return (b && !b ? a+3 : signum abs a - 4);
+}
+
+--foo9 :: Def ('[Uint32] :-> ())
+void foo9(uint32_t a) {
+  forever {
+    let b = a + 3;
+    return;
+  }
+}
+
+void foo10(*uint32_t[3] r0, *uint32_t[3] r1) {
+  memcpy r0 r1;
+}
 |]
-
--- foo7 :: Def ('[IBool, Uint32] :-> Uint32)
--- foo7 = proc "foo" $ \b a -> body [c|
---     return (b && !b ? a+3 : signum abs a - 4);
--- |]
-
--- foo8 :: Def ('[IBool, Uint32] :-> Uint32)
--- foo8 = proc "foo" $ \b a -> body [c|
---     foo2();
---     x = foo7 (b, a);
---     foo7 (b, a);
---     return (b && !b ? a+3 : signum abs a - 4);
--- |]
-
--- foo9 :: Def ('[Uint32] :-> ())
--- foo9 = proc "foo" $ \a -> body [c|
---   forever {
---     let b = a + 3;
---     return;
---   }
--- |]
-
--- foo10 :: Def ('[Ref s (Array 3 (Stored Uint32)), Ref s (Array 3 (Stored Uint32))] :-> ())
--- foo10 = proc "foo" $ \r0 r1 -> body [c|
---   memcpy r0 r1;
--- |]
 
 -- -- myMod :: Module
 -- -- myMod = package "myMod" $ do

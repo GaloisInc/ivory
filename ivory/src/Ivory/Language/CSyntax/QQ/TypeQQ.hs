@@ -118,7 +118,7 @@ fromProcType (ProcDef retTy procName args _) = do
   where
   fromArgs :: Q (T.Type, [Name])
   fromArgs = runToQ $ foldM go PromotedNilT
-                               (fst $ unzip args)
+                               (reverse $ fst $ unzip args)
   -- Grab the type variables to quantify them.
   go :: T.Type -> Type -> TTyVar T.Type
   go acc ty = do
