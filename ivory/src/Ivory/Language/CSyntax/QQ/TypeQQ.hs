@@ -81,15 +81,15 @@ fromRef mem ty = do
   ma      <- fromMemArea mem
   return $ AppT (AppT (ConT ''I.Ref) ma) ty'
 
-fromArray :: Integer -> Type -> TTyVar T.Type
-fromArray sz ty = do
+fromArray :: Type -> Integer -> TTyVar T.Type
+fromArray ty sz = do
   let szTy = (LitT (NumTyLit sz))
   ty'    <- storedTy ty
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr szTy) ty'
 
 fromStruct :: Name -> TTyVar T.Type
-fromStruct nm = undefined
+fromStruct nm = error "from struct QQ not defined"
 
 fromType :: Type -> TTyVar T.Type
 fromType ty = case ty of
@@ -101,7 +101,7 @@ fromType ty = case ty of
   TyFloat      -> c ''I.IFloat
   TyDouble     -> c ''I.IDouble
   TyRef qma qt -> fromRef qma qt
-  TyArr sz ty' -> fromArray sz ty'
+  TyArr ty' sz -> fromArray ty' sz
   TyStruct nm  -> fromStruct (mkName nm)
   where
   c = liftQ . conT
@@ -128,5 +128,5 @@ fromProcType (ProcDef retTy procName args _) = do
 --------------------------------------------------------------------------------
 -- Helpers
 
---liftPromote :: TTyVar Name
+liftPromote :: Name -> TTyVar T.Type
 liftPromote = liftQ . promotedT

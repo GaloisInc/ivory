@@ -36,7 +36,7 @@ data Type
   | TyRef MemArea Type        -- ^ References
   -- | TyConstRef Type           -- ^ Constant References
   -- | TyPtr Type                -- ^ Pointers
-  | TyArr Integer Type        -- ^ Arrays
+  | TyArr Type Integer        -- ^ Arrays
   | TyStruct String           -- ^ Structures
 --  | TyCArray Type             -- ^ C Arrays
 --  | TyOpaque                  -- ^ Opaque type---not implementable.
