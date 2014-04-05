@@ -1,7 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 --
 -- Ivory types QuasiQuoter.
@@ -17,6 +15,8 @@ import qualified Prelude as P
 
 import Control.Monad
 
+import Ivory.Language.CSyntax.QQ.Common
+
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
@@ -24,6 +24,12 @@ import           Language.Haskell.TH.Quote()
 import qualified Ivory.Language as I
 
 import Ivory.Language.CSyntax.ParseAST
+
+--------------------------------------------------------------------------------
+
+-- We use a state monad over the Q monad to keep track of type variables that we
+-- need to quantify later.
+type TTyVar a = QStM Name a
 
 --------------------------------------------------------------------------------
 
@@ -41,41 +47,86 @@ fromWordSz sz = case sz of
   Word32 -> ''I.Uint32
   Word64 -> ''I.Uint64
 
-fromMemArea :: MemArea -> Q T.Type
+fromMemArea :: MemArea -> TTyVar T.Type
 fromMemArea ma = case ma of
-   Stack   -> promotedT 'Stack
-   Global  -> promotedT 'Global
-   PolyMem -> newName "s" >>= return . VarT
+  Global  -> liftPromote 'I.Global
+  Stack   -> do s <- liftPromote 'I.Stack
+                n <- new
+                return (AppT s n)
+  PolyMem -> new
+  where
+  new :: TTyVar T.Type
+  new = do n <- liftQ (newName "s")
+           insert n
+           return (VarT n)
 
-fromType :: Type -> Q T.Type
+storedTy :: Type -> TTyVar T.Type
+storedTy ty = do
+  ty' <- fromType ty
+  s   <- liftPromote 'I.Stored
+  let stored = return (AppT s ty')
+  case ty of
+    TyVoid       -> stored
+    TyInt{}      -> stored
+    TyWord{}     -> stored
+    TyBool       -> stored
+    TyChar       -> stored
+    TyFloat      -> stored
+    TyDouble     -> stored
+    _            -> return ty'
+
+fromRef :: MemArea -> Type -> TTyVar T.Type
+fromRef mem ty = do
+  ty'     <- storedTy ty
+  ma      <- fromMemArea mem
+  return $ AppT (AppT (ConT ''I.Ref) ma) ty'
+
+fromArray :: Integer -> Type -> TTyVar T.Type
+fromArray sz ty = do
+  let szTy = (LitT (NumTyLit sz))
+  ty'    <- storedTy ty
+  arr    <- liftPromote 'I.Array
+  return $ AppT (AppT arr szTy) ty'
+
+fromStruct :: Name -> TTyVar T.Type
+fromStruct nm = undefined
+
+fromType :: Type -> TTyVar T.Type
 fromType ty = case ty of
-  TyVoid       -> conT ''()
-  TyInt sz     -> conT (fromIntSz sz)
-  TyWord sz    -> conT (fromWordSz sz)
-  TyBool       -> conT ''I.IBool
-  TyChar       -> conT ''I.IChar
-  TyFloat      -> conT ''I.IFloat
-  TyDouble     -> conT ''I.IDouble
-  TyRef qma qt -> do t  <- fromType qt
-                     ma <- fromMemArea qma
-                     return $ AppT (AppT (ConT ''I.Ref) ma) t
+  TyVoid       -> c ''()
+  TyInt sz     -> c (fromIntSz sz)
+  TyWord sz    -> c (fromWordSz sz)
+  TyBool       -> c ''I.IBool
+  TyChar       -> c ''I.IChar
+  TyFloat      -> c ''I.IFloat
+  TyDouble     -> c ''I.IDouble
+  TyRef qma qt -> fromRef qma qt
+  TyArr sz ty' -> fromArray sz ty'
+  TyStruct nm  -> fromStruct (mkName nm)
+  where
+  c = liftQ . conT
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
 fromProcType (ProcDef retTy procName args _) = do
-  arr         <- promotedT '(I.:->)
-  ret         <- fromType retTy
-  (vars,theargs) <- fromArgs
-  let def = AppT (ConT ''I.Def) (AppT (AppT arr theargs) ret)
+  arr                 <- promotedT '(I.:->)
+  (ret,retTyVars)     <- runToQ (fromType retTy)
+  (argVars,argTyVars) <- fromArgs
+  let def = AppT (ConT ''I.Def) (AppT (AppT arr argVars) ret)
   return $ SigD (mkName procName)
-                (ForallT (map PlainTV vars) [] def)
+                (ForallT (map PlainTV (argTyVars ++ retTyVars)) [] def)
   where
-  fromArgs = foldM go ([], PromotedNilT)
-                      (fst $ unzip args)
+  fromArgs :: Q (T.Type, [Name])
+  fromArgs = runToQ $ foldM go PromotedNilT
+                               (fst $ unzip args)
   -- Grab the type variables to quantify them.
-  go (tyVars, acc) ty = do
+  go :: T.Type -> Type -> TTyVar T.Type
+  go acc ty = do
     ty' <- fromType ty
-    let aptTy = AppT acc ty'
-    return $ case ty' of
-      VarT a  -> (a : tyVars, aptTy)
-      _       -> (tyVars    , aptTy)
+    return (AppT (AppT PromotedConsT ty') acc)
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+--liftPromote :: TTyVar Name
+liftPromote = liftQ . promotedT
