@@ -24,13 +24,13 @@ import qualified Ivory.Language.CSyntax.TokenParser as T
 -- > retType foo(argTy0, argTy1, ...) { stmts }
 procP :: P ProcDef
 procP = ProcDef
-      <$> tyP
+      <$> typeP
       <*> T.identifier
       <*> tyArgs
       <*> blockP
   where
   tyArgs = T.parens (T.commaSep tyArg)
-  tyArg  = (,) <$> tyP <*> T.identifier
+  tyArg  = (,) <$> typeP <*> T.identifier
 
 --------------------------------------------------------------------------------
 
