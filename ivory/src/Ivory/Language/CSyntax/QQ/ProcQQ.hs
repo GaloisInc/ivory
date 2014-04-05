@@ -1,7 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 --
 -- Ivory procedure quasiquoter.
@@ -38,8 +36,8 @@ fromProc pd@(ProcDef _ procName args body) = do
   where
   args' = snd (unzip args)
   procBody  = do
-    vars <- mapM newName args'
-    let lams = (map VarP vars)
+    let vars = map mkName args'
+    let lams = map VarP vars
     prog <- fromProgram body
     let nm = AppE (VarE 'I.proc) (LitE $ StringL procName)
     let fn = LamE lams (AppE (VarE 'I.body) prog)
