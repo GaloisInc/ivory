@@ -47,13 +47,13 @@ memAreaP = try (T.symbol "s" *> go "*" Stack)
 refTyP :: P Type
 refTyP = TyRef <$> memAreaP <*> baseTypeP
 
--- | Array type parser.
-arrTyP :: P Type
-arrTyP = TyArr <$> T.integer <*> baseTypeP
+-- -- | Array type parser.
+-- arrTyP :: P Type
+-- arrTyP = TyArr <$> T.integer <*> baseTypeP
 
--- | Struct type parser.
-structTyP :: P Type
-structTyP = TyStruct <$> T.identifier
+-- -- | Struct type parser.
+-- structTyP :: P Type
+-- structTyP = TyStruct <$> T.identifier
 
 -- | Base (non-reference) types.
 baseTypeP :: P Type
@@ -65,14 +65,14 @@ baseTypeP =
  <|> go "char" TyChar
  <|> go "float" TyFloat
  <|> go "double" TyDouble
- <|> try arrTyP
- <|> try structTyP
+ -- <|> try arrTyP
+ -- <|> try structTyP
  <?> noParse "baseTypes"
   where
   liftTy constr p = try (constr <$> p)
 
 -- | Type parser.
-tyP :: P Type
-tyP = baseTypeP
+typeP :: P Type
+typeP = baseTypeP
   <|> try refTyP
   <?> noParse "type parser"

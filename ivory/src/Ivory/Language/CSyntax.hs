@@ -18,6 +18,9 @@ import Ivory.Language.CSyntax.QQ
 -- XXX testing
 import Ivory.Language
 
+e :: IBool
+e = (4::Sint32) >? 3
+
 [c|
 int32_t foo0() {
   alloc *x = 3;
@@ -46,15 +49,16 @@ void foo2() {
     return ;
   }
 }
+
+bool foo3() {
+  return :i e;
+}
+
+uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
+  *b = *a;
+  return *b;
+}
 |]
-
--- e :: IBool
--- e = (4::Sint32) >? 3
-
--- foo3 :: Def ('[] :-> IBool)
--- foo3 = proc "foo" $ body [c|
---   return :i e;
--- |]
 
 -- foo4 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 -- foo4 = proc "foo" $ \arr0 -> body $ do

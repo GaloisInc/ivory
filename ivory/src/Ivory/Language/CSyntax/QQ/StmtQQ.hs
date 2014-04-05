@@ -1,7 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 --
 -- QuasiQuoter for Ivory statements.
@@ -17,6 +15,7 @@ import qualified Prelude as P
 
 import Ivory.Language.CSyntax.QQ.ExprQQ
 import Ivory.Language.CSyntax.QQ.Types
+import Ivory.Language.CSyntax.QQ.Common
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -27,48 +26,20 @@ import qualified Ivory.Language as I
 
 import           Data.List (nub)
 import           Control.Monad (forM_)
-import           MonadLib   (set, get)
-import qualified MonadLib   as M
-import           Data.Monoid
-import qualified Data.DList as D
 
 import Ivory.Language.CSyntax.ParseAST
 
 --------------------------------------------------------------------------------
--- Monad for inserting statements.  Necessary since we'll parse dereferences as
--- expressions but they become Ivory/Haskell statements.
 
-newtype StmtM a b = StmtM
-  { unStmtM :: M.StateT (D.DList a) T.Q b
-  } deriving (Functor, Monad)
-
-instance M.StateM (StmtM a) (D.DList a) where
-  get = StmtM M.get
-  set = StmtM . M.set
-
-insert :: a -> StmtM a ()
-insert a = do
-  st <- get
-  set (D.snoc st a)
-
-runToQ :: StmtM a b -> Q (b, D.DList a)
-runToQ m = M.runStateT mempty (unStmtM m)
-
-liftQ :: Q b -> StmtM a b
-liftQ = StmtM . M.lift
-
-type TStmtM a = StmtM T.Stmt a
-
-runToStmts :: TStmtM a -> Q [T.Stmt]
-runToStmts m = do
-  (_, st) <- runToQ m
-  return (D.toList st)
+-- We use a state monad over the Q monad to keep track of expressions in the
+-- parsed language that we'll turn into statements in Ivory.
+type TStmtM a = QStM T.Stmt a
 
 --------------------------------------------------------------------------------
 
 fromProgram :: [Stmt] -> Q T.Exp
 fromProgram program = return .
-  DoE =<< (runToStmts $ forM_ program fromStmt)
+  DoE =<< (runToSt $ forM_ program fromStmt)
 
 fromBlock :: [Stmt] -> TStmtM T.Exp
 fromBlock = liftQ . fromProgram
