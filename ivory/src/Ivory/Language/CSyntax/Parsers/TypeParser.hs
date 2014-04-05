@@ -43,31 +43,36 @@ memAreaP = try (T.symbol "s" *> go "*" Stack)
        <|> go "*" PolyMem
        <?> noParse "memArea parser"
 
+-- | Array type parser: ty[sz]
+arrTyP :: P Type
+arrTyP = TyArr
+     <$> baseTypeP
+     <*> T.brackets T.integer
+
+-- | Struct type parser.
+structTyP :: P Type
+structTyP = TyStruct
+        <$> (T.symbol "struct" *> T.identifier)
+
 -- | reference type parser.
 refTyP :: P Type
-refTyP = TyRef <$> memAreaP <*> baseTypeP
-
--- -- | Array type parser.
--- arrTyP :: P Type
--- arrTyP = TyArr <$> T.integer <*> baseTypeP
-
--- -- | Struct type parser.
--- structTyP :: P Type
--- structTyP = TyStruct <$> T.identifier
+refTyP = TyRef <$> memAreaP <*> memTy
+  where
+  memTy = try arrTyP
+      <|> try structTyP
+      <|> try baseTypeP -- Should be last try.
+      <?> noParse "refTyP"
 
 -- | Base (non-reference) types.
 baseTypeP :: P Type
-baseTypeP =
-     go "void" TyVoid
- <|> liftTy TyInt intSzP
- <|> liftTy TyWord uintSzP
- <|> go "bool" TyBool
- <|> go "char" TyChar
- <|> go "float" TyFloat
- <|> go "double" TyDouble
- -- <|> try arrTyP
- -- <|> try structTyP
- <?> noParse "baseTypes"
+baseTypeP = go "void" TyVoid
+        <|> liftTy TyInt intSzP
+        <|> liftTy TyWord uintSzP
+        <|> go "bool" TyBool
+        <|> go "char" TyChar
+        <|> go "float" TyFloat
+        <|> go "double" TyDouble
+        <?> noParse "baseTypes"
   where
   liftTy constr p = try (constr <$> p)
 
