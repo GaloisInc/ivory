@@ -58,7 +58,6 @@ uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
   *b = *a;
   return *b;
 }
-|]
 
 -- foo4 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 -- foo4 = proc "foo" $ \arr0 -> body $ do
@@ -69,14 +68,15 @@ uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
 --   y <- deref (arr0 ! 1)
 --   ret y
 
--- foo6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
--- foo6 = proc "foo" $ \arr0 -> body [c|
---   alloc arr1[] = {1,2,3};
---   map ix {
---     arr0[ix] = arr1[ix];
---   }
---   return arr0[1];
--- |]
+--foo6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
+uint32_t foo6(*uint32_t[3] arr0) {
+  alloc arr1[] = {1,2,3};
+  map ix {
+    arr0[ix] = arr1[ix];
+  }
+  return arr0[1];
+}
+|]
 
 -- foo7 :: Def ('[IBool, Uint32] :-> Uint32)
 -- foo7 = proc "foo" $ \b a -> body [c|
