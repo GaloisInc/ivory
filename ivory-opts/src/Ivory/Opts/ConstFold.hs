@@ -120,6 +120,7 @@ stmtFold cxt opt blk stmt =
                         (newFold blk')
     I.Break              -> snoc I.Break
     I.Forever b          -> snoc $ I.Forever (newFold b)
+    I.Comment c          -> snoc $ I.Comment c
   where sf       = stmtFold cxt opt
         newFold' = foldl' sf D.empty
         newFold  = D.toList . newFold'
