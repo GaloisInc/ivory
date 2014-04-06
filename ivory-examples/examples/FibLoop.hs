@@ -27,15 +27,19 @@ fib_loop :: Def ('[Ix 1000] :-> Uint32)
 fib_loop  = proc "fib_loop" $ \ n -> body $ do
   a <- local (ival 0)
   b <- local (ival 0)
-
+  comment "before loop"
   n `times` \ _ -> do
+    comment "inside top of loop"
     a' <- deref a
     b' <- deref b
     store a b'
     store b (a' + b')
+    comment "inside end of loop"
+  comment "after end of loop"
 
   result <- deref a
   ret result
+  comment "after return"
 
 -- Loop implementation of fib, using a structure instead
 -- of two discrete variables.
