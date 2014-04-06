@@ -32,7 +32,7 @@ library
   other-modules:        Paths_ivory_backend_c
 
   build-depends:        base >= 4.6 && < 4.7,
-                        language-c-quote >= 0.7.1,
+                        language-c-quote >= 0.7.8,
                         -- XXX remove when inits quasi-quote escape is added
                         srcloc,
                         mainland-pretty >= 0.2.5,
