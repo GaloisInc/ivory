@@ -206,6 +206,8 @@ data Stmt
   | Break
     -- ^ Break out of a loop
 
+  | Comment String
+    -- ^ User comment, can be used to output a comment in the backend.
     deriving (Show, Eq, Ord)
 
 data LoopIncr

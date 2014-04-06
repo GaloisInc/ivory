@@ -29,6 +29,7 @@ library
                         Ivory.Language.BoundedInteger,
                         Ivory.Language.CArray,
                         Ivory.Language.Cast,
+                        Ivory.Language.Comment,
                         Ivory.Language.Cond,
                         Ivory.Language.Const,
                         Ivory.Language.Float,
