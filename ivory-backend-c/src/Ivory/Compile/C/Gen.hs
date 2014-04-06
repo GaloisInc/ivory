@@ -319,6 +319,7 @@ toBody ens stmt =
     I.Store t ptr exp             -> [C.BlockStm
       [cstm| * $exp:(toExpr (I.TyRef t) ptr) = $exp:(toExpr t exp); |]]
 
+    I.Comment c                   -> [C.BlockStm (C.Comment c noLoc)]
 -- | Return statement.
 typedRet :: I.Typed I.Expr -> C.Exp
 typedRet I.Typed { I.tType  = t
