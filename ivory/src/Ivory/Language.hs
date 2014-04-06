@@ -164,6 +164,8 @@ module Ivory.Language (
 
     -- * Utilities
   , Proxy(..)
+
+  , comment
   ) where
 
 import Ivory.Language.Area
@@ -172,6 +174,7 @@ import Ivory.Language.Assert
 import Ivory.Language.Bits
 import Ivory.Language.CArray
 import Ivory.Language.Cast
+import Ivory.Language.Comment
 import Ivory.Language.Cond
 import Ivory.Language.Const
 import Ivory.Language.Effects
