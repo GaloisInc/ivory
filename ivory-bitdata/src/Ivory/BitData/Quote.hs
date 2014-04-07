@@ -485,9 +485,10 @@ mkConstrFields def c = concat $ mapLayout (mkField def) c
 mkField :: THDef -> THLayoutItem -> [DecQ]
 mkField def l@(THLayoutField f pos) =
   [ sigD name ty
-  , valD (varP name) (normalB [| B.BitDataField $posE $lenE |]) []]
+  , valD (varP name) (normalB [| B.BitDataField $posE $lenE $nameE |]) []]
   where
     name = thFieldName f
+    nameE = litE (stringL (nameBase name))
     lenE = litE (integerL (fromIntegral (thFieldLen f)))
     posE = litE (integerL (fromIntegral pos))
     fty = return (thFieldType f)
