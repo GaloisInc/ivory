@@ -63,6 +63,7 @@ library
                         Ivory.Language.CSyntax.QQ.ExprQQ,
                         Ivory.Language.CSyntax.QQ.ProcQQ,
                         Ivory.Language.CSyntax.QQ.StmtQQ,
+                        Ivory.Language.CSyntax.QQ.TypeQQ,
                         Ivory.Language.CSyntax.QQ.Types,
                         Ivory.Language.CSyntax.TokenParser,
                         Ivory.Language.Syntax,

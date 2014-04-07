@@ -47,7 +47,10 @@ memAreaP = try (T.symbol "s" *> go "*" Stack)
 arrTyP :: P Type
 arrTyP = TyArr
      <$> baseTypeP
-     <*> T.brackets T.integer
+     <*> T.brackets sz
+  where
+  sz :: P (Either Integer String)
+  sz = (Left <$> T.integer) <|> (Right <$> T.identifier)
 
 -- | Struct type parser.
 structTyP :: P Type
