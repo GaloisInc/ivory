@@ -19,6 +19,9 @@ import Ivory.HW.Machine
 -- using the "mkReg" functions.
 data Reg t = Reg Integer
 
+-- XXX decouple module from STM32F4 : paramaterize mkReg by definition for
+-- ioAreas
+
 -- | Smart constructor that ensures a register address is in bounds
 -- when created.  This raises an error if the address is invalid.
 mkReg :: forall t. IvoryIOReg t => Integer -> Reg t
