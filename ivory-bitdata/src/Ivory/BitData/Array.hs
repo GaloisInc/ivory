@@ -61,7 +61,8 @@ BitArray bits #! i =
   where
     n'       = fromIntegral (fromSing (sing :: Sing n)) :: Int
     elemSize = fromIntegral (fromSing (sing :: Sing (BitSize a))) :: Int
-    field    = BitDataField (i * elemSize) elemSize
+    field    = BitDataField (i * elemSize) elemSize ixname
+    ixname = "[" ++ show i ++ "]"
 
 -- | Return a "BitDataField" that accesses the "n"th element of a
 -- "BitArray".  This can be composed with other field accessors using
@@ -72,6 +73,7 @@ bitIx :: forall a n.
           SingI (BitSize a),
           SingI (ArraySize n a))
       => Int -> BitDataField (BitArray n a) a
-bitIx i = BitDataField (i * elemSize) elemSize
+bitIx i = BitDataField (i * elemSize) elemSize ixname
   where
+    ixname = "[" ++ show i ++ "]"
     elemSize = fromIntegral (fromSing (sing :: Sing (BitSize a))) :: Int

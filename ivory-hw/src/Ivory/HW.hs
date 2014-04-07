@@ -10,7 +10,8 @@ module Ivory.HW (
   Reg(), IvoryIOReg(), mkReg, readReg, writeReg
 
   -- * Bit Data I/O registers
-  , BitDataReg(), mkBitDataReg, getReg, setReg, modifyReg
+  , BitDataReg(), mkBitDataReg,  mkBitDataRegNamed
+  , getReg, setReg, modifyReg
 ) where
 
 import Ivory.HW.Reg

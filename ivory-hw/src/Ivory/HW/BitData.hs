@@ -9,6 +9,7 @@
 module Ivory.HW.BitData where
 
 import Numeric (showHex)
+import Data.List (intercalate)
 
 import Ivory.BitData
 import Ivory.Language
@@ -23,8 +24,9 @@ data BitDataReg d =
     , bdr_name :: Maybe String
     }
 
-bdrComment :: BitDataReg d -> String -> Ivory eff ()
-bdrComment r c = comment (regname ++ " " ++ c )
+bdrComment :: BitDataReg d -> String -> String -> Ivory eff ()
+bdrComment r c c' =
+  comment ("reg " ++ c ++ " " ++ regname ++ ": " ++ c' )
   where
   regname = case bdr_name r of
     Just n -> n
@@ -42,7 +44,7 @@ mkBitDataRegNamed a n = BitDataReg { bdr_reg = mkReg a, bdr_name = Just n }
 getReg :: (BitData d, IvoryIOReg (BitDataRep d))
        => BitDataReg d -> Ivory eff d
 getReg r = do
-  bdrComment r "get register"
+  bdrComment r "get" ""
   val <- readReg (bdr_reg r)
   return $ fromRep val
 
@@ -51,8 +53,8 @@ getReg r = do
 setReg :: (BitData d, IvoryIOReg (BitDataRep d))
        => BitDataReg d -> BitDataM d a -> Ivory eff a
 setReg r mf = do
-  let (result, val) = runBits 0 mf
-  bdrComment r "set register"
+  let (result, val, ss) = runBits 0 mf
+  bdrComment r "set" (intercalate ", " ss)
   writeReg (bdr_reg r) val
   return result
 
@@ -61,7 +63,7 @@ modifyReg :: (BitData d, IvoryIOReg (BitDataRep d))
           => BitDataReg d -> BitDataM d a -> Ivory eff a
 modifyReg r mf = do
   val <- readReg (bdr_reg r)
-  let (result, val') = runBits val mf
-  bdrComment r "modify register"
+  let (result, val', ss) = runBits val mf
+  bdrComment r "modify" (intercalate ", " ss)
   writeReg (bdr_reg r) val'
   return result

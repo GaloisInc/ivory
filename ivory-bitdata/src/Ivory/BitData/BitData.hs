@@ -71,14 +71,16 @@ instance (SingI n, IvoryRep (BitRep n)) => BitData (Bits n) where
 -- This constructor must remain unexported so that only fields checked
 -- by the quasiquoter are created.
 data BitDataField a b = BitDataField
-  { bitDataFieldPos :: Int
-  , bitDataFieldLen :: Int
+  { bitDataFieldPos  :: Int
+  , bitDataFieldLen  :: Int
+  , bitDataFieldName :: String
   } deriving Show
 
 -- | Bit data field composition.  (like Control.Category.>>>)
 (#>) :: BitDataField a b -> BitDataField b c -> BitDataField a c
-(BitDataField p1 _) #> (BitDataField p2 l2) = BitDataField pos len
+(BitDataField p1 _ n1) #> (BitDataField p2 l2 n2) = BitDataField pos len name
   where
+    name = n1 ++ "." ++ n2
     pos = p1 + p2
     len = l2
 
