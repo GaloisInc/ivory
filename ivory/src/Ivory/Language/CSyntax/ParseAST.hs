@@ -13,6 +13,7 @@ type FnSym     = String
 type Var       = String
 type RefVar    = String
 type IxVar     = String
+type TypeVar   = String
 
 --------------------------------------------------------------------------------
 
@@ -26,20 +27,26 @@ data ProcDef = ProcDef
 --------------------------------------------------------------------------------
 
 data Type
-  = TyVoid                    -- ^ Unit type
-  | TyInt IntSize             -- ^ Signed ints
-  | TyWord WordSize           -- ^ Unsigned ints
-  | TyBool                    -- ^ Booleans
-  | TyChar                    -- ^ Characters
-  | TyFloat                   -- ^ Floats
-  | TyDouble                  -- ^ Doubles
-  | TyRef MemArea Type        -- ^ References
-  -- | TyConstRef Type           -- ^ Constant References
-  -- | TyPtr Type                -- ^ Pointers
-  | TyArr Type Integer        -- ^ Arrays
-  | TyStruct String           -- ^ Structures
---  | TyCArray Type             -- ^ C Arrays
---  | TyOpaque                  -- ^ Opaque type---not implementable.
+  = TyVoid                     -- ^ Unit type
+  | TyInt IntSize              -- ^ Signed ints
+  | TyWord WordSize            -- ^ Unsigned ints
+  | TyBool                     -- ^ Booleans
+  | TyChar                     -- ^ Characters
+  | TyFloat                    -- ^ Floats
+  | TyDouble                   -- ^ Doubles
+  | TyRef MemArea Type         -- ^ References
+
+  -- | TyConstRef Type         -- ^ Constant References
+  -- | TyPtr Type              -- ^ Pointers
+
+  | TyArr Type (Either Integer TypeVar)
+  -- ^ Arrays, either of polymorphic length or fixed length.  Polymorphic
+  -- lengths require a type variable.
+
+  | TyStruct String            -- ^ Structures
+
+--  | TyCArray Type            -- ^ C Arrays
+--  | TyOpaque                 -- ^ Opaque type---not implementable.
     deriving (Show, Read, Eq, Ord)
 
 data MemArea = Stack   -- ^ Stack allocated
