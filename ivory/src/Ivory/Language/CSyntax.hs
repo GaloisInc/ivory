@@ -100,6 +100,12 @@ void foo9(uint32_t a) {
 void foo10(*uint32_t[3] r0, *uint32_t[3] r1) {
   memcpy r0 r1;
 }
+
+-- Polymorphic array lengths.
+void foo11(*uint32_t[a] r0, *uint32_t[a] r1) {
+  memcpy r0 r1;
+}
+
 |]
 
 -- -- myMod :: Module

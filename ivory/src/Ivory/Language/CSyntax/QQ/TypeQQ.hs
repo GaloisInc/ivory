@@ -13,7 +13,9 @@ module Ivory.Language.CSyntax.QQ.TypeQQ where
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
+import Data.List (nub)
 import Control.Monad
+import GHC.TypeLits
 
 import Ivory.Language.CSyntax.QQ.Common
 
@@ -27,9 +29,18 @@ import Ivory.Language.CSyntax.ParseAST
 
 --------------------------------------------------------------------------------
 
+-- Data type to keep track of class constraints
+data Class = Int -- SingI type constraint
+  deriving (Show, Read, Eq, Ord)
+
+data TyVar = TyVar
+  { tyVar       :: Name
+  , constraints :: [Class]
+  } deriving (Show, Eq, Ord)
+
 -- We use a state monad over the Q monad to keep track of type variables that we
 -- need to quantify later.
-type TTyVar a = QStM Name a
+type TTyVar a = QStM TyVar a
 
 --------------------------------------------------------------------------------
 
@@ -55,10 +66,26 @@ fromMemArea ma = case ma of
                 return (AppT s n)
   PolyMem -> new
   where
-  new :: TTyVar T.Type
-  new = do n <- liftQ (newName "s")
-           insert n
-           return (VarT n)
+  new = newTyVar "s" []
+
+--------------------------------------------------------------------------------
+
+constrTyVar :: Name -> [Class] -> TTyVar T.Type
+constrTyVar n classes = do
+  insert (TyVar n classes)
+  return (VarT n)
+
+newTyVar :: String -> [Class] -> TTyVar T.Type
+newTyVar v classes = do
+  n <- liftQ (newName v)
+  constrTyVar n classes
+
+mkTyVar :: String -> [Class] -> TTyVar T.Type
+mkTyVar v classes = do
+  n <- return (mkName v)
+  constrTyVar n classes
+
+--------------------------------------------------------------------------------
 
 storedTy :: Type -> TTyVar T.Type
 storedTy ty = do
@@ -81,15 +108,17 @@ fromRef mem ty = do
   ma      <- fromMemArea mem
   return $ AppT (AppT (ConT ''I.Ref) ma) ty'
 
-fromArray :: Type -> Integer -> TTyVar T.Type
+fromArray :: Type -> Either Integer String -> TTyVar T.Type
 fromArray ty sz = do
-  let szTy = (LitT (NumTyLit sz))
+  szTy   <- case sz of
+              Left sz -> return (LitT (NumTyLit sz))
+              Right v -> mkTyVar "v" [Int]
   ty'    <- storedTy ty
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr szTy) ty'
 
 fromStruct :: Name -> TTyVar T.Type
-fromStruct nm = error "from struct QQ not defined"
+fromStruct nm = error $ "from struct QQ not defined: " ++ show nm
 
 fromType :: Type -> TTyVar T.Type
 fromType ty = case ty of
@@ -113,20 +142,41 @@ fromProcType (ProcDef retTy procName args _) = do
   (ret,retTyVars)     <- runToQ (fromType retTy)
   (argVars,argTyVars) <- fromArgs
   let def = AppT (ConT ''I.Def) (AppT (AppT arr argVars) ret)
+  -- All the type variables
+  let tyVars = argTyVars ++ retTyVars
   return $ SigD (mkName procName)
-                (ForallT (map PlainTV (argTyVars ++ retTyVars)) [] def)
+                (ForallT (allTyVars tyVars)
+                         -- construct their class constaints
+                         (allCtxs tyVars)
+                         def
+                )
   where
-  fromArgs :: Q (T.Type, [Name])
+
+  fromArgs :: Q (T.Type, [TyVar])
   fromArgs = runToQ $ foldM go PromotedNilT
                                (reverse $ fst $ unzip args)
+
   -- Grab the type variables to quantify them.
   go :: T.Type -> Type -> TTyVar T.Type
   go acc ty = do
     ty' <- fromType ty
     return (AppT (AppT PromotedConsT ty') acc)
 
+  -- Construct the class constraints per type variable
+  cxt :: TyVar -> [T.Pred]
+  cxt (TyVar nm classes) =
+    map (\cl -> T.ClassP (toClass cl) [T.VarT nm]) classes
+
+  allTyVars = nub . (map (PlainTV . tyVar))
+  allCtxs   = nub . (concatMap cxt)
+
+
 --------------------------------------------------------------------------------
 -- Helpers
 
 liftPromote :: Name -> TTyVar T.Type
 liftPromote = liftQ . promotedT
+
+toClass :: Class -> Name
+toClass cl = case cl of
+  Int -> ''SingI
