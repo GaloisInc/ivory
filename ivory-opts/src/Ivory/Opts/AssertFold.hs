@@ -112,6 +112,7 @@ stmtFold ef stmt = case stmt of
   I.AllocRef{}                    -> insert stmt
   I.Forever blk                   -> do let blk' = runEmptyState ef blk
                                         insert (I.Forever blk')
+  I.Comment _                     -> insert stmt
   where
   efTyped (I.Typed ty e) = ef ty e
   efIncr incr = case incr of
