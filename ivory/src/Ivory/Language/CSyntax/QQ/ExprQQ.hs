@@ -84,6 +84,8 @@ fromOpExp env op args = case op of
   BitShiftLOp     -> mkUn 'I.iShiftL
   BitShiftROp     -> mkUn 'I.iShiftR
 
+  ConstRefOp      -> mkUn 'I.constRef
+
   where
   getArg i = toExp env (args !! i)
   mkArg    = Just . getArg
