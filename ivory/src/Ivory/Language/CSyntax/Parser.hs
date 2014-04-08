@@ -17,8 +17,6 @@ import Text.Parsec.String (Parser)
 import Language.Haskell.TH hiding (Stmt, Exp, litP, Type)
 
 import Ivory.Language.CSyntax.Parsers.ProcParser
-import Ivory.Language.CSyntax.Parsers.StmtParser
-import Ivory.Language.CSyntax.Parsers.TypeParser
 import Ivory.Language.CSyntax.ParseAST
 import qualified Ivory.Language.CSyntax.TokenParser as T
 
