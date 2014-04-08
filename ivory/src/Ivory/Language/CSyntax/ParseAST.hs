@@ -2,13 +2,6 @@ module Ivory.Language.CSyntax.ParseAST where
 
 --------------------------------------------------------------------------------
 
--- data Grammar = Grammar
---   | Typ 
---   Stmts [Stmt]
-
-
---------------------------------------------------------------------------------
-
 type FnSym     = String
 type Var       = String
 type RefVar    = String
@@ -45,9 +38,8 @@ data Type
   -- | TyConstRef Type         -- ^ Constant References
   -- | TyPtr Type              -- ^ Pointers
 
-  | TyArr Type (Either Integer TypeVar)
-  -- ^ Arrays, either of polymorphic length or fixed length.  Polymorphic
-  -- lengths require a type variable.
+  | TyArr Type Integer
+  -- ^ Arrays of fixed length
 
   | TyStruct String            -- ^ Structures
 
