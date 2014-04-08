@@ -120,6 +120,7 @@ unaryExpP = un "!"      NotOp
         <|> un "~"      BitComplementOp
         <|> un "<<"     BitShiftLOp
         <|> un ">>"     BitShiftROp
+        <|> un "const"  ConstRefOp
   where
   -- Parse a factorP: parenthesized exp or a simple term.  Otherwise, binary
   -- operators are sucked up.
