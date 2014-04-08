@@ -108,11 +108,9 @@ fromRef mem ty = do
   ma      <- fromMemArea mem
   return $ AppT (AppT (ConT ''I.Ref) ma) ty'
 
-fromArray :: Type -> Either Integer String -> TTyVar T.Type
+fromArray :: Type -> Integer -> TTyVar T.Type
 fromArray ty sz = do
-  szTy   <- case sz of
-              Left sz -> return (LitT (NumTyLit sz))
-              Right v -> mkTyVar "v" [Int]
+  let szTy = LitT (NumTyLit sz)
   ty'    <- storedTy ty
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr szTy) ty'
@@ -163,12 +161,12 @@ fromProcType (ProcDef retTy procName args _) = do
     return (AppT (AppT PromotedConsT ty') acc)
 
   -- Construct the class constraints per type variable
-  cxt :: TyVar -> [T.Pred]
-  cxt (TyVar nm classes) =
+  mkCxt :: TyVar -> [T.Pred]
+  mkCxt (TyVar nm classes) =
     map (\cl -> T.ClassP (toClass cl) [T.VarT nm]) classes
 
   allTyVars = nub . (map (PlainTV . tyVar))
-  allCtxs   = nub . (concatMap cxt)
+  allCtxs   = nub . (concatMap mkCxt)
 
 
 --------------------------------------------------------------------------------
