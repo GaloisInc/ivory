@@ -15,7 +15,6 @@ module Ivory.Language.CSyntax.QQ   ( c ) where
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 import           Data.Char
-import           Data.List
 
 import qualified Language.Haskell.TH       as Q
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
@@ -60,8 +59,8 @@ ivorySymMod sym = case sym of
 -- | Define an Ivory module, one per module.
 ivoryMod :: [GlobalSym] -> Q [Dec]
 ivoryMod incls = do
-  modTy  <- mkModTy
-  mi <- modImp
+  modTy <- mkModTy
+  mi    <- modImp
   return [modTy, mi]
   where
   modImp :: Q Dec
