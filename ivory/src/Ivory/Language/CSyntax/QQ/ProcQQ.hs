@@ -13,18 +13,18 @@ module Ivory.Language.CSyntax.QQ.ProcQQ where
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
-import Ivory.Language.CSyntax.QQ.StmtQQ
-import Ivory.Language.CSyntax.QQ.TypeQQ
-
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import           Language.Haskell.TH.Quote()
 
 import qualified Ivory.Language as I
 
+import Ivory.Language.CSyntax.QQ.StmtQQ
+import Ivory.Language.CSyntax.QQ.TypeQQ
 import Ivory.Language.CSyntax.ParseAST
 
 --------------------------------------------------------------------------------
 
+-- | Turn our proc AST value into a Haskell type declaration and definition.
 fromProc :: ProcDef -> Q [Dec]
 fromProc pd@(ProcDef _ procName args body) = do
   procTy <- fromProcType pd
@@ -42,3 +42,5 @@ fromProc pd@(ProcDef _ procName args body) = do
     let nm = AppE (VarE 'I.proc) (LitE $ StringL procName)
     let fn = LamE lams (AppE (VarE 'I.body) prog)
     return (AppE nm fn)
+
+--------------------------------------------------------------------------------

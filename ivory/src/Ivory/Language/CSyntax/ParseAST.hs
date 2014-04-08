@@ -17,12 +17,18 @@ type TypeVar   = String
 
 --------------------------------------------------------------------------------
 
-data ProcDef = ProcDef
-  Type         -- ^ Return type
-  FnSym        -- ^ Function name
-  [(Type,Var)] -- ^ Argument types
-  [Stmt]       -- ^ Body
+-- | Symbols to put into the Ivory module.
+data GlobalSym = ProcSym FnSym
   deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+
+data ProcDef = ProcDef
+  { procTy   :: Type         -- ^ Return type
+  , procSym  :: FnSym        -- ^ Function name
+  , procArgs :: [(Type,Var)] -- ^ Argument types
+  , procStmt :: [Stmt]       -- ^ Body
+  } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 
