@@ -27,12 +27,12 @@ import Ivory.Language.CSyntax.ParseAST
 -- | Turn our proc AST value into a Haskell type declaration and definition.
 fromProc :: ProcDef -> Q [Dec]
 fromProc pd@(ProcDef _ procName args body) = do
-  procTy <- fromProcType pd
-  pb     <- procBody
+  ty <- fromProcType pd
+  pb <- procBody
   let imp = ValD (VarP $ mkName procName)
                  (NormalB pb)
                  []
-  return [procTy, imp]
+  return [ty, imp]
   where
   args' = snd (unzip args)
   procBody  = do
