@@ -1,3 +1,10 @@
+--
+-- Parser AST.
+--
+-- Copyright (C) 2014, Galois, Inc.
+-- All rights reserved.
+--
+
 module Ivory.Language.CSyntax.ParseAST where
 
 --------------------------------------------------------------------------------
@@ -10,7 +17,7 @@ type TypeVar   = String
 
 --------------------------------------------------------------------------------
 
--- | Symbols to put into the Ivory module.
+-- Symbols to put into the Ivory module.
 data GlobalSym = ProcSym FnSym
   deriving (Show, Read, Eq, Ord)
 
@@ -33,9 +40,8 @@ data Type
   | TyChar                     -- ^ Characters
   | TyFloat                    -- ^ Floats
   | TyDouble                   -- ^ Doubles
-  | TyRef MemArea Type         -- ^ References
-
-  -- | TyConstRef Type         -- ^ Constant References
+  | TyRef      MemArea Type    -- ^ References
+  | TyConstRef MemArea Type    -- ^ Constant References
   -- | TyPtr Type              -- ^ Pointers
 
   | TyArr Type Integer
@@ -47,9 +53,11 @@ data Type
 --  | TyOpaque                 -- ^ Opaque type---not implementable.
     deriving (Show, Read, Eq, Ord)
 
-data MemArea = Stack   -- ^ Stack allocated
-             | Global  -- ^ Globally allocated
-             | PolyMem -- ^ Either allocation
+data MemArea = Stack                   -- ^ Stack allocated
+             | Global                  -- ^ Globally allocated
+             | PolyMem (Maybe TypeVar) -- ^ Either allocation.  If no type
+                                       -- variable is provided, a fresh one is
+                                       -- constructed.
   deriving (Show, Read, Eq, Ord)
 
 data IntSize
@@ -81,7 +89,7 @@ data Exp
   = ExpLit Literal
   | ExpVar Var
   | ExpDeref RefVar -- Note: these are statements in Ivory.  We constrain the
-                 -- language here: you can only deref a RefVar.
+                    -- language here: you can only deref a RefVar.
   | ExpOp ExpOp [Exp]
   | ExpArrIx RefVar Exp
   | ExpAnti String
@@ -145,6 +153,8 @@ data ExpOp
   | BitComplementOp
   | BitShiftLOp
   | BitShiftROp
+
+  | ConstRefOp
 
   deriving (Show, Read, Eq, Ord)
 

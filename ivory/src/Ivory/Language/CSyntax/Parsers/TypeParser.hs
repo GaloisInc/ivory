@@ -40,8 +40,11 @@ uintSzP = go "uint8_t" Word8
 memAreaP :: P MemArea
 memAreaP = try (T.symbol "s" *> go "*" Stack)
        <|> try (T.symbol "g" *> go "*" Global)
-       <|> go "*" PolyMem
+       <|> try (PolyMem <$> (maybeVarP <* T.symbol "*"))
        <?> noParse "memArea parser"
+  where
+  maybeVarP :: P (Maybe String)
+  maybeVarP = (Just <$> T.identifier) <|> (T.whiteSpace *> pure Nothing)
 
 -- | Array type parser: ty[sz]
 arrTyP :: P Type
@@ -54,14 +57,24 @@ structTyP :: P Type
 structTyP = TyStruct
         <$> (T.symbol "struct" *> T.identifier)
 
--- | reference type parser.
+--------------------------------------------------------------------------------
+
 refTyP :: P Type
-refTyP = TyRef <$> memAreaP <*> memTy
+refTyP = aRefTyP TyRef
+
+constRefTyP :: P Type
+constRefTyP = T.symbol "const" *> aRefTyP TyConstRef
+
+-- | reference type parser.
+aRefTyP :: (MemArea -> Type -> Type) -> P Type
+aRefTyP constr = constr <$> memAreaP <*> memTy
   where
   memTy = try arrTyP
       <|> try structTyP
       <|> try baseTypeP -- Should be last try.
-      <?> noParse "refTyP"
+      <?> noParse "aRef"
+
+--------------------------------------------------------------------------------
 
 -- | Base (non-reference) types.
 baseTypeP :: P Type
@@ -79,5 +92,6 @@ baseTypeP = go "void" TyVoid
 -- | Type parser.
 typeP :: P Type
 typeP = baseTypeP
+  <|> try constRefTyP
   <|> try refTyP
   <?> noParse "type parser"

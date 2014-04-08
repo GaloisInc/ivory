@@ -22,6 +22,7 @@ e :: IBool
 e = (4::Sint32) >? 3
 
 [c|
+
 int32_t foo0() {
   alloc *x = 3;
   *x = 4;
@@ -53,22 +54,8 @@ bool foo3() {
   return :i e;
 }
 
-uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
-  *b = *a;
-  return *b;
-}
-
--- foo4 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
--- foo4 = proc "foo" $ \arr0 -> body $ do
---   arr1 <- local (iarray (map ival [1,2,3]))
---   arrayMap $ \ix -> do
---     x <- deref (arr1 ! ix)
---     store (arr0 ! ix) x
---   y <- deref (arr0 ! 1)
---   ret y
-
 --foo6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
-uint32_t foo6(*uint32_t[3] arr0) {
+uint32_t foo6(v *uint32_t[3] arr0) {
   alloc arr1[] = {1,2,3};
   map ix {
     arr0[ix] = arr1[ix];
@@ -101,16 +88,45 @@ void foo10(*uint32_t[3] r0, *uint32_t[3] r1) {
   memcpy r0 r1;
 }
 
+uint32_t foo11(const *uint32_t i) {
+  return *i;
+}
+
+uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
+  *b = *a;
+  return *b;
+}
+
+-- const * uint32_t foo13(*uint32_t ref) {
+--   return (const ref);
+-- }
+
+-- const * uint32_t foo12(*uint32_t i) {
+--   return *i;
+-- }
+
+|]
+
+-- foo16 :: Def ('[Ref s (Stored Uint32)] :-> ConstRef s (Stored Uint32))
+-- foo16 = proc "foo" $ \ref -> body $ do
+--   ret (constRef ref)
+
+
 -- Polymorphic array lengths.  Parsable, but can't be included in a module!
 -- void foo11(*uint32_t[a] r0, *uint32_t[a] r1) {
 --   memcpy r0 r1;
 -- }
 
-|]
 
--- myMod :: Module
--- myMod = package "myMod" $ do
---   incl foo11
+-- foo4 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
+-- foo4 = proc "foo" $ \arr0 -> body $ do
+--   arr1 <- local (iarray (map ival [1,2,3]))
+--   arrayMap $ \ix -> do
+--     x <- deref (arr1 ! ix)
+--     store (arr0 ! ix) x
+--   y <- deref (arr0 ! 1)
+--   ret y
+
 
 -- --runit = runCompiler [myMod] initialOpts {stdOut = True}
 

@@ -60,13 +60,13 @@ fromWordSz sz = case sz of
 
 fromMemArea :: MemArea -> TTyVar T.Type
 fromMemArea ma = case ma of
-  Global  -> liftPromote 'I.Global
-  Stack   -> do s <- liftPromote 'I.Stack
-                n <- new
-                return (AppT s n)
-  PolyMem -> new
-  where
-  new = newTyVar "s" []
+  Global     -> liftPromote 'I.Global
+  Stack      -> do s <- liftPromote 'I.Stack
+                   n <- newTyVar "s" []
+                   return (AppT s n)
+  PolyMem mv -> case mv of
+                  Nothing -> newTyVar "c" []
+                  Just v  -> mkTyVar  "v" []
 
 --------------------------------------------------------------------------------
 
@@ -102,11 +102,11 @@ storedTy ty = do
     TyDouble     -> stored
     _            -> return ty'
 
-fromRef :: MemArea -> Type -> TTyVar T.Type
-fromRef mem ty = do
-  ty'     <- storedTy ty
-  ma      <- fromMemArea mem
-  return $ AppT (AppT (ConT ''I.Ref) ma) ty'
+fromRef :: Name -> MemArea -> Type -> TTyVar T.Type
+fromRef constr mem ty = do
+  ty'    <- storedTy ty
+  ma     <- fromMemArea mem
+  return $ AppT (AppT (ConT constr) ma) ty'
 
 fromArray :: Type -> Integer -> TTyVar T.Type
 fromArray ty sz = do
@@ -120,16 +120,17 @@ fromStruct nm = error $ "from struct QQ not defined: " ++ show nm
 
 fromType :: Type -> TTyVar T.Type
 fromType ty = case ty of
-  TyVoid       -> c ''()
-  TyInt sz     -> c (fromIntSz sz)
-  TyWord sz    -> c (fromWordSz sz)
-  TyBool       -> c ''I.IBool
-  TyChar       -> c ''I.IChar
-  TyFloat      -> c ''I.IFloat
-  TyDouble     -> c ''I.IDouble
-  TyRef qma qt -> fromRef qma qt
-  TyArr ty' sz -> fromArray ty' sz
-  TyStruct nm  -> fromStruct (mkName nm)
+  TyVoid            -> c ''()
+  TyInt sz          -> c (fromIntSz sz)
+  TyWord sz         -> c (fromWordSz sz)
+  TyBool            -> c ''I.IBool
+  TyChar            -> c ''I.IChar
+  TyFloat           -> c ''I.IFloat
+  TyDouble          -> c ''I.IDouble
+  TyRef qma qt      -> fromRef ''I.Ref      qma qt
+  TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
+  TyArr ty' sz      -> fromArray ty' sz
+  TyStruct nm       -> fromStruct (mkName nm)
   where
   c = liftQ . conT
 
