@@ -152,6 +152,9 @@ instance IvoryZeroVal Sint64   where izeroval = ival 0
 instance IvoryZeroVal IFloat   where izeroval = ival 0
 instance IvoryZeroVal IDouble  where izeroval = ival 0
 
+instance (SingI n) => IvoryZeroVal (Ix n) where
+  izeroval = ival 0
+
 instance IvoryArea area => IvoryZeroVal (Ptr Global area) where
   izeroval = ival nullPtr
 
