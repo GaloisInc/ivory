@@ -51,6 +51,7 @@ library
                         Ivory.Language.String,
                         Ivory.Language.Struct,
                         Ivory.Language.CSyntax,
+                        Ivory.Language.CSyntax.Lexer,
                         Ivory.Language.CSyntax.Parser,
                         Ivory.Language.CSyntax.Parsers.Common,
                         Ivory.Language.CSyntax.Parsers.ExpParser,
@@ -84,7 +85,8 @@ library
                         haskell-src-meta,
                         dlist >= 0.5,
                         -- QuickCheck >= 2.5.1,
-                        th-lift >= 0.5.5
+                        th-lift >= 0.5.5,
+                        array
   hs-source-dirs:       src
   default-language:     Haskell2010
 

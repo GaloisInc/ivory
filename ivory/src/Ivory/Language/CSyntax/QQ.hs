@@ -38,7 +38,7 @@ c = QuasiQuoter
   }
   where
   decP str = do
-    procs         <- ivoryCParser str
+    procs         <- undefined --ivoryCParser str
     cDefs         <- mapM fromProc procs
     let procSyms  = foldr toGlobalSym [] procs
     ivoryModDefs  <- ivoryMod procSyms
