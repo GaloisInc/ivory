@@ -174,7 +174,7 @@ data Stmt
   | Store RefLVal Exp
   | Assign Var Exp
   | Call (Maybe Var) FnSym [Exp]
-  | RefCopy Exp Exp
+  | RefCopy RefVar RefVar
 -- Local is AllocRef
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
