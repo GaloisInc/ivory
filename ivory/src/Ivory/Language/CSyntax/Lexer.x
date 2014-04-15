@@ -80,6 +80,43 @@ tokens :-
 
   memcpy  { lexReserved }
 
+-- Reserved words: types
+
+  bool     { lexReserved }
+  char     { lexReserved }
+  float    { lexReserved }
+  double   { lexReserved }
+
+  Bool     { lexReserved }
+  Char     { lexReserved }
+  Float    { lexReserved }
+  Double   { lexReserved }
+
+  int8_t   { lexReserved }
+  int16_t  { lexReserved }
+  int32_t  { lexReserved }
+  int64_t  { lexReserved }
+
+  Int8     { lexReserved }
+  Int16    { lexReserved }
+  Int32    { lexReserved }
+  Int64    { lexReserved }
+
+  uint8_t  { lexReserved }
+  uint16_t { lexReserved }
+  uint32_t { lexReserved }
+  uint64_t { lexReserved }
+
+  Word8    { lexReserved }
+  Word16   { lexReserved }
+  Word32   { lexReserved }
+  Word64   { lexReserved }
+
+  struct   { lexReserved }
+
+  Stack    { lexReserved }
+  Global   { lexReserved }
+
 -- Identifiers
   @ident  { lex TokIdent }
 -- Symbols (match if it's not a reserved word)

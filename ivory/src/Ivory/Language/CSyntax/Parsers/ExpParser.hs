@@ -118,6 +118,7 @@ unaryExpP = un "!"      NotOp
         <|> un "ceil"   CeilFOp
         <|> un "floor"  FloorFOp
         <|> un "~"      BitComplementOp
+        -- XXX ?? These should be binary operators.
         <|> un "<<"     BitShiftLOp
         <|> un ">>"     BitShiftROp
         <|> un "const"  ConstRefOp
