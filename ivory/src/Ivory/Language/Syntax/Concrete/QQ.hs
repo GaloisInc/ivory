@@ -10,7 +10,7 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.Syntax.Concrete.QQ   ( c ) where
+module Ivory.Language.Syntax.Concrete.QQ   ( ivory2 ) where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
@@ -29,8 +29,8 @@ import Ivory.Language.Syntax.Concrete.Parser
 --------------------------------------------------------------------------------
 
 -- | Quasiquoter for defining Ivory statements in C-like syntax.
-c :: QuasiQuoter
-c = QuasiQuoter
+ivory2 :: QuasiQuoter
+ivory2 = QuasiQuoter
   { quoteExp  = err "quoteExp"
   , quotePat  = err "quotePat"
   , quoteDec  = decP
