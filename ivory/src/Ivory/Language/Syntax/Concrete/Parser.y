@@ -8,10 +8,10 @@
 --
 -- Parser.hs file is generated!
 
-module Ivory.Language.CSyntax.Parser where
+module Ivory.Language.Syntax.Concrete.Parser where
 
-import Ivory.Language.CSyntax.ParseAST
-import Ivory.Language.CSyntax.Lexer
+import Ivory.Language.Syntax.Concrete.ParseAST
+import Ivory.Language.Syntax.Concrete.Lexer
 
 }
 

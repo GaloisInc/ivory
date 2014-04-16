@@ -5,7 +5,7 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax.ParseAST where
+module Ivory.Language.Syntax.Concrete.ParseAST where
 
 --------------------------------------------------------------------------------
 
