@@ -200,15 +200,19 @@ import Ivory.Language.Syntax.Concrete.Lexer
 ----------------------------------------
 -- Procs
 
+procs :: { [ProcDef] }
 procs : procs proc         { $2 : $1 }
       | {- empty -}            { [] }
 
+proc :: { ProcDef }
 proc : type ident '(' args ')'
          '{' stmts '}'         { ProcDef $1 $2 (reverse $4) (reverse $7) }
 
+tyArg :: { (Type, Var) }
 tyArg : type ident { ($1, $2) }
 
 -- Zero or more typed arguments, separated by arbitrary many ','s.
+args :: { [(Type, Var)] }
 args :  args ',' tyArg         { $3 : $1 }
       | args ','               { $1 }
       | tyArg                  { [$1] }
@@ -217,6 +221,7 @@ args :  args ',' tyArg         { $3 : $1 }
 ----------------------------------------
 -- Statements
 
+simpleStmt :: { Stmt }
 simpleStmt :
     assert exp                    { Assert $2 }
   | assume exp                    { Assume $2 }
@@ -232,6 +237,7 @@ simpleStmt :
   | ident '(' exps ')'            { Call Nothing $1 (reverse $3) }
   | ident '=' ident '(' exps ')'  { Call (Just $1) $3 (reverse $5) }
 
+blkStmt :: { Stmt }
 blkStmt :
     loop ident '{' stmts '}'         { Loop $2 (reverse $4) }
   | forever '{' stmts '}'            { Forever (reverse $3) }
@@ -239,6 +245,7 @@ blkStmt :
       else '{' stmts '}'             { IfTE $2 (reverse $4) (reverse $8) }
 
 -- 1 or more statements.
+stmts :: { [Stmt] }
 stmts : stmts simpleStmt ';'   { $2 : $1 }
       | stmts blkStmt          { $2 : $1 }
       | simpleStmt ';'         { [$1] }
@@ -248,6 +255,7 @@ stmts : stmts simpleStmt ';'   { $2 : $1 }
 -- Initializers
 
 -- Zero or more expressions, separated by arbitrary many ','s.
+exps :: { [Exp] }
 exps :  exps ',' exp           { $3 : $1 }
       | exps ','               { $1 }
       | exp                    { [$1] }
@@ -255,6 +263,7 @@ exps :  exps ',' exp           { $3 : $1 }
 
 ----------------------------------------
 -- Expressions
+exp :: { Exp }
 exp : integer            { ExpLit (LitInteger $1) }
     | ident              { ExpVar $1 }
     | '(' exp ')'        { $2 }
@@ -321,10 +330,12 @@ exp : integer            { ExpLit (LitInteger $1) }
 ----------------------------------------
 -- Types
 
+type :: { Type }
 type :
     baseType      { $1 }
   | refType       { $1 }
 
+scope :: { MemArea }
 scope :
     Stack       { Stack }
   | S           { Stack }
@@ -333,10 +344,12 @@ scope :
   | ident       { PolyMem (Just $1) }
   | {- empty -} { PolyMem Nothing }
 
+refType :: { Type }
 refType :
           scope '*' baseType { TyRef      $1 $3 }
   | const scope '*' baseType { TyConstRef $2 $4 }
 
+baseType :: { Type }
 baseType :
     bool     { TyBool }
   | char     { TyChar }

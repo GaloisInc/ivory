@@ -21,7 +21,7 @@ import Ivory.Language
 e :: IBool
 e = (4::Sint32) >? 3
 
-[c|
+[ivory2|
 
 int32_t foo0() {
   alloc *x = 3;
