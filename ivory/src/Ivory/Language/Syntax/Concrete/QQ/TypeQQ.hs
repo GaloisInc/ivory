@@ -61,12 +61,14 @@ fromWordSz sz = case sz of
 fromMemArea :: MemArea -> TTyVar T.Type
 fromMemArea ma = case ma of
   Global     -> liftPromote 'I.Global
-  Stack      -> do s <- liftPromote 'I.Stack
-                   n <- newTyVar "s" []
+  Stack mv   -> do s <- liftPromote 'I.Stack
+                   n <- case mv of
+                      Nothing -> newTyVar "s" []
+                      Just v  -> mkTyVar v []
                    return (AppT s n)
   PolyMem mv -> case mv of
                   Nothing -> newTyVar "c" []
-                  Just v  -> mkTyVar  "v" []
+                  Just v  -> mkTyVar  v   []
 
 --------------------------------------------------------------------------------
 

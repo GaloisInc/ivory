@@ -53,7 +53,9 @@ data Type
 --  | TyOpaque                 -- ^ Opaque type---not implementable.
     deriving (Show, Read, Eq, Ord)
 
-data MemArea = Stack                   -- ^ Stack allocated
+data MemArea = Stack (Maybe TypeVar)   -- ^ Stack allocated.  If no type
+                                       -- variable is provided, a fresh one is
+                                       -- constructed.
              | Global                  -- ^ Globally allocated
              | PolyMem (Maybe TypeVar) -- ^ Either allocation.  If no type
                                        -- variable is provided, a fresh one is
