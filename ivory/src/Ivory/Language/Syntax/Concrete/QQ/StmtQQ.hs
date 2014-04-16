@@ -8,14 +8,14 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax.QQ.StmtQQ where
+module Ivory.Language.Syntax.Concrete.QQ.StmtQQ where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
-import Ivory.Language.CSyntax.QQ.ExprQQ
-import Ivory.Language.CSyntax.QQ.Types
-import Ivory.Language.CSyntax.QQ.Common
+import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
+import Ivory.Language.Syntax.Concrete.QQ.Types
+import Ivory.Language.Syntax.Concrete.QQ.Common
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -27,7 +27,7 @@ import qualified Ivory.Language as I
 import           Data.List (nub)
 import           Control.Monad (forM_)
 
-import Ivory.Language.CSyntax.ParseAST
+import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
 

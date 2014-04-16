@@ -8,12 +8,12 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax.QQ.ExprQQ where
+module Ivory.Language.Syntax.Concrete.QQ.ExprQQ where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
-import Ivory.Language.CSyntax.QQ.Types
+import Ivory.Language.Syntax.Concrete.QQ.Types
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -22,7 +22,7 @@ import           Language.Haskell.TH.Lift()
 
 import qualified Ivory.Language as I
 
-import Ivory.Language.CSyntax.ParseAST
+import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
 -- Expressions
