@@ -6,6 +6,7 @@
 -- Copyright (C) 2014, Galois, Inc.
 -- All rights reserved.
 --
+-- Lexer.hs is generated!
 
 module Ivory.Language.CSyntax.Lexer where
 
@@ -86,6 +87,7 @@ tokens :-
   char     { lexReserved }
   float    { lexReserved }
   double   { lexReserved }
+  void     { lexReserved }
 
   Bool     { lexReserved }
   Char     { lexReserved }
@@ -115,7 +117,12 @@ tokens :-
   struct   { lexReserved }
 
   Stack    { lexReserved }
+  S        { lexReserved }
   Global   { lexReserved }
+  G        { lexReserved }
+
+  Ref      { lexReserved }
+  ConstRef { lexReserved }
 
 -- Identifiers
   @ident  { lex TokIdent }
