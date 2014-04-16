@@ -1,3 +1,5 @@
 /cabal-dev/
 /dist/
 user-guide.pdf
+src/Ivory/Language/Syntax/Concrete/Lexer.hs
+src/Ivory/Language/Syntax/Concrete/Parser.hs
