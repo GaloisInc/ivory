@@ -5,9 +5,9 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax.QQ.Types where
+module Ivory.Language.Syntax.Concrete.QQ.Types where
 
-import Ivory.Language.CSyntax.ParseAST
+import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
 

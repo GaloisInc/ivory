@@ -11,9 +11,9 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax where
+module Ivory.Language.Syntax.Concrete where
 
-import Ivory.Language.CSyntax.QQ
+import Ivory.Language.Syntax.Concrete.QQ
 
 -- XXX testing
 import Ivory.Language

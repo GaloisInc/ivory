@@ -8,7 +8,7 @@
 --
 -- Lexer.hs is generated!
 
-module Ivory.Language.CSyntax.Lexer where
+module Ivory.Language.Syntax.Concrete.Lexer where
 
 import Prelude hiding (lex)
 

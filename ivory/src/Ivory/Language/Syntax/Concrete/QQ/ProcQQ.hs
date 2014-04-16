@@ -8,7 +8,7 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax.QQ.ProcQQ where
+module Ivory.Language.Syntax.Concrete.QQ.ProcQQ where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
@@ -18,9 +18,9 @@ import           Language.Haskell.TH.Quote()
 
 import qualified Ivory.Language as I
 
-import Ivory.Language.CSyntax.QQ.StmtQQ
-import Ivory.Language.CSyntax.QQ.TypeQQ
-import Ivory.Language.CSyntax.ParseAST
+import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
+import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
 
