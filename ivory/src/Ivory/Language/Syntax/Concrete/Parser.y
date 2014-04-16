@@ -133,29 +133,32 @@ import Ivory.Language.Syntax.Concrete.Lexer
   S        { TokReserved "S" }
   G        { TokReserved "G" }
 
-  Bool     { TokReserved "Bool" }
-  Char     { TokReserved "Char" }
-  Float    { TokReserved "Float" }
-  Double   { TokReserved "Double" }
+  IBool     { TokReserved "IBool" }
+  IChar     { TokReserved "IChar" }
+  IFloat    { TokReserved "IFloat" }
+  IDouble   { TokReserved "IDouble" }
 
-  Int8     { TokReserved "Int8" }
-  Int16    { TokReserved "Int16" }
-  Int32    { TokReserved "Int32" }
-  Int64    { TokReserved "Int64" }
+  Sint8     { TokReserved "Sint8" }
+  Sint16    { TokReserved "Sint16" }
+  Sint32    { TokReserved "Sint32" }
+  Sint64    { TokReserved "Sint64" }
 
-  Word8    { TokReserved "Word8" }
-  Word16   { TokReserved "Word16" }
-  Word32   { TokReserved "Word32" }
-  Word64   { TokReserved "Word64" }
+  Uint8    { TokReserved "Uint8" }
+  Uint16   { TokReserved "Uint16" }
+  Uint32   { TokReserved "Uint32" }
+  Uint64   { TokReserved "Uint64" }
 
-  Ref      { lexReserved }
-  ConstRef { lexReserved }
+  Ref      { TokReserved "Ref" }
+  ConstRef { TokReserved "ConstRef" }
+  Array    { TokReserved "Array" }
+
+  Stored   { TokReserved "Stored" }
 
   Stack    { TokReserved "Stack" }
   Global   { TokReserved "Global" }
 
--- Follow C's operator precedences
--- XXX double-check precedence of ==, !=, ~, etc.
+--------------------------------------------------------------------------------
+-- Precedence
 
 %right '?' ':'
 %left '||'
@@ -332,60 +335,90 @@ exp : integer            { ExpLit (LitInteger $1) }
 
 type :: { Type }
 type :
-    baseType      { $1 }
-  | refType       { $1 }
+    cType     { $1 }
+  | hsType    { $1 }
 
-scope :: { MemArea }
-scope :
-    Stack       { Stack }
-  | S           { Stack }
-  | Global      { Global }
-  | G           { Global }
-  | ident       { PolyMem (Just $1) }
-  | {- empty -} { PolyMem Nothing }
+-- C-style types
 
-refType :: { Type }
-refType :
-          scope '*' baseType { TyRef      $1 $3 }
-  | const scope '*' baseType { TyConstRef $2 $4 }
+cType :: { Type }
+cType :
+    baseTypeC     { $1 }
+  | refTypeC      { $1 }
 
-baseType :: { Type }
-baseType :
+baseTypeC :: { Type }
+baseTypeC :
     bool     { TyBool }
   | char     { TyChar }
   | float    { TyFloat }
   | double   { TyDouble }
   | void     { TyVoid }
-  | '(' ')'  { TyVoid }
-
-  | Bool     { TyBool }
-  | Char     { TyChar }
-  | Float    { TyFloat }
-  | Double   { TyDouble }
 
   | int8_t   { TyInt Int8 }
   | int16_t  { TyInt Int16 }
   | int32_t  { TyInt Int32 }
   | int64_t  { TyInt Int64 }
 
-  | Int8     { TyInt Int8 }
-  | Int16    { TyInt Int16 }
-  | Int32    { TyInt Int32 }
-  | Int64    { TyInt Int64 }
-
   | uint8_t  { TyWord Word8 }
   | uint16_t { TyWord Word16 }
   | uint32_t { TyWord Word32 }
   | uint64_t { TyWord Word64 }
 
-  | Word8    { TyWord Word8 }
-  | Word16   { TyWord Word16 }
-  | Word32   { TyWord Word32 }
-  | Word64   { TyWord Word64 }
-
-  | baseType '[' integer ']' { TyArr $1 $3 }
+  | baseTypeC '[' integer ']' { TyArr $1 $3 }
 
   | struct ident { TyStruct $2 }
+
+refTypeC :: { Type }
+refTypeC :
+          scopeC '*' baseTypeC { TyRef      $1 $3 }
+  | const scopeC '*' baseTypeC { TyConstRef $2 $4 }
+
+scopeC :: { MemArea }
+scopeC :
+    S           { Stack Nothing }
+  | G           { Global }
+  | ident       { PolyMem (Just $1) }
+  | {- empty -} { PolyMem Nothing }
+
+-- Haskell-style types
+
+hsType :: { Type }
+hsType :
+    baseTypeHS   { $1 }
+  | refTypeHS    { $1 }
+
+baseTypeHS :: { Type }
+baseTypeHS :
+    IBool     { TyBool }
+  | IChar     { TyChar }
+  | IFloat    { TyFloat }
+  | IDouble   { TyDouble }
+  | '(' ')'   { TyVoid }
+
+  | Sint8     { TyInt Int8 }
+  | Sint16    { TyInt Int16 }
+  | Sint32    { TyInt Int32 }
+  | Sint64    { TyInt Int64 }
+
+  | Uint8    { TyWord Word8 }
+  | Uint16   { TyWord Word16 }
+  | Uint32   { TyWord Word32 }
+  | Uint64   { TyWord Word64 }
+
+storedTypeHS :: { Type }
+storedTypeHS :
+    Stored baseTypeHS          { $2 }
+  | struct ident               { TyStruct $2 }
+  | Array integer storedTypeHS { TyArr $3 $2 }
+
+refTypeHS :: { Type }
+refTypeHS :
+    Ref      scopeHS storedTypeHS { TyRef      $2 $3 }
+  | ConstRef scopeHS storedTypeHS { TyConstRef $2 $3 }
+
+scopeHS :: { MemArea }
+scopeHS :
+    Stack ident { Stack (Just $2) }
+  | Global      { Global }
 
 --------------------------------------------------------------------------------
 
@@ -402,7 +435,9 @@ alexMonadScan' = do
   sc <- alexGetStartCode
   case alexScan inp sc of
     AlexEOF -> alexEOF
-    AlexError (pos, _, _, _) -> alexError (show pos)
+    AlexError (AlexPn addr l c, _, _, _) ->
+      alexError $ "Lexer error at line " ++ show l ++ " col. " ++ show c
+               ++ " and chars preceding token " ++ show addr
     AlexSkip  inp' len -> do
         alexSetInput inp'
         alexMonadScan'

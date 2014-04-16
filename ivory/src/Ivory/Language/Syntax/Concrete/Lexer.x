@@ -1,5 +1,9 @@
 -- # -*- mode: haskell -*-
 {
+
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds #-}
+
 --
 -- Ivory lexer.
 --
@@ -106,23 +110,26 @@ tokens :-
   G        { lexReserved }
 
   -- Haskell style
-  Bool     { lexReserved }
-  Char     { lexReserved }
-  Float    { lexReserved }
-  Double   { lexReserved }
+  IBool    { lexReserved }
+  IChar    { lexReserved }
+  IFloat   { lexReserved }
+  IDouble  { lexReserved }
 
-  Int8     { lexReserved }
-  Int16    { lexReserved }
-  Int32    { lexReserved }
-  Int64    { lexReserved }
+  Sint8    { lexReserved }
+  Sint16   { lexReserved }
+  Sint32   { lexReserved }
+  Sint64   { lexReserved }
 
-  Word8    { lexReserved }
-  Word16   { lexReserved }
-  Word32   { lexReserved }
-  Word64   { lexReserved }
+  Uint8    { lexReserved }
+  Uint16   { lexReserved }
+  Uint32   { lexReserved }
+  Uint64   { lexReserved }
 
   Ref      { lexReserved }
   ConstRef { lexReserved }
+  Array    { lexReserved }
+
+  Stored   { lexReserved }
 
   Stack    { lexReserved }
   Global   { lexReserved }
@@ -140,6 +147,7 @@ tokens :-
 
 { -- Haskell code below
 
+alexEOF :: Alex Token
 alexEOF = return TokEOF
 
 lex :: (String -> a) -> AlexAction a
