@@ -50,9 +50,9 @@ void foo2() {
   }
 }
 
-bool foo3() {
-  return :i e;
-}
+-- bool foo3() {
+--   return :i e;
+-- }
 
 --foo6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 uint32_t foo6(v *uint32_t[3] arr0) {
@@ -128,11 +128,11 @@ uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
 --   ret y
 
 
--- --runit = runCompiler [myMod] initialOpts {stdOut = True}
+--runit = runCompiler [myMod] initialOpts {stdOut = True}
 
--- -- foo7 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
--- -- foo7 = proc "foo" $ \arr -> body [c|
--- --   alloc arr[] = {0};
--- --   return arr[1];
--- -- |]
+-- foo7 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
+-- foo7 = proc "foo" $ \arr -> body [c|
+--   alloc arr[] = {0};
+--   return arr[1];
+-- |]
 
