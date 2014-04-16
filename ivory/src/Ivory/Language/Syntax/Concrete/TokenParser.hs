@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Ivory.Language.CSyntax.TokenParser where
+module Ivory.Language.Syntax.Concrete.TokenParser where
 
 import Text.Parsec.Language (haskellDef)
 import qualified Text.Parsec.Token as T

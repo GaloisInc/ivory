@@ -10,7 +10,7 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax.QQ   ( c ) where
+module Ivory.Language.Syntax.Concrete.QQ   ( c ) where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
@@ -22,9 +22,9 @@ import           Language.Haskell.TH.Quote
 
 import qualified Ivory.Language as I
 
-import Ivory.Language.CSyntax.QQ.ProcQQ
-import Ivory.Language.CSyntax.ParseAST
-import Ivory.Language.CSyntax.Parser
+import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
+import Ivory.Language.Syntax.Concrete.ParseAST
+import Ivory.Language.Syntax.Concrete.Parser
 
 --------------------------------------------------------------------------------
 

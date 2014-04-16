@@ -8,7 +8,7 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.CSyntax.QQ.Common where
+module Ivory.Language.Syntax.Concrete.QQ.Common where
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
