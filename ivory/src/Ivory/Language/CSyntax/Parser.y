@@ -98,6 +98,8 @@ import Ivory.Language.CSyntax.Lexer
   '!'       { TokSym "!" }
   '&&'      { TokSym "&&" }
   '||'      { TokSym "||" }
+  '<<'      { TokSym "<<" }
+  '>>'      { TokSym ">>" }
 
   '('       { TokBrack "(" }
   ')'       { TokBrack ")" }
@@ -110,47 +112,47 @@ import Ivory.Language.CSyntax.Lexer
   ','       { TokSep "," }
 
   -- Types
+  struct   { TokReserved "struct" }
+
   bool     { TokReserved "bool" }
   char     { TokReserved "char" }
   float    { TokReserved "float" }
   double   { TokReserved "double" }
   void     { TokReserved "void" }
 
-  Bool     { TokReserved "Bool" }
-  Char     { TokReserved "Char" }
-  Float    { TokReserved "Float" }
-  Double   { TokReserved "Double" }
-
   int8_t   { TokReserved "int8_t" }
   int16_t  { TokReserved "int16_t" }
   int32_t  { TokReserved "int32_t" }
   int64_t  { TokReserved "int64_t" }
-
-  Int8     { TokReserved "Int8" }
-  Int16    { TokReserved "Int16" }
-  Int32    { TokReserved "Int32" }
-  Int64    { TokReserved "Int64" }
 
   uint8_t  { TokReserved "uint8_t" }
   uint16_t { TokReserved "uint16_t" }
   uint32_t { TokReserved "uint32_t" }
   uint64_t { TokReserved "uint64_t" }
 
+  S        { TokReserved "S" }
+  G        { TokReserved "G" }
+
+  Bool     { TokReserved "Bool" }
+  Char     { TokReserved "Char" }
+  Float    { TokReserved "Float" }
+  Double   { TokReserved "Double" }
+
+  Int8     { TokReserved "Int8" }
+  Int16    { TokReserved "Int16" }
+  Int32    { TokReserved "Int32" }
+  Int64    { TokReserved "Int64" }
+
   Word8    { TokReserved "Word8" }
   Word16   { TokReserved "Word16" }
   Word32   { TokReserved "Word32" }
   Word64   { TokReserved "Word64" }
 
-  struct   { TokReserved "struct" }
-
-  Stack    { TokReserved "Stack" }
-  S        { TokReserved "S" }
-  Global   { TokReserved "Global" }
-  G        { TokReserved "G" }
-
   Ref      { lexReserved }
   ConstRef { lexReserved }
 
+  Stack    { TokReserved "Stack" }
+  Global   { TokReserved "Global" }
 
 -- Follow C's operator precedences
 -- XXX double-check precedence of ==, !=, ~, etc.
@@ -163,13 +165,11 @@ import Ivory.Language.CSyntax.Lexer
 %left '&'
 %nonassoc '==' '!='
 %nonassoc '<' '<=' '>' '>='
+%left '<<' '>>'
 %left '+' '-'
 %left '*' '/' '%'
+%right '*' '~' '!' '-'
 %right
-  '*'
-  '!'
-  '-'
-  '~'
   abs
   signum
   expOp
@@ -297,6 +297,8 @@ exp : integer            { ExpLit (LitInteger $1) }
     | exp '|'   exp      { ExpOp BitOrOp [$1, $3] }
     | exp '^'   exp      { ExpOp BitXorOp [$1, $3] }
     | exp '&'   exp      { ExpOp BitAndOp [$1, $3] }
+    | exp '<<'  exp      { ExpOp BitShiftLOp [$1, $3] }
+    | exp '>>'  exp      { ExpOp BitShiftROp [$1, $3] }
 
     | exp '=='  exp      { ExpOp EqOp [$1, $3] }
     | exp '!='  exp      { ExpOp NeqOp [$1, $3] }
