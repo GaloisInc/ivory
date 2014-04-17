@@ -10,7 +10,7 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.Syntax.Concrete.QQ   ( ivory2 ) where
+module Ivory.Language.Syntax.Concrete.QQ   ( ivory ) where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
@@ -22,15 +22,17 @@ import           Language.Haskell.TH.Quote
 
 import qualified Ivory.Language as I
 
+import Ivory.Language.Syntax.Concrete.QQ.StructQQ
 import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
+
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Parser
 
 --------------------------------------------------------------------------------
 
 -- | Quasiquoter for defining Ivory statements in C-like syntax.
-ivory2 :: QuasiQuoter
-ivory2 = QuasiQuoter
+ivory :: QuasiQuoter
+ivory = QuasiQuoter
   { quoteExp  = err "quoteExp"
   , quotePat  = err "quotePat"
   , quoteDec  = decP
@@ -38,25 +40,31 @@ ivory2 = QuasiQuoter
   }
   where
   decP str = do
-    let procs     = runParser str
-    cDefs         <- mapM fromProc procs
-    let procSyms  = foldr toGlobalSym [] procs
-    ivoryModDefs  <- ivoryMod procSyms
-    return (concat cDefs ++ ivoryModDefs)
+    let defs      = reverse (runParser str)
+    decs         <- mapM mkDef defs
+    theModule    <- ivoryMod defs
+    return (concat decs ++ theModule)
   err str = error $ str ++ " not implemented for c quasiquoter."
 
 --------------------------------------------------------------------------------
 
--- | Add a procedure symbol to the global symbols.
-toGlobalSym :: ProcDef -> [GlobalSym] -> [GlobalSym]
-toGlobalSym procS = (ProcSym (procSym procS) :)
+mkDef :: GlobalSym -> Q [Dec]
+mkDef def = case def of
+  GlobalProc   d -> fromProc d
+  GlobalStruct d -> fromStruct d
 
 -- | Include an Ivory symbol into the Ivory module.
 ivorySymMod :: GlobalSym -> Q.Exp
-ivorySymMod sym = case sym of
-  ProcSym procName   -> AppE (VarE 'I.incl) (VarE $ mkName procName)
+ivorySymMod def = case def of
+  GlobalProc   d
+    -> AppE (VarE 'I.incl) (VarE $ mkName (procSym d))
+  GlobalStruct d
+    -> AppE (VarE 'I.defStruct)
+            (SigE (ConE 'I.Proxy)
+                  (AppT (ConT 'I.Proxy)
+                        (LitT $ StrTyLit $ structSym d)))
 
--- | Define an Ivory module, one per module.
+-- | Define an Ivory module, one per Haskell module.
 ivoryMod :: [GlobalSym] -> Q [Dec]
 ivoryMod incls = do
   modTy <- mkModTy

@@ -58,8 +58,8 @@ fromWordSz sz = case sz of
   Word32 -> ''I.Uint32
   Word64 -> ''I.Uint64
 
-fromMemArea :: MemArea -> TTyVar T.Type
-fromMemArea ma = case ma of
+fromScope :: Scope -> TTyVar T.Type
+fromScope ma = case ma of
   Global     -> liftPromote 'I.Global
   Stack mv   -> do s <- liftPromote 'I.Stack
                    n <- case mv of
@@ -104,21 +104,21 @@ storedTy ty = do
     TyDouble     -> stored
     _            -> return ty'
 
-fromRef :: Name -> MemArea -> Type -> TTyVar T.Type
-fromRef constr mem ty = do
-  ty'    <- storedTy ty
-  ma     <- fromMemArea mem
-  return $ AppT (AppT (ConT constr) ma) ty'
+fromRef :: Name -> Scope -> Area -> TTyVar T.Type
+fromRef constr mem area = do
+  a      <- fromArea area
+  ma     <- fromScope mem
+  return $ AppT (AppT (ConT constr) ma) a
 
-fromArray :: Type -> Integer -> TTyVar T.Type
-fromArray ty sz = do
+fromArrayTy :: Area -> Integer -> TTyVar T.Type
+fromArrayTy area sz = do
   let szTy = LitT (NumTyLit sz)
-  ty'    <- storedTy ty
+  a      <- fromArea area
   arr    <- liftPromote 'I.Array
-  return $ AppT (AppT arr szTy) ty'
+  return $ AppT (AppT arr szTy) a
 
-fromStruct :: Name -> TTyVar T.Type
-fromStruct nm = error $ "from struct QQ not defined: " ++ show nm
+fromStructTy :: Name -> TTyVar T.Type
+fromStructTy nm = error $ "from struct QQ not defined: " ++ show nm
 
 fromType :: Type -> TTyVar T.Type
 fromType ty = case ty of
@@ -131,10 +131,15 @@ fromType ty = case ty of
   TyDouble          -> c ''I.IDouble
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
-  TyArr ty' sz      -> fromArray ty' sz
-  TyStruct nm       -> fromStruct (mkName nm)
+  TyArea area       -> fromArea area
   where
   c = liftQ . conT
+
+fromArea :: Area -> TTyVar T.Type
+fromArea area = case area of
+  TyArray a sz      -> fromArrayTy a sz
+  TyStruct nm       -> fromStructTy (mkName nm)
+  TyStored ty       -> storedTy ty
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
