@@ -126,18 +126,19 @@ toAreaCon area = case area of
 toTyCon :: Type -> TypeCon
 toTyCon ty = case ty of
   TyBool   -> TCon "IBool"
+  TyChar   -> TCon "IChar"
+  TyFloat  -> TCon "IFloat"
+  TyDouble -> TCon "IDouble"
   TyInt sz -> TCon $ case sz of
                 Int8   -> "Sint8"
                 Int16  -> "Sint16"
                 Int32  -> "Sint32"
                 Int64  -> "Sint64"
-  -- TyWord sz -> case sz of
-  --               Int8   -> "Sint8"
-  --               Int16  -> "Sint16"
-  --               Int32  -> "Sint32"
-  --               Int64  -> "Sint64"
-
-  -- storeTy str = TApp (TSym "Stored") (TSym str)
+  TyWord sz -> TCon $ case sz of
+                Word8   -> "Uint8"
+                Word16  -> "Uint16"
+                Word32  -> "Uint32"
+                Word64  -> "Uint64"
 
 mkType' :: TypeCon -> TypeQ
 mkType' ty = case ty of
