@@ -24,9 +24,10 @@ e = (4::Sint32) >? 3
 
 [ivory|
 
-struct Foo {
-  foo :: Stored IBool;
-}
+struct Foo
+  { foo :: Stored IBool
+  ; bar :: Array 4 (Stored Uint32)
+  }
 
 
 int32_t foo0() {
