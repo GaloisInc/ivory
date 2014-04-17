@@ -53,17 +53,6 @@ mkDef def = case def of
   GlobalProc   d -> fromProc d
   GlobalStruct d -> fromStruct d
 
--- | Include an Ivory symbol into the Ivory module.
-ivorySymMod :: GlobalSym -> Q.Exp
-ivorySymMod def = case def of
-  GlobalProc   d
-    -> AppE (VarE 'I.incl) (VarE $ mkName (procSym d))
-  GlobalStruct d
-    -> AppE (VarE 'I.defStruct)
-            (SigE (ConE 'I.Proxy)
-                  (AppT (ConT 'I.Proxy)
-                        (LitT $ StrTyLit $ structSym d)))
-
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: [GlobalSym] -> Q [Dec]
 ivoryMod incls = do
@@ -94,6 +83,18 @@ ivoryMod incls = do
   mkModTy = do
     nm <- modNameQ
     return $ SigD (mkName nm) (ConT ''I.Module)
+
+  -- | Include an Ivory symbol into the Ivory module.
+  ivorySymMod :: GlobalSym -> Q.Exp
+  ivorySymMod def = case def of
+    GlobalProc   d
+      -> AppE (VarE 'I.incl) (VarE $ mkName (procSym d))
+    GlobalStruct d
+      -> AppE (VarE 'I.defStruct)
+              (SigE (ConE 'I.Proxy)
+                    (AppT (ConT ''I.Proxy)
+                          (LitT $ StrTyLit $ structSym d)))
+
 
 --------------------------------------------------------------------------------
 

@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 --
@@ -23,9 +24,9 @@ e = (4::Sint32) >? 3
 
 [ivory|
 
--- struct Foo {
---   foo :: Stored IBool;
--- }
+struct Foo {
+  foo :: Stored IBool;
+}
 
 
 int32_t foo0() {

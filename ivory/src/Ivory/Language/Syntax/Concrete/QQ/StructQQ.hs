@@ -47,7 +47,7 @@ mkIvoryStruct sym def =
 
 mkStructDef :: StructDef -> DecQ
 mkStructDef def = funD 'S.structDef
-  [ clause [] (normalB [| StructDef $astStruct |] ) []
+  [ clause [] (normalB [| S.StructDef $astStruct |] ) []
   ]
   where
   astStruct = case def of
@@ -112,11 +112,30 @@ mkLabel sym f =
   field = mkName (fieldName f)
 
 mkType :: Area -> TypeQ
-mkType = mkType' . toTyCon
-  where
-  toTyCon :: Area -> TypeCon
-  toTyCon ty = undefined -- case ty of
-  --   TyBool -> storeTy "IBool"
+mkType = mkType' . toAreaCon
+
+toAreaCon :: Area -> TypeCon
+toAreaCon area = case area of
+  TyStruct str
+    -> TCon "Struct"
+  TyArray a i
+    -> TApp (TApp (TCon "Array") (TNat i)) (toAreaCon a)
+  TyStored ty
+    -> TApp (TCon "Stored") (toTyCon ty)
+
+toTyCon :: Type -> TypeCon
+toTyCon ty = case ty of
+  TyBool   -> TCon "IBool"
+  TyInt sz -> TCon $ case sz of
+                Int8   -> "Sint8"
+                Int16  -> "Sint16"
+                Int32  -> "Sint32"
+                Int64  -> "Sint64"
+  -- TyWord sz -> case sz of
+  --               Int8   -> "Sint8"
+  --               Int16  -> "Sint16"
+  --               Int32  -> "Sint32"
+  --               Int64  -> "Sint64"
 
   -- storeTy str = TApp (TSym "Stored") (TSym str)
 
