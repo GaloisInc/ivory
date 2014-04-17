@@ -28,6 +28,7 @@ $lowerletter = [a-z]
 $capletter   = [A-Z]
 
 @sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \:]+
+@tyIdent     = $capletter [$alpha $digit [_ \']]*
 @ident       = [_ $lowerletter] [$alpha $digit [_ \']]*
 @brack       = [\( \) \[ \] \{ \}]
 @sep         = [\, \;]
@@ -135,13 +136,15 @@ tokens :-
   Global   { lexReserved }
 
 -- Identifiers
-  @ident  { lex TokIdent }
+  @ident   { lex TokIdent }
+-- Type Constructors
+  @tyIdent { lex TokTyIdent }
 -- Symbols (match if it's not a reserved word)
-  @sym    { lex TokSym }
+  @sym     { lex TokSym }
 -- Brackets
-  @brack  { lex TokBrack }
+  @brack   { lex TokBrack }
 -- Separators
-  @sep    { lex TokSep }
+  @sep     { lex TokSep }
 
 --------------------------------------------------------------------------------
 
@@ -160,6 +163,7 @@ lexReserved = lex TokReserved
 data Token =
     TokInteger Integer
   | TokIdent String
+  | TokTyIdent String
   | TokReserved String
   | TokSym String
   | TokBrack String
