@@ -21,7 +21,12 @@ import Ivory.Language
 e :: IBool
 e = (4::Sint32) >? 3
 
-[ivory2|
+[ivory|
+
+-- struct Foo {
+--   foo :: Stored IBool;
+-- }
+
 
 int32_t foo0() {
   alloc *x = 3;

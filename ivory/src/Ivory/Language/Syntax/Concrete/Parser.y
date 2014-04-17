@@ -24,6 +24,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %token
   integer   { TokInteger $$ }
   ident     { TokIdent $$ }
+  tyIdent   { TokTyIdent $$ }
 
   -- Statements
   if       { TokReserved "if" }
@@ -67,6 +68,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ceil    { TokReserved "ceil" }
   floor   { TokReserved "floor" }
   const   { TokReserved "const" }
+
+  -- Type
+  '::'      { TokSym "::" }
 
   '?'       { TokSym "?" }
   ':'       { TokSym ":" }
@@ -201,15 +205,19 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %%
 
 ----------------------------------------
+-- Top-level definitions
+
+defs :: { [GlobalSym] }
+defs : defs procDef       { GlobalProc $2 : $1 }
+     | defs structDef     { GlobalStruct $2 : $1 }
+     | {- empty -}        { [] }
+
+----------------------------------------
 -- Procs
 
-procs :: { [ProcDef] }
-procs : procs proc         { $2 : $1 }
-      | {- empty -}            { [] }
-
-proc :: { ProcDef }
-proc : type ident '(' args ')'
-         '{' stmts '}'         { ProcDef $1 $2 (reverse $4) (reverse $7) }
+procDef :: { ProcDef }
+procDef : type ident '(' args ')'
+            '{' stmts '}'         { ProcDef $1 $2 (reverse $4) (reverse $7) }
 
 tyArg :: { (Type, Var) }
 tyArg : type ident { ($1, $2) }
@@ -363,16 +371,27 @@ baseTypeC :
   | uint32_t { TyWord Word32 }
   | uint64_t { TyWord Word64 }
 
-  | baseTypeC '[' integer ']' { TyArr $1 $3 }
-
-  | struct ident { TyStruct $2 }
-
 refTypeC :: { Type }
 refTypeC :
-          scopeC '*' baseTypeC { TyRef      $1 $3 }
-  | const scopeC '*' baseTypeC { TyConstRef $2 $4 }
+    refC baseTypeC { $1 (TyStored $2) }
+  | refC areaC     { $1 $2 }
 
-scopeC :: { MemArea }
+refC :: { Area -> Type }
+refC :
+          scopeC '*' { TyRef $1 }
+  | const scopeC '*' { TyConstRef $2 }
+
+areaC :: { Area }
+areaC :
+    arrayTypeC    { $1 }
+  | struct ident  { TyStruct $2 }
+
+arrayTypeC :: { Area }
+arrayTypeC :
+    baseTypeC '[' integer ']' { TyArray (TyStored $1) $3 }
+  | areaC     '[' integer ']' { TyArray $1            $3 }
+
+scopeC :: { Scope }
 scopeC :
     S           { Stack Nothing }
   | G           { Global }
@@ -404,21 +423,37 @@ baseTypeHS :
   | Uint32   { TyWord Word32 }
   | Uint64   { TyWord Word64 }
 
-storedTypeHS :: { Type }
-storedTypeHS :
-    Stored baseTypeHS          { $2 }
+areaHS :: { Area }
+areaHS :
+    Stored baseTypeHS          { TyStored $2 }
   | struct ident               { TyStruct $2 }
-  | Array integer storedTypeHS { TyArr $3 $2 }
+  | Array integer areaHS       { TyArray $3 $2 }
 
 refTypeHS :: { Type }
 refTypeHS :
-    Ref      scopeHS storedTypeHS { TyRef      $2 $3 }
-  | ConstRef scopeHS storedTypeHS { TyConstRef $2 $3 }
+    Ref      scopeHS areaHS { TyRef      $2 $3 }
+  | ConstRef scopeHS areaHS { TyConstRef $2 $3 }
 
-scopeHS :: { MemArea }
+scopeHS :: { Scope }
 scopeHS :
     Stack ident { Stack (Just $2) }
   | Global      { Global }
+
+----------------------------------------
+-- Struct definitions
+
+-- XXX need abstract defs, string defs
+structDef :: { StructDef }
+structDef : struct tyIdent '{' fields '}' { StructDef $2 $4 }
+
+field :: { Field }
+field : ident '::' areaHS { Field $1 $3 }
+
+-- 1 or more fields.
+fields :: { [Field] }
+fields :
+    fields field ';'   { $2 : $1 }
+  | field ';'          { [$1] }
 
 --------------------------------------------------------------------------------
 
@@ -455,14 +490,14 @@ parseError t = do
   (l,c) <- getPosn
   fail (show l ++ ":" ++ show c ++ ": Parse error on Token: " ++ show t ++ "\n")
 
-runParser :: String -> [ProcDef]
+runParser :: String -> [GlobalSym]
 runParser s = case runAlex s ivoryParser of
   Left err    -> error err
   Right procs -> procs
 
 -- XXX testing
 
-parseFileTest :: FilePath -> IO (Either String [ProcDef])
+parseFileTest :: FilePath -> IO (Either String [GlobalSym])
 parseFileTest fp = do
   cs <- readFile fp
   return (parseTest cs)
