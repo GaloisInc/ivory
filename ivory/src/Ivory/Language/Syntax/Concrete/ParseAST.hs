@@ -193,7 +193,9 @@ data RefLVal
 
 data StructDef
   = StructDef String [Field]
+  -- XXX not implemented.
   | AbstractDef String String
+  -- Not implemented.  Still used?
   | StringDef String Integer
     deriving (Show)
 
