@@ -422,12 +422,14 @@ baseTypeHS :
   | Uint16   { TyWord Word16 }
   | Uint32   { TyWord Word32 }
   | Uint64   { TyWord Word64 }
+  | '(' baseTypeHS ')' { $2 }
 
 areaHS :: { Area }
 areaHS :
     Stored baseTypeHS          { TyStored $2 }
   | struct ident               { TyStruct $2 }
   | Array integer areaHS       { TyArray $3 $2 }
+  | '(' areaHS ')'             { $2 }
 
 refTypeHS :: { Type }
 refTypeHS :
@@ -444,16 +446,17 @@ scopeHS :
 
 -- XXX need abstract defs, string defs
 structDef :: { StructDef }
-structDef : struct tyIdent '{' fields '}' { StructDef $2 $4 }
+structDef : struct tyIdent '{' fields '}' { StructDef $2 (reverse $4) }
 
 field :: { Field }
 field : ident '::' areaHS { Field $1 $3 }
 
--- 1 or more fields.
+-- 1 or more fields, separated (but optionally ending with) ';'.
 fields :: { [Field] }
 fields :
-    fields field ';'   { $2 : $1 }
-  | field ';'          { [$1] }
+    fields ';' field   { $3 : $1 }
+  | fields ';'         { $1 }
+  | field              { [$1] }
 
 --------------------------------------------------------------------------------
 
