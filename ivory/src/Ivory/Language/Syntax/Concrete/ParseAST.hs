@@ -17,11 +17,13 @@ type TypeVar   = String
 
 --------------------------------------------------------------------------------
 
--- Symbols to put into the Ivory module.
-data GlobalSym = ProcSym FnSym
-  deriving (Show, Read, Eq, Ord)
+-- Top level symbols.
+data GlobalSym = GlobalProc ProcDef
+               | GlobalStruct StructDef
+  deriving Show
 
 --------------------------------------------------------------------------------
+-- Procs
 
 data ProcDef = ProcDef
   { procTy   :: Type         -- ^ Return type
@@ -31,6 +33,7 @@ data ProcDef = ProcDef
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
+-- Types
 
 data Type
   = TyVoid                     -- ^ Unit type
@@ -40,26 +43,30 @@ data Type
   | TyChar                     -- ^ Characters
   | TyFloat                    -- ^ Floats
   | TyDouble                   -- ^ Doubles
-  | TyRef      MemArea Type    -- ^ References
-  | TyConstRef MemArea Type    -- ^ Constant References
+  | TyRef      Scope Area      -- ^ References
+  | TyConstRef Scope Area      -- ^ Constant References
+  -- XXX
   -- | TyPtr Type              -- ^ Pointers
+  | TyArea Area                -- ^ Area types
+  deriving (Show, Read, Eq, Ord)
 
-  | TyArr Type Integer
-  -- ^ Arrays of fixed length
+data Area =
+    TyStruct String            -- ^ Structures
+  | TyArray Area Integer       -- ^ Arrays of fixed length
+  -- XXX
+  --  | TyCArray Area          -- ^ C Arrays
+  | TyStored Type
+  deriving (Show, Read, Eq, Ord)
 
-  | TyStruct String            -- ^ Structures
-
---  | TyCArray Type            -- ^ C Arrays
---  | TyOpaque                 -- ^ Opaque type---not implementable.
-    deriving (Show, Read, Eq, Ord)
-
-data MemArea = Stack (Maybe TypeVar)   -- ^ Stack allocated.  If no type
-                                       -- variable is provided, a fresh one is
-                                       -- constructed.
-             | Global                  -- ^ Globally allocated
-             | PolyMem (Maybe TypeVar) -- ^ Either allocation.  If no type
-                                       -- variable is provided, a fresh one is
-                                       -- constructed.
+data Scope =
+    Stack (Maybe TypeVar)
+    -- ^ Stack allocated.  If no type variable is provided, a fresh one is
+    -- constructed.
+  | Global
+  -- ^ Globally allocated
+  | PolyMem (Maybe TypeVar)
+  -- ^ Either allocation.  If no type variable is provided, a fresh one is
+  -- constructed.
   deriving (Show, Read, Eq, Ord)
 
 data IntSize
@@ -77,11 +84,7 @@ data WordSize
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
-
-data RefLVal
-  = RefVar RefVar
-  | ArrIx RefVar Exp
-  deriving (Show, Read, Eq, Ord)
+-- Expressions
 
 data Literal
   = LitInteger Integer
@@ -121,15 +124,11 @@ data ExpOp
 
   | DivOp
   | ModOp
--- Don't need in language
---  | RecipOp
 
   | FExpOp
   | FSqrtOp
   | FLogOp
   | FPowOp
--- Don't need in language
---  | FLogBaseOp
   | FSinOp
   | FTanOp
   | FCosOp
@@ -172,7 +171,7 @@ data Stmt
   | Assume Exp
   | Return Exp
   | ReturnVoid
---  | Deref dereferencing is an expression in our language here.
+  -- Deref dereferencing is an expression in our language here.
   | Store RefLVal Exp
   | Assign Var Exp
   | Call (Maybe Var) FnSym [Exp]
@@ -181,5 +180,30 @@ data Stmt
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
   | Forever [Stmt]
---  | Break XXX Too dangerous (and difficult) for non-macro use?
+-- Break XXX Too dangerous (and difficult) for non-macro use?
   deriving (Show, Read, Eq, Ord)
+
+data RefLVal
+  = RefVar RefVar
+  | ArrIx RefVar Exp
+  deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Structs
+
+data StructDef
+  = StructDef String [Field]
+  | AbstractDef String String
+  | StringDef String Integer
+    deriving (Show)
+
+structSym :: StructDef -> String
+structSym s = case s of
+  StructDef   sym _ -> sym
+  AbstractDef sym _ -> sym
+  StringDef   sym _ -> sym
+
+data Field = Field
+  { fieldName :: String
+  , fieldType :: Area
+  } deriving (Show)

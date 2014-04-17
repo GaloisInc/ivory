@@ -119,7 +119,7 @@ module Ivory.Language (
   , assume
 
     -- ** Structures
-  , IvoryStruct(..), StructDef(), ivory, (~>), Label()
+  , IvoryStruct(..), StructDef(), (~>), Label()
 
     -- ** Arrays
   , (!)
@@ -197,7 +197,6 @@ import Ivory.Language.Sint
 import Ivory.Language.SizeOf
 import Ivory.Language.String
 import Ivory.Language.Struct
-import Ivory.Language.Struct.Quote (ivory)
 import Ivory.Language.Type
 import Ivory.Language.Uint
 import qualified Ivory.Language.Syntax.AST as AST
