@@ -7,6 +7,8 @@
 
 module Ivory.Language.Syntax.Concrete.QQ.Types where
 
+import Data.List (nub)
+
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------

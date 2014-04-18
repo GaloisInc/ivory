@@ -31,6 +31,8 @@ import Ivory.Language.Syntax.Concrete.Lexer
   else     { TokReserved "else" }
   assert   { TokReserved "assert" }
   assume   { TokReserved "assume" }
+  pre      { TokReserved "pre" }
+  post     { TokReserved "post" }
   assign   { TokReserved "let" }
   return   { TokReserved "return" }
   alloc    { TokReserved "alloc" }
@@ -216,8 +218,9 @@ defs : defs procDef       { GlobalProc $2 : $1 }
 -- Procs
 
 procDef :: { ProcDef }
-procDef : type ident '(' args ')'
-            '{' stmts '}'         { ProcDef $1 $2 (reverse $4) (reverse $7) }
+procDef :
+  type ident '(' args ')'
+    '{' stmts '}' prePostBlk { ProcDef $1 $2 (reverse $4) (reverse $7) $9 }
 
 tyArg :: { (Type, Var) }
 tyArg : type ident { ($1, $2) }
@@ -228,6 +231,22 @@ args :  args ',' tyArg         { $3 : $1 }
       | args ','               { $1 }
       | tyArg                  { [$1] }
       | {- empty -}            { [] }
+
+-- pre/post conditions
+prePostBlk :: { [PrePost] }
+prePostBlk :
+    '{' prePosts '}'       { reverse $2 }
+  | {- empty -}            { [] }
+
+prePosts :: { [PrePost] }
+prePosts :
+    prePosts prePost ';' { $2 : $1 }
+  | prePost ';'          { [$1] }
+
+prePost :: { PrePost }
+prePost :
+    pre  '(' exp ')' { PreCond  $3 }
+  | post '(' exp ')' { PostCond $3 }
 
 ----------------------------------------
 -- Statements
@@ -277,6 +296,8 @@ exps :  exps ',' exp           { $3 : $1 }
 exp :: { Exp }
 exp : integer            { ExpLit (LitInteger $1) }
     | ident              { ExpVar $1 }
+    -- Used only in post-conditions.
+    | return             { ExpRet }
     | '(' exp ')'        { $2 }
     | ident '[' exp ']'  { ExpArrIx $1 $3 }
     -- XXX antiExpP

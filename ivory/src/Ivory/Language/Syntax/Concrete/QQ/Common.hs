@@ -13,10 +13,14 @@ module Ivory.Language.Syntax.Concrete.QQ.Common where
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 
+import           Data.List  (nub)
 import           MonadLib   (set, get)
 import qualified MonadLib   as M
 import           Data.Monoid
 import qualified Data.DList as D
+
+import Ivory.Language.Syntax.Concrete.QQ.Types
+import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
 -- Monad for inserting values over the Q monad.
@@ -44,3 +48,16 @@ liftQ = QStM . M.lift
 
 runToSt :: QStM a b -> Q [a]
 runToSt m = snd `fmap` runToQ m
+
+--------------------------------------------------------------------------------
+
+collectRefExps :: Exp -> [DerefExp]
+collectRefExps exp = nub $ case exp of
+  ExpLit _           -> []
+  ExpVar _           -> []
+  ExpDeref refVar    -> [RefExp refVar]
+  ExpOp _ args       -> concatMap collectRefExps args
+  -- ix is an expression that is processed when the statement is inserted.
+  ExpArrIx arr ix    -> [ArrIxExp arr ix]
+  ExpAnti _          -> []
+  ExpRet             -> error "Return expressions should only appear in pre/post conditions."
