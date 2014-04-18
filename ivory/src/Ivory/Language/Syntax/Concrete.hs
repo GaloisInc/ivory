@@ -29,7 +29,6 @@ struct Foo
   ; bar :: Array 4 (Stored Uint32)
   }
 
-
 int32_t foo0() {
   alloc *x = 3;
   *x = 4;
@@ -74,6 +73,11 @@ uint32_t foo6(v *uint32_t[3] arr0) {
 uint32_t foo7(bool b, uint32_t a) {
     return (b && !b ? a+3 : signum abs a - 4);
 }
+-- {
+--   pre(a > 5);
+--   post(return > 5);
+-- }
+
 
 --foo8 :: Def ('[IBool, Uint32] :-> Uint32)
 uint32_t foo8(bool b, uint32_t a) {
