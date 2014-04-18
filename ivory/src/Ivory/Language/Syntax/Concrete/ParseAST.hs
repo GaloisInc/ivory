@@ -26,11 +26,17 @@ data GlobalSym = GlobalProc ProcDef
 -- Procs
 
 data ProcDef = ProcDef
-  { procTy   :: Type         -- ^ Return type
-  , procSym  :: FnSym        -- ^ Function name
-  , procArgs :: [(Type,Var)] -- ^ Argument types
-  , procStmt :: [Stmt]       -- ^ Body
+  { procTy      :: Type         -- ^ Return type
+  , procSym     :: FnSym        -- ^ Function name
+  , procArgs    :: [(Type,Var)] -- ^ Argument types
+  , procStmt    :: [Stmt]       -- ^ Body
+  , procPrePost :: [PrePost]
   } deriving (Show, Read, Eq, Ord)
+
+-- Pre and post conditions
+data PrePost = PreCond  Exp
+             | PostCond Exp
+  deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Types
@@ -93,6 +99,7 @@ data Literal
 data Exp
   = ExpLit Literal
   | ExpVar Var
+  | ExpRet -- Used only in post-conditions
   | ExpDeref RefVar -- Note: these are statements in Ivory.  We constrain the
                     -- language here: you can only deref a RefVar.
   | ExpOp ExpOp [Exp]

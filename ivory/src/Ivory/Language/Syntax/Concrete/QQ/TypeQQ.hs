@@ -143,7 +143,7 @@ fromArea area = case area of
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
-fromProcType (ProcDef retTy procName args _) = do
+fromProcType (ProcDef retTy procName args _ _) = do
   arr                 <- promotedT '(I.:->)
   (ret,retTyVars)     <- runToQ (fromType retTy)
   (argVars,argTyVars) <- fromArgs

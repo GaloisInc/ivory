@@ -42,16 +42,18 @@ tokens :-
   $digit+ { lex (TokInteger . read) }
 
 -- Reserved words: statements
-  if      { lexReserved }
-  else    { lexReserved }
-  assert  { lexReserved }
-  assume  { lexReserved }
-  let     { lexReserved }
-  return  { lexReserved }
-  alloc   { lexReserved }
-  memcpy  { lexReserved }
-  map     { lexReserved }
-  forever { lexReserved }
+  if       { lexReserved }
+  else     { lexReserved }
+  assert   { lexReserved }
+  assume   { lexReserved }
+  pre      { lexReserved }
+  post     { lexReserved }
+  let      { lexReserved }
+  return   { lexReserved }
+  alloc    { lexReserved }
+  memcpy   { lexReserved }
+  map      { lexReserved }
+  forever  { lexReserved }
 
 -- Reserved words: expressions
   abs     { lexReserved }
