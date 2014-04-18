@@ -24,7 +24,6 @@ import Language.Haskell.Meta.Parse (parseExp)
 
 import qualified Ivory.Language as I
 
-import           Data.List (nub)
 import           Control.Monad (forM_)
 
 import Ivory.Language.Syntax.Concrete.ParseAST
@@ -158,16 +157,6 @@ insertDerefStmt dv = case dv of
     return ((dv, nm) : env)
   where
   nmVar = VarE . mkName
-
-collectRefExps :: Exp -> [DerefExp]
-collectRefExps exp = nub $ case exp of
-  ExpLit _           -> []
-  ExpVar _           -> []
-  ExpDeref refVar    -> [RefExp refVar]
-  ExpOp _ args       -> concatMap collectRefExps args
-  -- ix is an expression that is processed when the statement is inserted.
-  ExpArrIx arr ix    -> [ArrIxExp arr ix]
-  ExpAnti _          -> []
 
 --------------------------------------------------------------------------------
 -- Helpers
