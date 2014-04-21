@@ -117,8 +117,10 @@ fromArrayTy area sz = do
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr szTy) a
 
-fromStructTy :: Name -> TTyVar T.Type
-fromStructTy nm = error $ "from struct QQ not defined: " ++ show nm
+fromStructTy :: String -> TTyVar T.Type
+fromStructTy nm = do
+  struct <- liftPromote 'I.Struct
+  return  $ AppT struct (LitT (StrTyLit nm))
 
 fromType :: Type -> TTyVar T.Type
 fromType ty = case ty of
@@ -138,7 +140,7 @@ fromType ty = case ty of
 fromArea :: Area -> TTyVar T.Type
 fromArea area = case area of
   TyArray a sz      -> fromArrayTy a sz
-  TyStruct nm       -> fromStructTy (mkName nm)
+  TyStruct nm       -> fromStructTy nm
   TyStored ty       -> storedTy ty
 
 -- | Create a procedure type.

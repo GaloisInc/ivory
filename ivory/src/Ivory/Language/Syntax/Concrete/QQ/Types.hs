@@ -14,4 +14,5 @@ import Ivory.Language.Syntax.Concrete.ParseAST
 data DerefExp
   = RefExp RefVar
   | RefArrIxExp RefVar Exp
+  | RefFieldExp RefVar FieldNm
   deriving (Eq, Show)

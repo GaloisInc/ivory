@@ -24,11 +24,6 @@ e = (4::Sint32) >? 3
 
 [ivory|
 
-struct Foo
-  { foo :: Stored IBool
-  ; bar :: Array 4 (Stored Uint32)
-  }
-
 int32_t foo0() {
   alloc *x = 3;
   *x = 4;
@@ -106,6 +101,21 @@ uint32_t foo11(const *uint32_t i) {
 uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
   *b = *a;
   return *b;
+}
+
+struct Foo
+ { aFoo :: Stored IBool
+ ; aBar :: Array 4 (Stored Uint32)
+ }
+
+bool foo13(* struct Foo f) {
+  return *(f &> aFoo);
+}
+
+xx* uint32_t foo14(xx* struct Foo f) {
+  let a = f &> aBar;
+  let u = a ! 2;
+  return u;
 }
 
 -- const * uint32_t foo13(*uint32_t ref) {

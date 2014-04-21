@@ -77,6 +77,8 @@ import Ivory.Language.Syntax.Concrete.Lexer
   '?'       { TokSym "?" }
   ':'       { TokSym ":" }
 
+  '&>'      { TokSym "&>" }
+
   '=='      { TokSym "==" }
   '!='      { TokSym "!=" }
 
@@ -178,6 +180,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %left '+' '-'
 %left '*' '/' '%'
 %right '*' '~' '!' '-'
+%left '&>'
 %right
   abs
   signum
@@ -300,6 +303,7 @@ exp : integer            { ExpLit (LitInteger $1) }
     | return             { ExpRet }
     | '(' exp ')'        { $2 }
     | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
+    | ident '&>' ident   { ExpFieldRef $1 $3 }
     | '*' exp            { ExpDeref $2 }
     -- XXX antiExpP
 
@@ -408,8 +412,8 @@ refC :
 
 areaC :: { Area }
 areaC :
-    arrayTypeC    { $1 }
-  | struct ident  { TyStruct $2 }
+    arrayTypeC      { $1 }
+  | struct tyIdent  { TyStruct $2 }
 
 arrayTypeC :: { Area }
 arrayTypeC :
