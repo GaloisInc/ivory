@@ -108,8 +108,12 @@ toExp env exp = case exp of
     -> fromOpExp env op args
   ExpArrIxRef ref ixExp
     -> toArrIxExp env ref ixExp
+  ExpFieldRef ref fieldNm
+    -> toFieldExp ref fieldNm
   ExpAnti str
     -> VarE (mkName str)
+  ExpRet
+    -> error "XXX implement ExpRet"
 
 -----------------------------------------
 -- Dereference expression environment
@@ -126,7 +130,14 @@ lookupDerefVar exp env =
 
 --------------------------------------------------------------------------------
 -- Helpers
+
 toArrIxExp :: DerefVarEnv -> RefVar -> Exp -> T.Exp
 toArrIxExp env ref ixExp =
   let tExp = toExp env ixExp in
   InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just tExp)
+
+toFieldExp :: RefVar -> FieldNm -> T.Exp
+toFieldExp ref fieldNm =
+  InfixE (nm ref) (VarE '(I.~>)) (nm fieldNm)
+  where
+  nm = Just . VarE . mkName

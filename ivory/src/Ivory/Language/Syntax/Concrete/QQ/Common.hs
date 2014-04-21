@@ -57,18 +57,14 @@ runToSt m = snd `fmap` runToQ m
 -- statements.
 collectRefExps :: Exp -> [DerefExp]
 collectRefExps exp = nub $ case exp of
-  ExpLit _           -> []
-  ExpVar _           -> []
   ExpDeref e         -> [toDerefExp e]
   ExpOp _ args       -> concatMap collectRefExps args
-  -- ix is an expression that is processed when the statement is inserted.
-  ExpArrIxRef{}      -> []
-  ExpAnti{}          -> []
-  ExpRet             -> error "Return expressions should only appear in pre/post conditions."
+  _                  -> []
 
 toDerefExp :: Exp -> DerefExp
 toDerefExp e = case e of
   ExpVar v           -> RefExp v
   ExpArrIxRef ref ix -> RefArrIxExp ref ix
+  ExpFieldRef ref fn -> RefFieldExp ref fn
   _                  -> error $ "Dereference of expression "
                      ++ show e ++ " is not permitted."
