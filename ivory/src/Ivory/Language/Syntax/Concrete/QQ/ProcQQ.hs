@@ -13,8 +13,6 @@ module Ivory.Language.Syntax.Concrete.QQ.ProcQQ where
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
-import           Control.Monad
-
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH       as T
 import           Language.Haskell.TH.Quote()
@@ -73,7 +71,7 @@ mkPrePostConds conds bd = do
     PostCond exp -> runExp exp
 
   runExp :: Exp -> Q T.Exp
-  runExp exp = undefined --runToSt (fromExp exp)
+  runExp exp = error $ "XXX Finish rep-post conditions!"  --runToSt (fromExp exp)
 
 --------------------------------------------------------------------------------
 

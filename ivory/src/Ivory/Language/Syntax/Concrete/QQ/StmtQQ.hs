@@ -146,16 +146,19 @@ insertDerefStmt :: DerefExp -> TStmtM DerefVarEnv
 insertDerefStmt dv = case dv of
   RefExp var    -> do
     nm <- liftQ (newName var)
-    insert $ BindS (VarP nm) (AppE (VarE 'I.deref) (nmVar var))
+    insertDeref nm (VarE (mkName var))
     return [(dv, nm)]
   RefArrIxExp ref ixExp -> do
     env <- mkDerefStmts ixExp
     nm <- liftQ (newName ref)
-    let arrIx = toArrIxExp env ref ixExp
-    insert $ BindS (VarP nm) (AppE (VarE 'I.deref) arrIx)
+    insertDeref nm (toArrIxExp env ref ixExp)
     return ((dv, nm) : env)
+  RefFieldExp ref fieldNm -> do
+    nm <- liftQ (newName ref)
+    insertDeref nm (toFieldExp ref fieldNm)
+    return [(dv, nm)]
   where
-  nmVar = VarE . mkName
+  insertDeref nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
 
 --------------------------------------------------------------------------------
 -- Helpers
