@@ -100,10 +100,9 @@ data Exp
   = ExpLit Literal
   | ExpVar Var
   | ExpRet -- Used only in post-conditions
-  | ExpDeref RefVar -- Note: these are statements in Ivory.  We constrain the
-                    -- language here: you can only deref a RefVar.
+  | ExpDeref Exp -- Note: these are statements in Ivory.
   | ExpOp ExpOp [Exp]
-  | ExpArrIx RefVar Exp
+  | ExpArrIxRef RefVar Exp
   | ExpAnti String
     -- ^ Ivory antiquotation
   deriving (Show, Read, Eq, Ord)
