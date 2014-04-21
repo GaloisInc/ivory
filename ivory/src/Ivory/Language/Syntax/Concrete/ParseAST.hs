@@ -14,6 +14,7 @@ type Var       = String
 type RefVar    = String
 type IxVar     = String
 type TypeVar   = String
+type FieldNm   = String
 
 --------------------------------------------------------------------------------
 
@@ -103,6 +104,7 @@ data Exp
   | ExpDeref Exp -- Note: these are statements in Ivory.
   | ExpOp ExpOp [Exp]
   | ExpArrIxRef RefVar Exp
+  | ExpFieldRef RefVar FieldNm
   | ExpAnti String
     -- ^ Ivory antiquotation
   deriving (Show, Read, Eq, Ord)
@@ -201,7 +203,7 @@ data StructDef
   = StructDef String [Field]
   -- XXX not implemented.
   | AbstractDef String String
-  -- Not implemented.  Still used?
+  -- XXX Not implemented.
   | StringDef String Integer
     deriving (Show)
 
@@ -212,6 +214,6 @@ structSym s = case s of
   StringDef   sym _ -> sym
 
 data Field = Field
-  { fieldName :: String
+  { fieldName :: FieldNm
   , fieldType :: Area
   } deriving (Show)
