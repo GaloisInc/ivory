@@ -263,7 +263,7 @@ simpleStmt :
       '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
   | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
   | '*' ident '=' exp             { Store (RefVar $2) $4 }
-  | '*' ident '[' exp ']' '=' exp { Store (ArrIx $2 $4) $7 }
+  | '*' arrExp '=' exp            { Store (ArrIx (fst $2) (snd $2)) $4 }
   | ident '(' exps ')'            { Call Nothing $1 (reverse $3) }
   | ident '=' ident '(' exps ')'  { Call (Just $1) $3 (reverse $5) }
 
@@ -299,7 +299,7 @@ exp : integer            { ExpLit (LitInteger $1) }
     -- Used only in post-conditions.
     | return             { ExpRet }
     | '(' exp ')'        { $2 }
-    | ident '[' exp ']'  { ExpArrIxRef $1 $3 }
+    | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
     | '*' exp            { ExpDeref $2 }
     -- XXX antiExpP
 
@@ -358,6 +358,10 @@ exp : integer            { ExpLit (LitInteger $1) }
 
     -- Tertiary operators
     | exp '?' exp ':' exp { ExpOp CondOp [$1, $3, $5] }
+
+arrExp :: { (RefVar, Exp) }
+arrExp : ident '!' exp  { ($1, $3) }
+
 
 ----------------------------------------
 -- Types

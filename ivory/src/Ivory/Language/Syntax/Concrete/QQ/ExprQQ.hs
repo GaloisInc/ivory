@@ -107,8 +107,7 @@ toExp env exp = case exp of
   ExpOp op args
     -> fromOpExp env op args
   ExpArrIxRef ref ixExp
-    -> let tExp = toExp env ixExp in
-       InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just tExp)
+    -> toArrIxExp env ref ixExp
   ExpAnti str
     -> VarE (mkName str)
 
@@ -125,3 +124,9 @@ lookupDerefVar exp env =
     Nothing -> error "Internal error in lookupDerefVar"
     Just rv -> rv
 
+--------------------------------------------------------------------------------
+-- Helpers
+toArrIxExp :: DerefVarEnv -> RefVar -> Exp -> T.Exp
+toArrIxExp env ref ixExp =
+  let tExp = toExp env ixExp in
+  InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just tExp)

@@ -150,9 +150,8 @@ insertDerefStmt dv = case dv of
     return [(dv, nm)]
   RefArrIxExp ref ixExp -> do
     env <- mkDerefStmts ixExp
-    let e = toExp env ixExp
     nm <- liftQ (newName ref)
-    let arrIx = InfixE (Just (nmVar ref)) (VarE '(I.!)) (Just e)
+    let arrIx = toArrIxExp env ref ixExp
     insert $ BindS (VarP nm) (AppE (VarE 'I.deref) arrIx)
     return ((dv, nm) : env)
   where
