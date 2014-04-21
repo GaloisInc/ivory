@@ -10,6 +10,8 @@
 
 module Ivory.Language.Syntax.Concrete.QQ.Common where
 
+import Prelude hiding (exp)
+
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 
@@ -51,13 +53,22 @@ runToSt m = snd `fmap` runToQ m
 
 --------------------------------------------------------------------------------
 
+-- Collect up the variables used in dereference expressions to make them Ivory
+-- statements.
 collectRefExps :: Exp -> [DerefExp]
 collectRefExps exp = nub $ case exp of
   ExpLit _           -> []
   ExpVar _           -> []
-  ExpDeref refVar    -> [RefExp refVar]
+  ExpDeref e         -> [toDerefExp e]
   ExpOp _ args       -> concatMap collectRefExps args
   -- ix is an expression that is processed when the statement is inserted.
-  ExpArrIx arr ix    -> [ArrIxExp arr ix]
-  ExpAnti _          -> []
+  ExpArrIxRef{}      -> []
+  ExpAnti{}          -> []
   ExpRet             -> error "Return expressions should only appear in pre/post conditions."
+
+toDerefExp :: Exp -> DerefExp
+toDerefExp e = case e of
+  ExpVar v           -> RefExp v
+  ExpArrIxRef ref ix -> RefArrIxExp ref ix
+  _                  -> error $ "Dereference of expression "
+                     ++ show e ++ " is not permitted."
