@@ -148,11 +148,11 @@ insertDerefStmt dv = case dv of
     nm <- liftQ (newName var)
     insert $ BindS (VarP nm) (AppE (VarE 'I.deref) (nmVar var))
     return [(dv, nm)]
-  ArrIxExp arr ixExp -> do
+  RefArrIxExp ref ixExp -> do
     env <- mkDerefStmts ixExp
     let e = toExp env ixExp
-    nm <- liftQ (newName arr)
-    let arrIx = InfixE (Just (nmVar arr)) (VarE '(I.!)) (Just e)
+    nm <- liftQ (newName ref)
+    let arrIx = InfixE (Just (nmVar ref)) (VarE '(I.!)) (Just e)
     insert $ BindS (VarP nm) (AppE (VarE 'I.deref) arrIx)
     return ((dv, nm) : env)
   where

@@ -24,6 +24,8 @@ import qualified Ivory.Language as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
+import Ivory.Language.Syntax.Concrete.QQ.Common
+
 --------------------------------------------------------------------------------
 -- Expressions
 
@@ -100,16 +102,15 @@ toExp env exp = case exp of
     -> fromLit lit
   ExpVar v
     -> VarE (mkName v)
-  ExpDeref refVar
-    -> lookupV (RefExp refVar)
+  ExpDeref e
+    -> VarE (lookupDerefVar e env)
   ExpOp op args
     -> fromOpExp env op args
-  ExpArrIx arr ix
-    -> lookupV (ArrIxExp arr ix)
+  ExpArrIxRef ref ixExp
+    -> let tExp = toExp env ixExp in
+       InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just tExp)
   ExpAnti str
     -> VarE (mkName str)
-  where
-  lookupV de = VarE (lookupDerefVar de env)
 
 -----------------------------------------
 -- Dereference expression environment
@@ -118,8 +119,9 @@ type DerefVarEnv = [(DerefExp, Name)]
 
 -- Returns the fresh variable that is the do-block binding from the dereference
 -- statement.
-lookupDerefVar :: DerefExp -> DerefVarEnv -> Name
-lookupDerefVar refVar env =
-  case lookup refVar env of
+lookupDerefVar :: Exp -> DerefVarEnv -> Name
+lookupDerefVar exp env =
+  case lookup (toDerefExp exp) env of
     Nothing -> error "Internal error in lookupDerefVar"
     Just rv -> rv
+

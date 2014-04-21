@@ -7,13 +7,11 @@
 
 module Ivory.Language.Syntax.Concrete.QQ.Types where
 
-import Data.List (nub)
-
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
 
 data DerefExp
   = RefExp RefVar
-  | ArrIxExp RefVar Exp
+  | RefArrIxExp RefVar Exp
   deriving (Eq, Show)
