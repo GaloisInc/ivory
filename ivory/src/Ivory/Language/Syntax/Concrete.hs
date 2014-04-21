@@ -64,9 +64,9 @@ void foo2() {
 uint32_t foo6(v *uint32_t[3] arr0) {
   alloc arr1[] = {1,2,3};
   map ix {
-    arr0[ix] = arr1[ix];
+    *arr0[ix] = *arr1[ix];
   }
-  return arr0[1];
+  return *arr0[1];
 }
 
 --foo7 :: Def ('[IBool, Uint32] :-> Uint32)

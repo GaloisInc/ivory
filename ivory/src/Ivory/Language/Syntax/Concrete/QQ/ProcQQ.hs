@@ -99,7 +99,7 @@ insertConds dv = case dv of
     nm <- liftQ (newName var)
     insert $ undefined -- BindS (VarP nm) (AppE (VarE 'I.deref) (nmVar var))
     return [(dv, nm)]
-  ArrIxExp arr ixExp -> do
+  RefArrIxExp arr ixExp -> do
     env <- mkConds ixExp
     let e = toExp env ixExp
     nm <- liftQ (newName arr)
