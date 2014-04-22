@@ -45,4 +45,3 @@ fromProc pd@(ProcDef _ procName args body prePosts) = do
     full    <- mkPrePostConds prePosts bd
     let nm   = AppE (VarE 'I.proc) (LitE $ StringL procName)
     return (AppE nm (LamE lams full))
-
