@@ -1,0 +1,18 @@
+TODOs:
+
+- Integrate the bitdata quasiquoter.
+
+- Include break statements?  This isn't trivial, as we need to add the correct
+  effects.
+
+- Add a parser for abstract structs and string defs (structs).
+
+- Right now, there is just expression anti-quotation.  Other anti-quotation?
+
+- Add externs (procs, areas, etc.).
+
+- C arrays.
+
+- Add public/private syntax?
+
+- Add other loop statements?
