@@ -12,6 +12,7 @@ module Ivory.Language.Syntax.Concrete.QQ.ProcQQ where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
+import           Control.Monad
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH       as T
@@ -31,7 +32,7 @@ import Ivory.Language.Syntax.Concrete.QQ.Types
 
 -- We use a state monad over the Q monad to keep track of expressions in the
 -- parsed language that we'll turn into checkStored calls in Ivory.
-type TCondM a = QStM T.Exp a
+type TCondM a = QStM (T.Exp, T.Exp -> T.Exp) a
 
 --------------------------------------------------------------------------------
 
@@ -70,11 +71,15 @@ mkPrePostConds conds procBody = do
 
   runExp :: Exp -> Q T.Exp
   runExp exp = do
-    (e, memAccess) <- runToQ (fromExp exp)
-    case memAccess of
-      [] -> return e
+    (e, derefs) <- runToQ (fromExp exp)
+    return (foldr go e derefs)
+    where
+    go :: (T.Exp, T.Exp -> T.Exp) -> T.Exp -> T.Exp
+    go (deref, rst) acc =
+      AppE (AppE (VarE 'I.checkStored) deref) (rst acc)
+    -- case derefs of
+    --   [] -> return e
 
--- error $ "XXX Finish rep-post conditions!"  --runToSt (fromExp exp)
 
 --------------------------------------------------------------------------------
 
@@ -95,7 +100,7 @@ mkCheckStored exp = do
 -- For each unique expression that requires a dereference, insert a dereference
 -- statement.
 insertCheckStored :: DerefExp -> TCondM DerefVarEnv
-insertCheckStored dv = return [] --undefined -- case dv of
+insertCheckStored dv = case dv of
   -- RefExp var    -> do
   --   nm <- liftQ (newName var)
   --   insertDeref nm (VarE (mkName var))
@@ -105,9 +110,11 @@ insertCheckStored dv = return [] --undefined -- case dv of
   --   nm <- liftQ (newName ref)
   --   insertDeref nm (toArrIxExp env ref ixExp)
   --   return ((dv, nm) : env)
-  -- RefFieldExp ref fieldNm -> do
-  --   nm <- liftQ (newName ref)
-  --   insertDeref nm (toFieldExp ref fieldNm)
-  --   return [(dv, nm)]
+  RefFieldExp ref fieldNm -> do
+    nm <- liftQ (newName ref)
+    insert $ (toFieldExp ref fieldNm, ($) LamE [VarP nm])
+    return [(dv, nm)]
   -- where
-  -- insertDeref nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
+  -- insertDeref nm exp = insert $ 
+
+--BindS (VarP nm) (AppE (VarE 'I.deref) exp)
