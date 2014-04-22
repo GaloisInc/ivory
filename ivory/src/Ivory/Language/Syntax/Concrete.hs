@@ -117,12 +117,13 @@ xx* uint32_t foo14(xx* struct Foo f) {
   return u;
 }
 
-uint32_t foo15(uint32_t a) {
+uint32_t foo15(uint32_t a, * struct Foo f, * struct Foo g) {
         return a;
 }
 { pre(a < 4);
   pre(a > 0);
   post(return > 5);
+  pre(* f &> aFoo && * g &> aFoo);
 }
 
 -- const * uint32_t foo13(*uint32_t ref) {
