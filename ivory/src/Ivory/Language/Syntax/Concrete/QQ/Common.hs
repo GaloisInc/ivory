@@ -61,6 +61,7 @@ collectRefExps exp = nub $ case exp of
   ExpOp _ args       -> concatMap collectRefExps args
   _                  -> []
 
+-- Unpack a dereference expression
 toDerefExp :: Exp -> DerefExp
 toDerefExp e = case e of
   ExpVar v           -> RefExp v

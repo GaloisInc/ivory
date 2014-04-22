@@ -67,6 +67,16 @@ pidUpdate = proc "pid_update" $
     store (pid ~> pid_err) err
     ret err
 
+foo :: Def ('[ Ref s (Array 3 (Stored Uint32))
+             , Ref s (Array 3 (Stored Uint32)) ] :-> ())
+foo = proc "foo" $ \a b ->
+--  requires (*a!0 < *b!0)
+  requires (checkStored (a ! 0)
+              (\v -> (checkStored (b ! 0)
+                     (\v1 -> v <? v1))))
+  $ body $ do
+    retVoid
+
 runPID :: IO ()
 runPID = runCompiler [cmodule] initialOpts { stdOut = True }
 
