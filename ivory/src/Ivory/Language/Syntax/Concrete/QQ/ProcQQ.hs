@@ -57,21 +57,24 @@ fromProc pd@(ProcDef _ procName args body prePosts) = do
     return (AppE nm (LamE lams full))
 
 mkPrePostConds :: [PrePost] -> T.Exp -> Q T.Exp
-mkPrePostConds conds bd = do
-  exps <- mapM mkPrePostCond conds
-  return (foldl go bd exps)
+mkPrePostConds conds procBody = do
+  condFns <- mapM mkCond conds
+  -- Apply conditions to the proc body in the Q monad.
+  return (foldr AppE procBody condFns)
 
   where
-  go :: T.Exp -> T.Exp -> T.Exp
-  go e0 e1 = AppE e0 e1
-
-  mkPrePostCond :: PrePost -> Q T.Exp
-  mkPrePostCond cond = case cond of
-    PreCond exp  -> runExp exp
-    PostCond exp -> runExp exp
+  mkCond :: PrePost -> Q T.Exp
+  mkCond cond = case cond of
+    PreCond  exp -> appE (varE 'I.requires) (runExp exp)
+    PostCond exp -> appE (varE 'I.ensures)  (lamE [varP $ mkName "return"] (runExp exp))
 
   runExp :: Exp -> Q T.Exp
-  runExp exp = error $ "XXX Finish rep-post conditions!"  --runToSt (fromExp exp)
+  runExp exp = do
+    (e, memAccess) <- runToQ (fromExp exp)
+    case memAccess of
+      [] -> return e
+
+-- error $ "XXX Finish rep-post conditions!"  --runToSt (fromExp exp)
 
 --------------------------------------------------------------------------------
 
@@ -81,28 +84,30 @@ mkPrePostConds conds bd = do
 -- only need one dereference statement for each unique dereferenced equation.
 fromExp :: Exp -> TCondM T.Exp
 fromExp exp = do
-  env <- mkConds exp
+  env <- mkCheckStored exp
   return (toExp env exp)
 
-mkConds :: Exp -> TCondM DerefVarEnv
-mkConds exp = do
-  envs <- mapM insertConds (collectRefExps exp)
+mkCheckStored :: Exp -> TCondM DerefVarEnv
+mkCheckStored exp = do
+  envs <- mapM insertCheckStored (collectRefExps exp)
   return (concat envs)
 
 -- For each unique expression that requires a dereference, insert a dereference
 -- statement.
-insertConds :: DerefExp -> TCondM DerefVarEnv
-insertConds dv = case dv of
-  RefExp var    -> do
-    nm <- liftQ (newName var)
-    insert $ undefined -- BindS (VarP nm) (AppE (VarE 'I.deref) (nmVar var))
-    return [(dv, nm)]
-  RefArrIxExp arr ixExp -> do
-    env <- mkConds ixExp
-    let e = toExp env ixExp
-    nm <- liftQ (newName arr)
-    let arrIx = InfixE (Just (nmVar arr)) (VarE '(I.!)) (Just e)
-    insert $ undefined --BindS (VarP nm) (AppE (VarE 'I.deref) arrIx)
-    return ((dv, nm) : env)
-  where
-  nmVar = VarE . mkName
+insertCheckStored :: DerefExp -> TCondM DerefVarEnv
+insertCheckStored dv = return [] --undefined -- case dv of
+  -- RefExp var    -> do
+  --   nm <- liftQ (newName var)
+  --   insertDeref nm (VarE (mkName var))
+  --   return [(dv, nm)]
+  -- RefArrIxExp ref ixExp -> do
+  --   env <- mkDerefStmts ixExp
+  --   nm <- liftQ (newName ref)
+  --   insertDeref nm (toArrIxExp env ref ixExp)
+  --   return ((dv, nm) : env)
+  -- RefFieldExp ref fieldNm -> do
+  --   nm <- liftQ (newName ref)
+  --   insertDeref nm (toFieldExp ref fieldNm)
+  --   return [(dv, nm)]
+  -- where
+  -- insertDeref nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
