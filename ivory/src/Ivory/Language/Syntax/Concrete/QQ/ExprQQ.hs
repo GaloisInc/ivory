@@ -115,10 +115,7 @@ toExp env exp = case exp of
   ExpRet
     -> VarE (mkName "return")
 
------------------------------------------
--- Dereference expression environment
-
-type DerefVarEnv = [(DerefExp, Name)]
+--------------------------------------------------------------------------------
 
 -- Returns the fresh variable that is the do-block binding from the dereference
 -- statement.
