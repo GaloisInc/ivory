@@ -43,11 +43,11 @@ check bool = Cond (return (I.CondBool (unwrapExpr bool)))
 
 checkStored :: forall ref s a.
            (IvoryVar a, IvoryRef ref, IvoryVar (ref s (Stored a)))
-        => ref s (Stored a) -> (a -> IBool) -> Cond
+        => ref s (Stored a) -> (a -> Cond) -> Cond
 checkStored ref prop = Cond $ do
   n <- freshVar "pre"
   let ty = ivoryType (Proxy :: Proxy a)
-  b <- runCond $ check $ prop $ wrapVar n
+  b <- runCond $ prop $ wrapVar n
   return (I.CondDeref ty (unwrapExpr ref) n b)
 
 -- Pre-Conditions --------------------------------------------------------------

@@ -34,7 +34,6 @@ int32_t foo1() {
   if (true) {
     let a = 5;
     return a;
-  -- goo
   }
   else {
     let b = 3;
@@ -116,6 +115,14 @@ xx* uint32_t foo14(xx* struct Foo f) {
   let a = f &> aBar;
   let u = a ! 2;
   return u;
+}
+
+uint32_t foo15(uint32_t a) {
+        return a;
+}
+{ pre(a < 4);
+  pre(a > 0);
+  post(return > 5);
 }
 
 -- const * uint32_t foo13(*uint32_t ref) {
