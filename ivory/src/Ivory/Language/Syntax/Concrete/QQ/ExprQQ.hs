@@ -113,7 +113,7 @@ toExp env exp = case exp of
   ExpAnti str
     -> VarE (mkName str)
   ExpRet
-    -> error "XXX implement ExpRet"
+    -> VarE (mkName "return")
 
 -----------------------------------------
 -- Dereference expression environment
