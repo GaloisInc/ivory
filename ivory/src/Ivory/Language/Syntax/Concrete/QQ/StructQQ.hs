@@ -12,7 +12,6 @@ import qualified Ivory.Language.Area  as A
 import           Ivory.Language.Proxy
 import qualified Ivory.Language.Scope as S
 import           Ivory.Language.SizeOf
-import           Ivory.Language.String
 import qualified Ivory.Language.Struct as S
 import qualified Ivory.Language.Syntax.AST  as AST
 import qualified Ivory.Language.Syntax.Type as AST
@@ -22,7 +21,7 @@ import           Ivory.Language.Syntax.Concrete.ParseAST
 import           Data.Traversable (sequenceA)
 import           Language.Haskell.TH hiding (Type)
 import qualified Language.Haskell.TH as T
-import           Language.Haskell.TH.Quote
+import           Language.Haskell.TH.Quote()
 
 fromStruct :: StructDef -> Q [Dec]
 fromStruct def = case def of

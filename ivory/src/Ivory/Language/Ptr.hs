@@ -12,6 +12,7 @@ import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Scope
 import Ivory.Language.Type
+import Ivory.Language.Monad
 import qualified Ivory.Language.Syntax as I
 
 
@@ -46,3 +47,11 @@ refToPtr  = wrapExpr . unwrapExpr
 -- XXX do not export
 ptrToRef :: IvoryArea area => Ptr s area -> Ref s area
 ptrToRef  = wrapExpr . unwrapExpr
+
+-- | Unwrap a pointer, and use it as a reference.
+withRef :: IvoryArea area
+        => Ptr as area
+        -> (Ref as area -> Ivory eff t)
+        -> Ivory eff f
+        -> Ivory eff ()
+withRef ptr t = ifte_ (nullPtr /=? ptr) (t (ptrToRef ptr))
