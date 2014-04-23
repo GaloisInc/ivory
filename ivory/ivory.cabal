@@ -56,6 +56,7 @@ library
                         Ivory.Language.Syntax.Concrete.ParseAST,
                         Ivory.Language.Syntax.Concrete.QQ,
                         Ivory.Language.Syntax.Concrete.QQ.Common,
+                        Ivory.Language.Syntax.Concrete.QQ.CondQQ,
                         Ivory.Language.Syntax.Concrete.QQ.ExprQQ,
                         Ivory.Language.Syntax.Concrete.QQ.ProcQQ,
                         Ivory.Language.Syntax.Concrete.QQ.StmtQQ,

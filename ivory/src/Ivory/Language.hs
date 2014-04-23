@@ -161,11 +161,12 @@ module Ivory.Language (
   , private, public
   , sourceDep
 
+    -- * Quasiquoter
+  , ivory
 
     -- * Utilities
-  , Proxy(..)
+  , Proxy(..), comment
 
-  , comment
   ) where
 
 import Ivory.Language.Area
@@ -199,24 +200,7 @@ import Ivory.Language.String
 import Ivory.Language.Struct
 import Ivory.Language.Type
 import Ivory.Language.Uint
+import Ivory.Language.Syntax.Concrete.QQ
 import qualified Ivory.Language.Syntax.AST as AST
 
 import GHC.TypeLits (SingI)
-
-
--- Language --------------------------------------------------------------------
-
--- | Unwrap a pointer, and use it as a reference.
-withRef :: IvoryArea area
-        => Ptr as area
-        -> (Ref as area -> Ivory eff t)
-        -> Ivory eff f
-        -> Ivory eff ()
-withRef ptr t = ifte_ (nullPtr /=? ptr) (t (ptrToRef ptr))
-
--- | Primitive return from function.
-ret :: (GetReturn eff ~ Returns r, IvoryVar r) => r -> Ivory eff ()
-ret r = emit (AST.Return (typedExpr r))
-
-retVoid :: (GetReturn eff ~ Returns ()) => Ivory eff ()
-retVoid  = emit AST.ReturnVoid

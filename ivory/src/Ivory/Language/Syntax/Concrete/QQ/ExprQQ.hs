@@ -20,7 +20,13 @@ import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
 import           Language.Haskell.TH.Lift()
 
-import qualified Ivory.Language as I
+import qualified Ivory.Language.IIntegral as I
+import qualified Ivory.Language.Bits      as I
+import qualified  Ivory.Language.Float    as I
+import qualified  Ivory.Language.Ref      as I
+import qualified  Ivory.Language.IBool    as I
+import qualified  Ivory.Language.Array    as I
+import qualified  Ivory.Language.Struct   as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 

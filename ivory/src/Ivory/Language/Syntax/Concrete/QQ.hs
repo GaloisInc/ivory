@@ -20,7 +20,9 @@ import qualified Language.Haskell.TH       as Q
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import           Language.Haskell.TH.Quote
 
-import qualified Ivory.Language as I
+import qualified Ivory.Language.Syntax as I
+import qualified Ivory.Language.Proxy  as I
+import qualified Ivory.Language.Module as I
 
 import Ivory.Language.Syntax.Concrete.QQ.StructQQ
 import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
