@@ -17,6 +17,7 @@ module Ivory.Language.Proc where
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Type
+import Ivory.Language.Effects
 import qualified Ivory.Language.Effects as E
 import qualified Ivory.Language.Syntax as AST
 
@@ -227,3 +228,12 @@ instance (IvoryVar a, IvoryType r, IvoryCall_ (args :-> r) eff impl)
     where
     rest  = Proxy :: Proxy (args :-> r)
     args' = typedExpr a : args
+
+-- Return ----------------------------------------------------------------------
+-- | Primitive return from function.
+ret :: (GetReturn eff ~ Returns r, IvoryVar r) => r -> Ivory eff ()
+ret r = emit (AST.Return (typedExpr r))
+
+-- | Primitive void return from function.
+retVoid :: (GetReturn eff ~ Returns ()) => Ivory eff ()
+retVoid  = emit AST.ReturnVoid

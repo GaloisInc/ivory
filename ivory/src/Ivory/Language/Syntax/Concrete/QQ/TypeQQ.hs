@@ -23,7 +23,15 @@ import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
 
-import qualified Ivory.Language as I
+import qualified Ivory.Language.Float     as I
+import qualified Ivory.Language.IBool     as I
+import qualified Ivory.Language.IChar     as I
+import qualified Ivory.Language.Sint      as I
+import qualified Ivory.Language.Uint      as I
+import qualified Ivory.Language.Scope     as I
+import qualified Ivory.Language.Area      as I
+import qualified Ivory.Language.Ref       as I
+import qualified Ivory.Language.Proc      as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 

@@ -50,10 +50,6 @@ void foo2() {
   }
 }
 
--- bool foo3() {
---   return :i e;
--- }
-
 --foo6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
 uint32_t foo6(v *uint32_t[3] arr0) {
   alloc arr1[] = {1,2,3};
@@ -62,16 +58,13 @@ uint32_t foo6(v *uint32_t[3] arr0) {
   }
   return *arr0 ! 1 ;
 }
+{ pre(*arr0 ! 1 > 0);
+}
 
 --foo7 :: Def ('[IBool, Uint32] :-> Uint32)
 uint32_t foo7(bool b, uint32_t a) {
     return (b && !b ? a+3 : signum abs a - 4);
 }
--- {
---   pre(a > 5);
---   post(return > 5);
--- }
-
 
 --foo8 :: Def ('[IBool, Uint32] :-> Uint32)
 uint32_t foo8(bool b, uint32_t a) {
@@ -81,7 +74,6 @@ uint32_t foo8(bool b, uint32_t a) {
     return (b && !b ? a+3 : signum abs a - 4);
 }
 
---foo9 :: Def ('[Uint32] :-> ())
 void foo9(uint32_t a) {
   forever {
     let b = a + 3;
@@ -111,6 +103,7 @@ bool foo13(* struct Foo f) {
   return *(f &> aFoo);
 }
 
+-- Allocated on either the stack or globally, with user-provided type-variables.
 xx* uint32_t foo14(xx* struct Foo f) {
   let a = f &> aBar;
   let u = a ! 2;
@@ -126,42 +119,18 @@ uint32_t foo15(uint32_t a, * struct Foo f, * struct Foo g) {
   pre(* f &> aFoo && * g &> aFoo);
 }
 
--- const * uint32_t foo13(*uint32_t ref) {
---   return (const ref);
--- }
+-- Stack allocated
+uint32_t foo16(S*uint32_t i) {
+  return *i;
+}
+{ pre(*i > 3); }
 
--- const * uint32_t foo12(*uint32_t i) {
---   return *i;
--- }
+-- Global allocated
+uint32_t foo17(G*uint32_t i) {
+  return *i;
+}
 
 |]
 
--- foo16 :: Def ('[Ref s (Stored Uint32)] :-> ConstRef s (Stored Uint32))
--- foo16 = proc "foo" $ \ref -> body $ do
---   ret (constRef ref)
-
-
--- Polymorphic array lengths.  Parsable, but can't be included in a module!
--- void foo11(*uint32_t[a] r0, *uint32_t[a] r1) {
---   memcpy r0 r1;
--- }
-
-
--- foo4 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
--- foo4 = proc "foo" $ \arr0 -> body $ do
---   arr1 <- local (iarray (map ival [1,2,3]))
---   arrayMap $ \ix -> do
---     x <- deref (arr1 ! ix)
---     store (arr0 ! ix) x
---   y <- deref (arr0 ! 1)
---   ret y
-
-
---runit = runCompiler [myMod] initialOpts {stdOut = True}
-
--- foo7 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
--- foo7 = proc "foo" $ \arr -> body [c|
---   alloc arr[] = {0};
---   return arr[1];
--- |]
-
+bar :: Def ('[Ref s (Stored Uint32)] :-> ())
+bar = proc "bar" $ \ref -> requires (checkStored (ref) (\x -> true)) $ body $ retVoid

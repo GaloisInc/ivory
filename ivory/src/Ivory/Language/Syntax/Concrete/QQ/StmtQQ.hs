@@ -25,7 +25,14 @@ import qualified Language.Haskell.TH as T
 
 import Language.Haskell.Meta.Parse (parseExp)
 
-import qualified Ivory.Language as I
+import qualified Ivory.Language.Init   as I
+import qualified Ivory.Language.Ref    as I
+import qualified Ivory.Language.Proc   as I
+import qualified Ivory.Language.Assert as I
+import qualified Ivory.Language.IBool  as I
+import qualified Ivory.Language.Array  as I
+import qualified Ivory.Language.Loop   as I
+import qualified Ivory.Language.Monad  as I
 
 import           Control.Monad (forM_)
 
