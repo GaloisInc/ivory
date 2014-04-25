@@ -202,7 +202,7 @@ data RefLVal
 data StructDef
   = StructDef String [Field]
   -- XXX not implemented.
-  | AbstractDef String String
+  | AbstractDef String FilePath
   -- XXX Not implemented.
   | StringDef String Integer
     deriving (Show)

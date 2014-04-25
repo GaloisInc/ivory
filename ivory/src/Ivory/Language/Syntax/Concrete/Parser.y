@@ -22,9 +22,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %error     { parseError }
 
 %token
-  integer   { TokInteger $$ }
-  ident     { TokIdent $$ }
-  tyIdent   { TokTyIdent $$ }
+  integer     { TokInteger $$ }
+  ident       { TokIdent $$ }
+  fp          { TokFilePath $$ }
 
   -- Statements
   if       { TokReserved "if" }
@@ -109,6 +109,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   '<<'      { TokSym "<<" }
   '>>'      { TokSym ">>" }
 
+-- Other symbols
   '('       { TokBrack "(" }
   ')'       { TokBrack ")" }
   '{'       { TokBrack "{" }
@@ -121,6 +122,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 
   -- Types
   struct   { TokReserved "struct" }
+  abstract { TokReserved "abstract" }
 
   bool     { TokReserved "bool" }
   char     { TokReserved "char" }
@@ -413,7 +415,7 @@ refC :
 areaC :: { Area }
 areaC :
     arrayTypeC      { $1 }
-  | struct tyIdent  { TyStruct $2 }
+  | structName      { TyStruct $1 }
 
 arrayTypeC :: { Area }
 arrayTypeC :
@@ -456,7 +458,7 @@ baseTypeHS :
 areaHS :: { Area }
 areaHS :
     Stored baseTypeHS          { TyStored $2 }
-  | struct ident               { TyStruct $2 }
+  | structName                 { TyStruct $1 }
   | Array integer areaHS       { TyArray $3 $2 }
   | '(' areaHS ')'             { $2 }
 
@@ -473,9 +475,15 @@ scopeHS :
 ----------------------------------------
 -- Struct definitions
 
--- XXX need abstract defs, string defs
+-- XXX need string defs
 structDef :: { StructDef }
-structDef : struct tyIdent '{' fields '}' { StructDef $2 (reverse $4) }
+structDef :
+    structName '{' fields '}' { StructDef $1 (reverse $3) }
+  -- Remove parsed quotes first
+  | abstract structName fp    { AbstractDef $2 (filter (/= '\"') $3) }
+
+structName :: { String }
+structName : struct ident { $2 }
 
 field :: { Field }
 field : ident '::' areaHS { Field $1 $3 }
