@@ -130,6 +130,8 @@ uint32_t foo17(G*uint32_t i) {
   return *i;
 }
 
+abstract struct fooStruct "foobar/foo.h"
+
 |]
 
 bar :: Def ('[Ref s (Stored Uint32)] :-> ())

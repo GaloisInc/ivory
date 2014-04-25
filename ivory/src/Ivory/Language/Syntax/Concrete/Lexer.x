@@ -28,10 +28,12 @@ $lowerletter = [a-z]
 $capletter   = [A-Z]
 
 @sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \:]+
-@tyIdent     = $capletter [$alpha $digit [_ \']]*
-@ident       = [_ $lowerletter] [$alpha $digit [_ \']]*
+-- XXX This is more general than Haskell identifiers.  Parser should check
+-- context.
+@ident       = $alpha [$alpha $digit [_ \']]*
 @brack       = [\( \) \[ \] \{ \}]
 @sep         = [\, \;]
+@filepath    = \" [$printable # \" # $white]+ \"
 
 --------------------------------------------------------------------------------
 
@@ -91,6 +93,7 @@ tokens :-
 -- Reserved words: types
 
   struct   { lexReserved }
+  abstract { lexReserved }
 
   -- C style
   bool     { lexReserved }
@@ -138,15 +141,15 @@ tokens :-
   Global   { lexReserved }
 
 -- Identifiers
-  @ident   { lex TokIdent }
--- Type Constructors
-  @tyIdent { lex TokTyIdent }
+  @ident    { lex TokIdent }
 -- Symbols (match if it's not a reserved word)
-  @sym     { lex TokSym }
+  @sym      { lex TokSym }
 -- Brackets
-  @brack   { lex TokBrack }
+  @brack    { lex TokBrack }
 -- Separators
-  @sep     { lex TokSep }
+  @sep      { lex TokSep }
+-- Filepath
+  @filepath { lex TokFilePath }
 
 --------------------------------------------------------------------------------
 
@@ -170,6 +173,8 @@ data Token =
   | TokSym String
   | TokBrack String
   | TokSep String
+  | TokQuote
+  | TokFilePath String
   | TokEOF
   deriving (Show, Read, Eq)
 
