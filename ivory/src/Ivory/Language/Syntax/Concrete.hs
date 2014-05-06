@@ -130,6 +130,15 @@ uint32_t foo17(G*uint32_t i) {
   return *i;
 }
 
+-- Map over an array, adding x to each cell.
+-- XXX??
+void mapProc(*uint8_t[4] arr) {
+  map ix {
+    let v = arr ! ix;
+    *v = *v + 3;
+  }
+}
+
 abstract struct fooStruct "foobar/foo.h"
 
 |]

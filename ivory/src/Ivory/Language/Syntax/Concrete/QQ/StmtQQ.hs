@@ -23,8 +23,6 @@ import Ivory.Language.Syntax.Concrete.QQ.Common
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 
-import Language.Haskell.Meta.Parse (parseExp)
-
 import qualified Ivory.Language.Init   as I
 import qualified Ivory.Language.Ref    as I
 import qualified Ivory.Language.Proc   as I
@@ -81,10 +79,10 @@ fromStmt stmt = case stmt of
       let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'I.store) p) e)
       case ptr of
         RefVar ref      ->    -- ref
-          storeIt (iVar ref)
+          storeIt (VarE (mkName ref))
         ArrIx ref ixExp -> do -- (arr ! ix)
           ix <- fromExp ixExp
-          let p' = InfixE (Just $ iVar ref) (VarE '(I.!)) (Just ix)
+          let p' = InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just ix)
           storeIt p'
   Assign var exp
     -> do
@@ -171,11 +169,3 @@ insertDerefStmt dv = case dv of
   insertDeref nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
 
 --------------------------------------------------------------------------------
--- Helpers
-
--- | Parse a Ivory variable.
-iVar :: String -> T.Exp
-iVar str = case parseExp str of
-  Left err -> error err
-  Right e  -> e
-

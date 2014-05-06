@@ -77,7 +77,7 @@ library
                         template-haskell >= 2.8,
                         parsec >= 3.1.3,
 --                        syb,
-                        haskell-src-meta,
+--                        haskell-src-meta,
                         dlist >= 0.5,
                         -- QuickCheck >= 2.5.1,
                         th-lift >= 0.5.5,
