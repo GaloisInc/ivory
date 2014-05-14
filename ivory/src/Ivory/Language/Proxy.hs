@@ -1,11 +1,30 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 module Ivory.Language.Proxy where
 
-import GHC.TypeLits (Sing,fromSing,Symbol,Nat)
+#if __GLASGOW_HASKELL__ >= 700
+import GHC.TypeLits (natVal,symbolVal,Symbol,Nat,KnownNat,KnownSymbol)
 
+data Proxy (a :: k) = Proxy
+
+-- | Type proxies for * types.
+type SProxy a = Proxy (a :: *)
+
+-- | The string associated with a type-symbol.
+fromTypeSym :: KnownSymbol sym => proxy (sym :: Symbol) -> String
+fromTypeSym  = symbolVal
+
+-- | The integer associated with a type-nat.
+fromTypeNat :: KnownNat i => proxy (i :: Nat) -> Integer
+fromTypeNat  = natVal
+
+#else
+
+import GHC.TypeLits (Sing,fromSing,Symbol,Nat)
 
 data Proxy (a :: k) = Proxy
 
@@ -19,3 +38,32 @@ fromTypeSym  = fromSing
 -- | The integer associated with a type-nat.
 fromTypeNat :: Sing (i :: Nat) -> Integer
 fromTypeNat  = fromSing
+
+#endif
+
+
+#if __GLASGOW_HASKELL__ >= 700
+
+type ANat    n = (KnownNat n)
+type NatType n = Proxy n
+aNat :: KnownNat n => Proxy n
+aNat = Proxy
+
+type ASymbol    s = (KnownSymbol s)
+type SymbolType s = Proxy s
+aSymbol :: KnownSymbol s => Proxy s
+aSymbol = Proxy
+
+#else
+
+type ANat n    = (SingI n)
+type NatType n = Sing n
+aNat :: SingI n => Sing n
+aNat = sing
+
+type ASymbol s    = (SingI s)
+type SymbolType s = Sing s
+aSymbol :: SingI s => Sing s
+aSymbol = sing
+
+#endif

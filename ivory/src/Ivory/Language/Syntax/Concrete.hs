@@ -5,6 +5,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 --
 -- C-like syntax for Ivory.
 --
@@ -23,6 +25,14 @@ e :: IBool
 e = (4::Sint32) >? 3
 
 [ivory|
+
+-- void mapProc(*uint8_t[4] arr) {
+--   map ix {
+--     let v = arr ! ix;
+--     *v = *v;
+--   }
+-- }
+
 
 int32_t foo0() {
   alloc *x = 3;
@@ -132,14 +142,14 @@ uint32_t foo17(G*uint32_t i) {
 
 -- Map over an array, adding x to each cell.
 -- XXX??
-void mapProc(*uint8_t[4] arr) {
-  map ix {
-    let v = arr ! ix;
-    *v = *v + 3;
-  }
-}
+-- void mapProc(*uint8_t[4] arr) {
+--   map ix {
+--     let v = arr ! ix;
+--     *v = *v + 3;
+--   }
+-- }
 
-abstract struct fooStruct "foobar/foo.h"
+-- abstract struct fooStruct "foobar/foo.h"
 
 |]
 

@@ -10,10 +10,11 @@ import Ivory.Language.Area
 import Ivory.Language.Array
 import Ivory.Language.Struct
 import Ivory.Language.Uint
+import Ivory.Language.Proxy (ANat)
 
-import GHC.TypeLits
+import GHC.TypeLits(Nat)
 
-class ( SingI (Capacity a)
+class ( ANat (Capacity a)
       , IvoryStruct (StructName a)
       , IvoryArea a
       , a ~ Struct (StructName a)

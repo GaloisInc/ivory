@@ -36,7 +36,7 @@ library
                        Paths_ivory_hw,
                        ExampleTypes
   hs-source-dirs:      src, examples
-  build-depends:       base ==4.6.*,
+  build-depends:       base >= 4.6,
                        filepath,
                        ivory,
                        ivory-bitdata,

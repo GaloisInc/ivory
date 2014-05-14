@@ -15,6 +15,8 @@ import Ivory.Language.Scope
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
+import Control.Applicative
+
 import qualified MonadLib        as M
 import qualified MonadLib.Derive as M
 
@@ -29,6 +31,10 @@ areaInit_iso = M.Iso AreaInitM unAreaInitM
 
 instance Functor AreaInitM where
   fmap = M.derive_fmap areaInit_iso
+
+instance Applicative AreaInitM where
+  pure  = M.derive_pure areaInit_iso
+  (<*>) = M.derive_apply areaInit_iso
 
 instance Monad AreaInitM where
   return  = M.derive_return areaInit_iso

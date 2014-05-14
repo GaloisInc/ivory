@@ -29,7 +29,7 @@ library
 
   other-modules:        Ivory.Opts.Utils
 
-  build-depends:        base >= 4.6 && < 4.7,
+  build-depends:        base >= 4.6,
                         ivory,
                         monadLib >= 3.7,
                         filepath,

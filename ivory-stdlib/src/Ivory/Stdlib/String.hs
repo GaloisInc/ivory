@@ -19,9 +19,9 @@ module Ivory.Stdlib.String where
   -- ) where
 
 import Data.Char (ord)
-import GHC.TypeLits
 
 import Ivory.Language
+import Ivory.Language.Proxy
 
 import qualified Control.Monad as M
 
@@ -30,7 +30,7 @@ import qualified Control.Monad as M
 
 -- TODO: Should we generate a warning or error if the string
 -- is too long for the string type?
-gen_stringInit :: (IvoryStruct name, SingI len)
+gen_stringInit :: (IvoryStruct name, ANat len)
                => Label name (Array len (Stored Uint8))
                -> Label name (Stored (Ix len))
                -> String
@@ -56,7 +56,7 @@ stringCapacity :: forall ref str s.
 stringCapacity _ = len
   where
   len :: Sint32
-  len = fromIntegral (fromSing (sing :: Sing (Capacity str)))
+  len = fromIntegral (fromTypeNat (aNat :: NatType (Capacity str)))
 
 -- Polymorphic "stringLength" function allowing read/write access
 -- to the string length.  This is not exported, only a specialized
@@ -170,14 +170,14 @@ string_copy_z = importProc "ivory_stdlib_string_copy_z"
 -- (Can we actually detect this at compile-time?  I think we
 -- should be able to...)
 istr_from_sz :: forall s1 s2 eff len str.
-                (SingI len, IvoryString str)
+                (ANat len, IvoryString str)
              => Ref      s1 str
              -> ConstRef s2 (Array len (Stored Uint8))
              -> Ivory eff ()
 istr_from_sz dest src = do
   len1     <- assign (stringCapacity (constRef dest))
   ptr1     <- assign (stringData dest)
-  let len2  = fromIntegral (fromSing (sing :: Sing len))
+  let len2  = fromIntegral (fromTypeNat (aNat :: NatType len))
   ptr2     <- assign (toCArray src)
   result   <- call string_copy_z ptr1 len1 ptr2 len2
   store (stringLength dest) (toIx result)
@@ -190,12 +190,12 @@ istr_from_sz dest src = do
 -- (Can we actually detect this at compile-time?  I think we
 -- should be able to...)
 sz_from_istr :: forall s1 s2 eff len str.
-                (SingI len, IvoryString str)
+                (ANat len, IvoryString str)
              => Ref      s1 (Array len (Stored Uint8))
              -> ConstRef s2 str
              -> Ivory eff ()
 sz_from_istr dest src = do
-  let dest_capacity = fromSing (sing :: Sing len)
+  let dest_capacity = fromTypeNat (aNat :: NatType len)
   M.when (dest_capacity > 0) $ do
     let dest_len = fromIntegral (dest_capacity - 1)
     src_data <- assign (stringData src)
@@ -224,7 +224,7 @@ class (IvoryType dest, IvoryType src) => Strcpy dest src where
 
 -- | Strcpy instance for copying string constants to arrays of
 -- characters.
-instance (SingI len) => Strcpy (Ref s (Array len (Stored IChar))) IString where
+instance (ANat len) => Strcpy (Ref s (Array len (Stored IChar))) IString where
   strcpy dest src = call_ copy_istring (toCArray dest) src (arrayLen dest)
 
 -- | Binding to the C "strncmp" function.

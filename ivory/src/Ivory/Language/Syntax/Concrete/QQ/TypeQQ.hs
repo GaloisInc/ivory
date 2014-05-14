@@ -11,11 +11,9 @@
 module Ivory.Language.Syntax.Concrete.QQ.TypeQQ where
 
 import           Prelude hiding (exp, init)
-import qualified Prelude as P
 
 import Data.List (nub)
 import Control.Monad
-import GHC.TypeLits
 
 import Ivory.Language.Syntax.Concrete.QQ.Common
 
@@ -32,6 +30,7 @@ import qualified Ivory.Language.Scope     as I
 import qualified Ivory.Language.Area      as I
 import qualified Ivory.Language.Ref       as I
 import qualified Ivory.Language.Proc      as I
+import qualified Ivory.Language.Proxy     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
@@ -193,6 +192,7 @@ fromProcType (ProcDef retTy procName args _ _) = do
 liftPromote :: Name -> TTyVar T.Type
 liftPromote = liftQ . promotedT
 
+-- XXX Strings too?
 toClass :: Class -> Name
 toClass cl = case cl of
-  Int -> ''SingI
+  Int -> ''I.ANat

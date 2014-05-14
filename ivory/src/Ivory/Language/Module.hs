@@ -7,14 +7,13 @@ module Ivory.Language.Module where
 import Ivory.Language.Area (IvoryArea)
 import Ivory.Language.MemArea (MemArea(..),ConstMemArea(..))
 import Ivory.Language.Proc (Def(..))
-import Ivory.Language.Proxy (Proxy(..))
+import Ivory.Language.Proxy (Proxy(..), ASymbol)
 import Ivory.Language.String (IvoryString(..))
 import Ivory.Language.Struct (IvoryStruct(..),StructDef(..))
 import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)
 import Data.Monoid (mempty)
-import GHC.TypeLits (SingI())
 import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
 import MonadLib.Derive (Iso (..),derive_ask,derive_put)
 import qualified Data.Set as Set
@@ -60,7 +59,7 @@ depend m =
   put (mempty { I.modDepends = Set.singleton (I.modName m) })
 
 -- | Include the definition of a structure in the module.
-defStruct :: forall sym. (IvoryStruct sym, SingI sym) =>
+defStruct :: forall sym. (IvoryStruct sym, ASymbol sym) =>
   Proxy sym -> ModuleDef
 defStruct _ = do
   visibility <- ask
