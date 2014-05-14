@@ -119,4 +119,5 @@ cmodule = package "hw" $ do
   incl test3
 
 main :: IO ()
-main = runCompiler [cmodule] (initialOpts {stdOut = True, constFold = True})
+main = void $ runCompiler [cmodule] (initialOpts {stdOut = True, constFold = True})
+
