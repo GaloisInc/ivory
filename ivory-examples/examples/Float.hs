@@ -3,11 +3,12 @@
 
 module Float (runFloat,cmodule) where
 
+import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 
 runFloat :: IO ()
-runFloat = runCompiler [cmodule] initialOpts { stdOut = True }
+runFloat = void $ runCompiler [cmodule] initialOpts { stdOut = True }
 
 cmodule :: Module
 cmodule  = package "Float" $ do

@@ -6,6 +6,7 @@
 
 module QC where
 
+import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 import Ivory.QuickCheck
@@ -62,7 +63,7 @@ runTest = do
 runTests :: IO ()
 runTests = do
   d <- runIO runTest
-  runCompiler [cmodule d] initialOpts { includeDir = "test"
+  void $ runCompiler [cmodule d] initialOpts { includeDir = "test"
                                       , srcDir     = "test"
                                       , constFold  = True
                                       }
