@@ -16,13 +16,13 @@ import Ivory.Language.Type
 import qualified Ivory.Language.Effects as E
 import qualified Ivory.Language.Syntax as AST
 
-import GHC.TypeLits
+--------------------------------------------------------------------------------
 
 breakOut :: (E.GetBreaks eff ~ E.Break) => Ivory eff ()
 breakOut = emit AST.Break
 
 -- XXX don't export.
-loop :: forall eff n a. (SingI n)
+loop :: forall eff n a. (ANat n)
      => (AST.Expr -> AST.LoopIncr)
      -> Ix n
      -> Ix n
@@ -42,11 +42,11 @@ loop incr fromIdx toIdx body = do
   asst to
   emit (AST.Loop ix (trans from) (incr $ trans to) (blockStmts block))
 
-upTo :: SingI n
+upTo :: ANat n
      => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 upTo = loop AST.IncrTo
 
-downTo :: SingI n
+downTo :: ANat n
        => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 downTo = loop AST.DecrTo
 
@@ -55,7 +55,7 @@ downTo = loop AST.DecrTo
 --   n :: Ix m, 0 <= n <= m.
 -- @
 -- Indexes increment from 0 to n-1 incluseively.
-for :: forall eff n a. SingI n
+for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 for n f = upTo 0 (n-1) f
 
@@ -64,15 +64,15 @@ for n f = upTo 0 (n-1) f
 --   n :: Ix m, 0 <= n <= m.
 -- @
 -- Indexes decrement from n-1 to 0 inclusively.
-times :: forall eff n a. SingI n
+times :: forall eff n a. ANat n
       => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 times n f = downTo (n-1) 0 f
 
-arrayMap :: forall eff n a . SingI n
+arrayMap :: forall eff n a . ANat n
          => (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 arrayMap = upTo 0 hi
   where
-  hi = fromInteger ((fromTypeNat (sing :: Sing n)) - 1)
+  hi = fromInteger ((fromTypeNat (aNat :: NatType n)) - 1)
 
 forever :: Ivory (E.AllowBreak eff) () -> Ivory eff ()
 forever body = do

@@ -16,8 +16,7 @@ import Ivory.Language.Struct
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
-import GHC.TypeLits (SingI)
-
+--------------------------------------------------------------------------------
 
 instance IvoryArea a => IvoryArea (CArray a) where
   ivoryArea _ = I.TyCArray (ivoryArea (Proxy :: Proxy a))
@@ -27,14 +26,14 @@ instance IvoryArea a => IvoryArea (CArray a) where
 class (IvoryArea area, IvoryArea rep)
   => ToCArray (area :: Area *) (rep :: Area *) | area -> rep
 
-instance (SingI len, ToCArray area rep)
+instance (ANat len, ToCArray area rep)
     => ToCArray (Array len area) (CArray rep)
 instance IvoryType a => ToCArray (Stored a) (Stored a)
 instance IvoryStruct sym => ToCArray (Struct sym) (Struct sym)
 
 -- | Convert from a checked array to one that can be given to a c function.
 toCArray :: forall s len area rep ref.
-            ( SingI len, ToCArray area rep, IvoryRef ref
+            ( ANat len, ToCArray area rep, IvoryRef ref
             , IvoryExpr (ref s (Array len area))
             , IvoryExpr (ref s (CArray rep)))
          => ref s (Array len area) -> ref s (CArray rep)

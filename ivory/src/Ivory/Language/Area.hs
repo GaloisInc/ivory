@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -10,7 +11,11 @@ import Ivory.Language.Proxy
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
+#if __GLASGOW_HASKELL__ >= 700
+import GHC.TypeLits (Nat,Symbol,KnownNat)
+#else
 import GHC.TypeLits (Nat,Symbol,SingI,Sing,sing)
+#endif
 
 -- Memory Areas ----------------------------------------------------------------
 
@@ -29,10 +34,19 @@ data Area k
 class IvoryArea (a :: Area *) where
   ivoryArea :: Proxy a -> I.Type
 
-instance (SingI len, IvoryArea area) => IvoryArea (Array len area) where
+#if __GLASGOW_HASKELL__ >= 700
+instance (KnownNat len, IvoryArea area)
+#else
+instance (SingI len, IvoryArea area)
+#endif
+  => IvoryArea (Array len area) where
   ivoryArea _ = I.TyArr len area
     where
+#if __GLASGOW_HASKELL__ >= 700
+    len  = fromInteger (fromTypeNat (Proxy :: Proxy len))
+#else
     len  = fromInteger (fromTypeNat (sing :: Sing len))
+#endif
     area = ivoryArea (Proxy :: Proxy area)
 
 instance IvoryType a => IvoryArea (Stored a) where

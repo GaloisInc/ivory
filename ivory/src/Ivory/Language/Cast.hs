@@ -31,8 +31,6 @@ import Ivory.Language.Type
 import Ivory.Language.Uint
 import qualified Ivory.Language.Syntax as AST
 
-import GHC.TypeLits (SingI(..))
-
 import Data.Word
 import Data.Int
 
@@ -229,7 +227,7 @@ instance Default IDouble where defaultVal = 0
 --------------------------------------------------------------------------------
 -- Indexes.
 
-instance ( SingI n, IvoryIntegral to, Default to
+instance ( ANat n, IvoryIntegral to, Default to
          ) => SafeCast (Ix n) to where
   safeCast ix | Just s <- toMaxSize (ivoryType (Proxy :: Proxy to))
               , ixSize ix <= s

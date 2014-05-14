@@ -13,7 +13,6 @@
 module Ivory.Language.Syntax.Concrete.QQ   ( ivory ) where
 
 import           Prelude hiding (exp, init)
-import qualified Prelude as P
 import           Data.Char
 
 import qualified Language.Haskell.TH       as Q
@@ -69,13 +68,21 @@ ivoryMod incls = do
     return $ ValD (VarP $ mkName nm)
                   (NormalB bd)
                   []
-  -- Module names are uppercase and have full context.  Turn Foo.Bar.FooBar into
-  -- foobar for the Ivory module name.
-  mkValidHsVar []      = error "Empty module name in ivoryMod!"
-  mkValidHsVar fullMod = map toLower
-    $ reverse (takeWhile (/= '.') (reverse fullMod))
 
-  modNameQ = location >>= (return . mkValidHsVar . loc_module)
+  -- Produces both the string name and Haskell declaration name.
+  --
+  -- foo_package = package "foo_package" ...
+  --
+  modNameQ :: Q String
+  modNameQ = location >>= (return . (++ "_package") . mkValidHsVar . loc_module)
+    where
+    -- Module names are uppercase and have full context.  Turn Foo.Bar.FooBar into
+    -- foobar for the Ivory module name.
+    mkValidHsVar :: String -> String
+    mkValidHsVar ""      = error "Empty module name in ivoryMod!"
+    mkValidHsVar fullMod = map toLower
+      $ reverse (takeWhile (/= '.') (reverse fullMod))
+
   modBody = do
     nm <- stringE =<< modNameQ
     let pkg   = AppE (VarE 'I.package) nm

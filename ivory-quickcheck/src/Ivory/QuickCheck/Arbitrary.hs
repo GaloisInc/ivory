@@ -17,9 +17,9 @@ import qualified Test.QuickCheck.Gen       as G
 import           Data.Int
 import           Data.Word
 import           Data.String (IsString(fromString))
-import           GHC.TypeLits
 
 import           Ivory.Language
+import           Ivory.Language.Proxy
 
 import           Ivory.QuickCheck.Monad
 
@@ -73,11 +73,11 @@ instance A.Arbitrary IDouble where
 --------------------------------------------------------------------------------
 
 -- | Random array (of 'Stored' values) initializer.
-instance (SingI len, A.Arbitrary a, IvoryType a, IvoryInit a)
+instance (ANat len, A.Arbitrary a, IvoryType a, IvoryInit a)
   => A.Arbitrary (Init (Array len (Stored a)))
   where
   arbitrary = do
-    let sz  = fromSing (sing :: Sing len)
+    let sz  = fromTypeNat (aNat :: NatType len)
     arr    <- G.vectorOf (fromInteger sz) A.arbitrary
     return  $ iarray (map ival arr)
 

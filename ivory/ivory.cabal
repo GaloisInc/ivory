@@ -70,7 +70,7 @@ library
                         Ivory.Language.Syntax.Names,
                         Ivory.Language.Type,
                         Ivory.Language.Uint
-  build-depends:        base >= 4.6 && < 4.7,
+  build-depends:        base >= 4.6,
                         pretty >= 1.1,
                         containers >= 0.5,
                         monadLib >= 3.7,
