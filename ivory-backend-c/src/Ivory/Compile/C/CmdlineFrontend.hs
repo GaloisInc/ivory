@@ -6,6 +6,9 @@ module Ivory.Compile.C.CmdlineFrontend
   , runCompilerWith
   , Opts(..), parseOpts, printUsage
   , initialOpts
+  , ModuleFiles(..)
+  , standaloneDepFile
+  , compileDepFile
   ) where
 
 import qualified Paths_ivory_backend_c
@@ -36,34 +39,55 @@ import qualified System.FilePath.Posix as PFP
 
 -- Code Generation Front End ---------------------------------------------------
 
+data ModuleFiles =
+  ModuleFiles
+    { mf_sources :: [FilePath]
+    , mf_headers :: [FilePath]
+    }
+
 compile :: [Module] -> IO ()
 compile = compileWith Nothing Nothing
 
-compileWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module] -> IO ()
-compileWith sm sp ms = runCompilerWith sm sp ms =<< parseOpts =<< getArgs
+compileWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module]
+            -> IO ()
+compileWith sm sp ms = do
+  args <- getArgs
+  opts <- parseOpts args
+  mf   <- runCompilerWith sm sp ms opts
+  compileDepFile opts (standaloneDepFile mf)
 
-runCompilerWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module] -> Opts -> IO ()
+compileDepFile :: Opts -> [(String, [String])] -> IO ()
+compileDepFile opts ds =
+  when (not (null (deps opts))) $ outputDepFile opts ds
+
+runCompilerWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module] -> Opts
+                -> IO ModuleFiles
 runCompilerWith sm sp =
   rc (maybe G.defaultSizeMap id sm) (maybe [] id sp)
 
-runCompiler :: [Module] -> Opts -> IO ()
-runCompiler = runCompilerWith Nothing Nothing
+runCompiler :: [Module] -> Opts -> IO ModuleFiles
+runCompiler ms os = runCompilerWith Nothing Nothing ms os
 
-rc :: G.SizeMap -> [IO FilePath] -> [Module] -> Opts -> IO ()
+rc :: G.SizeMap -> [IO FilePath] -> [Module] -> Opts -> IO ModuleFiles
 rc sm userSearchPath modules opts
-  | outProcSyms opts = C.outputProcSyms modules
-  | printDeps        = runDeps
-  | otherwise        = do
-    if stdOut opts then mapM_ showM_ cmodules else run
-    -- CFG stuff
-    when (cfg opts) $ do
-      cfs <- mapM (\p -> G.callGraphDot p (cfgDotDir opts) optModules) cfgps
-      let maxstacks = map ms (zip cfgps cfs)
-      mapM_ maxStackMsg (zip cfgps maxstacks)
+  | not (null (deps opts)) = return moduleFiles
+  | outProcSyms opts       = C.outputProcSyms modules >> return moduleFiles
+  | stdOut opts            = stdoutmodules            >> return moduleFiles
+  | otherwise              = outputmodules            >> return moduleFiles
+
   where
+  moduleFiles = ModuleFiles
+      { mf_sources = genSs ++ cpySs
+      , mf_headers = genHs ++ cpyHs
+      }
+
   ivoryHeaders = ["ivory.h", "ivory_asserts.h"]
 
-  run = do
+  stdoutmodules = do
+    mapM_ showM_ cmodules
+    cfgoutput
+
+  outputmodules = do
     searchPath <- mkSearchPath opts userSearchPath
     createDirectoryIfMissing True (includeDir opts)
     createDirectoryIfMissing True (srcDir opts)
@@ -71,17 +95,21 @@ rc sm userSearchPath modules opts
     outputSources (srcDir opts) cmodules
     C.outputSourceDeps (includeDir opts) (srcDir opts)
        (map ("runtime/" ++) ivoryHeaders ++ (C.collectSourceDeps modules)) searchPath
+    cfgoutput
 
-  runDeps =
-    outputDeps (deps opts) (depPrefix opts) (genHs ++ cpyHs) (genSs ++ cpySs)
-    where
-    sdeps = C.collectSourceDeps modules
-    genHs = map (mkDep (includeDir opts) ".h") cmodules
-    genSs = map (mkDep (srcDir opts) ".c")     cmodules
-    cpyHs = map (mkDepSourceDep (includeDir opts)) $
-              filter (\p -> takeExtension p == ".h") sdeps
-    cpySs = map (mkDepSourceDep (srcDir opts)) $
-              filter (\p -> takeExtension p == ".c") sdeps
+  cfgoutput = when (cfg opts) $ do
+    cfs <- mapM (\p -> G.callGraphDot p (cfgDotDir opts) optModules) cfgps
+    let maxstacks = map ms (zip cfgps cfs)
+    mapM_ maxStackMsg (zip cfgps maxstacks)
+
+
+  sdeps = C.collectSourceDeps modules
+  genHs = map (modFilePath (includeDir opts) ".h") cmodules
+  genSs = map (modFilePath (srcDir opts) ".c")     cmodules
+  cpyHs = map (srcFilePath (includeDir opts)) $
+            filter (\p -> takeExtension p == ".h") sdeps
+  cpySs = map (srcFilePath (srcDir opts)) $
+            filter (\p -> takeExtension p == ".c") sdeps
 
   optModules = map (C.runOpt passes) modules
 
@@ -93,8 +121,6 @@ rc sm userSearchPath modules opts
     putStrLn $ "Maximum stack usage from function " ++ p ++ ": " ++ show res
 
   cmodules   = map C.compileModule optModules
-
-  printDeps = not (null (deps opts))
 
   showM_ mods = do
     mapM_ (mapM_ putStrLn) (C.showModule mods)
@@ -151,41 +177,48 @@ rc sm userSearchPath modules opts
 
 --------------------------------------------------------------------------------
 
-mkDep :: FilePath -> String -> C.CompileUnits -> String
-mkDep basepath extension unit = basepath PFP.</> (C.unitName unit) PFP.<.> extension
+modFilePath :: FilePath -> String -> C.CompileUnits -> String
+modFilePath basepath extension unit = basepath PFP.</> (C.unitName unit) PFP.<.> extension
 
-mkDepSourceDep :: FilePath -> FilePath -> String
-mkDepSourceDep basepath sdep = basepath PFP.</> sdep
+srcFilePath :: FilePath -> FilePath -> String
+srcFilePath basepath sdep = basepath PFP.</> sdep
 
-outputDeps :: FilePath -> String -> [String] -> [String] -> IO ()
-outputDeps path prefix headers sources = do
+standaloneDepFile :: ModuleFiles -> [(String, [String])]
+standaloneDepFile mf =
+  [ ("HEADERS", mf_headers mf)
+  , ("SOURCES", mf_sources mf)
+  ]
+
+outputDepFile :: Opts -> [(String, [String])] -> IO ()
+outputDepFile opts kvs = do
   createDirectoryIfMissing True (takeDirectory path)
-  outputIfChanged path docstring
+  outputIfChanged docstring
   where
+  path = deps opts
+  prefix = depPrefix opts
   docstring = displayS (render w d) ""
   w = 10000000 -- don't ever wrap lines - invalid make syntax
   d = stack $
     [ text "# dep file autogenerated by ivory compiler"
     , empty
-    , listof (prefix ++ "_HEADERS") headers
-    , empty
-    , listof (prefix ++ "_SOURCES") sources
-    ]
-  declaration n = text n <+> text ":= \\" <> line
-  listof name values = declaration name <>
-    (indent 4 $ stack $ punctuate (text " \\") (map text values))
+    ] ++ map (uncurry listof) kvs
 
-outputIfChanged :: FilePath -> String -> IO ()
-outputIfChanged path string_contents = do
-  let contents = B.pack string_contents
-  exists <- doesFileExist path
-  case exists of
-    False -> B.writeFile path contents
-    True -> do
-      existing <- B.readFile path
-      case existing == contents of
-          True -> return ()
-          False -> B.writeFile path contents
+  declaration n = text prefix <> text "_" <> text n <+> text ":= \\" <> line
+  listof name values = declaration name <>
+    (indent 4 $ stack $ punctuate (text " \\") (map text values)) <>
+    line <> empty
+
+  outputIfChanged :: String -> IO ()
+  outputIfChanged string_contents = do
+    let contents = B.pack string_contents
+    exists <- doesFileExist path
+    case exists of
+      False -> B.writeFile path contents
+      True -> do
+        existing <- B.readFile path
+        case existing == contents of
+            True -> return ()
+            False -> B.writeFile path contents
 
 
 mkSearchPath :: Opts -> [IO FilePath] -> IO [FilePath]
