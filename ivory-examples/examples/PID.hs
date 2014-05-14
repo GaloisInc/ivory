@@ -6,6 +6,7 @@
 
 module PID where
 
+import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 
@@ -68,7 +69,7 @@ pidUpdate = proc "pid_update" $
     ret err
 
 runPID :: IO ()
-runPID = runCompiler [cmodule] initialOpts { stdOut = True }
+runPID = void $ runCompiler [cmodule] initialOpts { stdOut = True }
 
 cmodule :: Module
 cmodule = package "PID" $ do

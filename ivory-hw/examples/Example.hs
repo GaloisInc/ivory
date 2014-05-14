@@ -12,6 +12,7 @@
 
 module Example where
 
+import Control.Monad (void)
 import Ivory.BitData
 import Ivory.HW
 import Ivory.Language
@@ -88,5 +89,5 @@ cmodule = package "io" $ do
   incl test1
 
 main :: IO ()
-main = runCompiler [cmodule] (initialOpts {stdOut = True, constFold = True})
+main = void $ runCompiler [cmodule] (initialOpts {stdOut = True, constFold = True})
 -- main = (mapM_ . mapM_) putStrLn $ showModule $ compileModule cmodule

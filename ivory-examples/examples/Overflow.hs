@@ -3,6 +3,7 @@
 
 module Overflow where
 
+import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -26,5 +27,5 @@ cmodule :: Module
 cmodule = package "Overflow" $ incl ovf1 >> incl ovf2 >> incl ovf3
 
 writeOverflow :: Opts -> IO ()
-writeOverflow opts = runCompiler [cmodule]
+writeOverflow opts = void $ runCompiler [cmodule]
   opts { constFold = True, overflow = True, divZero = True }
