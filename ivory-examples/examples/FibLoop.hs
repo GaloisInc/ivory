@@ -6,6 +6,7 @@
 
 module FibLoop where
 
+import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 
@@ -72,4 +73,4 @@ cmodule = package "FibLoop" $ do
   incl fib_struct_loop
 
 runFibLoop :: IO ()
-runFibLoop  = runCompiler [cmodule] initialOpts { stdOut = True, constFold = True }
+runFibLoop  = void $ runCompiler [cmodule] initialOpts { stdOut = True, constFold = True }
