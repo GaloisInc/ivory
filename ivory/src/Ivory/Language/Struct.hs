@@ -13,17 +13,16 @@ import Ivory.Language.Ref
 import Ivory.Language.Type(IvoryExpr(..), IvoryVar(..))
 import qualified Ivory.Language.Syntax as I
 
-import GHC.TypeLits (SingI,sing,Sing,Symbol)
-
+import GHC.TypeLits(Symbol)
 
 -- Structs ---------------------------------------------------------------------
 
-instance (IvoryStruct sym, SingI sym) => IvoryArea (Struct sym) where
-  ivoryArea _ = I.TyStruct (fromTypeSym (sing :: Sing sym))
+instance (IvoryStruct sym, ASymbol sym) => IvoryArea (Struct sym) where
+  ivoryArea _ = I.TyStruct (fromTypeSym (aSymbol :: SymbolType sym))
 
 newtype StructDef (sym :: Symbol) = StructDef { getStructDef :: I.Struct }
 
-class (IvoryArea (Struct sym), SingI sym) => IvoryStruct (sym :: Symbol) where
+class (IvoryArea (Struct sym), ASymbol sym) => IvoryStruct (sym :: Symbol) where
   type StructName (a :: Area *) :: Symbol
   type StructName (Struct sym) = sym
 

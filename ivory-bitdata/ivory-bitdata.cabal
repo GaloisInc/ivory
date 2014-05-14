@@ -40,7 +40,7 @@ library
                        Example,
                        ExampleTypes
   hs-source-dirs:      src, examples
-  build-depends:       base >= 4.6 && < 4.7,
+  build-depends:       base >= 4.6,
                        ivory,
                        ivory-backend-c,
                        monadLib,

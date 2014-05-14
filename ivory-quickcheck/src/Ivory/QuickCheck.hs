@@ -89,8 +89,7 @@ import           Ivory.QuickCheck.Arbitrary
 import           Ivory.QuickCheck.Monad
 
 import           Ivory.Language
-
-import           GHC.TypeLits
+import           Ivory.Language.Proxy
 
 --------------------------------------------------------------------------------
 
@@ -102,12 +101,12 @@ class Samples gen res where
 instance A.Arbitrary a => Samples (G.Gen a) a where
   samples = mkSamples
 
-instance (A.Arbitrary a, SingI len, IvoryInit a, IvoryType a)
+instance (A.Arbitrary a, ANat len, IvoryInit a, IvoryType a)
       => Samples (G.Gen a) (Init (Array len (Stored a))) where
   samples i gen = mkSamples i mkArr
     where
     mkArr = do
-      let sz = fromSing (sing :: Sing len)
+      let sz = fromTypeNat (aNat :: NatType len)
       arr   <- G.vectorOf (fromInteger sz) gen
       return $ iarray (map ival arr)
 

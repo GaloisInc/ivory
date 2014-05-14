@@ -11,7 +11,6 @@
 module Ivory.Language.Syntax.Concrete.QQ.ProcQQ where
 
 import           Prelude hiding (exp, init)
-import qualified Prelude as P
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import           Language.Haskell.TH.Quote()

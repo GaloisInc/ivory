@@ -20,6 +20,7 @@ import           MonadLib   (set, get)
 import qualified MonadLib   as M
 import           Data.Monoid
 import qualified Data.DList as D
+import           Control.Applicative
 
 import Ivory.Language.Syntax.Concrete.QQ.Types
 import Ivory.Language.Syntax.Concrete.ParseAST
@@ -29,7 +30,7 @@ import Ivory.Language.Syntax.Concrete.ParseAST
 
 newtype QStM a b = QStM
   { unQStM :: M.StateT (D.DList a) T.Q b
-  } deriving (Functor, Monad)
+  } deriving (Functor, Monad, Applicative)
 
 instance M.StateM (QStM a) (D.DList a) where
   get = QStM M.get

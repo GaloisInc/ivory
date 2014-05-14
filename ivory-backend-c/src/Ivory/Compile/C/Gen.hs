@@ -16,7 +16,6 @@ import Ivory.Compile.C.Types
 import Ivory.Compile.C.Prop
 
 import Prelude hiding (exp, abs, signum)
-import qualified Prelude as P
 import Data.List (foldl')
 
 import Data.Loc (noLoc)

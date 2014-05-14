@@ -9,6 +9,7 @@ import qualified "language-c-quote" Language.C.Syntax as C
 
 import MonadLib (WriterT,Id,put)
 import Data.Monoid
+import Control.Applicative
 import qualified Data.Set as S
 
 --------------------------------------------------------------------------------
@@ -45,7 +46,7 @@ instance Monoid CompileUnits where
 
 newtype CompileM a = Compile
   { unCompile :: WriterT CompileUnits Id a }
-  deriving (Functor, Monad)
+  deriving (Functor, Monad, Applicative)
 
 type Compile = CompileM ()
 

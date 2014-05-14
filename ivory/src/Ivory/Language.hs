@@ -120,13 +120,14 @@ module Ivory.Language (
 
     -- ** Structures
   , IvoryStruct(..), StructDef(), (~>), Label()
+  , ASymbol
 
     -- ** Arrays
   , (!)
   , fromIx, toIx, Ix(), ixSize
   , arrayLen
-  , SingI()
   , toCArray
+  , ANat
 
     -- ** Strings
   , IvoryString(..)
@@ -202,5 +203,3 @@ import Ivory.Language.Type
 import Ivory.Language.Uint
 import Ivory.Language.Syntax.Concrete.QQ
 import qualified Ivory.Language.Syntax.AST as AST
-
-import GHC.TypeLits (SingI)

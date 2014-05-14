@@ -14,7 +14,6 @@ module Ivory.Language.Syntax.Concrete.QQ.StmtQQ
  ) where
 
 import           Prelude hiding (exp, init)
-import qualified Prelude as P
 
 import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 import Ivory.Language.Syntax.Concrete.QQ.Types

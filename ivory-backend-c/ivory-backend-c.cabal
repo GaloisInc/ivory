@@ -31,7 +31,7 @@ library
                         Ivory.Compile.C.SourceDeps
   other-modules:        Paths_ivory_backend_c
 
-  build-depends:        base >= 4.6 && < 4.7,
+  build-depends:        base >= 4.6,
                         language-c-quote >= 0.7.8,
                         -- XXX remove when inits quasi-quote escape is added
                         srcloc,

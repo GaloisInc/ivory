@@ -10,8 +10,7 @@
 
 module Ivory.Language.Syntax.Concrete.QQ.CondQQ where
 
-import           Prelude hiding (exp, init)
-import qualified Prelude as P
+import           Prelude hiding (exp)
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH       as T
