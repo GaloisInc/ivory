@@ -8,6 +8,7 @@
 module Ivory.Opts.AssertFold where
 
 import           MonadLib hiding (collect)
+import           Control.Applicative
 import           Data.Monoid
 import qualified Data.DList as D
 import           Ivory.Opts.Utils
@@ -20,7 +21,7 @@ import qualified Ivory.Language.Syntax.Type as I
 -- | A monad that holds our transformed program.
 newtype FolderM a b = FolderM
   { unFolderM :: StateT (D.DList a) Id b
-  } deriving (Functor, Monad)
+  } deriving (Functor, Monad,Applicative)
 
 instance StateM (FolderM a) (D.DList a) where
   get = FolderM get

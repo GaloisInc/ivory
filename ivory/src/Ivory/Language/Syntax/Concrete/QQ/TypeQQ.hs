@@ -31,6 +31,7 @@ import qualified Ivory.Language.Area      as I
 import qualified Ivory.Language.Ref       as I
 import qualified Ivory.Language.Proc      as I
 import qualified Ivory.Language.Proxy     as I
+import qualified Ivory.Language.Array     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
@@ -96,20 +97,11 @@ mkTyVar v classes = do
 
 --------------------------------------------------------------------------------
 
-storedTy :: Type -> TTyVar T.Type
-storedTy ty = do
+fromStoredTy :: Type -> TTyVar T.Type
+fromStoredTy ty = do
   ty' <- fromType ty
   s   <- liftPromote 'I.Stored
-  let stored = return (AppT s ty')
-  case ty of
-    TyVoid       -> stored
-    TyInt{}      -> stored
-    TyWord{}     -> stored
-    TyBool       -> stored
-    TyChar       -> stored
-    TyFloat      -> stored
-    TyDouble     -> stored
-    _            -> return ty'
+  return (AppT s ty')
 
 fromRef :: Name -> Scope -> Area -> TTyVar T.Type
 fromRef constr mem area = do
@@ -119,10 +111,9 @@ fromRef constr mem area = do
 
 fromArrayTy :: Area -> Integer -> TTyVar T.Type
 fromArrayTy area sz = do
-  let szTy = LitT (NumTyLit sz)
   a      <- fromArea area
   arr    <- liftPromote 'I.Array
-  return $ AppT (AppT arr szTy) a
+  return $ AppT (AppT arr (szTy sz)) a
 
 fromStructTy :: String -> TTyVar T.Type
 fromStructTy nm = do
@@ -131,24 +122,27 @@ fromStructTy nm = do
 
 fromType :: Type -> TTyVar T.Type
 fromType ty = case ty of
-  TyVoid            -> c ''()
-  TyInt sz          -> c (fromIntSz sz)
-  TyWord sz         -> c (fromWordSz sz)
-  TyBool            -> c ''I.IBool
-  TyChar            -> c ''I.IChar
-  TyFloat           -> c ''I.IFloat
-  TyDouble          -> c ''I.IDouble
+  TyVoid            -> liftCon ''()
+  TyInt sz          -> liftCon (fromIntSz sz)
+  TyWord sz         -> liftCon (fromWordSz sz)
+  TyBool            -> liftCon ''I.IBool
+  TyChar            -> liftCon ''I.IChar
+  TyFloat           -> liftCon ''I.IFloat
+  TyDouble          -> liftCon ''I.IDouble
+  TyIx ix           -> return (AppT (ConT ''I.Ix) (szTy ix))
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
   TyArea area       -> fromArea area
+  TySynonym str     -> liftCon (mkName str)
   where
-  c = liftQ . conT
+
 
 fromArea :: Area -> TTyVar T.Type
 fromArea area = case area of
   TyArray a sz      -> fromArrayTy a sz
   TyStruct nm       -> fromStructTy nm
-  TyStored ty       -> storedTy ty
+  TyStored ty       -> fromStoredTy ty
+  AreaSynonym str   -> liftCon (mkName str)
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
@@ -196,3 +190,10 @@ liftPromote = liftQ . promotedT
 toClass :: Class -> Name
 toClass cl = case cl of
   Int -> ''I.ANat
+
+-- Promote an integer to a type-level integer
+szTy :: Integer -> T.Type
+szTy = LitT . NumTyLit
+
+liftCon :: Name -> TTyVar T.Type
+liftCon = liftQ . conT

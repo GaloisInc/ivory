@@ -128,7 +128,7 @@ getTyBits ty =
     _ -> mzero
   where
     tyInsts name t = lift (reifyInstances name [t]) >>= anyOf
-    decBits (TySynInstD _ _ t) = getTyBits t
+    decBits (TySynInstD _ (TySynEqn _ t)) = getTyBits t
     decBits _ = mzero
 
 -- | Return the size in bits of a type that can appear in a bitdata
@@ -386,7 +386,7 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     baseTy  = thDefType def
     instTy  = [t| B.BitData $(conT (thDefName def)) |]
     body    = [tyDef, toFun, fromFun]
-    tyDef   = tySynInstD ''B.BitType [conT name] (return baseTy)
+    tyDef   = return (TySynInstD ''B.BitType (TySynEqn [ConT name] baseTy))
     x       = mkName "x"
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]
@@ -405,7 +405,7 @@ mkArraySizeTypeInsts def =
 -- because duplicates are allowed by the overlapping rules when the
 -- result type is the same.
 mkArraySizeTypeInst :: Int -> Type -> [DecQ]
-mkArraySizeTypeInst n ty = [tySynInstD ''B.ArraySize args size]
+mkArraySizeTypeInst n ty = [tySynInstD ''B.ArraySize (tySynEqn args size)]
   where
     size = tyBits ty >>= litT . numTyLit . fromIntegral . (* n)
     args = [litT (numTyLit (fromIntegral n)), return ty]
@@ -483,7 +483,7 @@ mkConstrFields def c = concat $ mapLayout (mkField def) c
 
 -- | Generate a constructor field definition.
 mkField :: THDef -> THLayoutItem -> [DecQ]
-mkField def l@(THLayoutField f pos) =
+mkField def (THLayoutField f pos) =
   [ sigD name ty
   , valD (varP name) (normalB [| B.BitDataField $posE $lenE $nameE |]) []]
   where

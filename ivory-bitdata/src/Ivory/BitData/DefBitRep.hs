@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
+
 --
 -- DefBitRep.hs --- Template Haskell utilities.
 --
@@ -19,4 +21,9 @@ import Language.Haskell.TH
 -- Used to define the set of representation types for bit lengths.
 defBitRep :: Name -> Name -> [Integer] -> DecsQ
 defBitRep fname rname xs = return $ map go xs
-  where go n = TySynInstD fname [LitT (NumTyLit n)] (ConT rname)
+  where
+#if __GLASGOW_HASKELL__ >= 700
+  go n = TySynInstD fname (TySynEqn [LitT (NumTyLit n)] (ConT rname))
+#else
+  go n = TySynInstD fname [LitT (NumTyLit n)] (ConT rname)
+#endif

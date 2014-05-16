@@ -13,6 +13,7 @@ import Ivory.Language.Struct (IvoryStruct(..),StructDef(..))
 import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)
+import Control.Applicative
 import Data.Monoid (mempty)
 import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
 import MonadLib.Derive (Iso (..),derive_ask,derive_put)
@@ -25,7 +26,7 @@ data Visible = Public | Private deriving (Show)
 
 newtype ModuleM a = Module
   { unModule :: ReaderT Visible (WriterT I.Module Id) a
-  } deriving (Functor,Monad)
+  } deriving (Functor,Monad,Applicative)
 
 instance ReaderM ModuleM Visible where
   ask = derive_ask (Iso Module unModule)

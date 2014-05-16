@@ -121,9 +121,6 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ','       { TokSep "," }
 
   -- Types
-  struct   { TokReserved "struct" }
-  abstract { TokReserved "abstract" }
-
   bool     { TokReserved "bool" }
   char     { TokReserved "char" }
   float    { TokReserved "float" }
@@ -158,14 +155,22 @@ import Ivory.Language.Syntax.Concrete.Lexer
   Uint32   { TokReserved "Uint32" }
   Uint64   { TokReserved "Uint64" }
 
+  Ix       { TokReserved "Ix" }
+
   Ref      { TokReserved "Ref" }
   ConstRef { TokReserved "ConstRef" }
   Array    { TokReserved "Array" }
-
+  Struct   { TokReserved "Struct" }
   Stored   { TokReserved "Stored" }
 
   Stack    { TokReserved "Stack" }
   Global   { TokReserved "Global" }
+
+  -- Keywords
+  struct   { TokReserved "struct" }
+  abstract { TokReserved "abstract" }
+  string   { TokReserved "string" }
+
 
 --------------------------------------------------------------------------------
 -- Precedence
@@ -438,29 +443,34 @@ hsType :
 
 baseTypeHS :: { Type }
 baseTypeHS :
-    IBool     { TyBool }
-  | IChar     { TyChar }
-  | IFloat    { TyFloat }
-  | IDouble   { TyDouble }
-  | '(' ')'   { TyVoid }
+    IBool              { TyBool }
+  | IChar              { TyChar }
+  | IFloat             { TyFloat }
+  | IDouble            { TyDouble }
+  | '(' ')'            { TyVoid }
 
-  | Sint8     { TyInt Int8 }
-  | Sint16    { TyInt Int16 }
-  | Sint32    { TyInt Int32 }
-  | Sint64    { TyInt Int64 }
+  | Sint8              { TyInt Int8 }
+  | Sint16             { TyInt Int16 }
+  | Sint32             { TyInt Int32 }
+  | Sint64             { TyInt Int64 }
 
-  | Uint8    { TyWord Word8 }
-  | Uint16   { TyWord Word16 }
-  | Uint32   { TyWord Word32 }
-  | Uint64   { TyWord Word64 }
+  | Uint8              { TyWord Word8 }
+  | Uint16             { TyWord Word16 }
+  | Uint32             { TyWord Word32 }
+  | Uint64             { TyWord Word64 }
+
+  | Ix integer         { TyIx $2 }
+
   | '(' baseTypeHS ')' { $2 }
+  | ident              { TySynonym $1 }
 
 areaHS :: { Area }
 areaHS :
     Stored baseTypeHS          { TyStored $2 }
-  | structName                 { TyStruct $1 }
+  | Struct ident               { TyStruct $2 }
   | Array integer areaHS       { TyArray $3 $2 }
   | '(' areaHS ')'             { $2 }
+  | ident                      { AreaSynonym $1 }
 
 refTypeHS :: { Type }
 refTypeHS :
@@ -475,12 +485,12 @@ scopeHS :
 ----------------------------------------
 -- Struct definitions
 
--- XXX need string defs
 structDef :: { StructDef }
 structDef :
     structName '{' fields '}' { StructDef $1 (reverse $3) }
   -- Remove parsed quotes first
   | abstract structName fp    { AbstractDef $2 (filter (/= '\"') $3) }
+  | string structName integer { StringDef $2 $3 }
 
 structName :: { String }
 structName : struct ident { $2 }

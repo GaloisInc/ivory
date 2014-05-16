@@ -20,6 +20,7 @@ module Ivory.BitData.Bits where
 
 import GHC.TypeLits
 import Ivory.Language
+import Ivory.Language.Proxy
 
 import Ivory.BitData.DefBitRep
 
@@ -80,10 +81,10 @@ unsafeRepToBits = Bits
 
 -- | Convert an Ivory value to a bit value.  If the input value
 -- contains out of range bits, they will be ignored.
-repToBits :: forall n. (SingI n, IvoryRep (BitRep n))
+repToBits :: forall n. (ANat n, IvoryRep (BitRep n))
           => BitRep n -> Bits n
 repToBits x = Bits (x .& mask)
-  where mask = fromIntegral (2 ^ fromSing (sing :: Sing n) - 1 :: Integer)
+  where mask = fromIntegral (2 ^ fromTypeNat (aNat :: NatType n) - 1 :: Integer)
 
 -- | Convert a bit value to an Ivory value.
 bitsToRep :: Bits n -> BitRep n

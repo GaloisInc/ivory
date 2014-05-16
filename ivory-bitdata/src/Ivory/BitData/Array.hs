@@ -13,12 +13,12 @@
 --
 
 module Ivory.BitData.Array where
-
-import GHC.TypeLits
-
 import Ivory.Language
+import Ivory.Language.Proxy
 import Ivory.BitData.Bits
 import Ivory.BitData.BitData
+
+import GHC.TypeLits(Nat)
 
 -- NOTE: This type family is used to calculate the total size of a bit
 -- array by multiplying "n" by the size of "a" in bits.  Once we have
@@ -33,11 +33,11 @@ type family ArraySize (n :: Nat) (a :: *) :: Nat
 data BitArray (n :: Nat) a = BitArray { unArray :: Bits (ArraySize n a) }
 
 -- | Return the number of elements in a "BitArray".
-bitLength :: forall a n. SingI n => BitArray n a -> Int
-bitLength _ = fromIntegral (fromSing (sing :: Sing n))
+bitLength :: forall a n. ANat n => BitArray n a -> Int
+bitLength _ = fromIntegral (fromTypeNat (aNat :: NatType n))
 
-instance (SingI n,
-          SingI (ArraySize n a),
+instance (ANat n,
+          ANat (ArraySize n a),
           BitData a,
           IvoryRep (BitRep (ArraySize n a)))
     => BitData (BitArray n a) where
@@ -48,9 +48,9 @@ instance (SingI n,
 -- | Return the "n"th element of a "BitArray".
 (#!) :: forall a n.
         (BitData a,
-         SingI n,
-         SingI (BitSize a),
-         SingI (ArraySize n a),
+         ANat n,
+         ANat (BitSize a),
+         ANat (ArraySize n a),
          BitCast (BitRep (ArraySize n a)) (BitDataRep a),
          IvoryRep (BitRep (ArraySize n a)))
      => BitArray n a -> Int -> a
@@ -59,8 +59,8 @@ BitArray bits #! i =
     then error "bit array index out of bounds"
     else bits #. field
   where
-    n'       = fromIntegral (fromSing (sing :: Sing n)) :: Int
-    elemSize = fromIntegral (fromSing (sing :: Sing (BitSize a))) :: Int
+    n'       = fromIntegral (fromTypeNat (aNat :: NatType n)) :: Int
+    elemSize = fromIntegral (fromTypeNat (aNat :: NatType (BitSize a))) :: Int
     field    = BitDataField (i * elemSize) elemSize ixname
     ixname = "[" ++ show i ++ "]"
 
@@ -69,11 +69,11 @@ BitArray bits #! i =
 -- "#>".
 bitIx :: forall a n.
          (BitData a,
-          SingI n,
-          SingI (BitSize a),
-          SingI (ArraySize n a))
+          ANat n,
+          ANat (BitSize a),
+          ANat (ArraySize n a))
       => Int -> BitDataField (BitArray n a) a
 bitIx i = BitDataField (i * elemSize) elemSize ixname
   where
     ixname = "[" ++ show i ++ "]"
-    elemSize = fromIntegral (fromSing (sing :: Sing (BitSize a))) :: Int
+    elemSize = fromIntegral (fromTypeNat (aNat :: NatType (BitSize a))) :: Int

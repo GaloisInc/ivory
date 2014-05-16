@@ -14,13 +14,12 @@
 
 module Ivory.BitData.BitData where
 
-import GHC.TypeLits
 import Ivory.Language
 
 import Ivory.BitData.Bits
 
 -- | Class of bit data types defined by the "bitdata" quasiquoter.
-class (SingI (BitSize (BitType a)),
+class (ANat (BitSize (BitType a)),
        IvoryRep (BitDataRep a),
        BitType a ~ Bits (BitSize (BitType a))) => BitData a where
   -- | Return the base "(Bits n)" type as defined in the "bitdata"
@@ -59,7 +58,7 @@ toRep :: BitData a => a -> BitDataRep a
 toRep = unBits . toBits
 
 -- | Identity instance of "BitData" for the base "Bits n" type.
-instance (SingI n, IvoryRep (BitRep n)) => BitData (Bits n) where
+instance (ANat n, IvoryRep (BitRep n)) => BitData (Bits n) where
   type BitType (Bits n) = Bits n
   toBits = id
   fromBits = id
