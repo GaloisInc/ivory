@@ -19,10 +19,10 @@ struct foo
 |]
 
 
-test :: Def ('[] :-> Uint8)
-test  = proc "test" (body (ret (sizeOf (Proxy :: Proxy (Struct "foo")))))
+-- test :: Def ('[] :-> Uint8)
+-- test  = proc "test" (body (ret (sizeOf (Proxy :: Proxy (Struct "foo")))))
 
-cmodule :: Module
-cmodule  = package "SizeOf" $ do
-  defStruct (Proxy :: Proxy "foo")
-  incl test
+-- cmodule :: Module
+-- cmodule  = package "SizeOf" $ do
+--   defStruct (Proxy :: Proxy "foo")
+--   incl test

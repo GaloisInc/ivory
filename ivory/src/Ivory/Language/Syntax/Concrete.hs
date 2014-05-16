@@ -169,6 +169,8 @@ struct Foo2
 
 |]
 
+testSizeOf :: Def ('[] :-> Uint8)
+testSizeOf  = proc "test" (body (ret (sizeOf (Proxy :: Proxy (Struct "Foo")))))
 
 bar :: Def ('[Ref s (Stored Uint32)] :-> ())
 bar = proc "bar" $ \ref -> requires (checkStored (ref) (\x -> true)) $ body $ retVoid

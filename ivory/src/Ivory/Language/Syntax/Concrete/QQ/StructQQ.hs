@@ -10,7 +10,7 @@ module Ivory.Language.Syntax.Concrete.QQ.StructQQ
 
 import qualified Ivory.Language.Area  as A
 import           Ivory.Language.Proxy
--- import           Ivory.Language.SizeOf
+import           Ivory.Language.SizeOf
 import qualified Ivory.Language.Struct as S
 import qualified Ivory.Language.String as S
 
@@ -21,10 +21,9 @@ import           Ivory.Language.Syntax.Concrete.ParseAST
 import           Ivory.Language.Syntax.Concrete.QQ.Common
 import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
--- import           Data.Traversable (sequenceA)
 import           Language.Haskell.TH hiding (Type)
--- import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
+import qualified Language.Haskell.TH as T
 
 --------------------------------------------------------------------------------
 
@@ -32,20 +31,12 @@ fromStruct :: StructDef -> Q [Dec]
 fromStruct def = case def of
   StructDef n fs -> do
     let sym = mkSym n
-    sequence (mkIvoryStruct sym def ++ mkFields sym fs)
-
--- fromStruct :: StructDef -> Q [Dec]
--- fromStruct def = case def of
---   StructDef n fs -> do
---     let sym = mkSym n
---     sizeOfDefs <- mkIvorySizeOf sym fs
---     sequence (mkIvoryStruct sym def ++ sizeOfDefs ++ mkFields sym fs)
-
+    sizeOfDef <- mkIvorySizeOf n fs
+    sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
   AbstractDef n _hdr -> sequence (mkIvoryStruct (mkSym n) def)
-
   StringDef name len -> mkStringDef name len
   where
-  mkSym n = litT (strTyLit n)
+  mkSym = litT . strTyLit
 
 -- IvoryStruct -----------------------------------------------------------------
 
@@ -61,8 +52,7 @@ mkStructDef def = funD 'S.structDef
   ]
   where
   astStruct = case def of
-    StructDef n fs    -> [| AST.Struct $(stringE n)
-                                         $(listE (map mkField fs)) |]
+    StructDef n fs    -> [| AST.Struct $(stringE n) $(listE (map mkField fs)) |]
     AbstractDef n hdr -> [| AST.Abstract $(stringE n) $(stringE hdr) |]
     StringDef _ _     -> error "unexpected string definition"
 
@@ -76,37 +66,34 @@ mkStructDef def = funD 'S.structDef
 
 -- IvorySizeOf -----------------------------------------------------------------
 
--- mkIvorySizeOf :: TypeQ -> [Field] -> Q [DecQ]
--- mkIvorySizeOf sym fields = do
---   mbs <- mapM fieldSizeOfBytes fields
---   case sequenceA mbs of
---     Just tys | not (null tys) -> return (mkIvorySizeOfInst sym tys)
---     _                         -> return []
+-- Create SizeOF instance for the struct.  Assumes that instances exist for the
+-- fields.  Fails if this is not the case!
 
--- -- | Return a call to 'sizeOfBytes' if there's an instance for the type named in
--- -- the field.
--- fieldSizeOfBytes :: Field -> Q (Maybe T.Type)
--- fieldSizeOfBytes field = do
---   ty          <- mkType (fieldType field)
---   hasInstance <- isInstance ''IvorySizeOf [ty]
---   if hasInstance
---      then return (Just ty)
---      else return  Nothing
+mkIvorySizeOf :: String -> [Field] -> Q [DecQ]
+mkIvorySizeOf n fields = do
+  let sym = litT (strTyLit n)
+  szs <- mapM fieldSizeOfBytes fields
+  if null szs then error $ "Cannot construct a struct with no fields: " ++ n
+    else return (mkIvorySizeOfInst sym szs)
 
--- mkIvorySizeOfInst :: TypeQ -> [T.Type] -> [DecQ]
--- mkIvorySizeOfInst sym tys =
---   [ instanceD (cxt []) (appT (conT ''IvorySizeOf) struct) [mkSizeOfBytes tys]
---   ]
---   where
---   struct = [t| A.Struct $sym |]
+-- | Return a call to 'sizeOfBytes'.  May fail if no instance exists.
+fieldSizeOfBytes :: Field -> Q T.Type
+fieldSizeOfBytes field = mkType (fieldType field)
 
--- mkSizeOfBytes :: [T.Type] -> DecQ
--- mkSizeOfBytes tys = funD 'sizeOfBytes
---   [ clause [wildP] (normalB (foldr1 add exprs)) []
---   ]
---   where
---   exprs   = [ [| sizeOfBytes (Proxy :: A.AProxy $(return ty)) |] | ty <- tys ]
---   add l r = [| $l + ($r :: Integer) |]
+mkIvorySizeOfInst :: TypeQ -> [T.Type] -> [DecQ]
+mkIvorySizeOfInst sym tys =
+  [ instanceD (cxt []) (appT (conT ''IvorySizeOf) struct) [mkSizeOfBytes tys]
+  ]
+  where
+  struct = [t| A.Struct $sym |]
+
+mkSizeOfBytes :: [T.Type] -> DecQ
+mkSizeOfBytes tys = funD 'sizeOfBytes
+  [ clause [wildP] (normalB (foldr1 add exprs)) []
+  ]
+  where
+  exprs   = [ [| sizeOfBytes (Proxy :: A.AProxy $(return ty)) |] | ty <- tys ]
+  add l r = [| $l + ($r :: Integer) |]
 
 -- Field Labels ----------------------------------------------------------------
 
@@ -123,40 +110,6 @@ mkLabel sym f =
 
 mkType :: Area -> TypeQ
 mkType a = runToQ (fromArea a) >>= (return . fst)
-
--- toAreaCon :: Area -> TypeCon
--- toAreaCon area = case area of
---   TyStruct str
---     -> TCon "Struct"
---   TyArray a i
---     -> TApp (TApp (TCon "Array") (TNat i)) (toAreaCon a)
---   TyStored ty
---     -> TApp (TCon "Stored") (fromType ty)
-
--- mkType' :: TypeCon -> TypeQ
--- mkType' ty = case ty of
---   TApp f x -> appT (mkType' f) (mkType' x)
-
---   TCon "Stored" -> promotedT 'A.Stored
---   TCon "Array"  -> promotedT 'A.Array
---   TCon "Struct" -> promotedT 'A.Struct
---   TCon "Global" -> promotedT 'S.Global
---   TCon "Stack"  -> fail "struct: not sure what to do with Stack yet"
-
---   TCon con -> do
---     mb <- lookupTypeName con
---     case mb of
---       Just n  -> conT n
---       Nothing -> fail ("Unknown type: " ++ con)
-
---   TNat n   -> litT (numTyLit n)
-
---   TSym s   -> litT (strTyLit s)
-
--- flattenTApp :: TypeCon -> [TypeCon]
--- flattenTApp ty = case ty of
---   TApp l r -> flattenTApp l ++ [r]
---   _          -> [ty]
 
 -- | Turn a parsed type into its AST representation.
 mkTypeE :: Area -> ExpQ
