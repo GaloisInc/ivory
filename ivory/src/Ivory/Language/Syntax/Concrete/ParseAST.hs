@@ -54,7 +54,9 @@ data Type
   | TyConstRef Scope Area      -- ^ Constant References
   -- XXX
   -- | TyPtr Type              -- ^ Pointers
+  | TyIx Integer               -- ^ Index type
   | TyArea Area                -- ^ Area types
+  | TySynonym String           -- ^ Type synonym
   deriving (Show, Read, Eq, Ord)
 
 data Area =
@@ -63,6 +65,7 @@ data Area =
   -- XXX
   --  | TyCArray Area          -- ^ C Arrays
   | TyStored Type
+  | AreaSynonym String         -- ^ Synonym
   deriving (Show, Read, Eq, Ord)
 
 data Scope =
@@ -211,7 +214,10 @@ structSym :: StructDef -> String
 structSym s = case s of
   StructDef   sym _ -> sym
   AbstractDef sym _ -> sym
-  StringDef   sym _ -> sym
+  StringDef   sym _ -> ivoryStringStructName sym
+
+ivoryStringStructName :: String -> String
+ivoryStringStructName = ("ivory_string_" ++)
 
 data Field = Field
   { fieldName :: FieldNm

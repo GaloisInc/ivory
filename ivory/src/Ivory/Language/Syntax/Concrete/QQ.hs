@@ -101,9 +101,7 @@ ivoryMod incls = do
     GlobalStruct d
       -> AppE (VarE 'I.defStruct)
               (SigE (ConE 'I.Proxy)
-                    (AppT (ConT ''I.Proxy)
-                          (LitT $ StrTyLit $ structSym d)))
-
+                    (AppT (ConT ''I.Proxy) (LitT (StrTyLit (structSym d)))))
 
 --------------------------------------------------------------------------------
 

@@ -266,7 +266,7 @@ type MaxMap = M.IntMap Size
 
 newtype MaxState a = MaxState
   { unSt :: StateT MaxMap Id a
-  } deriving (Functor, Monad)
+  } deriving (Functor, Monad, Applicative)
 
 instance StateM MaxState MaxMap where
   get = derive_get (Iso MaxState unSt)

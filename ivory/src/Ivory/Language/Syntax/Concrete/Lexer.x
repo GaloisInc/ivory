@@ -94,6 +94,7 @@ tokens :-
 
   struct   { lexReserved }
   abstract { lexReserved }
+  string   { lexReserved }
 
   -- C style
   bool     { lexReserved }
@@ -134,8 +135,10 @@ tokens :-
   Ref      { lexReserved }
   ConstRef { lexReserved }
   Array    { lexReserved }
-
+  Struct   { lexReserved }
   Stored   { lexReserved }
+
+  Ix       { lexReserved }
 
   Stack    { lexReserved }
   Global   { lexReserved }

@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -19,19 +20,24 @@ module Ivory.Language.Syntax.Concrete where
 import Ivory.Language.Syntax.Concrete.QQ
 
 -- XXX testing
+import Prelude hiding (return)
 import Ivory.Language
 
 e :: IBool
 e = (4::Sint32) >? 3
 
+type SomeInt = Uint32
+
+--data SomeInt = SomeInt Uint32
+
 [ivory|
 
--- void mapProc(*uint8_t[4] arr) {
---   map ix {
---     let v = arr ! ix;
---     *v = *v;
---   }
--- }
+-- -- void mapProc(*uint8_t[4] arr) {
+-- --   map ix {
+-- --     let v = arr ! ix;
+-- --     *v = *v;
+-- --   }
+-- -- }
 
 
 int32_t foo0() {
@@ -104,11 +110,6 @@ uint8_t foo12(* uint8_t a, g*uint8_t b, * uint8_t c, s* uint8_t d) {
   return *b;
 }
 
-struct Foo
- { aFoo :: Stored IBool
- ; aBar :: Array 4 (Stored Uint32)
- }
-
 bool foo13(* struct Foo f) {
   return *(f &> aFoo);
 }
@@ -140,6 +141,21 @@ uint32_t foo17(G*uint32_t i) {
   return *i;
 }
 
+struct Foo
+ { aBar :: Array 4 (Stored SomeInt)
+ ; aFoo :: Stored IBool
+ }
+
+struct Boo
+ { aFooVar :: Stored (Ix 3)
+ }
+
+string struct ParamStruct 16
+
+struct Foo2
+  { foo2f :: Struct Foo
+  }
+
 -- Map over an array, adding x to each cell.
 -- XXX??
 -- void mapProc(*uint8_t[4] arr) {
@@ -152,6 +168,7 @@ uint32_t foo17(G*uint32_t i) {
 -- abstract struct fooStruct "foobar/foo.h"
 
 |]
+
 
 bar :: Def ('[Ref s (Stored Uint32)] :-> ())
 bar = proc "bar" $ \ref -> requires (checkStored (ref) (\x -> true)) $ body $ retVoid
