@@ -55,7 +55,7 @@ modules = [ PID.cmodule
           , Forever.cmodule
           , PublicPrivate.cmodule
           , Bits.cmodule
---          , SizeOf.cmodule
+          , SizeOf.cmodule
           , AddrOfRegression.cmodule
           , Array.cmodule
           ] ++ stdlibModules
