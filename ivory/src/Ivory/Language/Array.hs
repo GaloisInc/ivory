@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Ivory.Language.Array where
 
@@ -11,6 +12,7 @@ import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Sint
 import Ivory.Language.Type
+import Ivory.Language.SizeOf
 import qualified Ivory.Language.Syntax as I
 
 import GHC.TypeLits (Nat)
@@ -47,6 +49,9 @@ instance (ANat n) => Num (Ix n) where
 
 instance (ANat n) => IvoryEq  (Ix n)
 instance (ANat n) => IvoryOrd (Ix n)
+
+instance (ANat n) => IvorySizeOf (Stored (Ix n)) where
+  sizeOfBytes _ = sizeOfBytes (Proxy :: Proxy (Stored IxRep))
 
 fromIx :: ANat n => Ix n -> IxRep
 fromIx = wrapExpr . unwrapExpr

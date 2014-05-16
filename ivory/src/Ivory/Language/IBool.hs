@@ -11,6 +11,8 @@ import Ivory.Language.Proxy
 import Ivory.Language.Sint
 import Ivory.Language.Type
 import Ivory.Language.Uint
+import Ivory.Language.SizeOf
+import Ivory.Language.Area
 import qualified Ivory.Language.Syntax as AST
 
 
@@ -27,6 +29,9 @@ instance IvoryVar IBool where
 
 instance IvoryExpr IBool where
   wrapExpr = IBool
+
+instance IvorySizeOf (Stored IBool) where
+  sizeOfBytes _ = 1
 
 -- IfTE Support ----------------------------------------------------------------
 
