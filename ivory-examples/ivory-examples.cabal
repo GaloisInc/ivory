@@ -47,6 +47,7 @@ executable ivory-c-clang-test
                         Alloc,
                         Area,
                         Cond,
+                        Concrete,
                         Forever,
                         PublicPrivate,
                         Bits,
