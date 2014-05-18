@@ -54,13 +54,19 @@ runToSt m = snd `fmap` runToQ m
 
 --------------------------------------------------------------------------------
 
--- Collect up the variables used in dereference expressions to make them Ivory
--- statements.
+-- Collect up the variables used in a dereference expression to be used in
+-- making a monadic Ivory statement.
 collectRefExps :: Exp -> [DerefExp]
 collectRefExps exp = nub $ case exp of
   ExpDeref e         -> [toDerefExp e]
   ExpOp _ args       -> concatMap collectRefExps args
-  _                  -> []
+  ExpArrIxRef _ e    -> collectRefExps e
+
+  ExpLit{}           -> []
+  ExpVar{}           -> []
+  ExpRet{}           -> []
+  ExpFieldRef{}      -> []
+  ExpAnti{}          -> []
 
 -- Unpack a dereference expression
 toDerefExp :: Exp -> DerefExp

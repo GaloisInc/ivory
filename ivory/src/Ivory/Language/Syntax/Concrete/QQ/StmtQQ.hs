@@ -152,19 +152,22 @@ mkDerefStmts exp = do
 insertDerefStmt :: DerefExp -> TStmtM DerefVarEnv
 insertDerefStmt dv = case dv of
   RefExp var    -> do
-    nm <- liftQ (newName var)
+    nm <- liftQ (freshDeref var)
     insertDeref nm (VarE (mkName var))
     return [(dv, nm)]
   RefArrIxExp ref ixExp -> do
     env <- mkDerefStmts ixExp
-    nm <- liftQ (newName ref)
+    nm <- liftQ (freshDeref ref)
     insertDeref nm (toArrIxExp env ref ixExp)
     return ((dv, nm) : env)
   RefFieldExp ref fieldNm -> do
-    nm <- liftQ (newName ref)
+    nm <- liftQ (freshDeref ref)
     insertDeref nm (toFieldExp ref fieldNm)
     return [(dv, nm)]
   where
+  -- We want to generate a fresh name that won't capture other user-defined
+  -- names, since we're inserting these variables.
+  freshDeref = newName . ("deref_" ++)
   insertDeref nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
 
 --------------------------------------------------------------------------------

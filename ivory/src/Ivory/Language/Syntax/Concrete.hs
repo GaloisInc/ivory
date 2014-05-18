@@ -28,16 +28,14 @@ e = (4::Sint32) >? 3
 
 type SomeInt = Uint32
 
---data SomeInt = SomeInt Uint32
-
 [ivory|
 
--- -- void mapProc(*uint8_t[4] arr) {
--- --   map ix {
--- --     let v = arr ! ix;
--- --     *v = *v;
--- --   }
--- -- }
+void mapProc(*uint8_t[4] arr, uint8_t x) {
+  map ix {
+    let v = arr ! ix;
+    *v = *v + x;
+  }
+}
 
 
 int32_t foo0() {
@@ -156,16 +154,7 @@ struct Foo2
   { foo2f :: Struct Foo
   }
 
--- Map over an array, adding x to each cell.
--- XXX??
--- void mapProc(*uint8_t[4] arr) {
---   map ix {
---     let v = arr ! ix;
---     *v = *v + 3;
---   }
--- }
-
--- abstract struct fooStruct "foobar/foo.h"
+abstract struct fooStruct "foobar/foo.h"
 
 |]
 
