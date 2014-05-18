@@ -50,7 +50,6 @@ library
                         Ivory.Language.SizeOf,
                         Ivory.Language.String,
                         Ivory.Language.Struct,
-                        Ivory.Language.Syntax.Concrete,
                         Ivory.Language.Syntax.Concrete.Lexer,
                         Ivory.Language.Syntax.Concrete.Parser,
                         Ivory.Language.Syntax.Concrete.ParseAST,
