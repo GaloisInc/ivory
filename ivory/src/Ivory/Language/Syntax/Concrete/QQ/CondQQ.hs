@@ -23,7 +23,6 @@ import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.QQ.Common
 import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 import Ivory.Language.Syntax.Concrete.QQ.Types
-import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
 
 --------------------------------------------------------------------------------
 
