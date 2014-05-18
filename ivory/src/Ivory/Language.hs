@@ -162,8 +162,9 @@ module Ivory.Language (
   , private, public
   , sourceDep
 
-    -- * Quasiquoter
+    -- * Quasiquoters
   , ivory
+  , ivoryFile
 
     -- * Utilities
   , Proxy(..), comment

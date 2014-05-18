@@ -10,7 +10,10 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.Syntax.Concrete.QQ   ( ivory ) where
+module Ivory.Language.Syntax.Concrete.QQ
+  ( ivory
+  , ivoryFile
+  ) where
 
 import           Prelude hiding (exp, init)
 import           Data.Char
@@ -30,10 +33,25 @@ import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Parser
 
 --------------------------------------------------------------------------------
+-- QuasiQuoters
 
--- | Quasiquoter for defining Ivory statements in C-like syntax.
+-- | Quasiquoter for defining Ivory statements in C-like syntax.  No module
+-- generated.
 ivory :: QuasiQuoter
-ivory = QuasiQuoter
+ivory = ivory' False
+
+-- | Parse a file.  Use
+--
+-- ivoryFile|foo.ivory|]
+--
+-- To parse file ```foo.ivory```
+-- Generates a module definition by default.
+ivoryFile :: QuasiQuoter
+ivoryFile = quoteFile (ivory' True)
+
+-- | If Boolean is true, QuasiQuoter generates a module definition.
+ivory' :: Bool -> QuasiQuoter
+ivory' b = QuasiQuoter
   { quoteExp  = err "quoteExp"
   , quotePat  = err "quotePat"
   , quoteDec  = decP
@@ -44,7 +62,8 @@ ivory = QuasiQuoter
     let defs      = reverse (runParser str)
     decs         <- mapM mkDef defs
     theModule    <- ivoryMod defs
-    return (concat decs ++ theModule)
+    let maybeMod  = if b then theModule else []
+    return (concat decs ++ maybeMod)
   err str = error $ str ++ " not implemented for c quasiquoter."
 
 --------------------------------------------------------------------------------
