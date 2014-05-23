@@ -23,7 +23,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
 
 %token
   integer     { TokInteger $$ }
+  bitlit      { TokBitLit $$ }
   ident       { TokIdent $$ }
+  tyident     { TokTyIdent $$ }
   fp          { TokFilePath $$ }
 
   -- Statements
@@ -77,6 +79,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   '?'       { TokSym "?" }
   ':'       { TokSym ":" }
 
+  -- Struct field dereference
   '&>'      { TokSym "&>" }
 
   '=='      { TokSym "==" }
@@ -171,10 +174,19 @@ import Ivory.Language.Syntax.Concrete.Lexer
   abstract { TokReserved "abstract" }
   string   { TokReserved "string" }
 
+  -- Bit data
+  bitdata  { TokReserved "bitdata" }
+  Bit      { TokReserved "Bit" }
+  Bits     { TokReserved "Bits" }
+  BitArray { TokReserved "BitArray" }
+  as       { TokReserved "as" }
+  '_'      { TokSym "_" }
+  '#'      { TokSym "#" }
 
 --------------------------------------------------------------------------------
 -- Precedence
 
+%right '#'
 %right '?' ':'
 %left '||'
 %left '&&'
@@ -220,8 +232,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
 -- Top-level definitions
 
 defs :: { [GlobalSym] }
-defs : defs procDef       { GlobalProc $2 : $1 }
-     | defs structDef     { GlobalStruct $2 : $1 }
+defs : defs procDef       { GlobalProc    $2 : $1 }
+     | defs structDef     { GlobalStruct  $2 : $1 }
+     | defs bdDef         { GlobalBitData $2 : $1 }
      | {- empty -}        { [] }
 
 ----------------------------------------
@@ -233,7 +246,7 @@ procDef :
     '{' stmts '}' prePostBlk { ProcDef $1 $2 (reverse $4) (reverse $7) $9 }
 
 tyArg :: { (Type, Var) }
-tyArg : type ident { ($1, $2) }
+tyArg : type tyident { ($1, $2) }
 
 -- Zero or more typed arguments, separated by arbitrary many ','s.
 args :: { [(Type, Var)] }
@@ -462,15 +475,15 @@ baseTypeHS :
   | Ix integer         { TyIx $2 }
 
   | '(' baseTypeHS ')' { $2 }
-  | ident              { TySynonym $1 }
+  | tyident            { TySynonym $1 }
 
 areaHS :: { Area }
 areaHS :
     Stored baseTypeHS          { TyStored $2 }
-  | Struct ident               { TyStruct $2 }
+  | Struct tyident             { TyStruct $2 }
   | Array integer areaHS       { TyArray $3 $2 }
   | '(' areaHS ')'             { $2 }
-  | ident                      { AreaSynonym $1 }
+  | tyident                    { AreaSynonym $1 }
 
 refTypeHS :: { Type }
 refTypeHS :
@@ -479,8 +492,16 @@ refTypeHS :
 
 scopeHS :: { Scope }
 scopeHS :
-    Stack ident { Stack (Just $2) }
-  | Global      { Global }
+    Stack tyident { Stack (Just $2) }
+  | Global        { Global }
+
+bitType :: { BitTy }
+bitType :
+    Bit                        { Bit }
+  | Bits integer               { Bits $2 }
+  | BitArray integer bitType   { BitArray $2 $3 }
+  | '(' bitType ')'            { $2 }
+  | tyident                    { BitTySynonym $1 }
 
 ----------------------------------------
 -- Struct definitions
@@ -493,7 +514,7 @@ structDef :
   | string structName integer { StringDef $2 $3 }
 
 structName :: { String }
-structName : struct ident { $2 }
+structName : struct tyident { $2 }
 
 field :: { Field }
 field : ident '::' areaHS { Field $1 $3 }
@@ -504,6 +525,64 @@ fields :
     fields ';' field   { $3 : $1 }
   | fields ';'         { $1 }
   | field              { [$1] }
+
+--------------------------------------------------------------------------------
+-- Bit data
+
+-- Bitdata definition
+bdDef :: { BitDataDef }
+bdDef : bitdata tyident '::' bitType
+    '=' bdConstrs                    { BitDataDef $2 $4 (reverse $6) }
+
+-- One or more bitdata constructors, separated by '|'
+bdConstrs :: { [Constr] }
+bdConstrs :
+    bdConstrs '|' bdConstr { $3 : $1 }
+  | bdConstr               { [$1] }
+
+bdConstr :: { Constr }
+bdConstr : ident bdRecord bdLayout { Constr $1 $2 $3 }
+
+-- Zero or more fields.
+bdRecord :: { [BitField] }
+bdRecord :
+    '{' bdFields '}' { reverse $2 }
+  | {- empty -}      { [] }
+
+bdFields :: { [BitField] }
+bdFields :
+    bdFields ',' bdField { $3 : $1 }
+  | bdField              { [$1] }
+
+bdField :: { BitField }
+bdField :
+    ident '::' bitType { BitField (Just $1) $3 }
+  | '_'   '::' bitType { BitField Nothing   $3 }
+
+bdLayout :: { [LayoutItem] }
+bdLayout :
+    as bdItems   { reverse $2 }
+  | {- empty -}  { [] }
+
+-- One or more items, separated by #
+bdItems :: { [LayoutItem] }
+bdItems :
+    bdItems '#' bdItem { $3 : $1 }
+  | bdItem             { [$1] }
+
+bdItem :: { LayoutItem }
+bdItem :
+    ident      { LayoutField $1 }
+  | integer    { LayoutConst (BitLitUnknown $1) }
+  | bitLiteral { LayoutConst $1 }
+
+-- Parse n-bit natural, e.g.,
+--
+-- 8b0 -- 8 0-bits
+--
+-- 2b01 -- 01
+bitLiteral :: { BitLiteral }
+bitLiteral : bitlit { BitLitKnown (fst $1) (snd $1) }
 
 --------------------------------------------------------------------------------
 
@@ -554,6 +633,5 @@ parseFileTest fp = do
   where
 --  parseTest :: String -> Either String Type
   parseTest s = runAlex s ivoryParser
-
 
 }

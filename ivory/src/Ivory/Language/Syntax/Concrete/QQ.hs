@@ -70,8 +70,10 @@ ivory' b = QuasiQuoter
 
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
-  GlobalProc   d -> fromProc d
-  GlobalStruct d -> fromStruct d
+  GlobalProc    d -> fromProc d
+  GlobalStruct  d -> fromStruct d
+  --  XXX finish
+  GlobalBitData d -> return []
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: [GlobalSym] -> Q [Dec]

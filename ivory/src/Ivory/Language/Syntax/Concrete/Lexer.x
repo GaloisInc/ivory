@@ -15,6 +15,9 @@
 module Ivory.Language.Syntax.Concrete.Lexer where
 
 import Prelude hiding (lex)
+import Data.Char (digitToInt)
+import Numeric (readInt)
+
 
 }
 
@@ -27,14 +30,13 @@ $alpha       = [a-zA-Z]
 $lowerletter = [a-z]
 $capletter   = [A-Z]
 
-@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \:]+
--- XXX This is more general than Haskell identifiers.  Parser should check
--- context.
-@ident       = $alpha [$alpha $digit [_ \']]*
+@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \: \# \_]+
+@tyident     = $capletter   [$alpha $digit [_ \']]*
+@ident       = $lowerletter [$alpha $digit [_ \']]*
 @brack       = [\( \) \[ \] \{ \}]
 @sep         = [\, \;]
 @filepath    = \" [$printable # \" # $white]+ \"
-
+@bitlit      = $digit+ b [0 1]+
 --------------------------------------------------------------------------------
 
 tokens :-
@@ -42,6 +44,7 @@ tokens :-
   "--".*  ;
 
   $digit+ { lex (TokInteger . read) }
+  @bitlit { lex readBitLit }
 
 -- Reserved words: statements
   if       { lexReserved }
@@ -90,7 +93,7 @@ tokens :-
 
   memcpy  { lexReserved }
 
--- Reserved words: types
+-- Reserved words
 
   struct   { lexReserved }
   abstract { lexReserved }
@@ -143,8 +146,17 @@ tokens :-
   Stack    { lexReserved }
   Global   { lexReserved }
 
+  -- Bit data
+  bitdata  { lexReserved }
+  Bit      { lexReserved }
+  Bits     { lexReserved }
+  BitArray { lexReserved }
+  as       { lexReserved }
+
 -- Identifiers
   @ident    { lex TokIdent }
+-- Type Identifiers
+  @tyident  { lex TokTyIdent }
 -- Symbols (match if it's not a reserved word)
   @sym      { lex TokSym }
 -- Brackets
@@ -167,9 +179,21 @@ lex f = \(_,_,_,s) i -> return (f (take i s))
 lexReserved :: AlexAction Token
 lexReserved = lex TokReserved
 
+readBitLit :: String -> Token
+readBitLit s =
+  let (width, val) = break (== 'b') s in
+  TokBitLit (read width, readBin val)
+
+-- If Alex calls readBin, a lex error should be impossible.
+readBin :: (Eq a, Num a) => String -> a
+readBin s = case readInt 2 (`elem` "01") digitToInt s of
+            [(v,"")] -> v
+            _        -> error $ "Impossible lex error on " ++ s
+
 -- Token types:
 data Token =
     TokInteger Integer
+  | TokBitLit (Integer, Integer) -- width, value (e.g., 5b0101)
   | TokIdent String
   | TokTyIdent String
   | TokReserved String
