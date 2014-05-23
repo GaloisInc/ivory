@@ -21,7 +21,8 @@ type FieldNm   = String
 -- Top level symbols.
 data GlobalSym = GlobalProc ProcDef
                | GlobalStruct StructDef
-  deriving Show
+               | GlobalBitData BitDataDef
+  deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Procs
@@ -206,7 +207,7 @@ data StructDef
   = StructDef String [Field]
   | AbstractDef String FilePath
   | StringDef String Integer
-    deriving (Show)
+    deriving (Show, Read, Eq, Ord)
 
 structSym :: StructDef -> String
 structSym s = case s of
@@ -220,4 +221,48 @@ ivoryStringStructName = ("ivory_string_" ++)
 data Field = Field
   { fieldName :: FieldNm
   , fieldType :: Area
-  } deriving (Show)
+  } deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Bit-data
+
+-- | A "bitdata" definition.
+data BitDataDef = BitDataDef
+  { defName    :: String
+  , defType    :: BitTy
+  , defConstrs :: [Constr]
+  } deriving (Show, Read, Eq, Ord)
+
+-- | Basic type representation allowed in bit definitions.
+data BitTy = Bit
+           | Bits Integer
+           | BitArray Integer BitTy
+           | BitTySynonym String
+  deriving (Show, Read, Eq, Ord)
+
+-- | A constructor definition within a "bitdata".
+data Constr = Constr
+  { constrName   :: String
+  , constrFields :: [BitField]
+  , constrLayout :: [LayoutItem]
+  } deriving (Show, Read, Eq, Ord)
+
+-- | One element of a bit data constructor layout.
+data LayoutItem = LayoutConst BitLiteral
+                | LayoutField String
+  deriving (Show, Read, Eq, Ord)
+
+-- | A bit integer literal with a known or unknown size.
+data BitLiteral =
+    BitLitKnown   { bitLitLen :: Integer , bitLitVal :: Integer }
+  | BitLitUnknown { bitLitVal :: Integer }
+ deriving (Show, Read, Eq, Ord)
+
+-- | A record-like field defined within a "bitdata" constructor.  If the name is
+-- an underscore, we name it with 'Nothing'.
+data BitField = BitField
+  { bitFieldName :: Maybe String
+  , bitFieldType :: BitTy
+  } deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
