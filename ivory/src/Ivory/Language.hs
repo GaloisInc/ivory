@@ -6,6 +6,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
+-- XXX testing
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Ivory.Language (
     -- * Kinds
     Area(..)
@@ -97,6 +101,9 @@ module Ivory.Language (
     -- ** Bit operators
   , IvoryBits((.&),(.|),(.^),iComplement,iShiftL,iShiftR), extractByte
   , BitSplit(lbits, ubits), BitCast(bitCast)
+
+    -- ** Bit data
+  , Bits(), Bit(), BitArray()
 
     -- ** External memory areas
   , MemArea(), area, importArea
@@ -203,4 +210,78 @@ import Ivory.Language.Struct
 import Ivory.Language.Type
 import Ivory.Language.Uint
 import Ivory.Language.Syntax.Concrete.QQ
+import Ivory.Language.Syntax.Concrete.QQ.BitData.Bits
+import Ivory.Language.Syntax.Concrete.QQ.BitData.Array
 import qualified Ivory.Language.Syntax.AST as AST
+
+[ivory|
+
+bitdata SPIBaud :: Bits 3
+   = spi_baud_div_2   as 0
+   | spi_baud_div_4   as 1
+   | spi_baud_div_8   as 2
+   | spi_baud_div_16  as 3
+   | spi_baud_div_32  as 4
+   | spi_baud_div_64  as 5
+   | spi_baud_div_128 as 6
+   | spi_baud_div_256 as 7
+
+ bitdata SPI_CR1 :: Bits 16 = spi_cr1
+   { spi_cr1_bidimode :: Bit
+   , spi_cr1_bidioe   :: Bit
+   , spi_cr1_crcen    :: Bit
+   , spi_cr1_crcnext  :: Bit
+   , spi_cr1_dff      :: Bit
+   , spi_cr1_rxonly   :: Bit
+   , spi_cr1_ssm      :: Bit
+   , spi_cr1_ssi      :: Bit
+   , spi_cr1_lsbfirst :: Bit
+   , spi_cr1_spe      :: Bit
+   -- , spi_cr1_br       :: SPIBaud
+   , spi_cr1_br       :: Bits 3
+   , spi_cr1_mstr     :: Bit
+   , spi_cr1_cpol     :: Bit
+   , spi_cr1_cpha     :: Bit
+   }
+
+ -- The "SPI_CR2" register defined using a layout clause.
+ bitdata SPI_CR2 :: Bits 16 = spi_cr2
+   { spi_cr2_txeie    :: Bit
+   , spi_cr2_rxneie   :: Bit
+   , spi_cr2_errie    :: Bit
+   , spi_cr2_frf      :: Bit
+   , spi_cr2_ssoe     :: Bit
+   , spi_cr2_txdmaen  :: Bit
+   , spi_cr2_rxdmaen  :: Bit
+   } as 8b0 # spi_cr2_txeie # spi_cr2_rxneie # spi_cr2_errie
+   # spi_cr2_frf # 1b0 # spi_cr2_ssoe # spi_cr2_txdmaen
+   # spi_cr2_rxdmaen
+
+ -- The "SPI_CR2" register defined using the default layout and
+ -- padding fields.
+ bitdata Alt_SPI_CR2 :: Bits 16 = alt_spi_cr2
+   { _                    :: Bits 8
+   , alt_spi_cr2_txeie    :: Bit
+   , alt_spi_cr2_rxneie   :: Bit
+   , alt_spi_cr2_errie    :: Bit
+   , alt_spi_cr2_frf      :: Bit
+   , _                    :: Bit
+   , alt_spi_cr2_ssoe     :: Bit
+   , alt_spi_cr2_txdmaen  :: Bit
+   , alt_spi_cr2_rxdmaen  :: Bit
+   }
+
+ -- The "NVIC_ISER" register is an array of 32 bits.
+ --
+ -- We will want to access the array both at Ivory run-time using an
+ -- "Ix 32" and at code generation time using a Haskell integer.
+ bitdata NVIC_ISER :: Bits 32 = nvic_iser
+   { nvic_iser_setena :: BitArray 32 Bit
+   }
+
+ -- A bit data type with an array of 4-bit integers.
+ bitdata ArrayTest :: Bits 32 = array_test
+   { at_4bits :: BitArray 8 (Bits 4)
+   }
+
+|]
