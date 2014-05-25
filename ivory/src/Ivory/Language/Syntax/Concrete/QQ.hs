@@ -26,6 +26,7 @@ import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Proxy  as I
 import qualified Ivory.Language.Module as I
 
+import Ivory.Language.Syntax.Concrete.QQ.BitDataQQ
 import Ivory.Language.Syntax.Concrete.QQ.StructQQ
 import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
 
@@ -73,7 +74,7 @@ mkDef def = case def of
   GlobalProc    d -> fromProc d
   GlobalStruct  d -> fromStruct d
   --  XXX finish
-  GlobalBitData d -> return []
+  GlobalBitData d -> fromBitData d
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: [GlobalSym] -> Q [Dec]
