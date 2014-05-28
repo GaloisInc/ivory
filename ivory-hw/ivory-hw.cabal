@@ -30,8 +30,6 @@ library
                        Ivory.HW.Module,
                        Ivory.HW.SearchDir
   other-modules:       Ivory.HW.IOArea,
-                       Ivory.HW.STM32F4,
-                       Ivory.HW.Machine,
                        Ivory.HW.Prim,
                        Paths_ivory_hw,
                        ExampleTypes
