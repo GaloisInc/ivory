@@ -5,7 +5,7 @@ module Bits (runBits, cmodule) where
 
 import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
-import Ivory.Language
+import Ivory.Language hiding (setBit, clearBit, runBits)
 import MonadLib.Monads (runState, sets)
 
 runBits :: IO ()
