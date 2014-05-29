@@ -12,8 +12,6 @@
 
 module Example where
 
-import Control.Monad (void)
-import Ivory.BitData
 import Ivory.HW
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
@@ -23,7 +21,7 @@ import ExampleTypes
 ----------------------------------------------------------------------
 -- Driver Definition
 
-[bitdata|
+[ivory|
  bitdata SPI_CR1 :: Bits 16 = spi_cr1
    { spi_cr1_bidimode :: Bit
    , spi_cr1_bidioe   :: Bit

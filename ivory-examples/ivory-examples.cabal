@@ -53,7 +53,9 @@ executable ivory-c-clang-test
                         SizeOf,
                         AddrOfRegression,
                         Array,
-                        QC
+                        QC,
+                        BitData,
+                        BitDataTypes
   hs-source-dirs:       examples
   build-depends:        base >= 4.6,
                         pretty >= 1.1,

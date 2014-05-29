@@ -182,15 +182,14 @@ lexReserved = lex TokReserved
 readBitLit :: String -> Token
 readBitLit s =
   let (width, val) = break (== 'b') s in
-  TokBitLit (read width, readBin val)
+  TokBitLit (read width, readBin (tail val))
 
 -- If Alex calls readBin, a lex error should be impossible.
 readBin :: (Show a, Eq a, Num a) => String -> a
-readBin ('b':s) =
+readBin s =
   case readInt 2 (`elem` "01") digitToInt s of
     [(v,"")] -> v
     ls       -> error $ "Impossible lex error on " ++ show ls
-readBin s = error $ "Impossible2 lex error on " ++ s
 
 -- Token types:
 data Token =

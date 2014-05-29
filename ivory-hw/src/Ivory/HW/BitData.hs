@@ -11,9 +11,7 @@ module Ivory.HW.BitData where
 import Numeric (showHex)
 import Data.List (intercalate)
 
-import Ivory.BitData
 import Ivory.Language
-
 import Ivory.HW.Prim
 import Ivory.HW.Reg
 

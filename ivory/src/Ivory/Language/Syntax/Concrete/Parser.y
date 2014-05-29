@@ -432,8 +432,8 @@ refC :
 
 areaC :: { Area }
 areaC :
-    arrayTypeC      { $1 }
-  | structName      { TyStruct $1 }
+    arrayTypeC        { $1 }
+  | struct structName { TyStruct $2 }
 
 arrayTypeC :: { Area }
 arrayTypeC :
@@ -480,7 +480,7 @@ baseTypeHS :
 areaHS :: { Area }
 areaHS :
     Stored baseTypeHS          { TyStored $2 }
-  | Struct tyident             { TyStruct $2 }
+  | Struct structName          { TyStruct $2 }
   | Array integer areaHS       { TyArray $3 $2 }
   | '(' areaHS ')'             { $2 }
   | tyident                    { AreaSynonym $1 }
@@ -508,13 +508,15 @@ bitType :
 
 structDef :: { StructDef }
 structDef :
-    structName '{' fields '}' { StructDef $1 (reverse $3) }
+    struct structName '{' fields '}' { StructDef $2 (reverse $4) }
   -- Remove parsed quotes first
-  | abstract structName fp    { AbstractDef $2 (filter (/= '\"') $3) }
-  | string structName integer { StringDef $2 $3 }
+  | abstract struct structName fp    { AbstractDef $3 (filter (/= '\"') $4) }
+  | string struct structName integer { StringDef $3 $4 }
 
 structName :: { String }
-structName : struct tyident { $2 }
+structName :
+    tyident { $1 }
+  | ident   { $1 }
 
 field :: { Field }
 field : ident '::' areaHS { Field $1 $3 }
@@ -581,6 +583,7 @@ bdItem :
 -- 8b0 -- 8 0-bits
 --
 -- 2b01 -- 01
+-- First field is width, second is "b[0,1]+"
 bitLiteral :: { BitLiteral }
 bitLiteral : bitlit { BitLitKnown (fst $1) (snd $1) }
 
