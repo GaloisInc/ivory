@@ -92,10 +92,7 @@ memcpy = importProc "memcpy" "string.h"
 istr_len :: IvoryString str
          => ConstRef s str
          -> Ivory eff (Ix (Capacity str))
-istr_len str = do
-  len <- deref (stringLength str)
-  assert (fromIx len <? stringCapacity str)
-  return len
+istr_len = deref . stringLength
 
 -- | Copy one string into another of the same type.
 istr_copy :: IvoryString str
