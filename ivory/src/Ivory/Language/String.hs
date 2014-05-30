@@ -7,7 +7,6 @@
 module Ivory.Language.String where
 
 import Ivory.Language.Area
-import Ivory.Language.Array
 import Ivory.Language.Struct
 import Ivory.Language.Uint
 
@@ -21,5 +20,5 @@ class ( SingI (Capacity a)
   type Capacity a :: Nat
 
   stringDataL   :: Label (StructName a) (Array (Capacity a) (Stored Uint8))
-  stringLengthL :: Label (StructName a) (Stored (Ix (Capacity a)))
+  stringLengthL :: Label (StructName a) (Stored Uint32)
 

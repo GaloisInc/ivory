@@ -193,8 +193,7 @@ mkStringDef ty_s len = do
   let data_t     = P.TApp (P.TApp (P.TCon "Array") (P.TNat len))
                           (P.TApp (P.TCon "Stored") (P.TCon "Uint8"))
   let data_f     = P.Field data_s data_t
-  let len_t      = P.TApp (P.TCon "Stored")
-                          (P.TApp (P.TCon "Ix") (P.TNat len))
+  let len_t      = P.TApp (P.TCon "Stored") (P.TCon "Uint32")
   let len_f      = P.Field len_s  len_t
   let struct_def = P.StructDef struct_s [data_f, len_f]
 

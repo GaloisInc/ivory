@@ -50,7 +50,7 @@ expFold' ty e = case e of
 
 -- | For toIx e :: Ix maxSz, assert
 -- @
---    0 <= e < maxSz && 1 < maxSz
+--    0 <= e < maxSz && 0 < maxSz
 -- @
 toIxAssert :: I.Expr -> Integer -> I.Expr
 toIxAssert e maxSz = I.ExpOp I.ExpAnd
