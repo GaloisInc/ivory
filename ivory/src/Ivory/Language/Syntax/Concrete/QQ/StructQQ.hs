@@ -147,7 +147,7 @@ mkStringDef ty_s len = do
     [ tySynD ty_n [] struct_t
     , instanceD (cxt []) (appT (conT ''S.IvoryString) struct_t)
       [
-#if __GLASGOW_HASKELL__ >= 781
+#if __GLASGOW_HASKELL__ >= 708
         tySynInstD ''S.Capacity (tySynEqn [struct_t] (return $ szTy len))
 #else
         tySynInstD ''S.Capacity [struct_t] (return $ szTy len)

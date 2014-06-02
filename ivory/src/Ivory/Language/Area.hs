@@ -11,7 +11,7 @@ import Ivory.Language.Proxy
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
-#if __GLASGOW_HASKELL__ >= 781
+#if __GLASGOW_HASKELL__ >= 708
 import GHC.TypeLits (Nat,Symbol,KnownNat)
 #else
 import GHC.TypeLits (Nat,Symbol,SingI,Sing,sing)
@@ -34,7 +34,7 @@ data Area k
 class IvoryArea (a :: Area *) where
   ivoryArea :: Proxy a -> I.Type
 
-#if __GLASGOW_HASKELL__ >= 781
+#if __GLASGOW_HASKELL__ >= 708
 instance (KnownNat len, IvoryArea area)
 #else
 instance (SingI len, IvoryArea area)
@@ -42,7 +42,7 @@ instance (SingI len, IvoryArea area)
   => IvoryArea (Array len area) where
   ivoryArea _ = I.TyArr len area
     where
-#if __GLASGOW_HASKELL__ >= 781
+#if __GLASGOW_HASKELL__ >= 708
     len  = fromInteger (fromTypeNat (Proxy :: Proxy len))
 #else
     len  = fromInteger (fromTypeNat (sing :: Sing len))

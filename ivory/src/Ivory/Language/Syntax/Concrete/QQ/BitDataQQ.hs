@@ -79,7 +79,7 @@ getTyBits ty =
     _ -> mzero
   where
     tyInsts name t = lift (reifyInstances name [t]) >>= anyOf
-#if __GLASGOW_HASKELL__ >= 781
+#if __GLASGOW_HASKELL__ >= 708
     decBits (TySynInstD _ (TySynEqn _ t)) = getTyBits t
 #else
     decBits (TySynInstD _ _ t) = getTyBits t
@@ -336,7 +336,7 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     baseTy  = thDefType def
     instTy  = [t| B.BitData $(conT (thDefName def)) |]
     body    = [tyDef, toFun, fromFun]
-#if __GLASGOW_HASKELL__ >= 781
+#if __GLASGOW_HASKELL__ >= 708
     tyDef   = return (TySynInstD ''B.BitType (TySynEqn [ConT name] baseTy))
 #else
     tyDef   = return (TySynInstD ''B.BitType [ConT name] baseTy)
@@ -367,7 +367,7 @@ mkArraySizeTypeInsts def =
 -- result type is the same.
 mkArraySizeTypeInst :: Integer -> TH.Type -> [DecQ]
 mkArraySizeTypeInst n ty =
-#if __GLASGOW_HASKELL__ >= 781
+#if __GLASGOW_HASKELL__ >= 708
   [tySynInstD ''B.ArraySize (tySynEqn args size)]
 #else
   [tySynInstD ''B.ArraySize args size]
