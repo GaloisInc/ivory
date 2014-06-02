@@ -139,7 +139,7 @@ mkStringDef ty_s len = do
   let len_s      = struct_s ++ "_len"
   let len_n      = mkName len_s
   let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) len)
-  let len_f      = Field len_s (TyStored (TyIx len))
+  let len_f      = Field len_s (TyStored (TyWord Word32))
   let struct_def = StructDef struct_s [data_f, len_f]
 
   d1 <- fromStruct struct_def
