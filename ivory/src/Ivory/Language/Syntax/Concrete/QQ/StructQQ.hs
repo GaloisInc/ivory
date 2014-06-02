@@ -3,6 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE CPP #-}
 
 module Ivory.Language.Syntax.Concrete.QQ.StructQQ
   ( fromStruct
@@ -145,7 +146,12 @@ mkStringDef ty_s len = do
   d2 <- sequence
     [ tySynD ty_n [] struct_t
     , instanceD (cxt []) (appT (conT ''S.IvoryString) struct_t)
-      [ tySynInstD ''S.Capacity (tySynEqn [struct_t] (return $ szTy len))
+      [
+#if __GLASGOW_HASKELL__ >= 781
+        tySynInstD ''S.Capacity (tySynEqn [struct_t] (return $ szTy len))
+#else
+        tySynInstD ''S.Capacity [struct_t] (return $ szTy len)
+#endif
       , valD (varP 'S.stringDataL)   (normalB (varE data_n)) []
       , valD (varP 'S.stringLengthL) (normalB (varE len_n)) []
       ]
