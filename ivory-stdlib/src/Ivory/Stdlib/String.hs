@@ -93,7 +93,11 @@ memcpy = importProc "memcpy" "string.h"
 -- | Return the length of a string.
 istr_len :: IvoryString str
          => ConstRef s str
+<<<<<<< HEAD
          -> Ivory eff Len
+=======
+         -> Ivory eff (Ix (Capacity str))
+>>>>>>> origin-ssh/backout-qc-mod
 istr_len = deref . stringLength
 
 -- | Copy one string into another of the same type.
