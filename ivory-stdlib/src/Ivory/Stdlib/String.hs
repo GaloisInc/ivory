@@ -58,7 +58,7 @@ stringCapacity :: forall ref str s.
 stringCapacity _ = len
   where
   len :: Len
-  len = fromIntegral (fromSing (sing :: Sing (Capacity str)))
+  len = fromIntegral (fromTypeNat (aNat :: NatType (Capacity str)))
 
 -- Polymorphic "stringLength" function allowing read/write access
 -- to the string length.  This is not exported, only a specialized
