@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Quote.hs --- Bit data quasiquoter.
