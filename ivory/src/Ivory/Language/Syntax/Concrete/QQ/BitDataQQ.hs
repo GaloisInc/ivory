@@ -82,7 +82,7 @@ getTyBits ty =
 #if __GLASGOW_HASKELL__ >= 781
     decBits (TySynInstD _ (TySynEqn _ t)) = getTyBits t
 #else
-    decBits (TySynInstD _ (TySynEqn t) = getTyBits t
+    decBits (TySynInstD _ t) = getTyBits t
 #endif
     decBits _ = mzero
 
