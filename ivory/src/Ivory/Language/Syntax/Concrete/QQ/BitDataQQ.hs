@@ -78,7 +78,11 @@ getTyBits ty =
     _ -> mzero
   where
     tyInsts name t = lift (reifyInstances name [t]) >>= anyOf
+#if __GLASGOW_HASKELL__ >= 781
     decBits (TySynInstD _ (TySynEqn _ t)) = getTyBits t
+#else
+    decBits (TySynInstD _ (TySynEqn t) = getTyBits t
+#endif
     decBits _ = mzero
 
 -- | Return the size in bits of a type that can appear in a bitdata
@@ -331,7 +335,11 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     baseTy  = thDefType def
     instTy  = [t| B.BitData $(conT (thDefName def)) |]
     body    = [tyDef, toFun, fromFun]
+#if __GLASGOW_HASKELL__ >= 781
     tyDef   = return (TySynInstD ''B.BitType (TySynEqn [ConT name] baseTy))
+#else
+    tyDef   = return (TySynInstD ''B.BitType [ConT name] baseTy)
+#endif
     x       = mkName "x"
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]
@@ -357,7 +365,12 @@ mkArraySizeTypeInsts def =
 -- because duplicates are allowed by the overlapping rules when the
 -- result type is the same.
 mkArraySizeTypeInst :: Integer -> TH.Type -> [DecQ]
-mkArraySizeTypeInst n ty = [tySynInstD ''B.ArraySize (tySynEqn args size)]
+mkArraySizeTypeInst n ty =
+#if __GLASGOW_HASKELL__ >= 781
+  [tySynInstD ''B.ArraySize (tySynEqn args size)]
+#else
+  [tySynInstD ''B.ArraySize args size]
+#endif
   where
     size = tyBits ty >>= litT . numTyLit . fromIntegral . (* n)
     args = [litT (numTyLit (fromIntegral n)), return ty]
