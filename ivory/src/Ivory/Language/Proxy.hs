@@ -6,7 +6,7 @@
 
 module Ivory.Language.Proxy where
 
-#if __GLASGOW_HASKELL__ >= 700
+#if __GLASGOW_HASKELL__ >= 781
 import GHC.TypeLits (natVal,symbolVal,Symbol,Nat,KnownNat,KnownSymbol)
 #else
 import GHC.TypeLits (Sing,fromSing,Symbol,Nat)
@@ -18,7 +18,7 @@ data Proxy (a :: k) = Proxy
 type SProxy a = Proxy (a :: *)
 
 --------------------------------------------------------------------------------
-#if __GLASGOW_HASKELL__ >= 700
+#if __GLASGOW_HASKELL__ >= 781
 
 type ANat    n = (KnownNat n)
 type NatType n = Proxy n
