@@ -348,31 +348,51 @@ toExpr val = case val of
   CfExpr ex   -> ex
 
 -- | Check if we're comparing the max or min bound for >= and optimize.
+-- Assumes args are already folded.
 gteCheck :: I.Type -> [CfVal] -> Maybe Bool
 gteCheck t [l,r]
   -- forall a. max >= a
   | CfInteger x <- l
   , Just s <- toMaxSize t
-  , x == s = Just True
+  , x == s
+  = Just True
+  -- forall a. max >= a
+  | CfExpr (I.ExpMaxMin True) <- l
+  = Just True
   -- forall a. a >= min
   | CfInteger y <- r
   , Just s <- toMinSize t
-  , y == s = Just True
-  | otherwise                            = Nothing
+  , y == s
+  = Just True
+  -- forall a. a >= min
+  | CfExpr (I.ExpMaxMin False) <- r
+  = Just True
+  | otherwise
+  = Nothing
 gteCheck _ _ = err "wrong number of args to gtCheck."
 
 -- | Check if we're comparing the max or min bound for > and optimize.
+-- Assumes args are already folded.
 gtCheck :: I.Type -> [CfVal] -> Maybe Bool
 gtCheck t [l,r]
   -- forall a. not (min > a)
   | CfInteger x <- l
   , Just s <- toMinSize t
-  , x == s = Just False
+  , x == s
+  = Just False
+  -- forall a. not (min > a)
+  | CfExpr (I.ExpMaxMin False) <- l
+  = Just False
   -- forall a. not (a > max)
   | CfInteger y <- r
   , Just s <- toMaxSize t
-  , y == s = Just False
-  | otherwise                            = Nothing
+  , y == s
+  = Just False
+  -- forall a. not (a > max)
+  | CfExpr (I.ExpMaxMin True) <- r
+  = Just False
+  | otherwise
+  = Nothing
 gtCheck _ _ = err "wrong number of args to gtCheck."
 
 fromOrdChecks :: I.Expr -> Maybe Bool -> I.Expr
