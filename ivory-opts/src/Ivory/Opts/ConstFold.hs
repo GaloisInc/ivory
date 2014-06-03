@@ -161,8 +161,14 @@ cfOp ty op args =
     I.ExpNeq t -> cfOrd t
     I.ExpCond
       | Just b <- arg0 goBoolArgs
-      -> if b then arg1 (toExpr' ty) else arg2 (toExpr' ty)
+      -> if b then a1 else a2
+      -- If both branches have the same result, we dont care about the branch
+      -- condition.
+      | a1 == a2
+      -> a1
       | otherwise -> noop ty
+      where a1 = arg1 (toExpr' ty)
+            a2 = arg2 (toExpr' ty)
     I.ExpGt orEq t
       | orEq      -> goOrd t gteCheck args
       | otherwise -> goOrd t gtCheck args
