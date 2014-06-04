@@ -421,10 +421,14 @@ toExpr ty (I.ExpMaxMin b) = [cexp| $id:macro |]
         I.Int16    -> "INT16_MIN"
         I.Int32    -> "INT32_MIN"
         I.Int64    -> "INT64_MIN"
-      _          -> err
+      I.TyWord sz -> show $ case sz of
+        I.Word8     -> 0 :: Integer
+        I.Word16    -> 0
+        I.Word32    -> 0
+        I.Word64    -> 0
+      _           -> err
   err = error $ "unexpected type " ++ show ty ++ " in ExpMaxMin."
 ----------------------------------------
-
 
 exp0 :: [C.Exp] -> C.Exp
 exp0 = flip (!!) 0
