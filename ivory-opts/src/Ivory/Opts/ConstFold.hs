@@ -20,41 +20,11 @@ import qualified Data.DList as D
 -- Constant folding
 --------------------------------------------------------------------------------
 
-constFold :: I.Proc -> I.Proc
-constFold = procFold cf
-
 -- | Expression to expression optimization.
 type ExprOpt = I.Type -> I.Expr -> I.Expr
 
--- | Constant folding.
-cf :: ExprOpt
-cf ty e =
-  case e of
-    I.ExpSym{} -> e
-    I.ExpVar{} -> e
-    I.ExpLit{} -> e
-
-    I.ExpOp op args       -> cfOp ty op args
-
-    I.ExpLabel t e0 s     -> I.ExpLabel t (cf t e0) s
-
-    I.ExpIndex t e0 t1 e1 -> I.ExpIndex t (cf t e0) t1 (cf t e1)
-
-    I.ExpSafeCast t e0    ->
-      let e0' = cf t e0
-       in fromMaybe (I.ExpSafeCast t e0') $ do
-            _ <- destLit e0'
-            return e0'
-
-    I.ExpToIx e0 maxSz    ->
-      let ty' = I.TyInt I.Int32 in
-      let e0' = cf ty' e0 in
-      case destIntegerLit e0' of
-        Just i  -> I.ExpLit $ I.LitInteger $ i `rem` maxSz
-        Nothing -> I.ExpToIx e0' maxSz
-
-    I.ExpAddrOfGlobal{}   -> e
-    I.ExpMaxMin{}         -> e
+constFold :: I.Proc -> I.Proc
+constFold = procFold cf
 
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
@@ -126,6 +96,39 @@ stmtFold cxt opt blk stmt =
         newFold  = D.toList . newFold'
         snoc     = (blk `D.snoc`)
 
+--------------------------------------------------------------------------------
+-- Expressions
+
+-- | Constant folding over expressions.
+cf :: ExprOpt
+cf ty e =
+  case e of
+    I.ExpSym{} -> e
+    I.ExpVar{} -> e
+    I.ExpLit{} -> e
+
+    I.ExpOp op args       -> cfOp ty op args
+
+    I.ExpLabel t e0 s     -> I.ExpLabel t (cf t e0) s
+
+    I.ExpIndex t e0 t1 e1 -> I.ExpIndex t (cf t e0) t1 (cf t e1)
+
+    I.ExpSafeCast t e0    ->
+      let e0' = cf t e0
+       in fromMaybe (I.ExpSafeCast t e0') $ do
+            _ <- destLit e0'
+            return e0'
+
+    I.ExpToIx e0 maxSz    ->
+      let ty' = I.TyInt I.Int32 in
+      let e0' = cf ty' e0 in
+      case destIntegerLit e0' of
+        Just i  -> I.ExpLit $ I.LitInteger $ i `rem` maxSz
+        Nothing -> I.ExpToIx e0' maxSz
+
+    I.ExpAddrOfGlobal{}   -> e
+    I.ExpMaxMin{}         -> e
+
 loopIncrFold :: (I.Expr -> I.Expr) -> I.LoopIncr -> I.LoopIncr
 loopIncrFold opt incr =
   case incr of
@@ -143,12 +146,6 @@ arg1 = flip (!!) 1
 
 arg2 :: [a] -> a
 arg2 = flip (!!) 2
-
-mkArgs :: I.Type -> [I.Expr] -> [I.Expr]
-mkArgs ty = map (cf ty)
-
-mkCfArgs :: [I.Expr] -> [CfVal]
-mkCfArgs = map toCfVal
 
 mkCfBool :: [I.Expr] -> [Maybe Bool]
 mkCfBool = map destBoolLit
@@ -243,7 +240,7 @@ cfOp ty op args =
     I.ExpBitShiftR     -> noop ty
 
   where
-  goArgs ty'    = mkCfArgs $ mkArgs ty' args
+  goArgs ty'    = mkCfArgs ty' $ mkArgs ty' args
   toExpr'       = map toExpr . goArgs
   goBoolArgs    = mkCfBool $ mkArgs I.TyBool args
   noop          = I.ExpOp op . map toExpr . goArgs
@@ -252,17 +249,20 @@ cfOp ty op args =
   goFB ty'      = toExpr (cfFloatingB op $ goArgs ty')
   cfOrd ty'     = toExpr (cfOrd2 op $ goArgs ty')
   goOrd ty' chk args' =
-    let args0 = mkCfArgs $ mkArgs ty' args' in
+    let args0 = mkCfArgs ty' $ mkArgs ty' args' in
     fromOrdChecks (cfOrd ty') (chk ty' args0)
   goNum         = toExpr (cfNum ty op $ goArgs ty)
 
+  -- The only call to the main cf function, outside of cf itself.
+  mkArgs :: I.Type -> [I.Expr] -> [I.Expr]
+  mkArgs = map . cf
 
 cfBitAnd :: I.Type -> [CfVal] -> CfVal
 cfBitAnd ty [l,r]
   | ones ty  l = r
   | ones ty  r = l
-  | zeros ty l = CfInteger 0
-  | zeros ty r = CfInteger 0
+  | zeros ty l = toCfInt ty 0
+  | zeros ty r = toCfInt ty 0
   | otherwise  = CfExpr (I.ExpOp I.ExpBitAnd [toExpr l, toExpr r])
 cfBitAnd _ _ = err "Wrong number of args to cfBitAnd in constant folder."
 
@@ -270,23 +270,27 @@ cfBitOr :: I.Type -> [CfVal] -> CfVal
 cfBitOr ty [l,r]
   | zeros ty l = r
   | zeros ty r = l
-  | ones ty  l = CfInteger 1
-  | ones ty  r = CfInteger 1
+  | ones ty  l = toCfInt ty 1
+  | ones ty  r = toCfInt ty 1
   | otherwise  = CfExpr (I.ExpOp I.ExpBitOr [toExpr l, toExpr r])
 cfBitOr _ _ = err "Wrong number of args to cfBitOr in constant folder."
 
 -- Min values for word types.
 zeros :: I.Type -> CfVal -> Bool
-zeros I.TyWord{} (CfInteger i) = i == 0
+zeros I.TyWord{} (CfInteger _ i) = i == 0
 zeros _ _ = False
 
 -- Max values for word types.
 ones :: I.Type -> CfVal -> Bool
-ones ty (CfInteger i) =
+ones ty (CfInteger _ i) =
   case ty of
     I.TyWord{} -> maybe False (i ==) (toMaxSize ty)
     _          -> False
 ones _ _ = False
+
+
+----------------------------------------
+-- Constant folded Haskell literals
 
 -- | Literal expression destructor.
 destLit :: I.Expr -> Maybe I.Literal
@@ -317,55 +321,89 @@ destDoubleLit :: I.Expr -> Maybe Double
 destDoubleLit ex = do
   I.LitDouble i <- destLit ex
   return i
+----------------------------------------
 
 -- Constant-folded Values ------------------------------------------------------
+
+-- |
+data MaxMin = Max | Min | None deriving (Show, Read, Eq)
+
+isMaxMin :: I.Type -> Integer -> MaxMin
+isMaxMin ty i
+  | Just m <- toMaxSize ty
+  , m == i
+  = Max
+  | Just m <- toMinSize ty
+  , m == i
+  = Min
+  | otherwise
+  = None
+
+toMaxMin :: (Eq a, Bounded a) => a -> MaxMin
+toMaxMin r | r == maxBound = Max
+           | r == minBound = Min
+           | otherwise     = None
+
+toCfInt :: I.Type -> Integer -> CfVal
+toCfInt ty i = CfInteger (isMaxMin ty i) i
 
 -- | Constant-folded values.
 data CfVal
   = CfBool Bool
-  | CfInteger Integer
+  -- Is this a max or min value for the size type?
+  | CfInteger MaxMin Integer
   | CfFloat Float
   | CfDouble Double
   | CfExpr I.Expr
-    deriving (Show)
+    deriving (Show, Eq)
 
--- | Convert to a constant-folded value.  Picks the one successful lit, if any.
-toCfVal :: I.Expr -> CfVal
-toCfVal ex = fromMaybe (CfExpr ex) $ msum
-  [ CfBool    `fmap` destBoolLit    ex
-  , CfInteger `fmap` destIntegerLit ex
-  , CfFloat   `fmap` destFloatLit   ex
-  , CfDouble  `fmap` destDoubleLit  ex
-  ]
+mkCfArgs :: I.Type -> [I.Expr] -> [CfVal]
+mkCfArgs ty exps = map toCfVal exps
+  where
+  -- | Convert to a constant-folded value.  Picks the one successful lit, if any.
+  toCfVal :: I.Expr -> CfVal
+  toCfVal ex = fromMaybe (CfExpr ex) $ msum
+    [ CfBool    `fmap` destBoolLit       ex
+    , CfFloat   `fmap` destFloatLit      ex
+    , CfDouble  `fmap` destDoubleLit     ex
+    , (uncurry CfInteger) `fmap` (destMinMaxIntegerLit ex)
+    ]
+
+  -- | Minimum, maximum, or integer value.
+  destMinMaxIntegerLit :: I.Expr -> Maybe (MaxMin, Integer)
+  destMinMaxIntegerLit ex = case ex of
+    I.ExpMaxMin True          -> do s <- toMaxSize ty
+                                    return (Max, s)
+    I.ExpMaxMin False         -> do s <- toMinSize ty
+                                    return (Min, s)
+    I.ExpLit (I.LitInteger i) -> Just (None, i)
+    _                         -> Nothing
 
 -- | Convert back to an expression.
 toExpr :: CfVal -> I.Expr
 toExpr val = case val of
-  CfBool b    -> I.ExpLit (I.LitBool b)
-  CfInteger i -> I.ExpLit (I.LitInteger i)
-  CfFloat f   -> I.ExpLit (I.LitFloat f)
-  CfDouble d  -> I.ExpLit (I.LitDouble d)
-  CfExpr ex   -> ex
+  CfBool b      -> I.ExpLit (I.LitBool b)
+  CfInteger m i -> case m of
+    Min  -> I.ExpMaxMin False
+    Max  -> I.ExpMaxMin True
+    None -> I.ExpLit (I.LitInteger i)
+  CfFloat f     -> I.ExpLit (I.LitFloat f)
+  CfDouble d    -> I.ExpLit (I.LitDouble d)
+  CfExpr ex     -> ex
 
 -- | Check if we're comparing the max or min bound for >= and optimize.
 -- Assumes args are already folded.
 gteCheck :: I.Type -> [CfVal] -> Maybe Bool
 gteCheck t [l,r]
   -- forall a. max >= a
-  | CfInteger x <- l
+  | CfInteger _ x <- l
   , Just s <- toMaxSize t
   , x == s
   = Just True
-  -- forall a. max >= a
-  | CfExpr (I.ExpMaxMin True) <- l
-  = Just True
   -- forall a. a >= min
-  | CfInteger y <- r
+  | CfInteger _ y <- r
   , Just s <- toMinSize t
   , y == s
-  = Just True
-  -- forall a. a >= min
-  | CfExpr (I.ExpMaxMin False) <- r
   = Just True
   | otherwise
   = Nothing
@@ -376,20 +414,14 @@ gteCheck _ _ = err "wrong number of args to gtCheck."
 gtCheck :: I.Type -> [CfVal] -> Maybe Bool
 gtCheck t [l,r]
   -- forall a. not (min > a)
-  | CfInteger x <- l
+  | CfInteger _ x <- l
   , Just s <- toMinSize t
   , x == s
   = Just False
-  -- forall a. not (min > a)
-  | CfExpr (I.ExpMaxMin False) <- l
-  = Just False
   -- forall a. not (a > max)
-  | CfInteger y <- r
+  | CfInteger _ y <- r
   , Just s <- toMaxSize t
   , y == s
-  = Just False
-  -- forall a. not (a > max)
-  | CfExpr (I.ExpMaxMin True) <- r
   = Just False
   | otherwise
   = Nothing
@@ -403,10 +435,10 @@ cfOrd2 :: I.ExpOp
        -> [CfVal]
        -> CfVal
 cfOrd2 op [l,r] = case (l,r) of
-  (CfBool x,   CfBool y)    -> CfBool (op' x y)
-  (CfInteger x,CfInteger y) -> CfBool (op' x y)
-  (CfFloat x,  CfFloat y)   -> CfBool (op' x y)
-  (CfDouble x, CfDouble y)  -> CfBool (op' x y)
+  (CfBool x,   CfBool y)        -> CfBool (op' x y)
+  (CfInteger _ x,CfInteger _ y) -> CfBool (op' x y)
+  (CfFloat x,  CfFloat y)       -> CfBool (op' x y)
+  (CfDouble x, CfDouble y)      -> CfBool (op' x y)
   _                         -> CfExpr (I.ExpOp op [toExpr l, toExpr r])
   where
   op' :: Ord a => a -> a -> Bool
@@ -424,12 +456,14 @@ cfOrd2 _ _ = err "wrong number of args to cfOrd2"
 
 --------------------------------------------------------------------------------
 
-class Integral a => IntegralOp a where
+class (Bounded a, Integral a) => IntegralOp a where
   appI1 :: (a -> a) -> a -> CfVal
-  appI1 op x = CfInteger $ toInteger $ op x
+  appI1 op x = let r = op x in
+               CfInteger (toMaxMin r) (toInteger r)
 
   appI2 :: (a -> a -> a) -> a -> a -> CfVal
-  appI2 op x y = CfInteger $ toInteger $ op x y
+  appI2 op x y = let r = op x y in
+                 CfInteger (toMaxMin r) (toInteger r)
 
 instance IntegralOp Int8
 instance IntegralOp Int16
@@ -448,7 +482,7 @@ cfNum :: I.Type
       -> CfVal
 cfNum ty op args = case args of
   [x]   -> case x of
-    CfInteger l -> case ty of
+    CfInteger _ l -> case ty of
       I.TyInt isz -> case isz of
         I.Int8        -> appI1 op1 (fromInteger l :: Int8)
         I.Int16       -> appI1 op1 (fromInteger l :: Int16)
@@ -465,7 +499,7 @@ cfNum ty op args = case args of
     _           -> CfExpr    (I.ExpOp op [toExpr x])
 
   [x,y] -> case (x,y) of
-    (CfInteger l, CfInteger r) -> case ty of
+    (CfInteger _ l, CfInteger _ r) -> case ty of
       I.TyInt isz -> case isz of
         I.Int8        -> appI2 op2 (fromInteger l :: Int8)
                                    (fromInteger r :: Int8)
@@ -505,7 +539,7 @@ cfNum ty op args = case args of
     _ -> err "bad op to cfNum loc 4"
 
 cfIntOp2 :: I.Type -> I.ExpOp -> [CfVal] -> CfVal
-cfIntOp2 ty iOp [CfInteger l, CfInteger r] = case ty of
+cfIntOp2 ty iOp [CfInteger _ l, CfInteger _ r] = case ty of
   I.TyInt isz -> case isz of
     I.Int8        -> appI2 op2 (fromInteger l :: Int8)
                                (fromInteger r :: Int8)
