@@ -22,6 +22,7 @@ library
   exposed-modules:      Ivory.Opts.AssertFold,
                         Ivory.Opts.CFG,
                         Ivory.Opts.ConstFold,
+                        Ivory.Opts.ConstFoldComp,
                         Ivory.Opts.DivZero,
                         Ivory.Opts.Index,
                         Ivory.Opts.FP,
