@@ -13,10 +13,11 @@
 -- All Rights Reserved.
 --
 
-module Ivory.Stdlib.String where
-  -- ( copy_istring , strcpy , strncpy , strncpy_uint8 , strncmp
-  -- , stdlibStringModule
-  -- ) where
+module Ivory.Stdlib.String
+  ( copy_istring , strcpy , strncpy , strncpy_uint8 , strncmp
+  , stdlibStringModule, stringInit, istr_eq, sz_from_istr
+  , istr_from_sz
+  ) where
 
 import Data.Char (ord)
 
@@ -25,7 +26,8 @@ import Ivory.Language.Proxy
 
 import qualified Control.Monad as M
 
-type Len = Uint32
+-- Should be same underlying type as IxRep to make casting easier.
+type Len = Sint32
 
 ----------------------------------------------------------------------
 -- Yet Another Ivory String Type
