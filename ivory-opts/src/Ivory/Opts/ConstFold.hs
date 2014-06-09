@@ -112,7 +112,7 @@ cf ty e =
     I.ExpVar{} -> e
     I.ExpLit{} -> e
 
-    I.ExpOp op args       -> cfOp ty op args
+    I.ExpOp op args       -> liftChoice ty op args
 
     I.ExpLabel t e0 s     -> I.ExpLabel t (cf t e0) s
 
@@ -140,6 +140,8 @@ loopIncrFold opt incr =
     I.IncrTo e0 -> I.IncrTo (opt e0)
     I.DecrTo e0 -> I.DecrTo (opt e0)
 
+--------------------------------------------------------------------------------
+
 typedFold :: ExprOpt -> I.Typed I.Expr -> I.Typed I.Expr
 typedFold opt tval@(I.Typed ty val) = tval { I.tValue = opt ty val }
 
@@ -157,92 +159,91 @@ mkCfBool = map destBoolLit
 
 -- | Reconstruct an operator, folding away operations when possible.
 cfOp :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-cfOp ty op args =
-  case op of
-    I.ExpEq t  -> cfOrd t
-    I.ExpNeq t -> cfOrd t
-    I.ExpCond
-      | Just b <- arg0 goBoolArgs
-      -> if b then a1 else a2
-      -- If both branches have the same result, we dont care about the branch
-      -- condition.
-      | a1 == a2
-      -> a1
-      | otherwise -> noop ty
-      where a1 = arg1 (toExpr' ty)
-            a2 = arg2 (toExpr' ty)
-    I.ExpGt orEq t
-      | orEq      -> goOrd t gteCheck args
-      | otherwise -> goOrd t gtCheck args
-    I.ExpLt orEq t
-      | orEq      -> goOrd t gteCheck (reverse args)
-      | otherwise -> goOrd t gtCheck  (reverse args)
-    I.ExpNot
-      | Just b <- arg0 goBoolArgs
-      -> I.ExpLit (I.LitBool (not b))
-      | otherwise -> noop ty
-    I.ExpAnd
-      | Just lb <- arg0 goBoolArgs
-      , Just rb <- arg1 goBoolArgs
-      -> I.ExpLit (I.LitBool (lb && rb))
-      | Just lb <- arg0 goBoolArgs
-      -> if lb then arg1 (toExpr' ty) else I.ExpLit (I.LitBool False)
-      | Just rb <- arg1 goBoolArgs
-      -> if rb then arg0 (toExpr' ty) else I.ExpLit (I.LitBool False)
-      | otherwise -> noop ty
-    I.ExpOr
-      | Just lb <- arg0 goBoolArgs
-      , Just rb <- arg1 goBoolArgs
-      -> I.ExpLit (I.LitBool (lb || rb))
-      | Just lb <- arg0 goBoolArgs
-      -> if lb then I.ExpLit (I.LitBool True) else arg1 (toExpr' ty)
-      | Just rb <- arg1 goBoolArgs
-      -> if rb then I.ExpLit (I.LitBool True) else arg0 (toExpr' ty)
-      | otherwise -> noop ty
+cfOp ty op args = case op of
+  I.ExpEq t  -> cfOrd t
+  I.ExpNeq t -> cfOrd t
+  I.ExpCond
+    | Just b <- arg0 goBoolArgs
+    -> if b then a1 else a2
+    -- If both branches have the same result, we dont care about the branch
+    -- condition.
+    | a1 == a2
+    -> a1
+    | otherwise -> noop ty
+    where a1 = arg1 (toExpr' ty)
+          a2 = arg2 (toExpr' ty)
+  I.ExpGt orEq t
+    | orEq      -> goOrd t gteCheck args
+    | otherwise -> goOrd t gtCheck args
+  I.ExpLt orEq t
+    | orEq      -> goOrd t gteCheck (reverse args)
+    | otherwise -> goOrd t gtCheck  (reverse args)
+  I.ExpNot
+    | Just b <- arg0 goBoolArgs
+    -> I.ExpLit (I.LitBool (not b))
+    | otherwise -> noop ty
+  I.ExpAnd
+    | Just lb <- arg0 goBoolArgs
+    , Just rb <- arg1 goBoolArgs
+    -> I.ExpLit (I.LitBool (lb && rb))
+    | Just lb <- arg0 goBoolArgs
+    -> if lb then arg1 (toExpr' ty) else I.ExpLit (I.LitBool False)
+    | Just rb <- arg1 goBoolArgs
+    -> if rb then arg0 (toExpr' ty) else I.ExpLit (I.LitBool False)
+    | otherwise -> noop ty
+  I.ExpOr
+    | Just lb <- arg0 goBoolArgs
+    , Just rb <- arg1 goBoolArgs
+    -> I.ExpLit (I.LitBool (lb || rb))
+    | Just lb <- arg0 goBoolArgs
+    -> if lb then I.ExpLit (I.LitBool True) else arg1 (toExpr' ty)
+    | Just rb <- arg1 goBoolArgs
+    -> if rb then I.ExpLit (I.LitBool True) else arg0 (toExpr' ty)
+    | otherwise -> noop ty
 
-    I.ExpMul      -> goNum
-    I.ExpAdd      -> goNum
-    I.ExpSub      -> goNum
-    I.ExpNegate   -> goNum
-    I.ExpAbs      -> goNum
-    I.ExpSignum   -> goNum
+  I.ExpMul      -> goNum
+  I.ExpAdd      -> goNum
+  I.ExpSub      -> goNum
+  I.ExpNegate   -> goNum
+  I.ExpAbs      -> goNum
+  I.ExpSignum   -> goNum
 
-    I.ExpDiv      -> goI2
-    I.ExpMod      -> goI2
-    I.ExpRecip    -> goF
+  I.ExpDiv      -> goI2
+  I.ExpMod      -> goI2
+  I.ExpRecip    -> goF
 
-    I.ExpIsNan t  -> goFB t
-    I.ExpIsInf t  -> goFB t
+  I.ExpIsNan t  -> goFB t
+  I.ExpIsInf t  -> goFB t
 
-    I.ExpFExp     -> goF
-    I.ExpFSqrt    -> goF
-    I.ExpFLog     -> goF
-    I.ExpFPow     -> goF
-    I.ExpFLogBase -> goF
-    I.ExpFSin     -> goF
-    I.ExpFCos     -> goF
-    I.ExpFTan     -> goF
-    I.ExpFAsin    -> goF
-    I.ExpFAcos    -> goF
-    I.ExpFAtan    -> goF
-    I.ExpFSinh    -> goF
-    I.ExpFCosh    -> goF
-    I.ExpFTanh    -> goF
-    I.ExpFAsinh   -> goF
-    I.ExpFAcosh   -> goF
-    I.ExpFAtanh   -> goF
+  I.ExpFExp     -> goF
+  I.ExpFSqrt    -> goF
+  I.ExpFLog     -> goF
+  I.ExpFPow     -> goF
+  I.ExpFLogBase -> goF
+  I.ExpFSin     -> goF
+  I.ExpFCos     -> goF
+  I.ExpFTan     -> goF
+  I.ExpFAsin    -> goF
+  I.ExpFAcos    -> goF
+  I.ExpFAtan    -> goF
+  I.ExpFSinh    -> goF
+  I.ExpFCosh    -> goF
+  I.ExpFTanh    -> goF
+  I.ExpFAsinh   -> goF
+  I.ExpFAcosh   -> goF
+  I.ExpFAtanh   -> goF
 
-    I.ExpBitAnd        -> toExpr (cfBitAnd ty $ goArgs ty)
-    I.ExpBitOr         -> toExpr (cfBitOr ty  $ goArgs ty)
+  I.ExpBitAnd        -> toExpr (cfBitAnd ty $ goArgs ty)
+  I.ExpBitOr         -> toExpr (cfBitOr ty  $ goArgs ty)
 
-    -- Unimplemented right now
-    I.ExpRoundF        -> noop ty
-    I.ExpCeilF         -> noop ty
-    I.ExpFloorF        -> noop ty
-    I.ExpBitXor        -> noop ty
-    I.ExpBitComplement -> noop ty
-    I.ExpBitShiftL     -> noop ty
-    I.ExpBitShiftR     -> noop ty
+  -- Unimplemented right now
+  I.ExpRoundF        -> noop ty
+  I.ExpCeilF         -> noop ty
+  I.ExpFloorF        -> noop ty
+  I.ExpBitXor        -> noop ty
+  I.ExpBitComplement -> noop ty
+  I.ExpBitShiftL     -> noop ty
+  I.ExpBitShiftR     -> noop ty
 
   where
   goArgs ty'    = mkCfArgs ty' $ mkArgs ty' args
@@ -262,7 +263,96 @@ cfOp ty op args =
   mkArgs :: I.Type -> [I.Expr] -> [I.Expr]
   mkArgs = map . cf
 
--- Constant-folded values ------------------------------------------------------
+--------------------------------------------------------------------------------
+
+-- | Lift nondeterministic choice up see see if we can further optimize.
+liftChoice :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
+liftChoice ty op args = case op of
+  I.ExpEq{}   -> go2
+  I.ExpNeq{}  -> go2
+  -- I.ExpCond --unnecessary
+  I.ExpGt{}   -> go2
+  I.ExpLt{}   -> go2
+
+  I.ExpNot{}  -> go1
+  I.ExpAnd{}  -> go2
+  I.ExpOr{}   -> go2
+
+  I.ExpMul    -> go2
+  I.ExpAdd    -> go2
+  I.ExpSub    -> go2
+  I.ExpNegate -> go1
+  I.ExpAbs    -> go1
+  I.ExpSignum -> go1
+
+  -- -- NOT SAFE TO LIFT!
+  -- I.ExpDiv      -> --NO!
+
+  -- Unimplemented currently: add as needed
+  -- I.ExpMod      ->
+  -- I.ExpRecip    ->
+  -- I.ExpIsNan{}  ->
+  -- I.ExpIsInf{}  ->
+  -- I.ExpFExp     ->
+  -- I.ExpFSqrt    ->
+  -- I.ExpFLog     ->
+  -- I.ExpFPow     ->
+  -- I.ExpFLogBase ->
+  -- I.ExpFSin     ->
+  -- I.ExpFCos     ->
+  -- I.ExpFTan     ->
+  -- I.ExpFAsin    ->
+  -- I.ExpFAcos    ->
+  -- I.ExpFAtan    ->
+  -- I.ExpFSinh    ->
+  -- I.ExpFCosh    ->
+  -- I.ExpFTanh    ->
+  -- I.ExpFAsinh   ->
+  -- I.ExpFAcosh   ->
+  -- I.ExpFAtanh   ->
+  -- I.ExpBitAnd        ->
+  -- I.ExpBitOr         ->
+  -- -- Unimplemented right now
+  -- I.ExpRoundF        ->
+  -- I.ExpCeilF         ->
+  -- I.ExpFloorF        ->
+  -- I.ExpBitXor        ->
+  -- I.ExpBitComplement ->
+  -- I.ExpBitShiftL     ->
+  -- I.ExpBitShiftR     ->
+  _ -> cfOp ty op args
+  where
+  go1 = unOpLift  ty op args
+  go2 = binOpLift ty op args
+
+unOpLift :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
+unOpLift ty op args
+  | I.ExpOp I.ExpCond [_,x1,x2] <- a0
+  , lt x1 == lt x2
+  = lt x1
+  | otherwise
+  = cfOp ty op args
+  where a0     = arg0 args
+        lt x   = liftChoice ty op [x]
+
+binOpLift :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
+binOpLift ty op args
+  | I.ExpOp I.ExpCond [_,x1,x2] <- a0
+  , lt0 x1 == lt0 x2
+  = lt0 x1
+  | I.ExpOp I.ExpCond [_,x1,x2] <- a1
+  , lt1 x1 == lt1 x2
+  = lt1 x1
+  | otherwise
+  = cfOp ty op args
+  where a0     = arg0 args
+        a1     = arg1 args
+        lt0 x  = lt x a1
+        lt1 x  = lt a0 x
+        lt a b = liftChoice ty op [a, b]
+
+--------------------------------------------------------------------------------
+-- Constant-folded values
 
 -- | Check if we're comparing the max or min bound for >= and optimize.
 -- Assumes args are already folded.
