@@ -1,8 +1,10 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Ivory.Language.Array where
 
@@ -11,13 +13,16 @@ import Ivory.Language.Area
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Sint
+import Ivory.Language.IIntegral
 import Ivory.Language.Type
 import Ivory.Language.SizeOf
+import Ivory.Language.Cast
 import qualified Ivory.Language.Syntax as I
 
 import GHC.TypeLits (Nat)
 
--- Arrays ----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Indexes
 
 -- Note: it is assumed in ivory-opts and the ivory-backend that the associated
 -- type is an Sint32, so this should not be changed in the front-end without
@@ -59,27 +64,25 @@ fromIx = wrapExpr . unwrapExpr
 -- | Casting from a bounded Ivory expression to an index.  This is safe,
 -- although the value may be truncated.  Furthermore, indexes are always
 -- positive.
-toIx :: (IvoryExpr a, Bounded a, ANat n) => a -> Ix n
-toIx = mkIx . unwrapExpr
+toIx :: forall a n. (SafeCast a IxRep, ANat n) => a -> Ix n
+toIx = mkIx . unwrapExpr . (safeCast :: a -> IxRep)
 
 -- | The number of elements that an index covers.
 ixSize :: forall n. (ANat n) => Ix n -> Integer
 ixSize _ = fromTypeNat (aNat :: NatType n)
 
-arrayLen :: forall s len area n ref.
-            (Num n, ANat len, IvoryArea area, IvoryRef ref)
-         => ref s (Array len area) -> n
-arrayLen _ = fromInteger (fromTypeNat (aNat :: NatType len))
+instance ( ANat n, IvoryIntegral to, Default to
+         ) => SafeCast (Ix n) to where
+  safeCast ix | Just s <- toMaxSize (ivoryType (Proxy :: Proxy to))
+              , ixSize ix <= s
+              = ivoryCast (fromIx ix)
+              | otherwise
+              = error ixCastError
+  -- -- It doesn't make sense to case an index downwards dynamically.
+  -- inBounds _ _ = error ixCastError
 
--- | Array indexing.
-(!) :: forall s len area ref.
-       ( ANat len, IvoryArea area, IvoryRef ref
-       , IvoryExpr (ref s (Array len area)), IvoryExpr (ref s area))
-    => ref s (Array len area) -> Ix len -> ref s area
-arr ! ix = wrapExpr (I.ExpIndex ty (unwrapExpr arr) ixRep (getIx ix))
-  where
-  ty    = ivoryArea (Proxy :: Proxy (Array len area))
-  ixRep = ivoryType (Proxy :: Proxy IxRep)
+ixCastError :: String
+ixCastError = "Idx cast : cannot cast index: result type is too small."
 
 -- XXX don't export
 mkIx :: forall n. (ANat n) => I.Expr -> Ix n
@@ -104,3 +107,20 @@ rawIxVal n = case unwrapExpr n of
                e@(I.ExpVar _) -> e
                e             -> error $ "Front-end: can't unwrap ixVal: "
                              ++ show e
+
+-- Arrays ----------------------------------------------------------------------
+
+arrayLen :: forall s len area n ref.
+            (Num n, ANat len, IvoryArea area, IvoryRef ref)
+         => ref s (Array len area) -> n
+arrayLen _ = fromInteger (fromTypeNat (aNat :: NatType len))
+
+-- | Array indexing.
+(!) :: forall s len area ref.
+       ( ANat len, IvoryArea area, IvoryRef ref
+       , IvoryExpr (ref s (Array len area)), IvoryExpr (ref s area))
+    => ref s (Array len area) -> Ix len -> ref s area
+arr ! ix = wrapExpr (I.ExpIndex ty (unwrapExpr arr) ixRep (getIx ix))
+  where
+  ty    = ivoryArea (Proxy :: Proxy (Array len area))
+  ixRep = ivoryType (Proxy :: Proxy IxRep)

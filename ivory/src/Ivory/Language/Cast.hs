@@ -20,7 +20,6 @@ module Ivory.Language.Cast
   , toMinSize
   ) where
 
-import Ivory.Language.Array
 import Ivory.Language.Float
 import Ivory.Language.IBool
 import Ivory.Language.IChar
@@ -82,8 +81,8 @@ class (IvoryExpr from, IvoryExpr to, Default to) => RuntimeCast from to where
 instance SafeCast IBool IBool     where
   safeCast     = id
 instance SafeCast IBool IChar
-instance SafeCast IBool Uint8
 instance SafeCast IBool Uint16
+instance SafeCast IBool Uint8
 instance SafeCast IBool Uint32
 instance SafeCast IBool Uint64
 instance SafeCast IBool Sint8
@@ -223,22 +222,6 @@ instance Default Sint64 where defaultVal = 0
 
 instance Default IFloat  where defaultVal = 0
 instance Default IDouble where defaultVal = 0
-
---------------------------------------------------------------------------------
--- Indexes.
-
-instance ( ANat n, IvoryIntegral to, Default to
-         ) => SafeCast (Ix n) to where
-  safeCast ix | Just s <- toMaxSize (ivoryType (Proxy :: Proxy to))
-              , ixSize ix <= s
-              = ivoryCast (fromIx ix)
-              | otherwise
-              = error ixCastError
-  -- -- It doesn't make sense to case an index downwards dynamically.
-  -- inBounds _ _ = error ixCastError
-
-ixCastError :: String
-ixCastError = "Idx cast : cannot cast index: result type is too small."
 
 --------------------------------------------------------------------------------
 -- Floating
