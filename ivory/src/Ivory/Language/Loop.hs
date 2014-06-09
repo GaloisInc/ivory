@@ -50,7 +50,7 @@ downTo :: ANat n
        => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 downTo = loop AST.DecrTo
 
--- | Run the computation n times, where for
+-- | Run the computation n times, where
 -- @
 --   n :: Ix m, 0 <= n <= m.
 -- @
@@ -59,7 +59,7 @@ for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 for n f = upTo 0 (n-1) f
 
--- | Run the computation n times, where for
+-- | Run the computation n times, where
 -- @
 --   n :: Ix m, 0 <= n <= m.
 -- @
