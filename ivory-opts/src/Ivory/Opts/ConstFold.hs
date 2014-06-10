@@ -325,31 +325,38 @@ liftChoice ty op args = case op of
   go1 = unOpLift  ty op args
   go2 = binOpLift ty op args
 
+
+--XXX the equality comparisons below can be expensive.  Hashmap?  Also, awkward
+-- style, but I want sharing of (liftChoice ...) expression in branch condition
+-- and result.
 unOpLift :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-unOpLift ty op args
-  | I.ExpOp I.ExpCond [_,x1,x2] <- a0
-  , lt x1 == lt x2
-  = lt x1
-  | otherwise
-  = cfOp ty op args
-  where a0     = arg0 args
-        lt x   = liftChoice ty op [x]
+unOpLift ty op args = case a0 of
+  I.ExpOp I.ExpCond [_,x1,x2]
+    -> let a = lt x1 in
+       if a == lt x2 then a else c
+  _ -> c
+  where
+  a0     = arg0 args
+  lt x   = liftChoice ty op [x]
+  c      = cfOp ty op args
 
 binOpLift :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-binOpLift ty op args
-  | I.ExpOp I.ExpCond [_,x1,x2] <- a0
-  , lt0 x1 == lt0 x2
-  = lt0 x1
-  | I.ExpOp I.ExpCond [_,x1,x2] <- a1
-  , lt1 x1 == lt1 x2
-  = lt1 x1
-  | otherwise
-  = cfOp ty op args
-  where a0     = arg0 args
-        a1     = arg1 args
-        lt0 x  = lt x a1
-        lt1 x  = lt a0 x
-        lt a b = liftChoice ty op [a, b]
+binOpLift ty op args = case a0 of
+  I.ExpOp I.ExpCond [_,x1,x2]
+    -> let a = lt0 x1 in
+       if a == lt0 x2 then a else c
+  _ -> case a1 of
+         I.ExpOp I.ExpCond [_,x1,x2]
+           -> let a = lt1 x1 in
+              if a == lt1 x2 then a else c
+         _ -> c
+  where
+  a0     = arg0 args
+  a1     = arg1 args
+  lt0 x  = lt x a1
+  lt1 x  = lt a0 x
+  lt a b = liftChoice ty op [a, b]
+  c      = cfOp ty op args
 
 --------------------------------------------------------------------------------
 -- Constant-folded values
