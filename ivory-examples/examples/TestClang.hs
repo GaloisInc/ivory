@@ -17,7 +17,7 @@ import qualified SizeOf
 import qualified AddrOfRegression
 import qualified Array
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language (Module(),moduleName)
 import Ivory.Stdlib (stdlibModules)
@@ -27,6 +27,7 @@ import qualified Ivory.Stdlib.SearchDir as S
 main :: IO ()
 main = do
   args <- getArgs
+  when (null args) (error "Binary takes a path to srcs/hdrs as an argument")
   let path = head args
   let opts = initialOpts { includeDir = path, srcDir = path
                          , rtIncludeDir = Nothing }
