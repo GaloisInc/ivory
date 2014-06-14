@@ -25,7 +25,7 @@ ixFold = procFold expFold
 -- | Default expression folder that performs the recursion for an asserter.
 expFold :: I.Type -> I.Expr -> [I.Expr]
 expFold ty e =
-  let (_, ds) = runFolderM (expFold' ty e) in
+  let ds = runFolderExpr (expFold' ty e) in
   D.toList ds
 
 -- Here was use a custom folder (and not the expFoldDefault in AssertFold) since
@@ -39,7 +39,7 @@ expFold' ty e = case e of
   I.ExpLabel ty' e0 _str         -> expFold' ty' e0
   I.ExpIndex tIdx eIdx tArr eArr -> do expFold' tIdx eIdx
                                        expFold' tArr eArr
-  I.ExpToIx e0 maxSz             -> do insert (toIxAssert e0 maxSz)
+  I.ExpToIx e0 maxSz             -> do insertExpr (toIxAssert e0 maxSz)
                                        expFold' ixTy e0
   I.ExpSafeCast ty' e0           -> expFold' ty' e0
   I.ExpOp op args                -> mapM_ (expFold' $ expOpType ty op) args
