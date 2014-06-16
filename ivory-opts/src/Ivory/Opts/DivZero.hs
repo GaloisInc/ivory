@@ -14,7 +14,7 @@ import qualified Ivory.Language.Syntax.Type as I
 --------------------------------------------------------------------------------
 
 divZeroFold :: I.Proc -> I.Proc
-divZeroFold = procFold (expFoldDefault divAssert)
+divZeroFold = procFold "divZ" (expFoldDefault divAssert)
 
 --------------------------------------------------------------------------------
 

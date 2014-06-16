@@ -26,7 +26,11 @@ import qualified Ivory.Language.Syntax.Type  as I
 -- Monad and types.  The inner monad keeps fresh local variables throughout an
 -- entire procedure, while the outer stores compiler assertions.
 
-type St a = (D.DList a, Integer)
+data St a = St
+  { dlst :: D.DList a -- ^ State (statements)
+  , int  :: Integer   -- ^ Counter for fresh names
+  , pass :: String    -- ^ Base for fresh names
+  } deriving (Show, Read, Eq)
 
 -- | A monad that holds our transformed program.
 newtype FolderM a b = FolderM
@@ -39,11 +43,14 @@ instance StateM (FolderM a) (St a) where
 
 insert :: a -> FolderM a ()
 insert a = do
-  (ds, i) <- get
-  set (D.snoc ds a, i)
+  st <- get
+  set $ st { dlst = D.snoc (dlst st) a }
 
-runFolderM :: FolderM a b -> D.DList a
-runFolderM m = fst $ snd $ runId $ runStateT (D.empty, 0) (unFolderM m)
+runFolderM :: String -> FolderM a b -> D.DList a
+runFolderM ps m =
+  dlst $ snd $ runId $ runStateT st (unFolderM m)
+  where
+  st = St D.empty 0 ps
 
 --------------------------------------------------------------------------------
 -- Specialization for statements
@@ -60,25 +67,27 @@ insertAsserts = mapM_ mkAssert
   mkAssert :: I.Expr -> FolderStmt ()
   mkAssert = insert . I.CompilerAssert
 
-runEmptyState :: ExpFold -> [I.Stmt] -> [I.Stmt]
-runEmptyState ef stmts =
+runEmptyState :: String -> ExpFold -> [I.Stmt] -> [I.Stmt]
+runEmptyState ps ef stmts =
   let m = mapM_ (stmtFold ef) stmts in
-  D.toList (runFolderM m)
+  D.toList (runFolderM ps m)
 
+-- | Run with fresh statements, returning them, but reseting the statement
+-- state.
 runFreshStmts :: ExpFold -> [I.Stmt] -> FolderStmt [I.Stmt]
 runFreshStmts ef stmts = do
-  (ds, i) <- get
-  set (D.empty, i)
+  st <- get
+  set st { dlst = D.empty }
   mapM_ (stmtFold ef) stmts
-  (ds', j) <- get
-  set (ds, j)
-  return (D.toList ds')
+  st' <- get
+  set st' { dlst = dlst st, int = int st' }
+  return (D.toList (dlst st'))
 
 -- | Update a procedure's statements with its compiler assertions (and local
 -- variable declarations, as needed).
-procFold :: ExpFold -> I.Proc -> I.Proc
-procFold ef p =
-  let body' = runEmptyState ef (I.procBody p) in
+procFold :: String -> ExpFold -> I.Proc -> I.Proc
+procFold ps ef p =
+  let body' = runEmptyState ps ef (I.procBody p) in
   p { I.procBody = body' }
 
 --------------------------------------------------------------------------------

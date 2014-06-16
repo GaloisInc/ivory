@@ -25,7 +25,7 @@ import Data.Int
 --------------------------------------------------------------------------------
 
 overflowFold :: I.Proc -> I.Proc
-overflowFold = procFold (expFoldDefault arithAssert)
+overflowFold = procFold "ovf" (expFoldDefault arithAssert)
 
 --------------------------------------------------------------------------------
 

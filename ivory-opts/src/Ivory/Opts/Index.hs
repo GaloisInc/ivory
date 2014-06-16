@@ -18,7 +18,7 @@ import qualified Ivory.Language.Syntax.Type as I
 --------------------------------------------------------------------------------
 
 ixFold :: I.Proc -> I.Proc
-ixFold = procFold expFold
+ixFold = procFold "ix" expFold
 
 --------------------------------------------------------------------------------
 

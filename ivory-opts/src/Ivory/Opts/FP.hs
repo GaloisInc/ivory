@@ -18,7 +18,7 @@ import qualified Ivory.Language.Syntax.Type as I
 --------------------------------------------------------------------------------
 
 fpFold :: I.Proc -> I.Proc
-fpFold = procFold (expFoldDefault fpAssert)
+fpFold = procFold "fp" (expFoldDefault fpAssert)
 
 --------------------------------------------------------------------------------
 
