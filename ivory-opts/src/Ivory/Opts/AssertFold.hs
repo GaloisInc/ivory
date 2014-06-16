@@ -91,43 +91,6 @@ procFold ps ef p =
   p { I.procBody = body' }
 
 --------------------------------------------------------------------------------
--- Making local variables to simplify compiler assertions.
-
--- -- | Create a fresh variable and update the variable store.
--- freshVar :: FolderM a I.Var
--- freshVar = do
---   (ds, i) <- get
---   set $! (ds, i+1)
---   let mkVar = I.VarInternal ("asrt_" ++ show i)
---   return mkVar
-
---------------------------------------------------------------------------------
-
--- | For an Boolean expression we're inserting as a CompilerAssert, if its a
--- binary operator (&& or ||), pull out the branches as local variables to
--- simplify it.
--- mkLocalsAsserts :: I.Expr -> FolderStmt I.Expr
--- mkLocalsAsserts es = case es of
---   I.ExpOp op args
---     -> case op of
---          I.ExpAnd -> varBin op args
---          I.ExpOr  -> varBin op args
---          _        -> return es
---   _ -> return es
---   where
---   varBin op args = do
---     e0 <- mkAssign 0
---     e1 <- mkAssign 1
---     v  <- freshVar
---     insert $ newAssign v (I.ExpOp op [e0, e1])
---     return (I.ExpVar v)
---     where
---     mkAssign i = mkLocalsAsserts (args !! i)
-
--- newAssign :: I.Var -> I.Expr -> I.Stmt
--- newAssign v = I.Assign I.TyBool v
-
---------------------------------------------------------------------------------
 
 stmtFold :: ExpFold -> I.Stmt -> FolderStmt ()
 stmtFold ef stmt = case stmt of
