@@ -20,7 +20,6 @@ import qualified Data.DList as D
 import           Ivory.Opts.Utils
 import qualified Ivory.Language.Syntax.AST   as I
 import qualified Ivory.Language.Syntax.Type  as I
---import qualified Ivory.Language.Syntax.Names as I
 
 --------------------------------------------------------------------------------
 -- Monad and types.  The inner monad keeps fresh local variables throughout an

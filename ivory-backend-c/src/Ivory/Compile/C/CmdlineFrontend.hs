@@ -81,7 +81,7 @@ rc sm userSearchPath modules opts
       , mf_headers = genHs ++ cpyHs
       }
 
-  ivoryHeaders = ["ivory.h", "ivory_asserts.h"]
+  ivoryHeaders = ["ivory.h", "ivory_templates.h", "ivory_asserts.h"]
 
   stdoutmodules = do
     mapM_ showM_ cmodules

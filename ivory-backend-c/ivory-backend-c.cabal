@@ -12,6 +12,7 @@ homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 build-type:          Simple
 cabal-version:       >= 1.10
 data-files:             runtime/ivory.h,
+                        runtime/ivory_templates.h,
                         runtime/ivory_asserts.h
 license:             BSD3
 license-file:        LICENSE
