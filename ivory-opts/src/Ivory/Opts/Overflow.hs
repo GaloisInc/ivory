@@ -12,10 +12,10 @@ module Ivory.Opts.Overflow
 
 import Ivory.Opts.AssertFold
 
-import qualified Ivory.Language.Syntax.AST as I
-import qualified Ivory.Language.Syntax.Type as I
-import qualified Ivory.Language.IBool as T
-import qualified Ivory.Language.Type as T
+import qualified Ivory.Language.Syntax.AST   as I
+import qualified Ivory.Language.Syntax.Type  as I
+import qualified Ivory.Language.Syntax.Names as I
+import qualified Ivory.Language.Type         as T
 import Ivory.Language
 
 import Prelude hiding (max,min)
@@ -31,14 +31,14 @@ overflowFold = procFold "ovf" (expFoldDefault arithAssert)
 
 type Bounds a = (a,a)
 
-arithAssert :: I.Type -> I.Expr -> [I.Expr]
+arithAssert :: I.Type -> I.Expr -> FolderStmt ()
 arithAssert ty e = case e of
   I.ExpLit i       -> litAssert ty i -- Should be impossible to fail, if all
                                      -- initializers have been accounted for.
   I.ExpOp op args  -> arithAssert' ty op args
-  _                -> []
+  _                -> return ()
 
-litAssert :: I.Type -> I.Literal -> [I.Expr]
+litAssert :: I.Type -> I.Literal -> FolderStmt ()
 litAssert ty lit = case lit of
   I.LitInteger i ->
     case ty of
@@ -50,148 +50,126 @@ litAssert ty lit = case lit of
       I.TyInt I.Int16   -> boundLit (minMax :: Bounds Int16)
       I.TyInt I.Int32   -> boundLit (minMax :: Bounds Int32)
       I.TyInt I.Int64   -> boundLit (minMax :: Bounds Int64)
-      _                 -> []
+      _                 -> return ()
       where
-      boundLit (min,max) = fmap T.unwrapExpr $
-        if fromIntegral min <= i && i <= fromIntegral max
-         then [true]
-         else [false]
-  _ -> []
+      boundLit (min,max) = insert ca
+        where
+        ca  = I.CompilerAssert (T.unwrapExpr res)
+        res = if fromIntegral min <= i && i <= fromIntegral max
+                then true
+                else false
 
-arithAssert' :: I.Type -> I.ExpOp -> [I.Expr] -> [I.Expr]
-arithAssert' ty op args = fmap T.unwrapExpr $
+      minMax :: forall t . (Bounded t) => Bounds t
+      minMax = (minBound :: t, maxBound :: t)
+
+  _ -> return ()
+
+arithAssert' :: I.Type -> I.ExpOp -> [I.Expr] -> FolderStmt ()
+arithAssert' ty op args =
   case op of
     I.ExpAdd -> case ty of
-      I.TyWord I.Word8  -> sing $ addExprW (minMax :: Bounds Uint8)
-      I.TyWord I.Word16 -> sing $ addExprW (minMax :: Bounds Uint16)
-      I.TyWord I.Word32 -> sing $ addExprW (minMax :: Bounds Uint32)
-      I.TyWord I.Word64 -> sing $ addExprW (minMax :: Bounds Uint64)
-      I.TyInt I.Int8    -> sing $ addExprI (minMax :: Bounds Sint8)
-      I.TyInt I.Int16   -> sing $ addExprI (minMax :: Bounds Sint16)
-      I.TyInt I.Int32   -> sing $ addExprI (minMax :: Bounds Sint32)
-      I.TyInt I.Int64   -> sing $ addExprI (minMax :: Bounds Sint64)
-      _                 -> []
+      I.TyWord I.Word8  -> mkCall addBase ty args
+      I.TyWord I.Word16 -> mkCall addBase ty args
+      I.TyWord I.Word32 -> mkCall addBase ty args
+      I.TyWord I.Word64 -> mkCall addBase ty args
+      I.TyInt I.Int8    -> mkCall addBase ty args
+      I.TyInt I.Int16   -> mkCall addBase ty args
+      I.TyInt I.Int32   -> mkCall addBase ty args
+      I.TyInt I.Int64   -> mkCall addBase ty args
+      _                 -> return ()
 
     I.ExpSub -> case ty of
-      I.TyWord I.Word8  -> sing $ subExprW (minMax :: Bounds Uint8)
-      I.TyWord I.Word16 -> sing $ subExprW (minMax :: Bounds Uint16)
-      I.TyWord I.Word32 -> sing $ subExprW (minMax :: Bounds Uint32)
-      I.TyWord I.Word64 -> sing $ subExprW (minMax :: Bounds Uint64)
-      I.TyInt I.Int8    -> sing $ subExprI (minMax :: Bounds Sint8)
-      I.TyInt I.Int16   -> sing $ subExprI (minMax :: Bounds Sint16)
-      I.TyInt I.Int32   -> sing $ subExprI (minMax :: Bounds Sint32)
-      I.TyInt I.Int64   -> sing $ subExprI (minMax :: Bounds Sint64)
-      _                 -> []
+      I.TyWord I.Word8  -> mkCall subBase ty args
+      I.TyWord I.Word16 -> mkCall subBase ty args
+      I.TyWord I.Word32 -> mkCall subBase ty args
+      I.TyWord I.Word64 -> mkCall subBase ty args
+      I.TyInt I.Int8    -> mkCall subBase ty args
+      I.TyInt I.Int16   -> mkCall subBase ty args
+      I.TyInt I.Int32   -> mkCall subBase ty args
+      I.TyInt I.Int64   -> mkCall subBase ty args
+      _                 -> return ()
 
     I.ExpMul -> case ty of
-      I.TyWord I.Word8  -> sing $ mulExprW (minMax :: Bounds Uint8)
-      I.TyWord I.Word16 -> sing $ mulExprW (minMax :: Bounds Uint16)
-      I.TyWord I.Word32 -> sing $ mulExprW (minMax :: Bounds Uint32)
-      I.TyWord I.Word64 -> sing $ mulExprW (minMax :: Bounds Uint64)
-      I.TyInt I.Int8    -> sing $ mulExprI (minMax :: Bounds Sint8)
-      I.TyInt I.Int16   -> sing $ mulExprI (minMax :: Bounds Sint16)
-      I.TyInt I.Int32   -> sing $ mulExprI (minMax :: Bounds Sint32)
-      I.TyInt I.Int64   -> sing $ mulExprI (minMax :: Bounds Sint64)
-      _                 -> []
+      I.TyWord I.Word8  -> mkCall mulBase ty args
+      I.TyWord I.Word16 -> mkCall mulBase ty args
+      I.TyWord I.Word32 -> mkCall mulBase ty args
+      I.TyWord I.Word64 -> mkCall mulBase ty args
+      I.TyInt I.Int8    -> mkCall mulBase ty args
+      I.TyInt I.Int16   -> mkCall mulBase ty args
+      I.TyInt I.Int32   -> mkCall mulBase ty args
+      I.TyInt I.Int64   -> mkCall mulBase ty args
+      _                 -> return ()
 
     I.ExpDiv -> case ty of
-      I.TyWord I.Word8  -> sing $ divExpr (minMax :: Bounds Uint8)
-      I.TyWord I.Word16 -> sing $ divExpr (minMax :: Bounds Uint16)
-      I.TyWord I.Word32 -> sing $ divExpr (minMax :: Bounds Uint32)
-      I.TyWord I.Word64 -> sing $ divExpr (minMax :: Bounds Uint64)
-      I.TyInt I.Int8    -> sing $ divExpr (minMax :: Bounds Sint8)
-      I.TyInt I.Int16   -> sing $ divExpr (minMax :: Bounds Sint16)
-      I.TyInt I.Int32   -> sing $ divExpr (minMax :: Bounds Sint32)
-      I.TyInt I.Int64   -> sing $ divExpr (minMax :: Bounds Sint64)
-      _                 -> []
+      I.TyWord I.Word8  -> mkCall divBase ty args
+      I.TyWord I.Word16 -> mkCall divBase ty args
+      I.TyWord I.Word32 -> mkCall divBase ty args
+      I.TyWord I.Word64 -> mkCall divBase ty args
+      I.TyInt I.Int8    -> mkCall divBase ty args
+      I.TyInt I.Int16   -> mkCall divBase ty args
+      I.TyInt I.Int32   -> mkCall divBase ty args
+      I.TyInt I.Int64   -> mkCall divBase ty args
+      _                 -> return ()
 
     I.ExpMod -> case ty of
-      I.TyWord I.Word8  -> sing $ divExpr (minMax :: Bounds Uint8)
-      I.TyWord I.Word16 -> sing $ divExpr (minMax :: Bounds Uint16)
-      I.TyWord I.Word32 -> sing $ divExpr (minMax :: Bounds Uint32)
-      I.TyWord I.Word64 -> sing $ divExpr (minMax :: Bounds Uint64)
-      I.TyInt I.Int8    -> sing $ divExpr (minMax :: Bounds Sint8)
-      I.TyInt I.Int16   -> sing $ divExpr (minMax :: Bounds Sint16)
-      I.TyInt I.Int32   -> sing $ divExpr (minMax :: Bounds Sint32)
-      I.TyInt I.Int64   -> sing $ divExpr (minMax :: Bounds Sint64)
-      _                 -> []
+      I.TyWord I.Word8  -> mkCall divBase ty args
+      I.TyWord I.Word16 -> mkCall divBase ty args
+      I.TyWord I.Word32 -> mkCall divBase ty args
+      I.TyWord I.Word64 -> mkCall divBase ty args
+      I.TyInt I.Int8    -> mkCall divBase ty args
+      I.TyInt I.Int16   -> mkCall divBase ty args
+      I.TyInt I.Int32   -> mkCall divBase ty args
+      I.TyInt I.Int64   -> mkCall divBase ty args
+      _                 -> return ()
 
-    _ -> []
-
-  where
-  (e0, e1) = (args !! 0, args !! 1)
-  sing = (: [])
-
-  ----------------------------------------------------------
-
-  addExprI :: forall t . (Num t, IvoryOrd t, T.IvoryExpr t)
-           => Bounds t -> T.IBool
-  addExprI (min,max) =
-    let w :: I.Expr -> t
-        w  = T.wrapExpr in
-        (w e0 >=? 0 .&& w e1 >=? 0 .&& max - w e0 >=? w e1)
-    .|| (w e0 <=? 0 .&& w e1 <=? 0 .&& min - w e0 <=? w e1)
-    .|| (signum (w e0) /=? signum (w e1))
-
-  addExprW :: forall t. (Num t, IvoryOrd t, T.IvoryExpr t)
-           => Bounds t -> T.IBool
-  addExprW (_,max) = do
-    let w :: I.Expr -> t
-        w  = T.wrapExpr
-    max - w e0 >=? w e1
-
-  ----------------------------------------------------------
-
-  subExprI :: forall t. (Num t, IvoryOrd t, T.IvoryExpr t)
-           => Bounds t -> T.IBool
-  subExprI (min,max) =
-    let w :: I.Expr -> t
-        w  = T.wrapExpr in
-        (w e0 >=? 0 .&& w e1 <=? 0 .&& max + w e1 >=? w e0)
-    .|| (w e0 <=? 0 .&& w e1 >=? 0 .&& min + w e1 <=? w e0)
-    .|| (signum (w e0) ==? signum (w e1))
-
-  subExprW :: forall t. (Num t, IvoryOrd t, T.IvoryExpr t)
-           => Bounds t -> T.IBool
-  subExprW _ =
-    let w :: I.Expr -> t
-        w  = T.wrapExpr in
-    (w e0 :: t) >=? w e1
-
-  ----------------------------------------------------------
-
-  minNegOne :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
-            => t -> t -> t -> T.IBool
-  minNegOne min x y = x /=? min .|| y /=? (-1)
-
-  mulExprI :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
-           => Bounds t -> T.IBool
-  mulExprI (min,max) =
-    let w :: I.Expr -> t
-        w  = T.wrapExpr in
-        (minNegOne min (w e0) (w e1) .|| minNegOne min (w e1) (w e0))
-    .&& (    w e0 ==? 0
-         .|| w e1 ==? 0
-         .|| (    max `iDiv` abs (w e0) >=? abs (w e1)
-              .&& min `iDiv` abs (w e0) <=? abs (w e1)))
-
-  mulExprW :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
-           => Bounds t -> T.IBool
-  mulExprW (_,max) =
-    let w :: I.Expr -> t
-        w  = T.wrapExpr in
-    (w e0 ==? 0) .|| (max `iDiv` w e0 >=? w e1)
-
-  ----------------------------------------------------------
-
-  divExpr :: forall t. (Num t, IvoryIntegral t, IvoryOrd t, T.IvoryExpr t)
-           => Bounds t -> T.IBool
-  divExpr (min,_) =
-    let w :: I.Expr -> t
-        w  = T.wrapExpr in
-    w e1 /=? (0 :: t) .&& minNegOne min (w e0) (w e1)
+    _ -> return ()
 
 ----------------------------------------------------------
 
-minMax :: forall t . (Bounded t) => Bounds t
-minMax = (minBound :: t, maxBound :: t)
+--------------------------------------------------------------------------------
+-- Foreign function calls to Ivory standard lib with overflow functions.
+
+mkCall :: String -> I.Type -> [I.Expr] -> FolderStmt ()
+mkCall f ty args = do
+  var <- freshVar
+  let v = I.VarInternal var
+  insert $ I.Call ty (Just v) (I.NameSym $ f <+> ext ty)
+             (map (I.Typed ty) args)
+  insert $ I.CompilerAssert (I.ExpVar v)
+
+--------------------------------------------------------------------------------
+-- Construct the names of overflow checking functions defined in ivory.h.
+
+(<+>) :: String -> String -> String
+a <+> b = a ++ "_" ++ b
+
+mkOvf :: String -> String
+mkOvf a = a <+> "ovf"
+
+addBase, subBase, mulBase, divBase :: String
+addBase = mkOvf "add"
+subBase = mkOvf "sub"
+mulBase = mkOvf "mul"
+divBase = mkOvf "div"
+
+ext :: I.Type -> String
+ext ty = case ty of
+  I.TyChar
+    -> "char"
+  I.TyFloat
+    -> "float"
+  I.TyDouble
+    -> "double"
+  I.TyInt i
+    -> case i of
+         I.Int8   -> "i8"
+         I.Int16  -> "i16"
+         I.Int32  -> "i32"
+         I.Int64  -> "i64"
+  I.TyWord w
+    -> case w of
+         I.Word8  ->  "u8"
+         I.Word16 ->  "u16"
+         I.Word32  -> "u32"
+         I.Word64  -> "u64"
+  _ -> error $ "Unexpected type " ++ show ty ++ " in ext."

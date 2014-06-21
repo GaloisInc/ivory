@@ -52,7 +52,7 @@ static inline bool C(add_ovf,EXT)(TYPE x, TYPE y) { \
 #define SUB_OVF_I                                   \
 static inline bool C(sub_ovf,EXT)(TYPE x, TYPE y) { \
   return (x >= 0 && y <= 0 && MKMAX(M) + y >= x)    \
-      || (x <= 0 && y <= 0 && MKMIN(M) + y <= x)    \
+      || (x <= 0 && y >= 0 && MKMIN(M) + y <= x)    \
       || (C(signum,EXT)(x) == C(signum,EXT)(y));    \
 }
 
@@ -85,6 +85,12 @@ static inline bool C(mul_ovf,EXT)(TYPE x, TYPE y) {  \
 #define DIV_OVF_I                                    \
 static inline bool C(div_ovf,EXT)(TYPE x, TYPE y) {  \
   return y != 0 && (x != MKMIN(M) || y != (-1));     \
+}
+
+// Division overflow check for unsigned types.
+#define DIV_OVF_U                                                             \
+  static inline bool C(div_ovf,EXT)(__attribute__((unused)) TYPE x, TYPE y) { \
+  return y != 0;                                                              \
 }
 
 #endif // IVORY_TEMPLATES_H

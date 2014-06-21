@@ -130,6 +130,7 @@ SIGNUM_U
 ADD_OVF_U
 SUB_OVF_U
 MUL_OVF_U
+DIV_OVF_U
 #undef TYPE
 #undef EXT
 #undef M
@@ -143,6 +144,7 @@ SIGNUM_U
 ADD_OVF_U
 SUB_OVF_U
 MUL_OVF_U
+DIV_OVF_U
 #undef TYPE
 #undef EXT
 #undef M
@@ -156,6 +158,7 @@ SIGNUM_U
 ADD_OVF_U
 SUB_OVF_U
 MUL_OVF_U
+DIV_OVF_U
 #undef TYPE
 #undef EXT
 #undef M
@@ -169,6 +172,7 @@ SIGNUM_U
 ADD_OVF_U
 SUB_OVF_U
 MUL_OVF_U
+DIV_OVF_U
 #undef TYPE
 #undef EXT
 #undef M

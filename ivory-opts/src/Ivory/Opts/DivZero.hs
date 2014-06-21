@@ -8,7 +8,7 @@ module Ivory.Opts.DivZero
 
 import Ivory.Opts.AssertFold
 
-import qualified Ivory.Language.Syntax.AST as I
+import qualified Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Language.Syntax.Type as I
 
 --------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ divZeroFold = procFold "divZ" (expFoldDefault divAssert)
 
 -- Claim that the divisor expression cannnot equal zero.  If we don't have a
 -- division-causing expression, return Nothing.
-divAssert :: I.Type -> I.Expr -> [I.Expr]
+divAssert :: I.Type -> I.Expr -> FolderStmt ()
 divAssert ty e0 = case e0 of
   I.ExpOp op args ->
     case (op,args) of
@@ -29,11 +29,11 @@ divAssert ty e0 = case e0 of
       (I.ExpRecip,[e])       -> ma e
       (I.ExpFLog,[e])        -> ma e
       (I.ExpFLogBase,[_,r])  -> ma r
-      _                      -> []
-  _               -> []
+      _                      -> return ()
+  _               -> return ()
 
   where
-  ma x = [I.ExpOp (I.ExpNeq ty) [x,zeroExp]]
+  ma x = insert $ I.CompilerAssert $ I.ExpOp (I.ExpNeq ty) [x,zeroExp]
   zeroExp = case ty of
               I.TyInt  _ -> I.ExpLit (I.LitInteger 0)
               I.TyWord _ -> I.ExpLit (I.LitInteger 0)

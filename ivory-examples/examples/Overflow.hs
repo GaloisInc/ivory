@@ -18,14 +18,16 @@ ovf2  = proc "ovf2" $ \ n -> requires (n <? 1)
                            $ body
                            $ ret (n + 15)
 
-ovf3 :: Def ('[IFloat, IFloat, IFloat] :-> IBool)
+ovf3 :: Def ('[IFloat, IFloat, IBool] :-> IFloat)
 ovf3  = proc "ovf3" $ \ n m o -> body $ do
-  x <- assign (n / m / o)
-  ret $ x >? (n / m)
+--  x <- assign (n / m / o)
+  ret $ (o ? (n / m, m / n))
 
 cmodule :: Module
-cmodule = package "Overflow" $ incl ovf1 >> incl ovf2 >> incl ovf3
+cmodule = package "Overflow" $ --incl ovf1 >> incl ovf2 >> 
+    incl ovf3
 
 writeOverflow :: Opts -> IO ()
 writeOverflow opts = void $ runCompiler [cmodule]
-  opts { constFold = True, overflow = True, divZero = True }
+  opts { constFold = False, overflow = False, divZero = True, stdOut = True }
+
