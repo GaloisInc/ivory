@@ -12,28 +12,31 @@ module Ivory.Compile.C.CmdlineFrontend
   ) where
 
 import qualified Paths_ivory_backend_c
-import qualified Ivory.Compile.C as C
+import qualified Ivory.Compile.C            as C
 import qualified Ivory.Compile.C.SourceDeps as C
 
 import           Ivory.Compile.C.CmdlineFrontend.Options
 
 import           Ivory.Language
-import qualified Ivory.Opts.ConstFold as O
-import qualified Ivory.Opts.Overflow as O
-import qualified Ivory.Opts.DivZero as O
-import qualified Ivory.Opts.Index as O
-import qualified Ivory.Opts.FP as O
-import qualified Ivory.Opts.CFG as G
+import           Ivory.Language.Syntax.AST  as I
+import qualified Ivory.Opts.ConstFold       as O
+import qualified Ivory.Opts.Overflow        as O
+import qualified Ivory.Opts.DivZero         as O
+import qualified Ivory.Opts.Index           as O
+import qualified Ivory.Opts.FP              as O
+import qualified Ivory.Opts.CFG             as G
+import qualified Ivory.Opts.TypeCheck       as T
 
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8      as B
 
+import Data.Monoid
 import Control.Monad (when)
 import Data.List (foldl')
 import System.Directory (doesFileExist,createDirectoryIfMissing)
 import System.Environment (getArgs)
 import System.FilePath (takeDirectory,takeExtension,addExtension,(</>))
 import Text.PrettyPrint.Mainland
-    ((<+>),(<>),line,text,stack,punctuate,render,empty,indent,displayS)
+    ((<+>),line,text,stack,punctuate,render,empty,indent,displayS)
 import qualified System.FilePath.Posix as PFP
 
 
@@ -60,10 +63,41 @@ compileDepFile :: Opts -> [(String, [String])] -> IO ()
 compileDepFile opts ds =
   when (not (null (deps opts))) $ outputDepFile opts ds
 
+-- | Main compile function plus domain-specific type-checking that can't be
+-- embedded in the Haskell type-system.  Type-checker also emits warnings.
 runCompilerWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module] -> Opts
                 -> IO ModuleFiles
-runCompilerWith sm sp =
-  rc (maybe G.defaultSizeMap id sm) (maybe [] id sp)
+runCompilerWith sm sp modules opts = do
+  let (bs, msgs) = concatRes (map tcMod modules)
+  putStrLn msgs
+  when (tcErrors opts && bs) (error "There were type-checking errors.")
+  rc (maybe G.defaultSizeMap id sm)
+     (maybe [] id sp) modules opts
+  where
+  concatRes :: [(Bool, String)] -> (Bool, String)
+  concatRes r = let (bs, strs) = unzip r in
+            (or bs, concat strs)
+
+  tcMod :: I.Module -> (Bool, String)
+  tcMod m = concatRes reses
+
+    where
+    showWarnings = tcWarnings opts
+
+    allProcs vs = I.public vs ++ I.private vs
+
+    reses :: [(Bool, String)]
+    reses = map tcProc (allProcs (I.modProcs m))
+
+    tcProc :: I.Proc -> (Bool, String)
+    tcProc p = ( T.existErrors tc
+               , errs ++ if showWarnings then warnings else []
+               )
+      where
+      tc       = T.typeCheck p
+      res f    = unlines $ f (I.procSym p) tc
+      warnings = res T.showWarnings
+      errs     = res T.showErrors
 
 runCompiler :: [Module] -> Opts -> IO ModuleFiles
 runCompiler ms os = runCompilerWith Nothing Nothing ms os
@@ -136,6 +170,9 @@ rc sm userSearchPath modules opts
   mkPass passOpt pass = if passOpt opts then pass else id
 
   -- Constant folding before and after all other passes.
+  --
+  -- XXX This should be made more efficient at some point, since each pass
+  --traverses the AST.  It's not obvious how to do that cleanly, though.
   passes e = foldl' (flip ($)) e
     [ cfPass
     , ofPass, dzPass, fpPass, ixPass
