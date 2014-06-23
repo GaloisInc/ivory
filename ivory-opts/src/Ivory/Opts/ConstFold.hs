@@ -166,7 +166,7 @@ cfOp ty op args = case op of
     | Just b <- arg0 goBoolArgs
     -> if b then a1 else a2
     -- If both branches have the same result, we dont care about the branch
-    -- condition.
+    -- condition.  XXX This can be expensive
     | a1 == a2
     -> a1
     | otherwise -> noop ty
