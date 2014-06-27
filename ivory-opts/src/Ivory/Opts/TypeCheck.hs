@@ -34,6 +34,7 @@ data RetError = RetError String [Error]
 
 data Warning = IfTEWarn
              | LoopWarn
+             | VoidEmptyBody
   deriving (Show, Read, Eq)
 
 data Error = EmptyBody
@@ -62,8 +63,12 @@ showError err = case err of
 
 showWarning :: Warning -> String
 showWarning w = case w of
-  IfTEWarn  -> "One branch of an if-then-else statement contains a return statement.\nStatements after the if-the-else block are not reachable on all control paths."
-  LoopWarn  -> "Statements after the loop may be unreachable due to a return statement within the loop."
+  IfTEWarn
+    -> "One branch of an if-then-else statement contains a return statement.\nStatements after the if-the-else block are not reachable on all control paths."
+  LoopWarn
+    -> "Statements after the loop may be unreachable due to a return statement within the loop."
+  VoidEmptyBody
+    -> "Procedure with void return type has no statements."
 
 -- | Given a procedure name, show all the typechecking results for that procedure.
 showErrors :: String -> Results -> [String]
@@ -110,8 +115,8 @@ type SubBlk = Bool
 type Ret = Bool
 
 tyChk :: I.Type -> [I.Stmt] -> TCResults ()
-tyChk I.TyVoid  []    = return ()
-tyChk ty        []    = putError EmptyBody
+tyChk I.TyVoid  []    = putWarn VoidEmptyBody
+tyChk _         []    = putError EmptyBody
 tyChk ty        stmts = void (tyChk' (False, False) stmts)
   where
   tyChk' :: (SubBlk, Ret) -> [I.Stmt] -> TCResults Ret
