@@ -19,6 +19,7 @@ import           Ivory.Compile.C.CmdlineFrontend.Options
 
 import           Ivory.Language
 import           Ivory.Language.Syntax.AST  as I
+import qualified Ivory.Opts.BitShift        as O
 import qualified Ivory.Opts.ConstFold       as O
 import qualified Ivory.Opts.Overflow        as O
 import qualified Ivory.Opts.DivZero         as O
@@ -166,6 +167,7 @@ rc sm userSearchPath modules opts
   dzPass = mkPass divZero O.divZeroFold
   fpPass = mkPass fpCheck O.fpFold
   ixPass = mkPass ixCheck O.ixFold
+  bsPass = mkPass bitShiftCheck O.bitShiftFold
 
   mkPass passOpt pass = if passOpt opts then pass else id
 
@@ -175,7 +177,7 @@ rc sm userSearchPath modules opts
   --traverses the AST.  It's not obvious how to do that cleanly, though.
   passes e = foldl' (flip ($)) e
     [ cfPass
-    , ofPass, dzPass, fpPass, ixPass
+    , ofPass, dzPass, fpPass, ixPass, bsPass
     , cfPass
     ]
 

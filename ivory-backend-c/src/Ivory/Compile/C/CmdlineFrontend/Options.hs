@@ -66,6 +66,7 @@ data Opts = Opts
   , ixCheck     :: Bool
   , fpCheck     :: Bool
   , outProcSyms :: Bool
+  , bitShiftCheck :: Bool
   -- CFG stuff
   , cfg         :: Bool
   , cfgDotDir   :: FilePath
@@ -90,13 +91,14 @@ initialOpts  = Opts
   , depPrefix    = ""
   , rtIncludeDir = Nothing
 
-  -- optimization passes
+  -- optimization/safety passes
   , constFold    = False
   , overflow     = False
   , divZero      = False
   , ixCheck      = False
   , fpCheck      = False
   , outProcSyms  = False
+  , bitShiftCheck = False
 
   -- CFG stuff
   , cfg          = False
@@ -145,6 +147,9 @@ setFpCheck  = success (\opts -> opts { fpCheck = True })
 setProcSyms :: OptParser Opts
 setProcSyms  = success (\opts -> opts { outProcSyms = True })
 
+setBitShiftCheck :: OptParser Opts
+setBitShiftCheck  = success (\opts -> opts { bitShiftCheck = True })
+
 setCfg :: OptParser Opts
 setCfg  = success (\opts -> opts { cfg = True })
 
@@ -192,6 +197,8 @@ options  =
     "generate assertions checking for back indexes (e.g., negative)"
   , Option "" ["fp-check"] (NoArg setFpCheck)
     "generate assertions checking for NaN and Infinitiy."
+  , Option "" ["bitshift-check"] (NoArg setBitShiftCheck)
+    "generate assertions checking for bit-shift overflow."
 
   , Option "" ["out-proc-syms"] (NoArg setProcSyms)
     "dump out the modules' function symbols"

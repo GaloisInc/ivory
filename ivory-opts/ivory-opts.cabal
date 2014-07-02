@@ -20,6 +20,7 @@ source-repository    this
 
 library
   exposed-modules:      Ivory.Opts.AssertFold,
+                        Ivory.Opts.BitShift,
                         Ivory.Opts.CFG,
                         Ivory.Opts.ConstFold,
                         Ivory.Opts.ConstFoldComp,
