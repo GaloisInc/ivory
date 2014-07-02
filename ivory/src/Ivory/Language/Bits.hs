@@ -9,6 +9,9 @@ import Ivory.Language.Type
 import Ivory.Language.Uint
 import Ivory.Language.Cast
 
+import Data.Word
+import Data.Bits(finiteBitSize)
+
 import qualified Ivory.Language.Syntax as AST
 
 -- XXX do not export
@@ -28,6 +31,8 @@ class (Num a, IvoryExpr a) => IvoryBits a where
   iComplement :: a -> a
   iComplement a = wrapExpr (AST.ExpOp AST.ExpBitComplement [unwrapExpr a])
 
+  iBitSize :: a -> Int
+
   -- XXX what should the type of the shift count argument be?  having
   -- it be polymorphic is kind of a pain.  for now, just have it be
   -- the same type as the value being shifted.
@@ -37,10 +42,14 @@ class (Num a, IvoryExpr a) => IvoryBits a where
   iShiftR :: a -> a -> a
   iShiftR = bitOp AST.ExpBitShiftR
 
-instance IvoryBits Uint8
-instance IvoryBits Uint16
-instance IvoryBits Uint32
-instance IvoryBits Uint64
+instance IvoryBits Uint8 where
+  iBitSize _ = finiteBitSize (0 :: Word8)
+instance IvoryBits Uint16 where
+  iBitSize _ = finiteBitSize (0 :: Word16)
+instance IvoryBits Uint32 where
+  iBitSize _ = finiteBitSize (0 :: Word32)
+instance IvoryBits Uint64 where
+  iBitSize _ = finiteBitSize (0 :: Word64)
 
 -- | Extraction of the upper or lower half of a bit type into the next
 -- smallest bit type.

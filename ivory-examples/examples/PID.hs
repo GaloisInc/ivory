@@ -79,13 +79,18 @@ foo = proc "foo" $ \a b ->
     retVoid
 
 runPID :: IO ()
-runPID = void $ runCompiler [cmodule] initialOpts { stdOut = True }
+runPID = void $ runCompiler [cmodule] initialOpts { stdOut = True, bitShiftCheck = True, divZero = True }
 
 cmodule :: Module
 cmodule = package "PID" $ do
-  defStruct (Proxy :: Proxy "PID")
-  incl pidUpdate
-  incl alloc_test
+  incl foobar
+  -- defStruct (Proxy :: Proxy "PID")
+  -- incl pidUpdate
+  -- incl alloc_test
+
+foobar :: Def ('[Uint8] :-> Uint8)
+foobar = proc "foobar" $ \x -> body $ do
+  ret (x `iShiftR` (3 `iDiv` 2))
 
 alloc_test :: Def ('[] :-> IFloat)
 alloc_test  = proc "alloc_test" $ body $ do
