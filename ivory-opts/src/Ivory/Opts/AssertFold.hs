@@ -194,6 +194,7 @@ expFoldDefault asserter ty e = case e of
 --
 -- x /= 0 ? 3.0/x : 0.0
 --
+-- Otherwise, map over the expression with the asserter.
 expFoldOps :: ExpFold -> I.Type -> (I.ExpOp, [I.Expr]) -> FolderStmt ()
 expFoldOps asserter ty (op, args) = case (op, args) of
 
