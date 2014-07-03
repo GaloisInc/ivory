@@ -10,7 +10,6 @@ import Ivory.Language.Uint
 import Ivory.Language.Cast
 
 import Data.Word
-import Data.Bits(finiteBitSize)
 
 import qualified Ivory.Language.Syntax as AST
 
@@ -43,13 +42,13 @@ class (Num a, IvoryExpr a) => IvoryBits a where
   iShiftR = bitOp AST.ExpBitShiftR
 
 instance IvoryBits Uint8 where
-  iBitSize _ = finiteBitSize (0 :: Word8)
+  iBitSize _ = 8
 instance IvoryBits Uint16 where
-  iBitSize _ = finiteBitSize (0 :: Word16)
+  iBitSize _ = 16
 instance IvoryBits Uint32 where
-  iBitSize _ = finiteBitSize (0 :: Word32)
+  iBitSize _ = 32
 instance IvoryBits Uint64 where
-  iBitSize _ = finiteBitSize (0 :: Word64)
+  iBitSize _ = 64
 
 -- | Extraction of the upper or lower half of a bit type into the next
 -- smallest bit type.
