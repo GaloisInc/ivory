@@ -7,13 +7,14 @@
 module Ivory.Language.String where
 
 import Ivory.Language.Area
-import Ivory.Language.Array
 import Ivory.Language.Struct
+import Ivory.Language.Sint
 import Ivory.Language.Uint
+import Ivory.Language.Proxy (ANat)
 
-import GHC.TypeLits
+import GHC.TypeLits(Nat)
 
-class ( SingI (Capacity a)
+class ( ANat (Capacity a)
       , IvoryStruct (StructName a)
       , IvoryArea a
       , a ~ Struct (StructName a)
@@ -21,5 +22,7 @@ class ( SingI (Capacity a)
   type Capacity a :: Nat
 
   stringDataL   :: Label (StructName a) (Array (Capacity a) (Stored Uint8))
-  stringLengthL :: Label (StructName a) (Stored (Ix (Capacity a)))
+  stringLengthL :: Label (StructName a) (Stored Sint32) -- Should be same
+                                                        -- underlying type as
+                                                        -- IxRep
 

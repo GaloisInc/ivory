@@ -8,39 +8,60 @@
 
 module Ivory.HW.BitData where
 
-import Ivory.BitData
-import Ivory.Language
+import Numeric (showHex)
+import Data.List (intercalate)
 
+import Ivory.Language
 import Ivory.HW.Prim
 import Ivory.HW.Reg
 
 -- | A register associated with a bit data type.
-newtype BitDataReg d = BitDataReg (Reg (BitDataRep d))
+data BitDataReg d =
+  BitDataReg
+    { bdr_reg  :: Reg (BitDataRep d)
+    , bdr_name :: Maybe String
+    }
+
+bdrComment :: BitDataReg d -> String -> String -> Ivory eff ()
+bdrComment r c c' =
+  comment ("reg " ++ c ++ " " ++ regname ++ ": " ++ c' )
+  where
+  regname = case bdr_name r of
+    Just n -> n
+    Nothing -> "0x" ++ (showHex regaddr "")
+  regaddr = case bdr_reg r of Reg a -> a
 
 -- | Create a bit data register given its address.
 mkBitDataReg :: IvoryIOReg (BitDataRep d) => Integer -> BitDataReg d
-mkBitDataReg = BitDataReg . mkReg
+mkBitDataReg a = BitDataReg { bdr_reg = mkReg a, bdr_name = Nothing }
+
+-- | Create a bit data register given its address and name.
+mkBitDataRegNamed :: IvoryIOReg (BitDataRep d) => Integer -> String -> BitDataReg d
+mkBitDataRegNamed a n = BitDataReg { bdr_reg = mkReg a, bdr_name = Just n }
 
 getReg :: (BitData d, IvoryIOReg (BitDataRep d))
        => BitDataReg d -> Ivory eff d
-getReg (BitDataReg r) = do
-  val <- readReg r
+getReg r = do
+  bdrComment r "get" ""
+  val <- readReg (bdr_reg r)
   return $ fromRep val
 
 -- | Set a register to a value taken from a block of bit
 -- modifications.  The previous value is discarded.
 setReg :: (BitData d, IvoryIOReg (BitDataRep d))
        => BitDataReg d -> BitDataM d a -> Ivory eff a
-setReg (BitDataReg r) mf = do
-  let (result, val) = runBits 0 mf
-  writeReg r val
+setReg r mf = do
+  let (result, val, ss) = runBits 0 mf
+  bdrComment r "set" (intercalate ", " ss)
+  writeReg (bdr_reg r) val
   return result
 
 -- | Modify a register by a set of bit modification actions.
 modifyReg :: (BitData d, IvoryIOReg (BitDataRep d))
           => BitDataReg d -> BitDataM d a -> Ivory eff a
-modifyReg (BitDataReg r) mf = do
-  val <- readReg r
-  let (result, val') = runBits val mf
-  writeReg r val'
+modifyReg r mf = do
+  val <- readReg (bdr_reg r)
+  let (result, val', ss) = runBits val mf
+  bdrComment r "modify" (intercalate ", " ss)
+  writeReg (bdr_reg r) val'
   return result

@@ -17,31 +17,32 @@ import qualified MonadLib               as M
 import           Control.Applicative (Applicative(..))
 
 import qualified System.Random          as R
+import           Test.QuickCheck.Random
 
 --------------------------------------------------------------------------------
 
-newtype IvoryGen a = IvoryGen (StateT R.StdGen Id a)
+newtype IvoryGen a = IvoryGen (StateT QCGen Id a)
   deriving (Functor, Applicative, Monad)
 
-set :: R.StdGen -> IvoryGen ()
+set :: QCGen -> IvoryGen ()
 set = IvoryGen . M.set
 
 -- | Get the current random number, split it, use one and put back the other.
-get :: IvoryGen R.StdGen
+get :: IvoryGen QCGen
 get = do
   rnd <- IvoryGen M.get
   let (r0, r1) = R.split rnd
   set r1
   return r0
 
-run :: R.StdGen -> IvoryGen a -> (a, R.StdGen)
+run :: QCGen -> IvoryGen a -> (a, QCGen)
 run rnd (IvoryGen st) = runId (runStateT rnd st)
 
 -- | Generate a fresh random value, run the monad with it, and return the
 -- result.
 runIO :: IvoryGen a -> IO a
 runIO igen = do
-  rnd <- R.newStdGen
+  rnd <- newQCGen
   let (a,_) = run rnd igen
   return a
 

@@ -41,14 +41,26 @@ newtype Cond = Cond
 check :: IBool -> Cond
 check bool = Cond (return (I.CondBool (unwrapExpr bool)))
 
-checkStored :: forall ref s a.
-           (IvoryVar a, IvoryRef ref, IvoryVar (ref s (Stored a)))
-        => ref s (Stored a) -> (a -> IBool) -> Cond
-checkStored ref prop = Cond $ do
+checkStored' :: forall ref s a c.
+     ( CheckStored c
+     , IvoryVar a
+     , IvoryRef ref
+     , IvoryVar (ref s (Stored a))
+     ) => (c -> Cond) -> ref s (Stored a) -> (a -> c) -> Cond
+checkStored' c ref prop = Cond $ do
   n <- freshVar "pre"
   let ty = ivoryType (Proxy :: Proxy a)
-  b <- runCond $ check $ prop $ wrapVar n
+  b <- runCond $ c $ prop $ wrapVar n
   return (I.CondDeref ty (unwrapExpr ref) n b)
+
+class CheckStored c where
+  checkStored :: (IvoryVar a, IvoryRef ref, IvoryVar (ref s (Stored a))) => ref s (Stored a) -> (a -> c) -> Cond
+
+instance CheckStored IBool where
+  checkStored = checkStored' check
+
+instance CheckStored Cond where
+  checkStored = checkStored' id
 
 -- Pre-Conditions --------------------------------------------------------------
 

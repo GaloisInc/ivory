@@ -31,7 +31,7 @@ into a b = store b =<< deref a
 -- is reached (index @end@ is not copied).  to copy the full @from@ array, let
 -- @end@ equal 'arrayLen from'.
 arrayCopy :: forall n m r s0 s1 s2 eff t.
-           ( SingI n, SingI m, IvoryRef r
+           ( ANat n, ANat m, IvoryRef r
            , IvoryExpr (r s2 (Array m (Stored t)))
            , IvoryExpr (r s2 (Stored t))
            , IvoryStore t

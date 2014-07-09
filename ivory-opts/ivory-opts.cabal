@@ -2,26 +2,33 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory-opts
-version:             0.1.0.0
+version:             0.1.0.1
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language
 build-type:          Simple
 cabal-version:       >= 1.10
+synopsis:            Ivory compiler optimizations.
+description:         Ivory compiler optimizations as well as compiler insertions.  Primarily used by backends.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 license:             BSD3
-
-flag werror
-  default:              False
-  description:          Pass -Werror to GHC.
+license-file:        LICENSE
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-opts-0101
 
 library
   exposed-modules:      Ivory.Opts.AssertFold,
+                        Ivory.Opts.BitShift,
                         Ivory.Opts.CFG,
                         Ivory.Opts.ConstFold,
+                        Ivory.Opts.ConstFoldComp,
                         Ivory.Opts.DivZero,
                         Ivory.Opts.Index,
                         Ivory.Opts.FP,
-                        Ivory.Opts.Overflow
+                        Ivory.Opts.Overflow,
+                        Ivory.Opts.TypeCheck
 
   other-modules:        Ivory.Opts.Utils
 
@@ -34,7 +41,4 @@ library
                         containers
   hs-source-dirs:       src
   default-language:     Haskell2010
-  if flag(werror)
-    ghc-options:        -Wall -Werror
-  else
-    ghc-options:        -Wall
+  ghc-options:          -Wall

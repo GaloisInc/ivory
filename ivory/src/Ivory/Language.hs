@@ -26,6 +26,7 @@ module Ivory.Language (
 
     -- ** Stack Allocation
   , IvoryInit(..), Init()
+  , IvoryZeroVal(izeroval)
   , IvoryZero(izero)
   , iarray
   , InitStruct(), (.=), istruct
@@ -94,8 +95,35 @@ module Ivory.Language (
   , iNot, (.&&), (.||)
 
     -- ** Bit operators
-  , IvoryBits((.&),(.|),(.^),iComplement,iShiftL,iShiftR), extractByte
+  , IvoryBits((.&),(.|),(.^),iComplement,iShiftL,iShiftR, iBitSize), extractByte
   , BitSplit(lbits, ubits), BitCast(bitCast)
+
+    -- ** Bit data
+
+  -- * bit types
+  , Bits(), Bit, BitArray(), BitRep()
+  , repToBits, bitsToRep, zeroBits
+  , bitLength, bitIx
+
+  -- * bit data
+  , BitData(), BitDataField(), BitDataRep
+
+  -- * bit data conversions
+  , toBits, fromBits
+  , toRep, fromRep
+
+  -- * bit data field operations
+  , setBitDataBit, clearBitDataBit, getBitDataField, setBitDataField
+
+  -- * bit data operators
+  , (#!) -- access nth element of BitArray
+  , (#.) -- flip getBitDataField
+  , (#>) -- BitDataField composition (like Control.Category.>>>)
+
+  -- * bit actions
+  , BitDataM(), runBits, withBits, withBitsRef
+  , clear, setBit, clearBit, setField
+  , bitToBool, boolToBit
 
     -- ** External memory areas
   , MemArea(), area, importArea
@@ -118,14 +146,15 @@ module Ivory.Language (
   , assume
 
     -- ** Structures
-  , IvoryStruct(..), StructDef(), ivory, (~>), Label()
+  , IvoryStruct(..), StructDef(), (~>), Label()
+  , ASymbol
 
     -- ** Arrays
   , (!)
   , fromIx, toIx, Ix(), ixSize
   , arrayLen
-  , SingI()
   , toCArray
+  , ANat
 
     -- ** Strings
   , IvoryString(..)
@@ -160,9 +189,13 @@ module Ivory.Language (
   , private, public
   , sourceDep
 
+    -- * Quasiquoters
+  , ivory
+  , ivoryFile
 
     -- * Utilities
-  , Proxy(..)
+  , Proxy(..), comment
+
   ) where
 
 import Ivory.Language.Area
@@ -171,6 +204,7 @@ import Ivory.Language.Assert
 import Ivory.Language.Bits
 import Ivory.Language.CArray
 import Ivory.Language.Cast
+import Ivory.Language.Comment
 import Ivory.Language.Cond
 import Ivory.Language.Const
 import Ivory.Language.Effects
@@ -193,27 +227,11 @@ import Ivory.Language.Sint
 import Ivory.Language.SizeOf
 import Ivory.Language.String
 import Ivory.Language.Struct
-import Ivory.Language.Struct.Quote (ivory)
 import Ivory.Language.Type
 import Ivory.Language.Uint
+import Ivory.Language.Syntax.Concrete.QQ
+import Ivory.Language.BitData.Array
+import Ivory.Language.BitData.BitData
+import Ivory.Language.BitData.Bits
+import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
-
-import GHC.TypeLits (SingI)
-
-
--- Language --------------------------------------------------------------------
-
--- | Unwrap a pointer, and use it as a reference.
-withRef :: IvoryArea area
-        => Ptr as area
-        -> (Ref as area -> Ivory eff t)
-        -> Ivory eff f
-        -> Ivory eff ()
-withRef ptr t = ifte_ (nullPtr /=? ptr) (t (ptrToRef ptr))
-
--- | Primitive return from function.
-ret :: (GetReturn eff ~ Returns r, IvoryVar r) => r -> Ivory eff ()
-ret r = emit (AST.Return (typedExpr r))
-
-retVoid :: (GetReturn eff ~ Returns ()) => Ivory eff ()
-retVoid  = emit AST.ReturnVoid

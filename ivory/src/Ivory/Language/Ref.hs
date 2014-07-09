@@ -36,7 +36,6 @@ instance IvoryArea area => IvoryVar (Ref s area) where
 instance IvoryArea area => IvoryExpr (Ref s area) where
   wrapExpr = Ref
 
-
 -- Constant References ---------------------------------------------------------
 
 -- | Turn a reference into a constant reference.
@@ -56,7 +55,6 @@ instance IvoryArea area => IvoryVar (ConstRef s area) where
 
 instance IvoryArea area => IvoryExpr (ConstRef s area) where
   wrapExpr = ConstRef
-
 
 -- Dereferencing ---------------------------------------------------------------
 

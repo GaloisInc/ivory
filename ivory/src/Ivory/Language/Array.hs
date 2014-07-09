@@ -1,6 +1,10 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Ivory.Language.Array where
 
@@ -9,13 +13,16 @@ import Ivory.Language.Area
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Sint
+import Ivory.Language.IIntegral
 import Ivory.Language.Type
+import Ivory.Language.SizeOf
+import Ivory.Language.Cast
 import qualified Ivory.Language.Syntax as I
 
-import GHC.TypeLits (SingI(..),Sing,Nat)
+import GHC.TypeLits (Nat)
 
-
--- Arrays ----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Indexes
 
 -- Note: it is assumed in ivory-opts and the ivory-backend that the associated
 -- type is an Sint32, so this should not be changed in the front-end without
@@ -25,19 +32,19 @@ type IxRep = Sint32
 -- | Values in the range @0 .. n-1@.
 newtype Ix (n :: Nat) = Ix { getIx :: I.Expr }
 
-instance (SingI n) => IvoryType (Ix n) where
-  ivoryType _ = ivoryType (Proxy :: Proxy IxRep)
+instance (ANat n) => IvoryType (Ix n) where
+     ivoryType _ = ivoryType (Proxy :: Proxy IxRep)
 
-instance (SingI n) => IvoryVar (Ix n) where
+instance (ANat n) => IvoryVar (Ix n) where
   wrapVar    = wrapVarExpr
   unwrapExpr = getIx
 
-instance (SingI n) => IvoryExpr (Ix n) where
+instance (ANat n) => IvoryExpr (Ix n) where
   wrapExpr = Ix
 
-instance (SingI n) => IvoryStore (Ix n)
+instance (ANat n) => IvoryStore (Ix n)
 
-instance (SingI n) => Num (Ix n) where
+instance (ANat n) => Num (Ix n) where
   (*)           = ixBinop (*)
   (-)           = ixBinop (-)
   (+)           = ixBinop (+)
@@ -45,57 +52,75 @@ instance (SingI n) => Num (Ix n) where
   signum        = ixUnary signum
   fromInteger   = mkIx . fromInteger
 
-instance (SingI n) => IvoryEq  (Ix n)
-instance (SingI n) => IvoryOrd (Ix n)
+instance (ANat n) => IvoryEq  (Ix n)
+instance (ANat n) => IvoryOrd (Ix n)
 
-fromIx :: SingI n => Ix n -> IxRep
+instance (ANat n) => IvorySizeOf (Stored (Ix n)) where
+  sizeOfBytes _ = sizeOfBytes (Proxy :: Proxy (Stored IxRep))
+
+fromIx :: ANat n => Ix n -> IxRep
 fromIx = wrapExpr . unwrapExpr
 
 -- | Casting from a bounded Ivory expression to an index.  This is safe,
 -- although the value may be truncated.  Furthermore, indexes are always
 -- positive.
-toIx :: (IvoryExpr a, Bounded a, SingI n) => a -> Ix n
-toIx = mkIx . unwrapExpr
+toIx :: forall a n. (SafeCast a IxRep, ANat n) => a -> Ix n
+toIx = mkIx . unwrapExpr . (safeCast :: a -> IxRep)
 
 -- | The number of elements that an index covers.
-ixSize :: forall n. (SingI n) => Ix n -> Integer
-ixSize _ = fromTypeNat (sing :: Sing n)
+ixSize :: forall n. (ANat n) => Ix n -> Integer
+ixSize _ = fromTypeNat (aNat :: NatType n)
+
+instance ( ANat n, IvoryIntegral to, Default to
+         ) => SafeCast (Ix n) to where
+  safeCast ix | Just s <- toMaxSize (ivoryType (Proxy :: Proxy to))
+              , ixSize ix <= s
+              = ivoryCast (fromIx ix)
+              | otherwise
+              = error ixCastError
+  -- -- It doesn't make sense to case an index downwards dynamically.
+  -- inBounds _ _ = error ixCastError
+
+ixCastError :: String
+ixCastError = "Idx cast : cannot cast index: result type is too small."
+
+-- XXX don't export
+mkIx :: forall n. (ANat n) => I.Expr -> Ix n
+mkIx e = wrapExpr (I.ExpToIx e base)
+  where
+  base = ixSize (undefined :: Ix n)
+
+-- XXX don't export
+ixBinop :: (ANat n)
+        => (I.Expr -> I.Expr -> I.Expr)
+        -> (Ix n -> Ix n -> Ix n)
+ixBinop f x y = mkIx $ f (rawIxVal x) (rawIxVal y)
+
+-- XXX don't export
+ixUnary :: (ANat n) => (I.Expr -> I.Expr) -> (Ix n -> Ix n)
+ixUnary f = mkIx . f . rawIxVal
+
+-- XXX don't export
+rawIxVal :: ANat n => Ix n -> I.Expr
+rawIxVal n = case unwrapExpr n of
+               I.ExpToIx e _  -> e
+               e@(I.ExpVar _) -> e
+               e             -> error $ "Front-end: can't unwrap ixVal: "
+                             ++ show e
+
+-- Arrays ----------------------------------------------------------------------
 
 arrayLen :: forall s len area n ref.
-            (Num n, SingI len, IvoryArea area, IvoryRef ref)
+            (Num n, ANat len, IvoryArea area, IvoryRef ref)
          => ref s (Array len area) -> n
-arrayLen _ = fromInteger (fromTypeNat (sing :: Sing len))
+arrayLen _ = fromInteger (fromTypeNat (aNat :: NatType len))
 
 -- | Array indexing.
 (!) :: forall s len area ref.
-       ( SingI len, IvoryArea area, IvoryRef ref
+       ( ANat len, IvoryArea area, IvoryRef ref
        , IvoryExpr (ref s (Array len area)), IvoryExpr (ref s area))
     => ref s (Array len area) -> Ix len -> ref s area
 arr ! ix = wrapExpr (I.ExpIndex ty (unwrapExpr arr) ixRep (getIx ix))
   where
   ty    = ivoryArea (Proxy :: Proxy (Array len area))
   ixRep = ivoryType (Proxy :: Proxy IxRep)
-
--- XXX don't export
-mkIx :: forall n. (SingI n) => I.Expr -> Ix n
-mkIx e = wrapExpr (I.ExpToIx e base)
-  where
-  base = ixSize (undefined :: Ix n)
-
--- XXX don't export
-ixBinop :: (SingI n)
-        => (I.Expr -> I.Expr -> I.Expr)
-        -> (Ix n -> Ix n -> Ix n)
-ixBinop f x y = mkIx $ f (rawIxVal x) (rawIxVal y)
-
--- XXX don't export
-ixUnary :: (SingI n) => (I.Expr -> I.Expr) -> (Ix n -> Ix n)
-ixUnary f = mkIx . f . rawIxVal
-
--- XXX don't export
-rawIxVal :: SingI n => Ix n -> I.Expr
-rawIxVal n = case unwrapExpr n of
-               I.ExpToIx e _  -> e
-               e@(I.ExpVar _) -> e
-               e             -> error $ "Front-end: can't unwrap ixVal: "
-                             ++ show e

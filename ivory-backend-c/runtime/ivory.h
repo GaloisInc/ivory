@@ -3,122 +3,183 @@
 
 #include<stdint.h>
 #include<math.h>
-#include<stdbool.h>
 #include<string.h>
 #include<limits.h>
 
 #include "ivory_asserts.h"
+#include "ivory_templates.h"
 
 #define FOREVER true
 #define FOREVER_INC
 
-/* abs implementations */
+// ----------------------------------------
+
+#define TYPE char
+#define EXT  char
+#define M    CHAR
 
 #if (CHAR_MIN < 0)
-static inline char abs_char(char i) {
-  COMPILER_ASSERTS(i != CHAR_MIN);
-  return i >= 0 ? i : -i;
-}
+ABS_I
+SIGNUM_I
+ADD_OVF_I
+SUB_OVF_I
+MUL_OVF_I
+DIV_OVF_I
 #else
 static inline char abs_char(char i) {
   return i;
 }
+SIGNUM_U
+ADD_OVF_U
+SUB_OVF_U
+MUL_OVF_U
+
 #endif
 
-static inline int8_t abs_i8(int8_t i) {
-  COMPILER_ASSERTS(i != INT8_MIN);
-  return i >= 0 ? i : -i;
-}
+#undef TYPE
+#undef EXT
+#undef M
 
-static inline int16_t abs_i16(int16_t i) {
-  COMPILER_ASSERTS(i != INT16_MIN);
-  return i >= 0 ? i : -i;
-}
+// ----------------------------------------
 
-static inline int32_t abs_i32(int32_t i) {
-  COMPILER_ASSERTS(i != INT32_MIN);
-  return i >= 0 ? i : -i;
-}
+#define TYPE int8_t
+#define EXT  i8
+#define M    INT8
+ABS_I
+SIGNUM_I
+ADD_OVF_I
+SUB_OVF_I
+MUL_OVF_I
+DIV_OVF_I
+#undef TYPE
+#undef EXT
+#undef M
 
-static inline int64_t abs_i64(int64_t i) {
-  COMPILER_ASSERTS(i != INT64_MIN);
-  return i >= 0 ? i : -i;
-}
+// ----------------------------------------
 
-/* signum implementations */
 
-#if (CHAR_MIN < 0)
-static inline char signum_char(char i) {
-  if (i > 0) return 1;
-  if (i < 0) return (-1);
-  return 0;
-}
-#else
-static inline char signum_char(char i) {
-  if (i > 0) return 1;
-  return 0;
-}
-#endif
+#define TYPE int16_t
+#define EXT  i16
+#define M    INT16
+ABS_I
+SIGNUM_I
+ADD_OVF_I
+SUB_OVF_I
+MUL_OVF_I
+DIV_OVF_I
+#undef TYPE
+#undef EXT
+#undef M
 
-static inline int8_t signum_i8(int8_t i) {
-  if (i > 0) return 1;
-  if (i < 0) return (-1);
-  return 0;
-}
+// ----------------------------------------
 
-static inline int16_t signum_i16(int16_t i) {
-  if (i > 0) return 1;
-  if (i < 0) return (-1);
-  return 0;
-}
+#define TYPE int32_t
+#define EXT  i32
+#define M    INT32
+ABS_I
+SIGNUM_I
+ADD_OVF_I
+SUB_OVF_I
+MUL_OVF_I
+DIV_OVF_I
+#undef TYPE
+#undef EXT
+#undef M
 
-static inline int32_t signum_i32(int32_t i) {
-  if (i > 0) return 1;
-  if (i < 0) return (-1);
-  return 0;
-}
+// ----------------------------------------
 
-static inline int64_t signum_i64(int64_t i) {
-  if (i > 0) return 1;
-  if (i < 0) return (-1);
-  return 0;
-}
+#define TYPE int64_t
+#define EXT  i64
+#define M    INT64
+ABS_I
+SIGNUM_I
+ADD_OVF_I
+SUB_OVF_I
+MUL_OVF_I
+DIV_OVF_I
+#undef TYPE
+#undef EXT
+#undef M
 
-static inline float signum_float(float i) {
-  if (i > 0) return 1;
-  if (i < 0) return (-1);
-  return 0;
-}
+// ----------------------------------------
+// The types below don't need an abs implementation
+// ----------------------------------------
 
-static inline double signum_double(double i) {
-  if (i > 0) return 1;
-  if (i < 0) return (-1);
-  return 0;
-}
+// ----------------------------------------
 
-static inline uint8_t signum_u8(uint8_t i) {
-  if (i > 0) return 1;
-  return 0;
-}
+#define TYPE float
+#define EXT  float
+SIGNUM_I
+#undef TYPE
+#undef EXT
 
-static inline uint16_t signum_u16(uint16_t i) {
-  if (i > 0) return 1;
-  return 0;
-}
+// ----------------------------------------
 
-static inline uint32_t signum_u32(uint32_t i) {
-  if (i > 0) return 1;
-  return 0;
-}
+#define TYPE double
+#define EXT  double
+SIGNUM_I
+#undef TYPE
+#undef EXT
 
-static inline uint64_t signum_u64(uint64_t i) {
-  if (i > 0) return 1;
-  return 0;
-}
+// ----------------------------------------
 
-/* index type */
+#define TYPE uint8_t
+#define EXT  u8
+#define M    UINT8
+SIGNUM_U
+ADD_OVF_U
+SUB_OVF_U
+MUL_OVF_U
+DIV_OVF_U
+#undef TYPE
+#undef EXT
+#undef M
 
-/* machine-depdentent size */
+// ----------------------------------------
+
+#define TYPE uint16_t
+#define EXT  u16
+#define M    UINT16
+SIGNUM_U
+ADD_OVF_U
+SUB_OVF_U
+MUL_OVF_U
+DIV_OVF_U
+#undef TYPE
+#undef EXT
+#undef M
+
+// ----------------------------------------
+
+#define TYPE uint32_t
+#define EXT  u32
+#define M    UINT32
+SIGNUM_U
+ADD_OVF_U
+SUB_OVF_U
+MUL_OVF_U
+DIV_OVF_U
+#undef TYPE
+#undef EXT
+#undef M
+
+// ----------------------------------------
+
+#define TYPE uint64_t
+#define EXT  u64
+#define M    UINT64
+SIGNUM_U
+ADD_OVF_U
+SUB_OVF_U
+MUL_OVF_U
+DIV_OVF_U
+#undef TYPE
+#undef EXT
+#undef M
+
+// ----------------------------------------
+
+// Index type: machine-depdentent size
 typedef int idx;
 
 #endif // IVORY_H

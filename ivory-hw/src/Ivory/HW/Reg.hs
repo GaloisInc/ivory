@@ -8,25 +8,18 @@
 
 module Ivory.HW.Reg where
 
-import Numeric (showHex)
 import Ivory.Language
-
-import Ivory.HW.IOArea
 import Ivory.HW.Prim
-import Ivory.HW.Machine
 
 -- | An I/O register containing a value of type "t".  Define registers
 -- using the "mkReg" functions.
 data Reg t = Reg Integer
 
--- | Smart constructor that ensures a register address is in bounds
--- when created.  This raises an error if the address is invalid.
+-- | Previously, this was a smart constructor to raise an error if the address
+--   is invalid, but we didn't find a way to parameterize the valid address
+--   space by the platform, so now mkReg accepts all addresses.
 mkReg :: forall t. IvoryIOReg t => Integer -> Reg t
-mkReg addr =
-  if (any (addrInBounds addr (ioRegSize (undefined :: t))) ioAreas)
-    then Reg addr
-    else error $ "I/O register out of bounds at address 0x" ++
-                 (showHex addr "")
+mkReg addr = Reg addr
 
 -- | Read an I/O register, returning an Ivory value.
 readReg :: IvoryIOReg a => Reg a -> Ivory eff a

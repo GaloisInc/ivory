@@ -6,16 +6,17 @@ version:             0.1.0.0
 author:              Galois, Inc.
 maintainer:          trevor@galois.com
 category:            Language
+synopsis:            Safe embedded C programming.
+description:         Using GHC type-system extensions, enforces safe low-level programming, while maintaining expressiveness.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 build-type:          Simple
 cabal-version:       >= 1.10
-
-flag debug-qq
-  default:              False
-  description:          Enable dumping of template-haskell splices on the
-                        examples
-flag werror
-  default:              False
-  description:          Pass -Werror to GHC.
+license:             BSD3
+license-file:        LICENSE
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-0100
 
 library
   exposed-modules:      Ivory.Language,
@@ -25,9 +26,15 @@ library
                         Ivory.Language.Array,
                         Ivory.Language.Assert,
                         Ivory.Language.Bits,
+                        Ivory.Language.BitData.Array,
+                        Ivory.Language.BitData.BitData,
+                        Ivory.Language.BitData.Bits,
+                        Ivory.Language.BitData.DefBitRep,
+                        Ivory.Language.BitData.Monad,
                         Ivory.Language.BoundedInteger,
                         Ivory.Language.CArray,
                         Ivory.Language.Cast,
+                        Ivory.Language.Comment,
                         Ivory.Language.Cond,
                         Ivory.Language.Const,
                         Ivory.Language.Float,
@@ -48,28 +55,39 @@ library
                         Ivory.Language.SizeOf,
                         Ivory.Language.String,
                         Ivory.Language.Struct,
+                        Ivory.Language.Syntax.Concrete.Lexer,
+                        Ivory.Language.Syntax.Concrete.Parser,
+                        Ivory.Language.Syntax.Concrete.ParseAST,
+                        Ivory.Language.Syntax.Concrete.QQ,
+                        Ivory.Language.Syntax.Concrete.QQ.BitDataQQ,
+                        Ivory.Language.Syntax.Concrete.QQ.Common,
+                        Ivory.Language.Syntax.Concrete.QQ.CondQQ,
+                        Ivory.Language.Syntax.Concrete.QQ.ExprQQ,
+                        Ivory.Language.Syntax.Concrete.QQ.ProcQQ,
+                        Ivory.Language.Syntax.Concrete.QQ.StmtQQ,
+                        Ivory.Language.Syntax.Concrete.QQ.StructQQ,
+                        Ivory.Language.Syntax.Concrete.QQ.TypeQQ,
+                        Ivory.Language.Syntax.Concrete.QQ.Types,
+                        Ivory.Language.Syntax.Concrete.TokenParser,
                         Ivory.Language.Syntax,
                         Ivory.Language.Syntax.AST,
                         Ivory.Language.Syntax.Type,
                         Ivory.Language.Syntax.Names,
                         Ivory.Language.Type,
                         Ivory.Language.Uint
-  other-modules:        Ivory.Language.Struct.Parser,
-                        Ivory.Language.Struct.Quote
   build-depends:        base >= 4.6,
                         pretty >= 1.1,
                         containers >= 0.5,
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
                         parsec >= 3.1.3,
+--                        syb,
+--                        haskell-src-meta,
+                        dlist >= 0.5,
                         -- QuickCheck >= 2.5.1,
-                        th-lift >= 0.5.5
+                        th-lift >= 0.5.5,
+                        array
   hs-source-dirs:       src
   default-language:     Haskell2010
 
-  if flag(debug-qq)
-    ghc-options:        -ddump-splices
-  if flag(werror)
-    ghc-options:        -Wall -Werror
-  else
-    ghc-options:        -Wall
+  ghc-options:          -Wall

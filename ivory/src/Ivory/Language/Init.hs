@@ -29,7 +29,8 @@ import qualified Ivory.Language.Effects as E
 
 import Control.Monad (forM_)
 import Data.Monoid (Monoid(..),mconcat)
-import GHC.TypeLits
+
+import GHC.TypeLits(Symbol)
 
 -- Initializers ----------------------------------------------------------------
 
@@ -129,35 +130,52 @@ instance IvoryInit IFloat
 instance IvoryInit IDouble
 instance ProcType proc => IvoryInit (ProcPtr proc)
 instance IvoryArea area => IvoryInit (Ptr Global area)
-instance SingI len => IvoryInit (Ix len)
+instance ANat len => IvoryInit (Ix len)
 
-instance IvoryZero (Stored IBool) where
-  izero = ival false
+class (IvoryVar a) => IvoryZeroVal a where
+  izeroval :: Init (Stored a)
 
-instance IvoryZero (Stored IChar) where
-  izero = ival (char '\0')
+instance IvoryZeroVal IBool where
+  izeroval = ival false
 
-instance IvoryArea area => IvoryZero (Stored (Ptr Global area)) where
-  izero = ival nullPtr
+instance IvoryZeroVal IChar where
+  izeroval = ival (char '\0')
 
--- catch-all case for numeric things
-instance (Num a, IvoryInit a) => IvoryZero (Stored a) where
-  izero = ival 0
+-- IvoryZero instances for numeric things
+instance IvoryZeroVal Uint8    where izeroval = ival 0
+instance IvoryZeroVal Uint16   where izeroval = ival 0
+instance IvoryZeroVal Uint32   where izeroval = ival 0
+instance IvoryZeroVal Uint64   where izeroval = ival 0
+instance IvoryZeroVal Sint8    where izeroval = ival 0
+instance IvoryZeroVal Sint16   where izeroval = ival 0
+instance IvoryZeroVal Sint32   where izeroval = ival 0
+instance IvoryZeroVal Sint64   where izeroval = ival 0
+instance IvoryZeroVal IFloat   where izeroval = ival 0
+instance IvoryZeroVal IDouble  where izeroval = ival 0
+
+instance (ANat n) => IvoryZeroVal (Ix n) where
+  izeroval = ival 0
+
+instance IvoryArea area => IvoryZeroVal (Ptr Global area) where
+  izeroval = ival nullPtr
+
+instance IvoryZeroVal a => IvoryZero (Stored a) where
+  izero = izeroval
 
 -- Array Initializers ----------------------------------------------------------
 
-instance (IvoryZero area, IvoryArea area, SingI len) =>
+instance (IvoryZero area, IvoryArea area, ANat len) =>
     IvoryZero (Array len area) where
   izero = Init (IVal ty I.InitZero)
     where
     ty = ivoryArea (Proxy :: Proxy (Array len area))
 
-iarray :: forall len area. (IvoryArea area, SingI len)
+iarray :: forall len area. (IvoryArea area, ANat len)
        => [Init area] -> Init (Array len area)
 iarray is = Init (IArray ty (take len (map getInit is)))
             -- truncate to known length
   where
-  len = fromInteger (fromTypeNat (sing :: Sing len))
+  len = fromInteger (fromTypeNat (aNat :: NatType len))
   ty = ivoryArea (Proxy :: Proxy (Array len area))
 
 -- Struct Initializers ---------------------------------------------------------

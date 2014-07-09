@@ -5,113 +5,145 @@
 
 -- | Fold over expressions that collect up assertions about the expressions.
 
-module Ivory.Opts.AssertFold where
+module Ivory.Opts.AssertFold
+  ( procFold
+  , expFoldDefault
+  , insert
+  , FolderStmt()
+  , freshVar
+  ) where
 
 import           MonadLib hiding (collect)
+import           Control.Applicative
 import           Data.Monoid
 import qualified Data.DList as D
 import           Ivory.Opts.Utils
-import qualified Ivory.Language.Syntax.AST as I
-import qualified Ivory.Language.Syntax.Type as I
+import qualified Ivory.Language.Syntax.AST   as I
+import qualified Ivory.Language.Syntax.Type  as I
 
 --------------------------------------------------------------------------------
 -- Monad and types.
 
+data St a = St
+  { dlst :: D.DList a -- ^ State (statements)
+  , int  :: Integer   -- ^ Counter for fresh names
+  , pass :: String    -- ^ Base for fresh names
+  } deriving (Show, Read, Eq)
+
 -- | A monad that holds our transformed program.
 newtype FolderM a b = FolderM
-  { unFolderM :: StateT (D.DList a) Id b
-  } deriving (Functor, Monad)
+  { unFolderM :: StateT (St a) Id b
+  } deriving (Functor, Monad, Applicative)
 
-instance StateM (FolderM a) (D.DList a) where
+instance StateM (FolderM a) (St a) where
   get = FolderM get
   set = FolderM . set
+
+extract :: FolderM a (D.DList a)
+extract = do
+  st <- get
+  return (dlst st)
 
 insert :: a -> FolderM a ()
 insert a = do
   st <- get
-  set (D.snoc st a)
+  set $ st { dlst = D.snoc (dlst st) a }
 
 inserts :: D.DList a -> FolderM a ()
 inserts ds = do
   st <- get
-  set (st <++> ds)
+  set $ st { dlst = dlst st <++> ds }
 
-insertList :: [a] -> FolderM a ()
-insertList = inserts . D.fromList
+runFolderM :: String -> FolderM a b -> D.DList a
+runFolderM ps m =
+  dlst $ snd $ runId $ runStateT st (unFolderM m)
+  where
+  st = St D.empty 0 ps
 
-resetState :: FolderM a ()
-resetState = set D.empty
+resetSt :: FolderM a ()
+resetSt = do
+  st <- get
+  set st { dlst = D.empty }
 
-runFolderM :: FolderM a b -> (b, D.DList a)
-runFolderM m = runId $ runStateT mempty (unFolderM m)
+-- | Create a fresh variable and update the variable store.
+freshVar :: FolderM a String
+freshVar = do
+  st <- get
+  let i = int st
+  set st { int = i + 1 }
+  return (pass st ++ show i)
 
 --------------------------------------------------------------------------------
 -- Specialization for statements
 
-type Stmts = D.DList I.Stmt
-
 type FolderStmt a = FolderM I.Stmt a
 
 -- Return a list of assertions from an expression's subexpressions.
-type ExpFold = I.Type -> I.Expr -> [I.Expr]
+type ExpFold = I.Type -> I.Expr -> FolderStmt ()
 
-insertAssert :: I.Expr -> FolderStmt ()
-insertAssert = insert . I.CompilerAssert
-
-insertAsserts :: [I.Expr] -> FolderStmt ()
-insertAsserts = insertList . map I.CompilerAssert
-
---------------------------------------------------------------------------------
-
-runEmptyState :: ExpFold -> [I.Stmt] -> [I.Stmt]
-runEmptyState ef stmts =
+runEmptyState :: String -> ExpFold -> [I.Stmt] -> [I.Stmt]
+runEmptyState ps ef stmts =
   let m = mapM_ (stmtFold ef) stmts in
-  D.toList $ snd (runFolderM m)
+  D.toList (runFolderM ps m)
 
-procFold :: ExpFold -> I.Proc -> I.Proc
-procFold ef p =
-  let body' = runEmptyState ef (I.procBody p) in
+-- | Run with fresh statements, returning them, but reseting the statement
+-- state.
+runFreshStmts :: ExpFold -> [I.Stmt] -> FolderStmt [I.Stmt]
+runFreshStmts ef stmts = do
+  st <- get
+  set st { dlst = D.empty }
+  mapM_ (stmtFold ef) stmts
+  st' <- get
+  set st' { dlst = dlst st, int = int st' }
+  return (D.toList (dlst st'))
+
+-- | Update a procedure's statements with its compiler assertions (and local
+-- variable declarations, as needed).
+procFold :: String -> ExpFold -> I.Proc -> I.Proc
+procFold ps ef p =
+  let body' = runEmptyState ps ef (I.procBody p) in
   p { I.procBody = body' }
 
 --------------------------------------------------------------------------------
 
 stmtFold :: ExpFold -> I.Stmt -> FolderStmt ()
 stmtFold ef stmt = case stmt of
-  I.IfTE e b0 b1                  -> do insertAsserts (ef I.TyBool e)
-                                        let b0' = runEmptyState ef b0
-                                        let b1' = runEmptyState ef b1
+  I.IfTE e b0 b1                  -> do ef I.TyBool e
+                                        b0' <- runFreshStmts ef b0
+                                        b1' <- runFreshStmts ef b1
                                         insert (I.IfTE e b0' b1')
-  I.Assert e                      -> do insertAsserts (ef I.TyBool e)
+  I.Assert e                      -> do ef I.TyBool e
                                         insert stmt
-  I.CompilerAssert e              -> do insertAsserts (ef I.TyBool e)
+  I.CompilerAssert e              -> do ef I.TyBool e
                                         insert stmt
-  I.Assume e                      -> do insertAsserts (ef I.TyBool e)
+  I.Assume e                      -> do ef I.TyBool e
                                         insert stmt
-  I.Return (I.Typed ty e)         -> do insertAsserts (ef ty e)
+  I.Return (I.Typed ty e)         -> do ef ty e
                                         insert stmt
   I.ReturnVoid                    -> insert stmt
-  I.Deref ty _v e                 -> do insertAsserts (ef ty e)
+  I.Deref ty _v e                 -> do ef ty e
                                         insert stmt
-  I.Store ty ptrExp e             -> do insertAsserts (ef (I.TyRef ty) ptrExp)
-                                        insertAsserts (ef ty e)
+  I.Store ty ptrExp e             -> do ef (I.TyRef ty) ptrExp
+                                        ef ty e
                                         insert stmt
-  I.Assign ty _v e                -> do insertAsserts (ef ty e)
+  I.Assign ty _v e                -> do ef ty e
                                         insert stmt
-  I.Call _ty _mv _nm args         -> do insertAsserts (concatMap efTyped args)
+  I.Call _ty _mv _nm args         -> do mapM_ efTyped args
                                         insert stmt
-  I.Loop v e incr blk             -> do insertAsserts (ef (I.TyInt I.Int32) e)
-                                        insertAsserts (efIncr incr)
-                                        let blk' = runEmptyState ef blk
+  I.Loop v e incr blk             -> do ef (I.TyInt I.Int32) e
+                                        efIncr incr
+                                        blk' <- runFreshStmts ef blk
                                         insert (I.Loop v e incr blk')
   I.Break                         -> insert stmt
-  I.Local _ty _v init'            -> do insertAsserts (efInit init')
+  I.Local _ty _v init'            -> do efInit init'
                                         insert stmt
-  I.RefCopy ty e0 e1              -> do insertAsserts (ef ty e0)
-                                        insertAsserts (ef ty e1)
+  I.RefCopy ty e0 e1              -> do ef ty e0
+                                        ef ty e1
                                         insert stmt
   I.AllocRef{}                    -> insert stmt
-  I.Forever blk                   -> do let blk' = runEmptyState ef blk
+  I.Forever blk                   -> do blk' <- runFreshStmts ef blk
                                         insert (I.Forever blk')
+  I.Comment _                     -> insert stmt
   where
   efTyped (I.Typed ty e) = ef ty e
   efIncr incr = case incr of
@@ -119,28 +151,15 @@ stmtFold ef stmt = case stmt of
     I.DecrTo e -> ef ty e
     where ty = I.TyInt I.Int32
   efInit init' = case init' of
-    I.InitZero          -> []
+    I.InitZero          -> return ()
     I.InitExpr ty e     -> ef ty e
-    I.InitStruct inits  -> concatMap (efInit . snd) inits
-    I.InitArray inits   -> concatMap efInit inits
-
---------------------------------------------------------------------------------
--- Specialization for expressions
-
-type Exprs = D.DList I.Expr
-
-type FolderExpr a = FolderM I.Expr a
-
--- | Default expression folder that performs the recursion for an asserter.
-expFoldDefault :: ExpFold -> I.Type -> I.Expr -> [I.Expr]
-expFoldDefault ef ty e =
-  let (_, ds) = runFolderM (expFoldDefault' ef ty e) in
-  D.toList ds
+    I.InitStruct inits  -> mapM_ (efInit . snd) inits
+    I.InitArray inits   -> mapM_ efInit inits
 
 --------------------------------------------------------------------------------
 
-expFoldDefault' :: ExpFold ->  I.Type -> I.Expr -> FolderExpr ()
-expFoldDefault' asserter ty e = case e of
+expFoldDefault :: ExpFold ->  I.Type -> I.Expr -> FolderStmt ()
+expFoldDefault asserter ty e = case e of
   I.ExpSym{}                     -> go e
   I.ExpVar{}                     -> go e
   I.ExpLit{}                     -> go e
@@ -158,8 +177,8 @@ expFoldDefault' asserter ty e = case e of
   I.ExpAddrOfGlobal{}            -> go e
   I.ExpMaxMin{}                  -> go e
   where
-  go = insertList . asserter ty
-  expFold = expFoldDefault' asserter
+  go = asserter ty
+  expFold = expFoldDefault asserter
 
 --------------------------------------------------------------------------------
 
@@ -175,17 +194,18 @@ expFoldDefault' asserter ty e = case e of
 --
 -- x /= 0 ? 3.0/x : 0.0
 --
-expFoldOps :: ExpFold -> I.Type -> (I.ExpOp, [I.Expr]) -> FolderExpr ()
+-- Otherwise, map over the expression with the asserter.
+expFoldOps :: ExpFold -> I.Type -> (I.ExpOp, [I.Expr]) -> FolderStmt ()
 expFoldOps asserter ty (op, args) = case (op, args) of
 
   (I.ExpCond, [cond, texp, fexp])
     -> do
     fold ty cond
-    preSt <- get
+    preSt <- extract
 
     tSt <- runBranch cond texp
     fSt <- runBranch (neg cond) fexp
-    resetState
+    resetSt
 
     inserts preSt
     inserts tSt
@@ -200,20 +220,19 @@ expFoldOps asserter ty (op, args) = case (op, args) of
   _ -> mapM_ (fold $ expOpType ty op) args
 
   where
-  fold = expFoldDefault' asserter
+  fold = expFoldDefault asserter
 
   runBranch cond e = do
-    resetState
-    fold ty e
-    withEnv cond
-    get
+    resetSt
+    expFoldDefault (withCond cond asserter) ty e
+    extract
 
   runBool exp0 exp1 f = do
-    preSt <- get
+    preSt <- extract
 
     st0 <- runCase exp0
     st1 <- runBranch (f exp0) exp1
-    resetState
+    resetSt
 
     inserts preSt
     inserts st0
@@ -221,9 +240,9 @@ expFoldOps asserter ty (op, args) = case (op, args) of
 
     where
     runCase e = do
-      resetState
+      resetSt
       fold ty e
-      get
+      extract
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -231,18 +250,15 @@ expFoldOps asserter ty (op, args) = case (op, args) of
 (<++>) :: Monoid a => a -> a -> a
 a <++> b = a `mappend` b
 
--- Add a precondition to a conditional expression.
-withEnv :: I.Expr -> FolderExpr ()
-withEnv pre = do
-  st <- get
-  let assts = D.map (pre ==>) st
-  set assts
-
 infixr 0 ==>
 (==>) :: I.Expr -> I.Expr -> I.Expr
 (==>) e0 e1 = I.ExpOp I.ExpOr [neg e0, e1]
 
 neg :: I.Expr -> I.Expr
 neg e = I.ExpOp I.ExpNot [e]
+
+-- | Modify the ExpFold function to take a precondition.
+withCond :: I.Expr -> ExpFold -> ExpFold
+withCond cond f ty e = f ty (cond ==> e)
 
 --------------------------------------------------------------------------------

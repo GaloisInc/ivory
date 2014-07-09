@@ -6,6 +6,7 @@
 
 module PID where
 
+import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 
@@ -67,14 +68,29 @@ pidUpdate = proc "pid_update" $
     store (pid ~> pid_err) err
     ret err
 
+foo :: Def ('[ Ref s (Array 3 (Stored Uint32))
+             , Ref s (Array 3 (Stored Uint32)) ] :-> ())
+foo = proc "foo" $ \a b ->
+--  requires (*a!0 < *b!0)
+  requires (checkStored (a ! 0)
+              (\v -> (checkStored (b ! 0)
+                     (\v1 -> v <? v1))))
+  $ body $ do
+    retVoid
+
 runPID :: IO ()
-runPID = runCompiler [cmodule] initialOpts { stdOut = True }
+runPID = void $ runCompiler [cmodule] initialOpts { stdOut = True, bitShiftCheck = True, divZero = True }
 
 cmodule :: Module
 cmodule = package "PID" $ do
-  defStruct (Proxy :: Proxy "PID")
-  incl pidUpdate
-  incl alloc_test
+  incl foobar
+  -- defStruct (Proxy :: Proxy "PID")
+  -- incl pidUpdate
+  -- incl alloc_test
+
+foobar :: Def ('[Uint8] :-> Uint8)
+foobar = proc "foobar" $ \x -> body $ do
+  ret (x `iShiftR` (3 `iDiv` 2))
 
 alloc_test :: Def ('[] :-> IFloat)
 alloc_test  = proc "alloc_test" $ body $ do

@@ -2,24 +2,24 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory-backend-c
-version:             0.1.0.0
+version:             0.1.0.1
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language
+synopsis:            Ivory C backend.
+description:         Ivory compiler, to a subset of C99.
+homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
 build-type:          Simple
 cabal-version:       >= 1.10
-license:             BSD3
-
 data-files:             runtime/ivory.h,
+                        runtime/ivory_templates.h,
                         runtime/ivory_asserts.h
-
-flag debug-qq
-  default:              False
-  description:          Enable dumping of template-haskell splices
-
-flag werror
-  default:              False
-  description:          Pass -Werror to GHC.
+license:             BSD3
+license-file:        LICENSE
+source-repository    this
+  type:     git
+  location: https://github.com/GaloisInc/ivory
+  tag:      hackage-backend-0101
 
 library
   exposed-modules:      Ivory.Compile.C,
@@ -33,7 +33,7 @@ library
   other-modules:        Paths_ivory_backend_c
 
   build-depends:        base >= 4.6,
-                        language-c-quote >= 0.7.1,
+                        language-c-quote >= 0.7.8,
                         -- XXX remove when inits quasi-quote escape is added
                         srcloc,
                         mainland-pretty >= 0.2.5,
@@ -50,9 +50,4 @@ library
   hs-source-dirs:       src
   default-language:     Haskell2010
 
-  if flag(debug-qq)
-    ghc-options:        -ddump-splices
-  if flag(werror)
-    ghc-options:        -Wall -Werror
-  else
-    ghc-options:        -Wall
+  ghc-options:          -Wall

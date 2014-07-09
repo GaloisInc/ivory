@@ -66,12 +66,16 @@ data Opts = Opts
   , ixCheck     :: Bool
   , fpCheck     :: Bool
   , outProcSyms :: Bool
+  , bitShiftCheck :: Bool
   -- CFG stuff
   , cfg         :: Bool
   , cfgDotDir   :: FilePath
   , cfgProc     :: [String]
   -- debugging
   , verbose     :: Bool
+  -- Typechecking
+  , tcWarnings  :: Bool
+  , tcErrors    :: Bool
 
   , help        :: Bool
   } deriving (Show)
@@ -87,13 +91,14 @@ initialOpts  = Opts
   , depPrefix    = ""
   , rtIncludeDir = Nothing
 
-  -- optimization passes
+  -- optimization/safety passes
   , constFold    = False
   , overflow     = False
   , divZero      = False
   , ixCheck      = False
   , fpCheck      = False
   , outProcSyms  = False
+  , bitShiftCheck = False
 
   -- CFG stuff
   , cfg          = False
@@ -101,7 +106,8 @@ initialOpts  = Opts
   , cfgProc      = []
   -- debugging
   , verbose      = False
-
+  , tcWarnings   = False
+  , tcErrors     = True
   , help         = False
   }
 
@@ -141,6 +147,9 @@ setFpCheck  = success (\opts -> opts { fpCheck = True })
 setProcSyms :: OptParser Opts
 setProcSyms  = success (\opts -> opts { outProcSyms = True })
 
+setBitShiftCheck :: OptParser Opts
+setBitShiftCheck  = success (\opts -> opts { bitShiftCheck = True })
+
 setCfg :: OptParser Opts
 setCfg  = success (\opts -> opts { cfg = True })
 
@@ -152,6 +161,12 @@ addCfgProc str = success (\opts -> opts { cfgProc = cfgProc opts ++ [str] })
 
 setVerbose :: OptParser Opts
 setVerbose  = success (\opts -> opts { verbose = True })
+
+setWarnings :: OptParser Opts
+setWarnings = success (\opts -> opts { verbose = True })
+
+setErrors :: Bool -> OptParser Opts
+setErrors b = success (\opts -> opts { verbose = b })
 
 setHelp :: OptParser Opts
 setHelp  = success (\opts -> opts { help = True })
@@ -182,6 +197,8 @@ options  =
     "generate assertions checking for back indexes (e.g., negative)"
   , Option "" ["fp-check"] (NoArg setFpCheck)
     "generate assertions checking for NaN and Infinitiy."
+  , Option "" ["bitshift-check"] (NoArg setBitShiftCheck)
+    "generate assertions checking for bit-shift overflow."
 
   , Option "" ["out-proc-syms"] (NoArg setProcSyms)
     "dump out the modules' function symbols"
@@ -196,6 +213,15 @@ options  =
 
   , Option "" ["verbose"] (NoArg setVerbose)
     "verbose debugging output"
+
+  , Option "" ["tc-warnings"] (NoArg setWarnings)
+    "show type-check warnings"
+
+  , Option "" ["tc-errors"] (NoArg $ setErrors True)
+    "Abort on type-check errors (default)"
+
+  , Option "" ["no-tc-errors"] (NoArg $ setErrors False)
+    "Treat type-check errors as warnings"
 
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"

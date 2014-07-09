@@ -12,7 +12,6 @@
 
 module Example where
 
-import Ivory.BitData
 import Ivory.HW
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
@@ -22,7 +21,7 @@ import ExampleTypes
 ----------------------------------------------------------------------
 -- Driver Definition
 
-[bitdata|
+[ivory|
  bitdata SPI_CR1 :: Bits 16 = spi_cr1
    { spi_cr1_bidimode :: Bit
    , spi_cr1_bidioe   :: Bit
@@ -88,5 +87,5 @@ cmodule = package "io" $ do
   incl test1
 
 main :: IO ()
-main = runCompiler [cmodule] (initialOpts {stdOut = True, constFold = True})
+main = void $ runCompiler [cmodule] (initialOpts {stdOut = True, constFold = True})
 -- main = (mapM_ . mapM_) putStrLn $ showModule $ compileModule cmodule
