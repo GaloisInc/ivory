@@ -25,6 +25,9 @@ next
     by (clarsimp elim!: WfNatVE WfPNatVE intro!: WfWValue.intros WfPrimValue.intros)
 qed (auto intro: WfWValue.intros WfPrimValue.intros)
 
+lemma those_map_Some_iff: "those (map f xs) = Some v \<longleftrightarrow> v = map (the \<circ> f) xs \<and> (\<forall> x \<in> set xs. f x \<noteq> None)"
+by (induction xs arbitrary: v) (auto split: option.splits)
+
 lemma Expr_safeE:
   assumes wfe: "\<Gamma> \<turnstile> e : \<tau>"
   and     wfg: "WfStore \<Delta> \<Theta> G \<Gamma>"
@@ -32,6 +35,48 @@ lemma Expr_safeE:
   shows R
   using wfe wfg by (auto dest!: Expr_safe intro: rl)
 
+lemma Init_safe:
+  assumes wfi: "\<Gamma> \<turnstile>0 i : \<alpha>"
+  and     wfg: "WfStore \<Delta> \<Theta> G \<Gamma>"
+  shows "\<exists>hv. InitV G i = Some hv \<and> WfHValue hv \<alpha>"
+  using wfi wfg
+proof induction
+  case (wfIStored \<Gamma> e \<tau>)
+  then obtain pv where "G \<Turnstile> e \<down> PrimV pv" "WfPrimValue pv \<tau>" by (auto elim!: WfWValue.cases Expr_safeE)
+  thus ?case by (auto intro: WfHValue.intros)
+
+next
+  case (wfIArray es \<Gamma> \<alpha> n)
+  {
+    fix e
+    assume "e \<in> set es"
+    with wfIArray.IH and wfIArray.prems
+    have "\<exists>hv. InitV G e = Some hv \<and> WfHValue hv \<alpha>"
+      by simp
+  }
+  thus ?case using wfIArray.hyps
+    by (fastforce simp add: those_map_Some_iff intro: WfHValue.intros)
+
+next
+  case (wfIStruct es \<alpha>s \<Gamma>)
+  have "\<forall> e \<in> set es. \<exists> hv . InitV G e = Some hv"
+  proof
+    fix e
+    assume "e \<in> set es"
+    then obtain \<alpha> where "(e,\<alpha>) \<in> set (zip es \<alpha>s)" using `length es = length \<alpha>s`
+      by (auto simp: set_zip in_set_conv_nth)
+    thus "\<exists> hv . InitV G e = Some hv" using wfIStruct.IH and wfIStruct.prems by auto
+  qed
+  thus ?case using wfIStruct
+    by (fastforce simp add: those_map_Some_iff intro: WfHValue.intros simp: zip_map1)
+qed
+    
+lemma Init_safeE:
+  assumes wfi: "\<Gamma> \<turnstile>0 i : \<alpha>"
+  and     wfg: "WfStore \<Delta> \<Theta> G \<Gamma>"
+  and     rl:  "\<And>hv. \<lbrakk> InitV G i = Some hv ; WfHValue hv \<alpha> \<rbrakk> \<Longrightarrow> R"
+  shows R
+  using wfi wfg by (auto dest!: Init_safe intro: rl)
 
 lemma ImpureExpr_safeE:
   notes subheap_refl [intro]
@@ -51,18 +96,19 @@ proof (induction)
   thus ?case using `WfHeap H \<Theta>`
     by (auto intro!: that)
 next    
-  case (wfNewRef \<Gamma> e \<tau> \<rho>)
+  case (wfNewRef \<Gamma> e \<alpha> \<rho>)
   note that = wfNewRef.prems(1)
 
-  from `\<Gamma> \<turnstile> e : Prim \<tau>` `WfStore \<Delta> \<Theta> st \<Gamma>` obtain v where "st \<Turnstile> e \<down> PrimV v" "WfPrimValue v \<tau>" 
-    by (auto elim!: Expr_safeE WfWValue.cases)
+  from `\<Gamma> \<turnstile>0 e : \<alpha>` `WfStore \<Delta> \<Theta> st \<Gamma>`
+  obtain hv where "InitV st e = Some hv" "WfHValue hv \<alpha>"
+    by (auto elim!: Init_safeE)
 
   show ?case
   proof (rule that)
     let ?region  = "(length H - 1)"
     let ?off     = "fresh_in_heap H ?region"
-    let ?H'      = "take ?region H @ [(H ! ?region)(?off \<mapsto> StoredV v)]"
-    let ?\<Theta>'      = "take ?region \<Theta> @ [(\<Theta> ! ?region)(?off \<mapsto> Stored \<tau>)]"
+    let ?H'      = "take ?region H @ [(H ! ?region)(?off \<mapsto> hv)]"
+    let ?\<Theta>'      = "take ?region \<Theta> @ [(\<Theta> ! ?region)(?off \<mapsto> \<alpha>)]"
 
     from `WfHeap H \<Theta>` have fin: "finite (dom (lookup_heap H ?region))" 
       by (auto elim: WfHeap.cases) 
@@ -71,18 +117,17 @@ next
     have "?off \<notin> dom (lookup_heap \<Theta> ?region)"
       by (rule contra_subsetD [OF WfHeap_dom' fresh_in_heap_fresh])
 
-    from `st \<Turnstile> e \<down> PrimV v` `H \<noteq> []`
+    from `InitV st e = Some hv` `H \<noteq> []`
     show "st \<Turnstile> H, NewRef e \<Down> ?H', RefV ?region ?off"
       by (clarsimp simp: Let_def update_heap_def)
 
     from `WfHeap H \<Theta>` have "length \<Theta> = length H" by (rule WfHeap_length [symmetric])
-    with `H \<noteq> []` have "update_heap \<Theta> ?region ?off (Stored \<tau>) = Some ?\<Theta>'"
+    with `H \<noteq> []` have "update_heap \<Theta> ?region ?off \<alpha> = Some ?\<Theta>'"
       by (auto simp add: update_heap_def diff_Suc_less)
-
-    from `WfPrimValue v \<tau>` have "WfHValue (StoredV v) (Stored \<tau>)" ..
-    with `WfHeap H \<Theta>` show "WfHeap ?H' ?\<Theta>'"
+    
+    from `WfHeap H \<Theta>` `WfHValue hv \<alpha>` show "WfHeap ?H' ?\<Theta>'"
     proof (rule WfHeap_upd [OF _ _ refl])
-      from `H \<noteq> []` show "update_heap H ?region ?off (StoredV v) = Some ?H'"
+      from `H \<noteq> []` show "update_heap H ?region ?off hv = Some ?H'"
         by (simp add: update_heap_def)
       from fin show "?off \<notin> dom (lookup_heap H ?region)"
         by (rule fresh_in_heap_fresh)
@@ -92,10 +137,10 @@ next
     show "subheap \<Theta> ?\<Theta>'" using `length \<Theta> = length H` `H \<noteq> []` 
       using subheap_take_drop [OF notin refl] by simp
     
-    show "WfWValue \<Delta> ?\<Theta>' (RefV ?region ?off) (RefT \<rho> (Stored \<tau>))"
+    show "WfWValue \<Delta> ?\<Theta>' (RefV ?region ?off) (RefT \<rho> \<alpha>)"
     proof      
       from `length \<Theta> = length H` 
-      show "lookup_heap ?\<Theta>' ?region ?off = Some (Stored \<tau>)"
+      show "lookup_heap ?\<Theta>' ?region ?off = Some \<alpha>"
         by (auto simp: lookup_heap_Some_iff nth_append min_absorb2 )
           
       from `WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1)` `length \<Theta> = length H` 

@@ -68,6 +68,10 @@ where
 (* | wfIStruct: "list_all2 (WfInit \<Gamma>) es \<alpha>s \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"*)
 | wfIStruct: "\<lbrakk> (\<forall> (e,\<alpha>) \<in> set (zip es \<alpha>s). \<Gamma> \<turnstile>0 e : \<alpha>) ; length es = length \<alpha>s \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"
 
+inductive_cases WfIStoredE: "\<Gamma> \<turnstile>0 IStored e : Stored \<tau>"
+inductive_cases WfIArrayE:  "\<Gamma> \<turnstile>0 IArray es : Array n \<alpha>"
+inductive_cases WfIStructE: "\<Gamma> \<turnstile>0 IStruct es: Struct \<alpha>s"
+
 subsection {* Impure expressions *}
 
 inductive
@@ -141,6 +145,12 @@ inductive
   WfHValue :: "hvalue \<Rightarrow> area \<Rightarrow> bool"
 where
   wfStoredV: "WfPrimValue v \<tau> \<Longrightarrow> WfHValue (StoredV v) (Stored \<tau>)"
+| wfArrayV:  "\<lbrakk> (\<forall> v \<in> set vs. WfHValue v \<alpha>) ; length vs = n \<rbrakk> \<Longrightarrow> WfHValue (ArrayV vs) (Array n \<alpha>)"
+| wfStructV: "\<lbrakk> (\<forall> (v,\<alpha>) \<in> set (zip vs \<alpha>s). WfHValue v \<alpha>) ; length vs = length \<alpha>s \<rbrakk> \<Longrightarrow> WfHValue (StructV vs) (Struct \<alpha>s)"
+
+inductive_cases WfStoredVE: "WfHValue (StoredV v)  (Stored \<tau>)"
+inductive_cases WfArrayVE:  "WfHValue (ArrayV vs)  (Array n \<alpha>)"
+inductive_cases WfStructVE: "WfHValue (StructV vs) (Struct \<alpha>s)"
 
 inductive 
   WfHeap :: "heap \<Rightarrow> heapT \<Rightarrow> bool"
