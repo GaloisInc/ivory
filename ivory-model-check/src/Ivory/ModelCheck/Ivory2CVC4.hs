@@ -21,7 +21,8 @@ modelCheckMod :: I.Module -> ModelCheck ()
 modelCheckMod m =
   -- We rely on constant folding having happend in the model-checker.  E.g., in
   -- computing the number of loop iterations.
-  mapM_ (modelCheckProc . overflowFold . constFold) (getProcs $ I.modProcs m)
+  -- mapM_ (modelCheckProc . overflowFold . constFold) (getProcs $ I.modProcs m)
+  mapM_ (modelCheckProc . constFold) (getProcs $ I.modProcs m)
   where
   getProcs ps = I.public ps ++ I.private ps
 
@@ -57,17 +58,19 @@ toBody ens stmt =
   case stmt of
     I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
     I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
+    I.CompilerAssert exp   -> addQuery =<< toExpr I.TyBool exp
     I.Return (I.Typed t e) -> void (toExpr t e)
     I.ReturnVoid           -> return ()
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
-    I.Call t retV nm args  -> undefined
+--    I.Call t retV nm args  -> error "Calls undefined"
     I.Local t v inits      -> toLocal t v inits
 
     I.AllocRef t ref name  -> toAlloc t ref name
 
     I.Loop v exp inc blk   -> toLoop v exp inc blk
+    _                      -> error $ "XXX Unimplemented: " ++ show stmt
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
