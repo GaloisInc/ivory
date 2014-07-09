@@ -44,6 +44,15 @@ where
   "G \<Turnstile> e \<down> v \<equiv> ExpV G e = Some v"
 
 fun
+  InitV :: "'var store \<Rightarrow> 'var init \<Rightarrow> hvalue option"
+where
+  "InitV G (IStored e) = (case ExpV G e of
+                          Some (PrimV v) \<Rightarrow> Some (StoredV v)
+                          | _ \<Rightarrow> None)"
+| "InitV G (IArray es)  = Option.map ArrayV  (List.those (map (InitV G) es))"
+| "InitV G (IStruct es) = Option.map StructV (List.those (map (InitV G) es))"
+
+fun
   wvalue_to_hvalue :: "wvalue \<Rightarrow> hvalue option"
 where
   "wvalue_to_hvalue (PrimV v) = Some (StoredV v)"

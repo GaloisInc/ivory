@@ -86,7 +86,7 @@ subsubsection {* Values *}
 (* As with the types above *)
 datatype prim_value = NatV nat | BoolV bool | UnitV
 datatype wvalue = PrimV prim_value | RefV ridx roff
-datatype hvalue = StoredV prim_value
+datatype hvalue = StoredV prim_value | ArrayV "hvalue list" | StructV "hvalue list"
 
 (* Functions *)
 datatype ('var, 'fun) func = Func "'var list" "('var, 'fun) stmt"

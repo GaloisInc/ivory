@@ -65,10 +65,8 @@ inductive
 where
   wfIStored: "\<Gamma> \<turnstile> e : Prim \<tau> \<Longrightarrow> \<Gamma> \<turnstile>0 IStored e : Stored \<tau>"
 | wfIArray:  "\<lbrakk> (\<forall> e \<in> set es. \<Gamma> \<turnstile>0 e : \<alpha>) ; length es = n \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile>0 IArray es : Array n \<alpha>"
-(*
-| wfIStruct: "list_all2 (WfInit \<Gamma>) es \<alpha>s \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"
-*)
-  | wfIStruct: "\<lbrakk> (\<forall> (e,\<alpha>) \<in> set (zip es \<alpha>s). \<Gamma> \<turnstile>0 e : \<alpha>) ; length es = length \<alpha>s \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"
+(* | wfIStruct: "list_all2 (WfInit \<Gamma>) es \<alpha>s \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"*)
+| wfIStruct: "\<lbrakk> (\<forall> (e,\<alpha>) \<in> set (zip es \<alpha>s). \<Gamma> \<turnstile>0 e : \<alpha>) ; length es = length \<alpha>s \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"
 
 subsection {* Impure expressions *}
 
