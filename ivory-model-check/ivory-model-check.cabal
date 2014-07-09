@@ -16,7 +16,7 @@ library
                         filepath,
                         process,
                         directory,
-                        bytestring,
+                        bytestring >= 0.10,
                         monadLib,
                         ivory,
                         ivory-opts,
