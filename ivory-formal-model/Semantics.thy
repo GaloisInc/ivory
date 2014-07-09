@@ -71,10 +71,9 @@ where
   (* We just choose a p here, we can probably do better; at least this is deterministic wrt equality as opposed to SOME *)
 | ExpNewRef: "ImpureExpV G H (NewRef e) = (let region = length H - 1 in 
                                            let off = fresh_in_heap H region in
-                                           Option.bind (ExpV G e) 
-                                           (\<lambda>wv. Option.bind (wvalue_to_hvalue wv)
+                                           Option.bind (InitV G e) 
                                                  (\<lambda>v. Option.bind (update_heap H region off v)
-                                                      (\<lambda>H'. Some (H', RefV region off)))))"  
+                                                      (\<lambda>H'. Some (H', RefV region off))))"  
 | ExpReadRef: "ImpureExpV G H (ReadRef e) = (case ExpV G e of Some (RefV region off) \<Rightarrow> Option.bind (lookup_heap H region off)
                                                                                         (\<lambda>hv. Option.bind (hvalue_to_wvalue hv)
                                                                                               (\<lambda>v. Some (H,v)))
