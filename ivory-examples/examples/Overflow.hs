@@ -51,8 +51,8 @@ cmodule :: Module
 cmodule = package "Overflow" $ --incl ovf1 >> incl ovf2 >> 
     incl ovf3
 
-fooM :: Module
-fooM = package "foo" $ incl foo
+-- fooM :: Module
+-- fooM = package "foo" $ incl foo
 
 writeOverflow :: Opts -> IO ()
 writeOverflow opts = void $ runCompiler [cmodule]
