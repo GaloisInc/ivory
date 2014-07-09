@@ -24,21 +24,21 @@ ovf3  = proc "ovf3" $ \ n m o -> body $ do
   ret $ (o ? (n / m, m / n))
 
 
-foo :: Def ('[Uint8, Uint8, Uint8, Uint8] :-> Sint32)
-foo = proc "foo" $ \ a b c d -> body $ do
-  foo' a b c d >>= ret
+-- foo :: Def ('[Uint8, Uint8, Uint8, Uint8] :-> Sint32)
+-- foo = proc "foo" $ \ a b c d -> body $ do
+--   foo' a b c d >>= ret
 
-foo' :: Uint8 -> Uint8 -> Uint8 -> Uint8 -> Ivory eff Sint32
-foo' a b c d = do
-  uint <- fromTwosComplement $
-            (a `shift` 24) .|
-            (b `shift` 16) .|
-            (c `shift` 8)  .|
-            safeCast d
-  return (castWith 0 uint)
-  where
-  shift :: Uint8 -> Uint32 -> Uint32
-  shift x y = safeCast x `iShiftL` y
+-- foo' :: Uint8 -> Uint8 -> Uint8 -> Uint8 -> Ivory eff Sint32
+-- foo' a b c d = do
+--   uint <- fromTwosComplement $
+--             (a `shift` 24) .|
+--             (b `shift` 16) .|
+--             (c `shift` 8)  .|
+--             safeCast d
+--   return (castWith 0 uint)
+--   where
+--   shift :: Uint8 -> Uint32 -> Uint32
+--   shift x y = safeCast x `iShiftL` y
 
 fromTwosComplement :: Uint32 -> Ivory eff Uint32
 fromTwosComplement i = do
