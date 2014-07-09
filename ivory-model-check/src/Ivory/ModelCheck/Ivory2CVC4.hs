@@ -62,7 +62,7 @@ toBody ens stmt =
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
-    I.Call t retV nm args  ->
+    I.Call t retV nm args  -> undefined
     I.Local t v inits      -> toLocal t v inits
 
     I.AllocRef t ref name  -> toAlloc t ref name
