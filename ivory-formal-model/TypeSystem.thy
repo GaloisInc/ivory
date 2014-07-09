@@ -58,16 +58,28 @@ where
 | wfBinCmp:   "\<lbrakk> \<Gamma> \<turnstile> e\<^sub>1 : NAT; \<Gamma> \<turnstile> e\<^sub>2 : NAT \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> BinCmp bop e\<^sub>1 e\<^sub>2 : BOOL"
 | wfBinOp:    "\<lbrakk> \<Gamma> \<turnstile> e\<^sub>1 : NAT; \<Gamma> \<turnstile> e\<^sub>2 : NAT \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile> BinOp bop e\<^sub>1 e\<^sub>2 : NAT"
 
+subsection {* Reference Initializers *}
+
+inductive
+  WfInit :: "('var, 'r) storeT \<Rightarrow> 'var init \<Rightarrow> area \<Rightarrow> bool" ("_ \<turnstile>0 _ : _" [49,49,49]50)
+where
+  wfIStored: "\<Gamma> \<turnstile> e : Prim \<tau> \<Longrightarrow> \<Gamma> \<turnstile>0 IStored e : Stored \<tau>"
+| wfIArray:  "\<lbrakk> (\<forall> e \<in> set es. \<Gamma> \<turnstile>0 e : \<alpha>) ; length es = n \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile>0 IArray es : Array n \<alpha>"
+(*
+| wfIStruct: "list_all2 (WfInit \<Gamma>) es \<alpha>s \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"
+*)
+  | wfIStruct: "\<lbrakk> (\<forall> (e,\<alpha>) \<in> set (zip es \<alpha>s). \<Gamma> \<turnstile>0 e : \<alpha>) ; length es = length \<alpha>s \<rbrakk> \<Longrightarrow> \<Gamma> \<turnstile>0 IStruct es : Struct \<alpha>s"
+
 subsection {* Impure expressions *}
 
 inductive
   WfImpureExpr :: "('var, 'r) storeT \<Rightarrow> 'r \<Rightarrow> 'var impureexp  \<Rightarrow> 'r wtype \<Rightarrow> bool" ("_, _ \<turnstile>I _ : _" [49, 49, 49] 50) 
 where
   wfPure:     "\<lbrakk> \<Gamma> \<turnstile> e : \<tau> \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I Pure e : \<tau>"
-| wfNewRef:   "\<lbrakk> \<Gamma> \<turnstile> e : Prim \<tau>  \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I NewRef e : RefT \<rho> (Stored \<tau>)"
+| wfNewRef:   "\<lbrakk> \<Gamma> \<turnstile>0 i : \<alpha>  \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I NewRef i : RefT \<rho> \<alpha>"
 | wfReadRef:  "\<lbrakk> \<Gamma> \<turnstile> e : RefT \<gamma> (Stored \<tau>) \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I ReadRef e : Prim \<tau>"
   (* Solve for e2 first *)
-| wfWriteRef: "\<lbrakk> \<Gamma> \<turnstile> e\<^sub>2 : Prim \<tau>;  \<Gamma> \<turnstile> e\<^sub>1 : RefT \<gamma> (Stored \<tau>) \<rbrakk>  \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I WriteRef e\<^sub>1 e\<^sub>2 : UNIT" 
+| wfWriteRef: "\<lbrakk> \<Gamma> \<turnstile> e\<^sub>2 : Prim \<tau>;  \<Gamma> \<turnstile> e\<^sub>1 : RefT \<gamma> (Stored \<tau>) \<rbrakk>  \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I WriteRef e\<^sub>1 e\<^sub>2 : UNIT"
 
 subsection {* Statements *}
 

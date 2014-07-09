@@ -12,7 +12,7 @@ subsection {* Types *}
    from references*)
 datatype prim = BoolT | NatT | UnitT 
 (* These classify heap values, which are only primitive types for the moment *)
-datatype area = Stored prim
+datatype area = Stored prim | Array nat area | Struct "area list"
 (* The type level type of expressions *)
 datatype 'r wtype = Prim prim | RefT 'r area
 
@@ -50,10 +50,16 @@ datatype 'var expr =
   | BinCmp cmpop "'var expr" "'var expr"
   | BinOp  binop "'var expr" "'var expr"
 
+(* Reference initializers *)
+datatype 'var init =
+  IStored "'var expr"
+  | IArray "'var init list"
+  | IStruct "'var init list"
+
 (* Not control flow, but impure in that they mutate the heap *)
 datatype 'var impureexp = 
   Pure       "'var expr"
-  | NewRef   "'var expr" 
+  | NewRef   "'var init" 
   | ReadRef  "'var expr"
   | WriteRef "'var expr" "'var expr"
 

@@ -252,12 +252,19 @@ lemma WfExpr_tsubst:
   using wf
   by induction (auto intro: WfE.intros)
 
+lemma WfInit_tsubst:
+  notes o_apply [simp del]
+  assumes wf: "\<Gamma> \<turnstile>0 i : \<alpha>"
+  shows   "(Option.map (tsubst \<theta>) \<circ> \<Gamma>) \<turnstile>0 i : \<alpha>"
+  using wf
+  by induction (auto intro!: WfInit.intros dest: WfExpr_tsubst)
+
 lemma WfImpureExpr_tsubst:
   notes o_apply [simp del]
   assumes wf: "\<Gamma>, \<rho> \<turnstile>I e : \<tau>"
   shows  "(Option.map (tsubst \<theta>) \<circ> \<Gamma>), (\<theta> \<rho>) \<turnstile>I e : tsubst \<theta> \<tau>"
   using wf
-  by induction (auto intro!: WfImpureExpr.intros dest: WfExpr_tsubst)
+  by induction (auto intro!: WfImpureExpr.intros dest: WfExpr_tsubst WfInit_tsubst)
 
 lemmas WfExpr_tsubst_Prim = WfExpr_tsubst [where \<tau> = "Prim \<tau>", simplified, standard]
 
