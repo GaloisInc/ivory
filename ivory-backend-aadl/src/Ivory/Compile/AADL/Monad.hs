@@ -45,27 +45,6 @@ setTypeCtx :: Document -> CompileM n ()
 setTypeCtx d = CompileM $ lift $ lift $ lift $ lift $ setTypeCtxM d
 
 
-runTypeCtx :: TypeCtxM a -> (a, Document)
-runTypeCtx (TypeCtxM c) = runId
-                        $ runStateT d c
-  where
-  d = mempty { doc_name    = "TowerArrays"
-             , doc_imports = ["Data_Model"]
-             }
-
-getTypeCtxM :: TypeCtxM Document
-getTypeCtxM = TypeCtxM $ get
-
-setTypeCtxM :: Document -> TypeCtxM ()
-setTypeCtxM d = TypeCtxM $ set d
-
-getTypeCtx :: CompileM Document
-getTypeCtx = Compile $ lift $ lift $ lift $ lift $ getTypeCtxM
-
-setTypeCtx :: Document -> CompileM ()
-setTypeCtx d = Compile $ lift $ lift $ lift $ lift $ setTypeCtxM d
-
-
 -- Using snoc to write to lists, reverse at end of run.
 runCompile :: [I.Module] -> I.Module -> CompileM n () -> TypeCtxM (Document, [Warning])
 runCompile allms m (CompileM c) = do
@@ -140,37 +119,4 @@ writeWarning w = CompileM $ put [w]
 uniquenessWarning :: String -> CompileM n ()
 uniquenessWarning msg = do
   writeWarning $ UniquenessWarning msg
-
-getScope :: CompileM [(String, [String])]
-getScope = Compile $ lift get
-
-setScope :: [(String,[String])] -> CompileM ()
-setScope s = Compile $ lift $ set s
-
-innerScope :: String -> CompileM a -> CompileM a
-innerScope name k = do
-  s <- getScope
-  setScope ((name, []):s)
-  r <- k
-  setScope s
-  return r
-
-existsInScope :: String -> CompileM Bool
-existsInScope ident = do
-  s <- getScope
-  return $ or $ map (elem ident . snd) s
-
-addToScope :: String -> CompileM ()
-addToScope ident = do
-  ((name,s):ss) <- getScope
-  setScope ((name,(ident:s)):ss)
-
-writeWarning :: Warning -> CompileM ()
-writeWarning w = Compile $ put [w]
-
-uniquenessWarning :: String -> CompileM ()
-uniquenessWarning msg = do
-  scopes <- getScope
-  writeWarning $ UniquenessWarning msg (map fst scopes)
-
 
