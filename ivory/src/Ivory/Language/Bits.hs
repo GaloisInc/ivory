@@ -5,9 +5,11 @@
 
 module Ivory.Language.Bits where
 
+import Ivory.Language.Cast
+import Ivory.Language.IBool
+import Ivory.Language.Sint
 import Ivory.Language.Type
 import Ivory.Language.Uint
-import Ivory.Language.Cast
 
 import Data.Word
 
@@ -107,6 +109,49 @@ instance BitCast Uint16 Uint8 where
 -- Uint8:
 instance BitCast Uint8 Uint8 where
   bitCast = id
+
+-- | Re-interpret the bits of an unsigned integer as though they were a
+-- signed number in two's complement representation.
+class ( IvoryBits unsigned
+      , IvoryEq unsigned
+      , IvoryExpr signed
+      , Num signed
+      ) => TwosComplementCast unsigned signed
+      | signed -> unsigned, unsigned -> signed where
+
+  -- The C standard makes conversion from unsigned to signed
+  -- well-defined as long as the value can be preserved. But if the
+  -- unsigned value is bigger than the largest representable value of
+  -- the signed type, as is the case for a value we want to treat as
+  -- negative, the behavior is implementation-specific, and may trap.
+  --
+  -- This algorithm checks the most significant bit, which is the sign
+  -- bit. If it is clear, then the value is representable in the target
+  -- type (assuming they're the same bit-width) and we can just cast.
+  --
+  -- One way to define two's complement is that -x = ~x + 1. Negating
+  -- both sides gives x = -~x - 1, and that is the identity we use when
+  -- the sign bit is set.
+  --
+  -- If the sign bit was set, then if we flip every bit we will have a
+  -- value that is representable and we can cast it to the target type.
+  -- So we insert the cast after complementing the value but before
+  -- negating and subtracting 1.
+  --
+  -- On machines that natively use two's complement for signed numbers,
+  -- this should optimize away to use zero instructions. However, the C
+  -- standard also permits implementations that use one's complement or
+  -- sign-magnitude representations, and this algorithm is expected to
+  -- work in those implementations as well.
+  twosComplementCast :: unsigned -> signed
+  twosComplementCast v = ((v `iShiftR` fromIntegral (iBitSize v - 1)) ==? 1) ?
+    ( negate (ivoryCast (iComplement v)) - 1
+    , ivoryCast v)
+
+instance TwosComplementCast Uint8 Sint8
+instance TwosComplementCast Uint16 Sint16
+instance TwosComplementCast Uint32 Sint32
+instance TwosComplementCast Uint64 Sint64
 
 -- | Extract the least significant byte from an integer.  This returns
 -- the two values (x & 0xFF, x >> 8), with the first value safely
