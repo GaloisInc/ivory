@@ -97,6 +97,7 @@ module Ivory.Language (
     -- ** Bit operators
   , IvoryBits((.&),(.|),(.^),iComplement,iShiftL,iShiftR, iBitSize), extractByte
   , BitSplit(lbits, ubits), BitCast(bitCast)
+  , TwosComplementCast(twosComplementCast)
 
     -- ** Bit data
 
