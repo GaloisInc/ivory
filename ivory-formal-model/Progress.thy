@@ -40,7 +40,7 @@ next
 
   from `\<Gamma>, \<rho> \<turnstile>I e : \<tau>'` `WfState S \<Gamma> \<Psi> \<tau> b \<rho>`
   obtain H' \<Theta>' \<Delta> v' where eval: "store S \<Turnstile> heap S, e \<Down> H', v'" 
-    and wfh': "WfHeap H' \<Theta>'" 
+    and wfh': "WfHeap \<Delta> H' \<Theta>'" 
     and wfs': "WfStore \<Delta> \<Theta>' (store S) \<Gamma>"
     and wfwv': "WfWValue \<Delta> \<Theta>' v' \<tau>'"
     by (auto elim!: ImpureExpr_safe_stateE)
@@ -53,8 +53,8 @@ next
 next
   case (wfIf \<Gamma> e \<Psi> \<rho> s\<^sub>1 \<tau> b s\<^sub>2 S)
   from `\<Gamma> \<turnstile> e : BOOL` `WfState S \<Gamma> \<Psi> \<tau> b \<rho>`
-  obtain bv where e_to_v: "store S \<Turnstile> e \<down> PrimV (BoolV bv)" 
-    by (auto elim!: Expr_safeE WfPBoolVE WfBoolVE elim!: WfState.cases)
+  obtain bv where e_to_v: "store S \<Turnstile> e \<down> BoolV bv" 
+    by (auto elim!: Expr_safeE WfBoolVE elim!: WfState.cases)
 
   thus ?case 
     by (auto intro: exI Step.intros)      

@@ -28,14 +28,14 @@ fun
   ExpV :: "'var store \<Rightarrow> 'var expr \<Rightarrow> wvalue option"
 where
   ExpVar: "ExpV G (Var x) = G x"
-| ExpNat:  "ExpV G (Nat n) = Some (PrimV (NatV n))"
-| ExpBool: "ExpV G (Bool b) = Some (PrimV (BoolV b))"
-| ExpUnit: "ExpV G Unit = Some (PrimV UnitV)"
+| ExpNat:  "ExpV G (Nat n) = Some (NatV n)"
+| ExpBool: "ExpV G (Bool b) = Some (BoolV b)"
+| ExpUnit: "ExpV G Unit = Some UnitV"
 | ExpBinCmp: "ExpV G (BinCmp bop e\<^sub>1 e\<^sub>2) = (case (ExpV G e\<^sub>1, ExpV G e\<^sub>2) of 
-                                           (Some (PrimV (NatV v\<^sub>1)), Some (PrimV (NatV v\<^sub>2))) \<Rightarrow> Some (PrimV (BoolV (cmpopV bop v\<^sub>1 v\<^sub>2)))
+                                           (Some (NatV v\<^sub>1), Some (NatV v\<^sub>2)) \<Rightarrow> Some (BoolV (cmpopV bop v\<^sub>1 v\<^sub>2))
                                            | _ \<Rightarrow> None)"
 | ExpBinOp: "ExpV G (BinOp bop e\<^sub>1 e\<^sub>2) = (case (ExpV G e\<^sub>1, ExpV G e\<^sub>2) of 
-                                           (Some (PrimV (NatV v\<^sub>1)), Some (PrimV (NatV v\<^sub>2))) \<Rightarrow> Some (PrimV (NatV (binopV bop v\<^sub>1 v\<^sub>2)))
+                                           (Some (NatV v\<^sub>1), Some (NatV v\<^sub>2)) \<Rightarrow> Some (NatV (binopV bop v\<^sub>1 v\<^sub>2))
                                            | _ \<Rightarrow> None)"
 
 abbreviation 
@@ -44,15 +44,9 @@ where
   "G \<Turnstile> e \<down> v \<equiv> ExpV G e = Some v"
 
 fun
-  wvalue_to_hvalue :: "wvalue \<Rightarrow> hvalue option"
-where
-  "wvalue_to_hvalue (PrimV v) = Some (StoredV v)"
-| "wvalue_to_hvalue _         = None"
-
-fun
   hvalue_to_wvalue :: "hvalue \<Rightarrow> wvalue option"
 where
-  "hvalue_to_wvalue (StoredV v) = Some (PrimV v)"
+  "hvalue_to_wvalue (StoredV v) = Some v"
 
 (* Impure expression evaluation is partial because both (pure) expression evaluation and some heap operations are. *)
 fun
@@ -63,17 +57,15 @@ where
 | ExpNewRef: "ImpureExpV G H (NewRef e) = (let region = length H - 1 in 
                                            let off = fresh_in_heap H region in
                                            Option.bind (ExpV G e) 
-                                           (\<lambda>wv. Option.bind (wvalue_to_hvalue wv)
-                                                 (\<lambda>v. Option.bind (update_heap H region off v)
-                                                      (\<lambda>H'. Some (H', RefV region off)))))"  
+                                           (\<lambda>wv. Option.bind (update_heap H region off (StoredV wv))
+                                                 (\<lambda>H'. Some (H', RefV region off))))"  
 | ExpReadRef: "ImpureExpV G H (ReadRef e) = (case ExpV G e of Some (RefV region off) \<Rightarrow> Option.bind (lookup_heap H region off)
                                                                                         (\<lambda>hv. Option.bind (hvalue_to_wvalue hv)
                                                                                               (\<lambda>v. Some (H,v)))
                                                              | _ \<Rightarrow> None)"
 | ExpWriteRef: "ImpureExpV G H (WriteRef e\<^sub>1 e\<^sub>2) = (case (ExpV G e\<^sub>1, ExpV G e\<^sub>2) of 
-                                                        (Some (RefV region off), Some wv) \<Rightarrow> Option.bind (wvalue_to_hvalue wv) 
-                                                                                             (\<lambda>v. Option.bind (update_heap H region off v)
-                                                                                                  (\<lambda>H'. Some (H', PrimV UnitV)))
+                                                        (Some (RefV region off), Some wv) \<Rightarrow> Option.bind (update_heap H region off (StoredV wv))
+                                                                                                  (\<lambda>H'. Some (H', UnitV))
                                                        | _                                \<Rightarrow> None)"
 
 abbreviation 
@@ -100,7 +92,7 @@ inductive
   Step :: "('var, 'fun) funs \<Rightarrow> ('var, 'fun) state \<times> ('var, 'fun) stmt \<Rightarrow> ('var, 'fun) StepResult \<Rightarrow> bool" ("_ \<Turnstile> _ \<rhd> _" [49, 49, 49] 50)
 where
   StepBind:      "\<lbrakk> store S \<Turnstile> heap S, e \<Down> H', v \<rbrakk> \<Longrightarrow> F \<Turnstile> (S, Bind x e s) \<rhd> Normal (S\<lparr> store := (store S)(x \<mapsto> v), heap := H' \<rparr>, s)"
-| StepIf:        "\<lbrakk> store S \<Turnstile> e \<down> PrimV (BoolV b) \<rbrakk> \<Longrightarrow> F \<Turnstile> (S, If e s\<^sub>1 s\<^sub>2) \<rhd> Normal (S, if b then s\<^sub>1 else s\<^sub>2)"
+| StepIf:        "\<lbrakk> store S \<Turnstile> e \<down> BoolV b \<rbrakk> \<Longrightarrow> F \<Turnstile> (S, If e s\<^sub>1 s\<^sub>2) \<rhd> Normal (S, if b then s\<^sub>1 else s\<^sub>2)"
   (* Note that we replace e\<^sub>I by e\<^sub>S in the unfolded loop. *)
 | StepFor:       "\<lbrakk> store S \<Turnstile> e\<^sub>I \<down> v \<rbrakk> \<Longrightarrow> F \<Turnstile> (S, For x e\<^sub>I e\<^sub>B e\<^sub>S s) \<rhd> Normal (S\<lparr> store := (store S)(x \<mapsto> v) \<rparr>, If e\<^sub>B (s ;; For x e\<^sub>S e\<^sub>B e\<^sub>S s) Skip)"
 | StepSeq:       "F \<Turnstile> (S, s\<^sub>1 ;; s\<^sub>2) \<rhd> Normal (S \<lparr> stack := (store S, s\<^sub>2, SeqFrame) # stack S \<rparr>, s\<^sub>1)"

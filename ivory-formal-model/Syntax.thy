@@ -10,27 +10,25 @@ subsection {* Types *}
 
 (* These are things which can appear in the heap and can be loaded/stored
    from references*)
-datatype prim = BoolT | NatT | UnitT 
 (* These classify heap values, which are only primitive types for the moment *)
-datatype area = Stored prim
-(* The type level type of expressions *)
-datatype 'r wtype = Prim prim | RefT 'r area
+datatype 'r area = Stored "'r wtype"
+and      'r wtype = BoolT | NatT | UnitT | RefT 'r "'r area"
 
 (* Some abbreviations for a bit of flexitility in case things change *)
 abbreviation 
   NAT :: "'r wtype"
 where
-  "NAT \<equiv> Prim NatT"
+  "NAT \<equiv> NatT"
 
 abbreviation 
   BOOL :: "'r wtype"
 where
-  "BOOL \<equiv> Prim BoolT"
+  "BOOL \<equiv> BoolT"
 
 abbreviation 
   UNIT :: "'r wtype"
 where
-  "UNIT \<equiv> Prim UnitT"
+  "UNIT \<equiv> UnitT"
 
 (* The type of functions: the first type is the return type, the list is that of the arguments *)
 datatype 'r funtype = FunT "'r wtype" "'r wtype list"
@@ -78,9 +76,8 @@ lemmas is_terminalE [consumes 1, case_names Return Skip]
 subsubsection {* Values *}
 
 (* As with the types above *)
-datatype prim_value = NatV nat | BoolV bool | UnitV
-datatype wvalue = PrimV prim_value | RefV ridx roff
-datatype hvalue = StoredV prim_value
+datatype wvalue = NatV nat | BoolV bool | UnitV | RefV ridx roff
+datatype hvalue = StoredV wvalue
 
 (* Functions *)
 datatype ('var, 'fun) func = Func "'var list" "('var, 'fun) stmt"

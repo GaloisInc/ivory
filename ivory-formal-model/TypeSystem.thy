@@ -9,10 +9,10 @@ section {* Well formed programs *}
 subsection {* Preliminaries *}
 
 (* \<Sigma>: region  *)
-type_synonym regionT = "roff \<Rightarrow> area option"
+type_synonym 'r regionT = "roff \<Rightarrow> 'r area option"
 
 (* \<Theta> *)
-type_synonym heapT = "regionT list" 
+type_synonym 'r heapT = "'r regionT list" 
 
 (* \<Psi> *)
 type_synonym ('fun, 'r) funsT = "'fun \<Rightarrow> 'r funtype option"
@@ -23,7 +23,6 @@ type_synonym ('var, 'r) storeT = "'var \<Rightarrow> 'r wtype option"
 (* \<Delta>: Maps region variables to their corresponding runtime regions *)
 type_synonym 'r region_env = "'r \<Rightarrow> ridx option"
 
-
 subsection {* Region type variable substitutions *}
 
 (* \<theta>: maps region variables to region variables *)
@@ -31,15 +30,21 @@ type_synonym 'r tsubst = "'r \<Rightarrow> 'r"
 
 fun 
   tsubst :: "'r tsubst \<Rightarrow> 'r wtype \<Rightarrow> 'r wtype"
+and
+  asubst :: "'r tsubst \<Rightarrow> 'r area \<Rightarrow> 'r area"
 where
-  "tsubst \<theta> (RefT \<rho> \<tau>) = RefT (\<theta> \<rho>) \<tau>"
+  "tsubst \<theta> (RefT \<rho> \<tau>) = RefT (\<theta> \<rho>) (asubst \<theta> \<tau>)"
 | "tsubst \<theta> \<tau>          = \<tau>"
+| "asubst \<theta> (Stored \<tau>) = Stored (tsubst \<theta> \<tau>)"
 
 fun 
   tfrees :: "'r wtype \<Rightarrow> 'r set"
+and 
+  afrees :: "'r area \<Rightarrow> 'r set"
 where
-  "tfrees (RefT \<rho> \<tau>) = {\<rho>}"
+  "tfrees (RefT \<rho> \<tau>) = {\<rho>} \<union> (afrees \<tau>)"
 | "tfrees \<tau>          = {}"
+| "afrees (Stored \<tau>) = tfrees \<tau>"
 
 definition
   tfrees_set :: "'r wtype set \<Rightarrow> 'r set"
@@ -64,10 +69,10 @@ inductive
   WfImpureExpr :: "('var, 'r) storeT \<Rightarrow> 'r \<Rightarrow> 'var impureexp  \<Rightarrow> 'r wtype \<Rightarrow> bool" ("_, _ \<turnstile>I _ : _" [49, 49, 49] 50) 
 where
   wfPure:     "\<lbrakk> \<Gamma> \<turnstile> e : \<tau> \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I Pure e : \<tau>"
-| wfNewRef:   "\<lbrakk> \<Gamma> \<turnstile> e : Prim \<tau>  \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I NewRef e : RefT \<rho> (Stored \<tau>)"
-| wfReadRef:  "\<lbrakk> \<Gamma> \<turnstile> e : RefT \<gamma> (Stored \<tau>) \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I ReadRef e : Prim \<tau>"
+| wfNewRef:   "\<lbrakk> \<Gamma> \<turnstile> e : \<tau>  \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I NewRef e : RefT \<rho> (Stored \<tau>)"
+| wfReadRef:  "\<lbrakk> \<Gamma> \<turnstile> e : RefT \<gamma> (Stored \<tau>) \<rbrakk> \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I ReadRef e : \<tau>"
   (* Solve for e2 first *)
-| wfWriteRef: "\<lbrakk> \<Gamma> \<turnstile> e\<^sub>2 : Prim \<tau>;  \<Gamma> \<turnstile> e\<^sub>1 : RefT \<gamma> (Stored \<tau>) \<rbrakk>  \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I WriteRef e\<^sub>1 e\<^sub>2 : UNIT" 
+| wfWriteRef: "\<lbrakk> \<Gamma> \<turnstile> e\<^sub>2 : \<tau>;  \<Gamma> \<turnstile> e\<^sub>1 : RefT \<gamma> (Stored \<tau>) \<rbrakk>  \<Longrightarrow> \<Gamma>, \<rho> \<turnstile>I WriteRef e\<^sub>1 e\<^sub>2 : UNIT" 
 
 subsection {* Statements *}
 
@@ -107,20 +112,12 @@ where
 
 section {* Well-formed values and programs *}
 
-inductive
-  WfPrimValue :: "prim_value \<Rightarrow> prim \<Rightarrow> bool"
-where
-  wfNatV:  "WfPrimValue (NatV n) NatT"
-| wfBoolV: "WfPrimValue (BoolV b) BoolT"
-| wfUnitV: "WfPrimValue UnitV UnitT"
-
-inductive_cases WfPNatVE: "WfPrimValue v NatT"
-inductive_cases WfPBoolVE: "WfPrimValue v BoolT"
-
 inductive 
-  WfWValue :: "'r region_env \<Rightarrow> heapT \<Rightarrow> wvalue \<Rightarrow> 'r wtype \<Rightarrow> bool"
+  WfWValue :: "'r region_env \<Rightarrow> 'r heapT \<Rightarrow> wvalue \<Rightarrow> 'r wtype \<Rightarrow> bool"
 where
-  wfPrimV: "WfPrimValue v \<tau> \<Longrightarrow> WfWValue \<Delta> \<Theta> (PrimV v) (Prim \<tau>)"
+  wfNatV:  "WfWValue \<Delta> \<Theta> (NatV n) NatT"
+| wfBoolV: "WfWValue \<Delta> \<Theta> (BoolV b) BoolT"
+| wfUnitV: "WfWValue \<Delta> \<Theta> UnitV UnitT"
 | wfRefV:  "\<lbrakk> \<Delta> \<rho> = Some region; lookup_heap \<Theta> region off = Some \<tau> \<rbrakk> \<Longrightarrow> WfWValue \<Delta> \<Theta> (RefV region off) (RefT \<rho> \<tau>)"
 
 inductive_cases WfNatVE: "WfWValue \<Delta> \<Theta> v NAT"
@@ -128,15 +125,15 @@ inductive_cases WfBoolVE: "WfWValue \<Delta> \<Theta> v BOOL"
 inductive_cases WfRefVE: "WfWValue \<Delta> \<Theta> v (RefT \<rho> \<tau>)"
 
 inductive 
-  WfHValue :: "hvalue \<Rightarrow> area \<Rightarrow> bool"
+  WfHValue :: "'r region_env \<Rightarrow> 'r heapT \<Rightarrow> hvalue \<Rightarrow> 'r area \<Rightarrow> bool"
 where
-  wfStoredV: "WfPrimValue v \<tau> \<Longrightarrow> WfHValue (StoredV v) (Stored \<tau>)"
+  wfStoredV: "WfWValue \<Delta> \<Theta> v \<tau> \<Longrightarrow> WfHValue \<Delta> \<Theta> (StoredV v) (Stored \<tau>)"
 
 inductive 
-  WfHeap :: "heap \<Rightarrow> heapT \<Rightarrow> bool"
+  WfHeap :: "'r region_env \<Rightarrow> heap \<Rightarrow> 'r heapT \<Rightarrow> bool"
 where
-  wfHeapNil: "WfHeap [] []"
-| wfHeapCons:"\<lbrakk> WfHeap H \<Theta>; submap_st \<Sigma> R WfHValue; finite (dom R) \<rbrakk> \<Longrightarrow> WfHeap (H @ [R]) (\<Theta> @ [\<Sigma>])"
+  wfHeapNil: "WfHeap \<Delta> [] []"
+| wfHeapCons:"\<lbrakk> WfHeap \<Delta> H \<Theta>; submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>])); finite (dom R) \<rbrakk> \<Longrightarrow> WfHeap \<Delta> (H @ [R]) (\<Theta> @ [\<Sigma>])"
 
 inductive 
   WfFuns :: "('var, 'fun) funs \<Rightarrow> ('fun, 'r) funsT \<Rightarrow> bool"
@@ -144,7 +141,7 @@ where
   WfFuns: "submap_st \<Psi> F (WfFunc \<Psi>) \<Longrightarrow> WfFuns F \<Psi>"
 
 inductive 
-  WfStore :: "'r region_env \<Rightarrow> heapT \<Rightarrow> 'var store \<Rightarrow> ('var, 'r) storeT \<Rightarrow> bool"
+  WfStore :: "'r region_env \<Rightarrow> 'r heapT \<Rightarrow> 'var store \<Rightarrow> ('var, 'r) storeT \<Rightarrow> bool"
 where
   WfStore: "submap_st \<Gamma> G (WfWValue \<Delta> \<Theta>) \<Longrightarrow> WfStore \<Delta> \<Theta> G \<Gamma>"
 
@@ -157,15 +154,14 @@ where
 inductive_cases WfFreesE [elim?]: "WfFrees \<Delta> \<Gamma> \<rho> n"
 
 inductive 
-  WfStack :: "('fun, 'r) funsT \<Rightarrow> 'r region_env \<Rightarrow> heapT \<Rightarrow> ('var, 'fun) stack \<Rightarrow> 'r wtype \<Rightarrow> bool \<Rightarrow> 'r \<Rightarrow> bool"
+  WfStack :: "('fun, 'r) funsT \<Rightarrow> 'r region_env \<Rightarrow> 'r heapT \<Rightarrow> ('var, 'fun) stack \<Rightarrow> 'r wtype \<Rightarrow> bool \<Rightarrow> 'r \<Rightarrow> bool"
 where
   wfStackNil:  "WfStack \<Psi> \<Delta> [\<Sigma>] [] NAT True \<rho>" (* The initial state expectss a nat back and has \<Sigma>, the global heap *)
 | wfStackFun: "\<lbrakk> WfStack \<Psi> \<Delta>' \<Theta> st \<tau>' b' \<gamma>; WfStore \<Delta>' \<Theta> store' \<Gamma>; \<Gamma>(x \<mapsto> \<tau>), \<Psi>, \<gamma> \<turnstile> cont : \<tau>', b'; 
-                 WfFrees \<Delta>' (\<Gamma>(x \<mapsto> \<tau>)) \<gamma> (length \<Theta> - 1); \<Delta>' \<subseteq>\<^sub>m \<Delta> \<rbrakk>
+                 WfFrees \<Delta>' (\<Gamma>(x \<mapsto> \<tau>)) \<gamma> (length \<Theta> - 1); \<Delta>' = \<Delta> |` (- {\<rho>}) \<rbrakk>
                 \<Longrightarrow> WfStack \<Psi> \<Delta> (\<Theta> @ [\<Sigma>]) ((store', cont, ReturnFrame x) # st) \<tau> True \<rho>"
 | wfStackSeq: "\<lbrakk> WfStack \<Psi> \<Delta> \<Theta> st \<tau> b' \<rho>; WfStore \<Delta> \<Theta> store' \<Gamma>; \<Gamma>, \<Psi>, \<rho> \<turnstile> cont : \<tau>, b'; tfrees_set (ran \<Gamma>) \<subseteq> dom \<Delta> \<rbrakk>
                 \<Longrightarrow> WfStack \<Psi> \<Delta> \<Theta> ((store', cont, SeqFrame) # st) \<tau> b \<rho>"
-
 
 inductive_cases wfStackFalseE: "WfStack \<Psi> \<Delta> \<Theta> st \<tau> False \<rho>"
 
@@ -179,7 +175,7 @@ declare One_nat_def Un_insert_right [simp]
 inductive 
   WfState :: "('var, 'fun) state \<Rightarrow> ('var, 'r) storeT \<Rightarrow> ('fun, 'r) funsT \<Rightarrow> 'r wtype \<Rightarrow> bool \<Rightarrow> 'r \<Rightarrow> bool"
 where
-  WfState: "\<lbrakk> WfStore \<Delta> \<Theta> (store S) \<Gamma>; WfHeap (heap S) \<Theta>; WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>; WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1) \<rbrakk>
+  WfState: "\<lbrakk> WfStore \<Delta> \<Theta> (store S) \<Gamma>; WfHeap \<Delta> (heap S) \<Theta>; WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>; WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1) \<rbrakk>
             \<Longrightarrow> WfState S \<Gamma> \<Psi> \<tau> b \<rho>"
 
 declare One_nat_def [simp del]

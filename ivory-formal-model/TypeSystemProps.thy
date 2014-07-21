@@ -9,20 +9,20 @@ section {* Type system properties *}
 subsection {* General properties *}
 
 lemma WfHeap_length:
-  assumes wfh: "WfHeap H \<Theta>"
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
   shows "length H = length \<Theta>"
   using wfh
   by induct auto
 
 lemma WfHeap_dom:
-  assumes wfh: "WfHeap H \<Theta>"
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
   and   nv: "n < length H"
   shows "dom (\<Theta> ! n) \<subseteq> dom (H ! n)"
   using wfh nv WfHeap_length [OF wfh]
   by induct (auto simp: nth_append not_less dest!: submap_st_dom)
 
 lemma WfHeap_dom':
-  assumes wfh: "WfHeap H \<Theta>"
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
   shows "dom (lookup_heap \<Theta> n) \<subseteq> dom (lookup_heap H n)"
   using wfh WfHeap_length [OF wfh]
   by induct (auto simp: nth_append not_less lookup_heap_def dest!: submap_st_dom split: split_if_asm)
@@ -35,7 +35,7 @@ lemma WfStack_heap_length:
 
 lemma WfStack_heap_not_empty:
   assumes wfst: "WfStack \<Psi> \<Delta> \<Theta> st \<tau> b \<rho>"
-  and      wfh: "WfHeap H \<Theta>"
+  and      wfh: "WfHeap \<Delta> H \<Theta>"
   shows "H \<noteq> []"
   using wfst wfh
   by (auto dest!: WfStack_heap_length WfHeap_length)
@@ -56,40 +56,6 @@ lemma WfStore_lift_weak:
   apply (erule submap_st_weaken)
   apply (erule rl)
   done
-
-lemma WfHeap_inversionE:
-  assumes wfh: "WfHeap H \<Theta>"
-  and     lup: "lookup_heap \<Theta> region off = Some \<tau>"
-  obtains v where "lookup_heap H region off = Some v" and "WfHValue v \<tau>"
-  using wfh lup
-proof (induction arbitrary: thesis)
-  case wfHeapNil thus ?case by simp
-next
-  case (wfHeapCons H \<Theta> \<Sigma> R )
-
-  note heap_len = WfHeap_length [OF wfHeapCons.hyps(1)]
-
-  show ?case
-  proof (cases "region = length H")
-    case True
-    thus ?thesis using wfHeapCons.prems wfHeapCons.hyps heap_len
-      by (auto simp add: lookup_heap_Some_iff nth_append elim!: submap_stE) 
-  next
-    case False
-    with wfHeapCons.prems heap_len have "lookup_heap \<Theta> region off = Some \<tau>"
-      by (clarsimp simp: lookup_heap_Some_iff nth_append )
-
-    then obtain v where "lookup_heap H region off = Some v" and
-      "WfHValue v \<tau>" by (rule wfHeapCons.IH [rotated])
-
-    show ?thesis
-    proof (rule wfHeapCons.prems(1))
-      from `lookup_heap H region off = Some v`
-      show "lookup_heap (H @ [R]) region off = Some v"
-        by (simp add: lookup_heap_Some_iff nth_append)
-    qed fact
-  qed
-qed
 
 subsection {* Returns tag weakening *}
 
@@ -113,9 +79,11 @@ lemma tsubst_twice:
   "tsubst \<theta> (tsubst \<theta>' \<tau>) = tsubst (\<theta> \<circ> \<theta>') \<tau>"
   by (induct \<tau>) simp_all
 
-lemma tfrees_tsubst:
-  "tfrees (tsubst \<theta> \<tau>) = \<theta> ` tfrees \<tau>"
-  by (cases \<tau>, simp_all)
+lemma tfrees_tsubst0:
+  "tfrees (tsubst \<theta> \<tau>) = \<theta> ` tfrees \<tau>" and "afrees (asubst \<theta> \<alpha>) = \<theta> ` afrees \<alpha>"
+  by (induction \<tau> and \<alpha>) auto
+
+lemmas tfrees_tsubst = tfrees_tsubst0(1)
 
 lemma tfrees_set_tsubst:
   "tfrees_set (tsubst \<theta> ` S) = \<theta> ` tfrees_set S"
@@ -131,13 +99,17 @@ lemma tfrees_set_singleton [simp]:
   "tfrees_set {\<tau>} = tfrees \<tau>"
   unfolding tfrees_set_def by simp
 
-lemma tsubst_cong:
-  "\<lbrakk>(\<And>x. x \<in> tfrees \<tau> \<Longrightarrow> \<theta> x = \<theta>' x); \<tau> = \<tau>' \<rbrakk> \<Longrightarrow> tsubst \<theta> \<tau> = tsubst \<theta>' \<tau>'"
-  by (induct \<tau>) auto
+lemma tsubst_cong0:
+  shows "\<lbrakk>(\<And>x. x \<in> tfrees \<tau> \<Longrightarrow> \<theta> x = \<theta>' x); \<tau> = \<tau>' \<rbrakk> \<Longrightarrow> tsubst \<theta> \<tau> = tsubst \<theta>' \<tau>'"
+  and   "\<lbrakk>(\<And>x. x \<in> afrees \<alpha> \<Longrightarrow> \<theta> x = \<theta>' x); \<alpha> = \<alpha>' \<rbrakk> \<Longrightarrow> asubst \<theta> \<alpha> = asubst \<theta>' \<alpha>'"
+  by (induction \<tau> and \<alpha> arbitrary: \<tau>' and \<alpha>') auto
+
+lemmas tsubst_cong = tsubst_cong0(1)
 
 lemma tfrees_set_conv_bex:
   "(x \<in> tfrees_set S) = (\<exists>\<tau> \<in> S. x \<in> tfrees \<tau>)"
   unfolding tfrees_set_def by auto
+
 subsection {* Type judgements and free variables *}
 
 lemma Expr_tfrees:
@@ -150,7 +122,7 @@ lemma ImpureExpr_tfrees:
   assumes wf: "\<Gamma>, \<rho> \<turnstile>I e : \<tau>"
   shows  "tfrees \<tau> \<subseteq> (tfrees_set (ran \<Gamma>) \<union> {\<rho>})"
   using wf
-  by (induction) (auto dest: Expr_tfrees)
+  by (induction) (auto dest!: Expr_tfrees)
 
 lemma tfrees_update_storeT:
   assumes "\<Gamma> \<turnstile> e : \<tau>"
@@ -259,8 +231,6 @@ lemma WfImpureExpr_tsubst:
   using wf
   by induction (auto intro!: WfImpureExpr.intros dest: WfExpr_tsubst)
 
-lemmas WfExpr_tsubst_Prim = WfExpr_tsubst [where \<tau> = "Prim \<tau>", simplified, standard]
-
 lemma WfStmt_tsubst:
   notes o_apply [simp del]
   assumes wfs: "\<Gamma>, \<Psi>, \<rho> \<turnstile> e : \<tau>, b"
@@ -300,7 +270,7 @@ next
     thus "?\<Gamma>(v \<mapsto> tsubst \<theta> \<tau>'), \<Psi>, \<theta> \<rho> \<turnstile> s : tsubst \<theta> \<tau>, b" 
       by (simp add: option_map_o_map_upd)
   qed (auto simp: option_map_o_map_upd [symmetric] 
-           intro: WfExpr_tsubst_Prim WfExpr_tsubst)
+            dest: WfExpr_tsubst)
 next
   case (wfCall \<Psi> f \<sigma> ts \<Gamma> \<theta>' es x \<rho> s \<tau> b)
 
@@ -325,10 +295,8 @@ next
       by (simp add: option_map_o_map_upd tsubst_twice)
   qed
 qed (auto simp add: tsubst_twice 
-             intro: WfStmt.intros
-              dest: WfExpr_tsubst WfImpureExpr_tsubst
-                    WfExpr_tsubst_Prim)
-
+             intro!: WfStmt.intros
+              dest: WfExpr_tsubst WfImpureExpr_tsubst)
 
 subsection {* Type judgements and store (type) updates *}
 
@@ -372,6 +340,13 @@ lemma WfWValue_region_extend:
   using wfwv notin
   by cases (auto simp: lookup_heap_Some_iff nth_append not_less intro!: WfWValue.intros split: split_if_asm)
 
+lemma WfHValue_region_extend:
+  assumes wfhv: "WfHValue \<Delta> (\<Theta> @ [\<Sigma>]) v \<alpha>"
+  and    notin: "x \<notin> dom \<Sigma>"
+  shows  "WfHValue \<Delta> (\<Theta> @ [\<Sigma>(x \<mapsto> \<tau>)]) v \<alpha>"
+  using wfhv notin
+  by cases (auto intro!: WfHValue.intros WfWValue_region_extend)
+
 lemma WfWValue_heap_monotone:
   assumes wfwv: "WfWValue \<Delta> \<Theta> v \<tau>'"
   shows  "WfWValue \<Delta> (\<Theta> @ \<Theta>') v \<tau>'"
@@ -413,7 +388,7 @@ lemma WfStack_mono:
 proof (induction arbitrary: \<Theta>')
   case wfStackNil thus ?case by (clarsimp simp: subheap_singleton intro!: WfStack.intros)
 next
-  case (wfStackFun \<Psi> \<Delta>' \<Theta> st \<tau>' b' \<gamma> store' \<Gamma> x \<tau> cont \<Delta> \<Sigma> \<rho> \<Theta>')
+  case (wfStackFun \<Psi> \<Delta>' \<Theta> st \<tau>' b' \<gamma> store' \<Gamma> x \<tau> cont \<Delta> \<rho> \<Sigma> \<Theta>')
                   
   from `subheap (\<Theta> @ [\<Sigma>]) \<Theta>'` obtain \<Sigma>'
     where "\<Theta>' = butlast \<Theta>' @ [\<Sigma>']" and "subheap \<Theta> (butlast \<Theta>')"
@@ -491,42 +466,42 @@ qed
 
 (* x is usually fresh_in_heap *)
 lemma WfHeap_upd:
-  assumes wfh: "WfHeap H \<Theta>"
-  and     wfwv: "WfHValue v \<tau>"
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  and     wfwv: "WfHValue \<Delta> \<Theta> v \<tau>"
   and       nv: "n = length H - 1"
   and    new_H: "update_heap H n x v = Some H'"
   and    new_T: "update_heap \<Theta> n x \<tau> = Some \<Theta>'"
   and    notin: "x \<notin> dom (lookup_heap H n)"
-  shows   "WfHeap H' \<Theta>'"
+  shows   "WfHeap \<Delta> H' \<Theta>'"
   using wfh wfwv notin WfHeap_dom' [where n = n, OF wfh] nv new_H new_T
 proof induction
   case wfHeapNil thus ?case by simp
 next
-  case (wfHeapCons H \<Theta> \<Sigma> R)
+  case (wfHeapCons \<Delta> H \<Theta> \<Sigma> R)
   
   note heap_len = WfHeap_length [OF wfHeapCons.hyps(1)]
 
-  have "x \<notin> dom R" using wfHeapCons.prems by (simp add: lookup_heap_def)
+  have "x \<notin> dom R" using wfHeapCons.prems by (simp add: lookup_heap_Some_iff)
   hence "x \<notin> dom \<Sigma>" using wfHeapCons.prems heap_len by auto
-  with `WfHeap H \<Theta>` `submap_st \<Sigma> R WfHValue` `finite (dom R)`
+  with `WfHeap \<Delta> H \<Theta>` `submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>]))` `finite (dom R)`
   show ?case using wfHeapCons.prems heap_len 
     unfolding update_heap_def
     by (auto simp add: update_heap_def nth_append 
       intro!: WfHeap.intros submap_st_update 
-      elim!: submap_st_weaken WfWValue_region_extend)
+       elim!: submap_st_weaken WfWValue_region_extend WfHValue_region_extend)
 qed
 
 lemma WfHeap_upd_same_type:
-  assumes wfh: "WfHeap H \<Theta>"
-  and     wfwv: "WfHValue v \<tau>"
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  and     wfwv: "WfHValue \<Delta> \<Theta> v \<tau>"
   and    new_H: "update_heap H n x v = Some H'"
   and      lup: "lookup_heap \<Theta> n x = Some \<tau>"
-  shows   "WfHeap H' \<Theta>"
+  shows   "WfHeap \<Delta> H' \<Theta>"
   using wfh wfwv new_H lup
 proof (induction arbitrary: H')
   case wfHeapNil thus ?case by simp
 next
-  case (wfHeapCons H \<Theta> \<Sigma> R H')
+  case (wfHeapCons \<Delta> H \<Theta> \<Sigma> R H')
   
   note heap_len = WfHeap_length [OF wfHeapCons.hyps(1)]
 
@@ -546,9 +521,10 @@ next
       unfolding update_heap_def using False heap_len
       by (auto simp: nth_append butlast_snoc not_less butlast_append
               split: split_if_asm)
-    moreover have "WfHeap (butlast H' @ [R]) (\<Theta> @ [\<Sigma>])"
+    moreover have "WfHeap \<Delta> (butlast H' @ [R]) (\<Theta> @ [\<Sigma>])"
     proof
-      have "WfHValue v \<tau>" by fact 
+      have "WfHValue \<Delta> (\<Theta> @ [\<Sigma>]) v \<tau>" by fact 
+      hence "WfHValue \<Delta> \<Theta> v \<tau>" sorry
       moreover 
       from `update_heap (H @ [R]) n x v = Some H'` `H' = (butlast H') @ [R]`
       have "update_heap (H @ [R]) n x v = Some (butlast H' @ [R])" by simp
@@ -559,7 +535,7 @@ next
       have "lookup_heap \<Theta> n x = Some \<tau>" 
         by (simp add: lookup_heap_Some_iff nth_append)
       
-      ultimately show "WfHeap (butlast H') \<Theta>"
+      ultimately show "WfHeap \<Delta> (butlast H') \<Theta>"
         by (rule wfHeapCons.IH)
     qed fact+
     ultimately show ?thesis by simp
@@ -576,7 +552,19 @@ lemma WfWValue_renv_mono:
   by induct (auto intro!: WfWValue.intros 
                    dest!: map_leD)
 
+lemma WfHValue_renv_mono:
+  assumes wfwv: "WfHValue \<Delta> \<Theta> v \<tau>"
+  and     sub: "\<Delta> \<subseteq>\<^sub>m \<Delta>'"
+  shows  "WfHValue \<Delta>' \<Theta> v \<tau>"
+  using wfwv sub
+  by induction (auto elim: WfWValue_renv_mono intro!: WfHValue.intros)
 
+(* FIXME: move *)
+lemma restrict_map_le: 
+  "(M |` S) \<subseteq>\<^sub>m M"
+  unfolding map_le_def restrict_map_def by auto
+
+(*
 lemma WfStack_renv_mono:
   notes fun_upd_apply [simp del]
   assumes wfst: "WfStack \<Psi> \<Delta> \<Theta> st \<tau> b \<rho>"
@@ -587,7 +575,8 @@ proof induction
   case wfStackNil show ?case ..
 next
   case wfStackFun
-  thus ?case by (auto intro!: WfStack.intros elim: map_le_trans)
+  thus ?case 
+    apply (auto simp: restrict_map_le intro!: WfStack.intros elim: map_le_trans)
 next
   case (wfStackSeq \<Psi> \<Delta> \<Theta> st \<tau> b' \<rho> store' \<Gamma> cont b)
 
@@ -605,9 +594,60 @@ next
     qed
   qed fact+      
 qed
+*) 
 
-  
+lemma WfStore_renv_mono:
+  assumes wfst: "WfStore \<Delta> \<Theta> st \<Gamma>"
+  and     sub: "\<Delta> \<subseteq>\<^sub>m \<Delta>'"
+  shows  "WfStore \<Delta>' \<Theta> st \<Gamma>"
+  using wfst sub
+  by (auto elim!: WfStore.cases submap_st_weaken WfWValue_renv_mono intro!: WfStore.intros)
 
+lemma WfHeap_renv_mono:
+  assumes wfst: "WfHeap \<Delta> H \<Theta>"
+  and     sub: "\<Delta> \<subseteq>\<^sub>m \<Delta>'"
+  shows  "WfHeap \<Delta>' H \<Theta>"
+  using wfst sub
+  by induction (auto elim!: WfHValue_renv_mono submap_st_weaken intro!: WfHeap.intros)
 
+lemma WfHeap_inversionE:
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  and     lup: "lookup_heap \<Theta> region off = Some \<tau>"
+  obtains v where "lookup_heap H region off = Some v" and "WfHValue \<Delta> (take (Suc region) \<Theta>) v \<tau>"
+  using wfh lup
+proof (induction arbitrary: thesis)
+  case wfHeapNil thus ?case by simp
+next
+  case (wfHeapCons \<Delta> H \<Theta> \<Sigma> R )
+
+  note heap_len = WfHeap_length [OF wfHeapCons.hyps(1)]
+
+  show ?case
+  proof (cases "region = length H")
+    case True
+    thus ?thesis using wfHeapCons.prems wfHeapCons.hyps heap_len
+      by (auto simp add: lookup_heap_Some_iff nth_append elim!: submap_stE) 
+  next
+    case False
+    with wfHeapCons.prems heap_len have "lookup_heap \<Theta> region off = Some \<tau>"
+      by (clarsimp simp: lookup_heap_Some_iff nth_append )
+
+    then obtain v where "lookup_heap H region off = Some v" and
+      "WfHValue \<Delta> (take (Suc region) \<Theta>) v \<tau>" by (rule wfHeapCons.IH [rotated])
+
+    show ?thesis
+    proof (rule wfHeapCons.prems(1))
+      from `lookup_heap H region off = Some v`
+      show "lookup_heap (H @ [R]) region off = Some v"
+        by (simp add: lookup_heap_Some_iff nth_append)
+      
+      from `lookup_heap \<Theta> region off = Some \<tau>` have "region < length \<Theta>"
+        by (simp add: lookup_heap_Some_iff)
+      with `WfHValue \<Delta> (take (Suc region) \<Theta>) v \<tau>` 
+      show "WfHValue \<Delta> (take (Suc region) (\<Theta> @ [\<Sigma>])) v \<tau>"
+        by simp
+    qed 
+  qed
+qed
 
 end

@@ -18,8 +18,6 @@ lemma WfValue_return:
   shows   "WfWValue \<Delta>' (butlast \<Theta>) v \<tau>" 
   using wfwv frees len
 proof induction
-  case wfPrimV show ?case by rule fact
-next
   case (wfRefV \<Delta> \<rho>' region \<Theta> off \<tau>)
  
   show ?case
@@ -43,7 +41,7 @@ next
       using `lookup_heap \<Theta> region off = Some \<tau>`
       by (simp add: lookup_heap_Some_iff nth_butlast)
   qed
-qed
+qed rule+
 
 
 (* We need an infinite set of fresh names here *)
@@ -66,7 +64,7 @@ proof (induction arbitrary: S s')
 
   with `WfState S \<Gamma> \<Psi> \<tau> False \<rho>` 
   obtain \<Theta> \<Delta> \<Gamma>' b' where
-     "WfHeap (heap S) \<Theta>" 
+     "WfHeap \<Delta> (heap S) \<Theta>" 
      "WfStack \<Psi> \<Delta> \<Theta> stack' \<tau> b' \<rho>"
      "WfStore \<Delta> \<Theta> store' \<Gamma>'"
      "tfrees_set (ran \<Gamma>') \<subseteq> dom \<Delta>"
@@ -97,7 +95,7 @@ next
 
     from `WfState S \<Gamma> \<Psi> \<tau> b \<rho>` 
     obtain \<Theta> \<Delta> where "WfStore \<Delta> \<Theta> (store S) \<Gamma>" 
-      "WfHeap (heap S) \<Theta>" 
+      "WfHeap \<Delta> (heap S) \<Theta>" 
       "WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>"
       "WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1)"      
       ..
@@ -105,8 +103,11 @@ next
     from `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>` `stack S = (store', cont, ReturnFrame x) # stack'`
     obtain \<tau>' b' \<Delta>' \<Gamma>' \<gamma> where "WfStack \<Psi> \<Delta>' (butlast \<Theta>) stack' \<tau>' b' \<gamma>"
       "WfStore \<Delta>' (butlast \<Theta>) store' \<Gamma>'" "\<Gamma>'(x \<mapsto> \<tau>), \<Psi>, \<gamma> \<turnstile> cont : \<tau>', b'" 
-      "WfFrees \<Delta>' (\<Gamma>'(x \<mapsto> \<tau>)) \<gamma> (length (butlast \<Theta>) - 1)" "\<Delta>' \<subseteq>\<^sub>m \<Delta>"
+      "WfFrees \<Delta>' (\<Gamma>'(x \<mapsto> \<tau>)) \<gamma> (length (butlast \<Theta>) - 1)" "\<Delta>' = \<Delta> |` (- {\<rho>})"
       by (auto elim!: WfStackFunE)
+
+    have delta': "\<Delta>' = \<Delta> |` (- {\<rho>})" by fact
+    hence "\<Delta>' \<subseteq>\<^sub>m \<Delta>" by (simp add: restrict_map_le)
 
     show ?thesis
     proof (intro exI conjI)
@@ -114,7 +115,7 @@ next
       proof (rule, simp_all del: One_nat_def)
         from `WfStore \<Delta>' (butlast \<Theta>) store' \<Gamma>'`
         show "WfStore \<Delta>' (butlast \<Theta>) (store'(x \<mapsto> v)) (\<Gamma>'(x \<mapsto> \<tau>))"
-        proof (rule WfStore_upd)
+        proof (rule WfStore_upd) 
           from `WfStore \<Delta> \<Theta> (store S) \<Gamma>` `store S \<Turnstile> e \<down> v` `\<Gamma> \<turnstile> e : \<tau>` 
           have "WfWValue \<Delta> \<Theta> v \<tau>" by (auto elim: Expr_safeE)
           
@@ -127,10 +128,18 @@ next
           qed fact+
         qed
 
-        from `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>` `WfHeap (heap S) \<Theta>`
+        from `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>` `WfHeap \<Delta> (heap S) \<Theta>`
         have "heap S \<noteq> []" by (rule WfStack_heap_not_empty)
-        with `WfHeap (heap S) \<Theta>` show "WfHeap (pop_heap (heap S)) (butlast \<Theta>)"
-          by (auto simp: pop_heap_def elim: WfHeap.cases)
+        with `WfHeap \<Delta> (heap S) \<Theta>` delta'
+        show "WfHeap \<Delta>' (pop_heap (heap S)) (butlast \<Theta>)"
+          apply -
+          apply (erule WfHeap.cases)
+          apply simp
+          apply (clarsimp simp: pop_heap_def)
+          
+          apply (erule WfHeap_renv_mono)
+          apply (auto simp: pop_heap_def elim!: WfHeap.cases)
+
       qed fact+
         
       from `\<Gamma>'(x \<mapsto> \<tau>), \<Psi>, \<gamma> \<turnstile> cont : \<tau>', b'` sv' show "\<Gamma>'(x \<mapsto> \<tau>), \<Psi>, \<gamma> \<turnstile> s' : \<tau>', b'" by simp
@@ -156,7 +165,7 @@ next
 
     from `\<Gamma>, \<rho> \<turnstile>I e : \<tau>'` `WfState S \<Gamma> \<Psi> \<tau> b \<rho>` 
     obtain H'' \<Theta>' \<Delta> v'' where eval': "store S \<Turnstile> heap S, e \<Down> H'', v''" 
-      and wfh': "WfHeap H'' \<Theta>'" 
+      and wfh': "WfHeap \<Delta> H'' \<Theta>'" 
       and wfs': "WfStore \<Delta> \<Theta>' (store S) \<Gamma>"
       and wfst': "WfStack \<Psi> \<Delta> \<Theta>' (stack S) \<tau> b \<rho>"
       and wfwv': "WfWValue \<Delta> \<Theta>' v'' \<tau>'"
@@ -206,7 +215,7 @@ next
 
   from `WfState S \<Gamma> \<Psi> \<tau> False \<rho>` 
   obtain \<Theta> \<Delta> where wfs: "WfStore \<Delta> \<Theta> (store S) \<Gamma>" 
-    "WfHeap (heap S) \<Theta>" 
+    "WfHeap \<Delta> (heap S) \<Theta>" 
     "WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> False \<rho>"
     "WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1)"      
     ..
@@ -226,7 +235,7 @@ next
       show "WfFrees \<Delta> (\<Gamma>(x \<mapsto> \<tau>')) \<rho> (length \<Theta> - 1)"
         by (rule WfFrees_upd_storeT)
 
-      from wfs ss show "WfHeap (heap S') \<Theta>" 
+      from wfs ss show "WfHeap \<Delta> (heap S') \<Theta>" 
         and "WfStack \<Psi> \<Delta> \<Theta> (stack S') \<tau> False \<rho>" by simp_all
       
       from `WfStore \<Delta> \<Theta> (store S) \<Gamma>` `\<Gamma> \<turnstile> e\<^sub>I : \<tau>'` ss eval
@@ -268,7 +277,7 @@ next
   from `WfState S \<Gamma> \<Psi> \<tau> b \<rho>` Sv' ss
   obtain \<Theta> \<Delta> where
     wfs: "WfStore \<Delta> \<Theta> (store S) \<Gamma>"
-    "WfHeap (heap S) \<Theta>"
+    "WfHeap \<Delta> (heap S) \<Theta>"
     "WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>"
     "WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1)"
     by (auto elim!: WfStateE)
@@ -349,8 +358,8 @@ next
       qed 
       thus "WfStore ?\<Delta> (push_heap \<Theta>) ?G ?\<Gamma>" by (rule WfStore_push_heap)
 
-      from `WfHeap (heap S) \<Theta>`
-      show "WfHeap (push_heap (heap S)) (push_heap \<Theta>)"
+      from `WfHeap \<Delta> (heap S) \<Theta>`
+      show "WfHeap \<Delta> (push_heap (heap S)) (push_heap \<Theta>)"
         unfolding push_heap_def 
         by (rule wfHeapCons) simp_all
         
