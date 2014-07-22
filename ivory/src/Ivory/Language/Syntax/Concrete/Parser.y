@@ -246,7 +246,7 @@ procDef :
     '{' stmts '}' prePostBlk { ProcDef $1 $2 (reverse $4) (reverse $7) $9 }
 
 tyArg :: { (Type, Var) }
-tyArg : type tyident { ($1, $2) }
+tyArg : type ident { ($1, $2) }
 
 -- Zero or more typed arguments, separated by arbitrary many ','s.
 args :: { [(Type, Var)] }
