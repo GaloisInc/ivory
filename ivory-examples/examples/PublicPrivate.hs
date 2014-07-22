@@ -5,43 +5,44 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Example of a private struct, defined as a global memory area, with a public
+-- access function.
+
 module PublicPrivate where
 
 import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
-
 [ivory|
-struct Foo { i :: Stored Uint32 }
-struct Bar { name :: Array 32 (Stored IChar) }
+struct Foo { foo_i   :: Stored Sint32
+           ; foo_cnt :: Stored Uint32
+           }
 |]
 
-privateHelper1 :: Def ('[Ref s (Struct "Foo")] :-> Ref s (Stored Uint32))
-privateHelper1  = proc "private_helper1" (\s -> body (ret (s ~> i)))
-
-privateHelper2 :: Def ('[] :-> ())
-privateHelper2  = proc "private_helper2" $ body retVoid
-
-publicFunction :: Def ('[Ref s (Struct "Bar")] :-> Uint32)
-publicFunction = proc "public_function" $ \_ -> body $ do
-  a <- call privateHelper1 (addrOf privateFoo)
-  call_ privateHelper2
-  ret =<< deref a
-
 privateFoo :: MemArea (Struct "Foo")
-privateFoo  = area "private_foo" Nothing
+privateFoo  = area "private_foo" $
+  Just (istruct [foo_i .= ival 0, foo_cnt .= ival 0])
+
+privUpdate :: Def ('[Sint32] :-> ())
+privUpdate = proc "privUpdate" $ \v -> body $ do
+  let foo = addrOf privateFoo
+  curr <- deref (foo ~> foo_cnt)
+  store (foo ~> foo_i) v
+  store (foo~> foo_cnt) (curr+1)
+
+pubUpdate :: Def ('[Sint32] :-> ())
+pubUpdate = proc "pubUpdate" $ \v -> body $ do
+  call_ privUpdate v
 
 cmodule :: Module
 cmodule = package "PublicPrivate" $ do
   private $ do
     defStruct (Proxy :: Proxy "Foo")
     defMemArea privateFoo
-    incl privateHelper1
-    incl privateHelper2
+    incl privUpdate
   public $ do
-    defStruct (Proxy :: Proxy "Bar")
-    incl publicFunction
+    incl pubUpdate
 
 runPublicPrivate :: IO ()
 runPublicPrivate  = void $ runCompiler [cmodule] initialOpts { stdOut = True, constFold = True }
