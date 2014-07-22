@@ -1,8 +1,12 @@
 (* Lemmas which are not Ivory specific, and could/should be in the standard library *)
 
+(*<*)
 theory Lib 
 imports Main
 begin
+(*>*)
+
+section {* General preliminaries *}
 
 class infinite =
   fixes fresh :: "'a set \<Rightarrow> 'a"
@@ -269,4 +273,6 @@ lemma list_all2_ballE1:
   using asms rl
   by (fastforce simp: list_all2_conv_all_nth in_set_conv_nth)
 
+(*<*)
 end
+(*>*)

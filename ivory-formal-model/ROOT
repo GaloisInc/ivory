@@ -1,0 +1,7 @@
+session "Ivory" = "HOL" +
+  options [document = pdf, document_output = "output"]
+  theories [document = false]
+    (* Foo Bar *)
+  theories
+    Soundness
+  files "document/root.tex"

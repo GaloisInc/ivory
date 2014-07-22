@@ -1,8 +1,12 @@
 (* The top-level proofs of soundness *)
 
+(*<*)
 theory Soundness
 imports Progress Preservation
 begin
+(*>*)
+
+section {* Soundness *}
 
 lemma Soundness:
   fixes \<Psi> :: "('fun, 'r :: {infinite}) funsT"
@@ -175,4 +179,6 @@ proof -
     by (auto intro: Terminates Diverges)
 qed
 
+(*<*)
 end
+(*>*)
