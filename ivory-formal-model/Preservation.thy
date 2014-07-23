@@ -1,8 +1,12 @@
 (* The proof of the preservation property *)
 
+(*<*)
 theory Preservation
 imports EvalSafe
 begin
+(*>*)
+
+section {* Preservation *}
 
 lemma ImpureExp_length:
   assumes eval: "st \<Turnstile> H, e \<Down> H', v"
@@ -410,4 +414,6 @@ next
   qed
 qed
 
+(*<*)
 end
+(*>*)

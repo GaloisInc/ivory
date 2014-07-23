@@ -1,8 +1,10 @@
 (* An abstract machine for the semantics of Ivory *)
 
+(*<*)
 theory Semantics
 imports Syntax
 begin
+(*>*)
 
 section {* Semantics *}
 
@@ -140,5 +142,6 @@ lemma StepN_add_head:
   using sn s1
   by induction (auto intro: StepN.intros)
 
+(*<*)
 end
-
+(*>*)

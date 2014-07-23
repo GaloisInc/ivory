@@ -1,8 +1,10 @@
 (* The model of the type system *)
 
+(*<*)
 theory TypeSystem
 imports Syntax
 begin
+(*>*)
 
 section {* Well formed programs *}
 
@@ -211,5 +213,6 @@ inductive
 where
   wfProgramI: " \<lbrakk> WfState S \<Gamma> \<Psi> \<tau> b \<rho>; \<Gamma>, \<Psi>, \<rho> \<turnstile> s : \<tau>, b \<rbrakk> \<Longrightarrow> WfProgram \<Psi> S s"
 
-
+(*<*)
 end
+(*>*)

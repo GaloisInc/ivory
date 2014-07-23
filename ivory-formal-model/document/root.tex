@@ -1,0 +1,76 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{isabelle,isabellesym}
+
+% further packages required for unusual symbols (see also
+% isabellesym.sty), use only when needed
+
+\usepackage{amssymb}
+  %for \<leadsto>, \<box>, \<diamond>, \<sqsupset>, \<mho>, \<Join>,
+  %\<lhd>, \<lesssim>, \<greatersim>, \<lessapprox>, \<greaterapprox>,
+  %\<triangleq>, \<yen>, \<lozenge>
+
+%\usepackage{eurosym}
+  %for \<euro>
+
+%\usepackage[only,bigsqcap]{stmaryrd}
+  %for \<Sqinter>
+
+%\usepackage{eufrak}
+  %for \<AA> ... \<ZZ>, \<aa> ... \<zz> (also included in amssymb)
+
+%\usepackage{textcomp}
+  %for \<onequarter>, \<onehalf>, \<threequarters>, \<degree>, \<cent>,
+  %\<currency>
+
+% this should be the last package used
+\usepackage{pdfsetup}
+
+% urls in roman style, theory text in math-similar italics
+\urlstyle{rm}
+\isabellestyle{it}
+
+% for uniform font size
+%\renewcommand{\isastyle}{\isastyleminor}
+
+\input{gitrev}
+
+\begin{document}
+
+\title{A formal semantics for Ivory with proofs}
+\author{Simon Winwood \and Trevor Elliott \and Lee Pike \\
+  \{sjw,trevor,leepike\}@galois.com}
+
+\date{\today \\ \emph{git revision \gitrev{}}}
+
+\maketitle
+
+\tableofcontents
+
+\section{Introduction}
+
+This is a document produced automatically by the Isabelle theorem
+prover from the theory development available at
+\begin{center}
+\url{https://github.com/GaloisInc/ivory/tree/master/ivory-formal-model}.
+\end{center}
+
+This document is provided primarily for those who do not wish to
+install Isabelle.  We apologize for any illegibility caused by the
+document's automated generation.
+
+% sane default for proof documents
+\parindent 0pt\parskip 0.5ex
+
+% generated text of all theories
+\input{session}
+
+% optional bibliography
+%\bibliographystyle{abbrv}
+%\bibliography{root}
+
+\end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

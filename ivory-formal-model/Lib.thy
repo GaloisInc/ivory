@@ -1,8 +1,12 @@
 (* Lemmas which are not Ivory specific, and could/should be in the standard library *)
 
+(*<*)
 theory Lib 
 imports Main
 begin
+(*>*)
+
+section {* General preliminaries *}
 
 class infinite =
   fixes fresh :: "'a set \<Rightarrow> 'a"
@@ -273,4 +277,6 @@ lemma list_all2_mono [mono]:
   "(\<And>x y. P x y \<longrightarrow> P' x y) \<Longrightarrow> list_all2 P xs ys \<longrightarrow> list_all2 P' xs ys"
 by (auto simp: list_all2_conv_all_nth)
 
+(*<*)
 end
+(*>*)

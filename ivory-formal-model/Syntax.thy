@@ -1,8 +1,10 @@
 (* The syntax of Ivory terms and types *)
 
+(*<*)
 theory Syntax
 imports Heaps
 begin
+(*>*)
 
 section {* Syntax *}
 
@@ -81,7 +83,7 @@ where
 lemmas is_terminalE [consumes 1, case_names Return Skip]
   = is_terminal.elims(2)
 
-subsubsection {* Values *}
+subsection {* Values *}
 
 (* As with the types above *)
 datatype prim_value = NatV nat | BoolV bool | UnitV
@@ -126,4 +128,6 @@ record ('var, 'fun) state =
   heap :: heap 
   stack :: "('var, 'fun) stack"
 
+(*<*)
 end
+(*>*)

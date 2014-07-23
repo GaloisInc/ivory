@@ -1,8 +1,10 @@
 (* Properties of type system judgements *)
 
+(*<*)
 theory TypeSystemProps
 imports TypeSystem
 begin
+(*>*)
 
 section {* Type system properties *}
 
@@ -617,4 +619,6 @@ qed
 
 
 
+(*<*)
 end
+(*>*)

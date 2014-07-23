@@ -1,8 +1,12 @@
 (* The proof of the progress property *)
 
+(*<*)
 theory Progress
 imports EvalSafe
 begin
+(*>*)
+
+section {* Progress *} 
 
 lemma Progress: 
   assumes wff: "WfFuns F \<Psi>"
@@ -106,4 +110,6 @@ next
   qed
 qed
 
+(*<*)
 end
+(*>*)
