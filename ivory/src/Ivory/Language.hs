@@ -156,6 +156,7 @@ module Ivory.Language (
   , arrayLen
   , toCArray
   , ANat
+  , fromTypeNat
 
     -- ** Strings
   , IvoryString(..)
