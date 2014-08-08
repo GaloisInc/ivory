@@ -98,6 +98,7 @@ tokens :-
   struct   { lexReserved }
   abstract { lexReserved }
   string   { lexReserved }
+  type     { lexReserved }
 
   -- C style
   bool     { lexReserved }

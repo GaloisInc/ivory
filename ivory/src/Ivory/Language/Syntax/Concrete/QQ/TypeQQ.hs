@@ -36,6 +36,15 @@ import qualified Ivory.Language.Array     as I
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
+-- Haskell type synonyms
+
+fromTypeDef :: TypeDef -> Q Dec
+fromTypeDef (TypeDef syn ty) = do
+  n      <- newName syn
+  (t, _) <- runToQ (fromType ty)
+  return (TySynD n [] t)
+
+--------------------------------------------------------------------------------
 
 -- Data type to keep track of class constraints
 data Class = Int -- SingI type constraint
@@ -134,8 +143,6 @@ fromType ty = case ty of
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
   TyArea area       -> fromArea area
   TySynonym str     -> liftCon (mkName str)
-  where
-
 
 fromArea :: Area -> TTyVar T.Type
 fromArea area = case area of

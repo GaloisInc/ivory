@@ -22,7 +22,25 @@ type FieldNm   = String
 data GlobalSym = GlobalProc ProcDef
                | GlobalStruct StructDef
                | GlobalBitData BitDataDef
+               | GlobalTypeDef TypeDef
+               | GlobalConstDef ConstDef
   deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Constant definition
+
+data ConstDef = ConstDef
+  { constSym :: String
+  , constExp :: Exp
+  } deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Type definition
+
+data TypeDef = TypeDef
+  { tySym :: String
+  , tyDef :: Type
+  } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Procs

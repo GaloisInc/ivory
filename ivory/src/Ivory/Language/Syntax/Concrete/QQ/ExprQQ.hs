@@ -35,6 +35,12 @@ import Ivory.Language.Syntax.Concrete.QQ.Common
 --------------------------------------------------------------------------------
 -- Expressions
 
+-- | Top-level constant definition.
+fromConstDef :: ConstDef -> Q Dec
+fromConstDef (ConstDef sym e) = do
+  n <- newName sym
+  return (ValD (VarP n) (NormalB $ toExp [] e) [])
+
 fromLit :: Literal -> T.Exp
 fromLit lit = case lit of
   LitInteger int -> LitE (IntegerL int)

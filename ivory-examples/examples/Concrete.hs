@@ -26,6 +26,16 @@ type SomeInt = Uint32
 
 [ivory|
 
+-- Define an expression
+bar = 3 + 2;
+
+-- Define a type alias
+type Boo = int8_t;
+
+-- Use them
+Boo foo(Boo x) {
+  return (bar + x);
+}
 
 -- Allocation on the stack.  Dereference is an expression.  All statements are
 -- terminated with a ';'.

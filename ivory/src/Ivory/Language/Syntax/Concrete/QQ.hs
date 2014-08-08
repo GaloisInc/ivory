@@ -2,6 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 
 --
 -- Ivory QuasiQuoter.
@@ -29,6 +30,8 @@ import qualified Ivory.Language.Module as I
 import Ivory.Language.Syntax.Concrete.QQ.BitDataQQ
 import Ivory.Language.Syntax.Concrete.QQ.StructQQ
 import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
+import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Parser
@@ -62,7 +65,12 @@ ivory' b = QuasiQuoter
   decP str = do
     let defs      = reverse (runParser str)
     decs         <- mapM mkDef defs
-    theModule    <- ivoryMod defs
+    let ivoryDefs = filter (\case
+                              GlobalTypeDef{}  -> False
+                              GlobalConstDef{} -> False
+                              _                -> True
+                           ) defs
+    theModule    <- ivoryMod ivoryDefs
     let maybeMod  = if b then theModule else []
     return (concat decs ++ maybeMod)
   err str = error $ str ++ " not implemented for c quasiquoter."
@@ -71,10 +79,13 @@ ivory' b = QuasiQuoter
 
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
-  GlobalProc    d -> fromProc d
-  GlobalStruct  d -> fromStruct d
-  --  XXX finish
-  GlobalBitData d -> fromBitData d
+  GlobalProc    d      -> fromProc d
+  GlobalStruct  d      -> fromStruct d
+  GlobalBitData d      -> fromBitData d
+  GlobalTypeDef  tyDef  -> singList (fromTypeDef tyDef)
+  GlobalConstDef tyDef  -> singList (fromConstDef tyDef)
+  where
+  singList x = (:[]) `fmap` x
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: [GlobalSym] -> Q [Dec]
@@ -124,6 +135,11 @@ ivoryMod incls = do
       -> AppE (VarE 'I.defStruct)
               (SigE (ConE 'I.Proxy)
                     (AppT (ConT ''I.Proxy) (LitT (StrTyLit (structSym d)))))
+    GlobalTypeDef{}
+      -> error "global typedef in ivorySymMod"
+    GlobalConstDef{}
+      -> error "global constDef in ivorySymMod"
+
 
 --------------------------------------------------------------------------------
 

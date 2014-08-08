@@ -174,6 +174,8 @@ import Ivory.Language.Syntax.Concrete.Lexer
   abstract { TokReserved "abstract" }
   string   { TokReserved "string" }
 
+  ty       { TokReserved "type" }
+
   -- Bit data
   bitdata  { TokReserved "bitdata" }
   Bit      { TokReserved "Bit" }
@@ -232,10 +234,18 @@ import Ivory.Language.Syntax.Concrete.Lexer
 -- Top-level definitions
 
 defs :: { [GlobalSym] }
-defs : defs procDef       { GlobalProc    $2 : $1 }
-     | defs structDef     { GlobalStruct  $2 : $1 }
-     | defs bdDef         { GlobalBitData $2 : $1 }
+defs : defs procDef       { GlobalProc     $2 : $1 }
+     | defs structDef     { GlobalStruct   $2 : $1 }
+     | defs bdDef         { GlobalBitData  $2 : $1 }
+     | defs typeDef       { GlobalTypeDef  $2 : $1 }
+     | defs constDef      { GlobalConstDef $2 : $1 }
      | {- empty -}        { [] }
+
+----------------------------------------
+-- Constant definitions
+
+constDef :: { ConstDef }
+constDef : ident '=' exp ';' { ConstDef $1 $3 }
 
 ----------------------------------------
 -- Procs
@@ -389,6 +399,10 @@ arrExp : ident '!' exp  { ($1, $3) }
 
 ----------------------------------------
 -- Types
+
+typeDef :: { TypeDef }
+typeDef :
+  ty tyident '=' type ';' { TypeDef $2 $4 }
 
 type :: { Type }
 type :
