@@ -255,37 +255,27 @@ newtype Ensure = Ensure
 data Expr
   = ExpSym Sym
     -- ^ Symbols
-
   | ExpVar Var
     -- ^ Variables
-
   | ExpLit Literal
     -- ^ Literals
-
   | ExpLabel Type Expr String
     -- ^ Struct label indexing.
-
   | ExpIndex Type Expr Type Expr
     -- ^ Array indexing.  The type is the type of the array being indexed, it's
     -- implied that the expression with the array in it is a reference.
-
   | ExpToIx Expr Integer
     -- ^ Cast from an expression to an index (Ix) used in loops and array
     -- indexing.  The Integer is the maximum bound.
-
   | ExpSafeCast Type Expr
     -- ^ Type-safe casting.  The type is the type casted from.
-
   | ExpOp ExpOp [Expr]
     -- ^ Primitive expression operators
-
   | ExpAddrOfGlobal Sym
     -- ^ Take the address of a global memory area, introduced through a MemArea
     -- *only*.
-
   | ExpMaxMin Bool
     -- ^ True is max value, False is min value for the type.
-
     deriving (Show, Eq, Ord)
 
 

@@ -5,6 +5,7 @@ module Ivory.ModelCheck.Ivory2CVC4
 
 import           Prelude hiding (exp)
 -- import           Data.Word
+import           Control.Applicative
 import           Control.Monad
 import qualified Ivory.Language.Syntax as I
 import           Ivory.Opts.ConstFold (constFold)
@@ -161,21 +162,21 @@ toExpr t exp = case exp of
   I.ExpLit lit               -> return $
     case lit of
       I.LitInteger i -> intLit i
-      I.LitBool b    -> if b then T else F
-      I.LitFloat  _  -> stub'
-      I.LitDouble _  -> stub'
-      I.LitString _  -> stub'
-      I.LitChar   _  -> stub'
-      I.LitNull      -> stub'
-  I.ExpSafeCast t' e         -> do e' <- toExpr t' e
-                                   assertBoundedVar t e'
-                                   return e'
-  I.ExpOp op args            -> toExprOp t op args
-  I.ExpAddrOfGlobal s        -> return (var s)
-  I.ExpIndex _ _ _ _         -> stub'
-  I.ExpMaxMin _              -> stub'
-  I.ExpLabel{}               -> err "toExpr" (show exp) -- Already covered
-  I.ExpToIx e i              -> err "toExpr" (show exp)
+      I.LitBool    b -> if b then T else F
+      I.LitFloat   f -> stub'
+      I.LitDouble  d -> stub'
+      I.LitString  s -> unsup "toExpr" "String"
+      I.LitChar    c -> charLit c
+      I.LitNull      -> nullLit
+  I.ExpSafeCast t' e -> do e' <- toExpr t' e
+                           assertBoundedVar t e'
+                           return e'
+  I.ExpOp op args     -> toExprOp t op args
+  I.ExpAddrOfGlobal s -> return (var s)
+  I.ExpIndex _ _ _ _  -> stub'
+  I.ExpMaxMin _       -> stub'
+  I.ExpToIx e i       -> stub'
+  I.ExpLabel t' e l   -> err "toExpr" (show exp) -- Already covered
   where
   stub' = stub "toExpr" $ show exp
 
@@ -183,35 +184,27 @@ toExpr t exp = case exp of
 
 toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args = case op of
-  I.ExpEq t'      -> op2 t' Eq
-  I.ExpNeq t'     -> toExpr t (I.ExpOp I.ExpNot [I.ExpOp (I.ExpEq t') args])
-  I.ExpCond       -> stub' "ExpCond"
+  I.ExpEq t'  -> op2 t' Eq
+  I.ExpNeq t' -> Not <$> op2 t' Eq
+  I.ExpCond   -> toCond t x0 x1 x2
   ----------------------------------------
-  I.ExpGt orEq t' ->
-    case orEq of
-      True  -> op2 t' Geq
-      False -> op2 t' Ge
-  I.ExpLt orEq t' ->
-    case orEq of
-      True  -> op2 t' Leq
-      False -> op2 t' Le
+  I.ExpGt orEq t' -> op2 t' $ if orEq then Geq else Gt
+  I.ExpLt orEq t' -> op2 t' $ if orEq then Leq else Lt
   ----------------------------------------
-  I.ExpNot -> toExpr I.TyBool arg0 >>= return . not'
+  I.ExpNot -> op1 t Not
   I.ExpAnd -> op2 t And
   I.ExpOr  -> op2 t Or
   ----------------------------------------
-  I.ExpMul    -> stub' "ExpMul"
+  I.ExpMul    -> op2 t Mul
   I.ExpAdd    -> op2 t Add
   I.ExpSub    -> op2 t Sub
-  I.ExpNegate ->
-    let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
-    toExpr t neg
-  I.ExpAbs    -> stub' "ExpAbs"
-  I.ExpSignum -> stub' "ExpSignum"
+  I.ExpNegate -> binop t (litOp t 0) x0 Sub
+  I.ExpAbs    -> op1 t Abs
+  I.ExpSignum -> op1 t Signum
   ----------------------------------------
-  I.ExpMod   -> toMod t arg0 arg1
-  I.ExpDiv   -> stub' "ExpDiv"
-  I.ExpRecip -> stub' "ExpRecip"
+  I.ExpMod   -> toMod t x0 x1
+  I.ExpDiv   -> op2 t Div
+  I.ExpRecip -> binop t (litOp t 1) x0 Div
   ----------------------------------------
   I.ExpFExp     -> stub' "ExpFExp"
   I.ExpFSqrt    -> stub' "ExpFSqrt"
@@ -244,14 +237,17 @@ toExprOp t op args = case op of
   I.ExpBitShiftL     -> stub' "ExpBitShiftL"
   I.ExpBitShiftR     -> stub' "ExpBitShiftR"
   where
-  stub' op = stub "toExprOp" $ op ++ ": " ++ show args
-  arg0 = args !! 0
-  arg1 = args !! 1
+  ~(x0:x1:x2:_) = args
   ----
-  op2 t' op = do
-    e0 <- toExpr t' arg0
-    e1 <- toExpr t' arg1
-    return (e0 `op` e1)
+  op1 t'          = unop t' x0
+  unop t' x op    = liftM op $ toExpr t' x
+  op2 t'          = binop t' x0 x1
+  binop t' x y op = do
+    x' <- toExpr t' x
+    y' <- toExpr t' y
+    return $ x' `op` y'
+  ----
+  stub' op = stub "toExprOp" $ op ++ ": " ++ show args
 
 -- Abstraction: a % b (C semantics) implies
 --
@@ -266,8 +262,14 @@ toMod t e0 e1 = do
   a <- toExpr t e0
   b <- toExpr t e1
   let v' = var v
-  addInvariant (call modAbs [v', a, b])
+  addInvariant (Call modAbs [v', a, b])
   return v'
+
+toCond :: I.Type -> I.Expr -> I.Expr -> I.Expr -> ModelCheck Expr
+toCond t ec et ef = liftM3 Cond
+  (toExpr I.TyBool ec)
+  (toExpr t        et)
+  (toExpr t        ef)
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -316,7 +318,6 @@ toType t = case t of
   I.TyProc t' ts   -> do ts' <- mapM toType ts
                          r   <- toType t'
                          return $ Fun ts' r
-  -- _            -> error $ show t
 
 updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
 updateEnvRef t ref =
@@ -464,16 +465,20 @@ assertBoundedVar t e = getBounds t
 
     _         -> return ()
 
-  c f = addInvariant (call f [e])
+  c f = addInvariant (Call f [e])
 
 
 err :: String -> String -> a
 err f msg = error $ "in ivory-model-check. Unexpected: " ++ msg
-         ++ " in function " ++ f
+  ++ " in function " ++ f
 
 stub :: String -> String -> a
 stub f case_ = error $ "in ivory-model-check. Case undefined for: " ++ case_
-         ++ " in function " ++ f
+  ++ " in function " ++ f
+
+unsup :: String -> String -> a
+unsup f msg = error $ "in ivory-model-check. " ++ msg ++ " is currently unsupported by CVC4."
+  ++ " in function " ++ f
 
 --------------------------------------------------------------------------------
 

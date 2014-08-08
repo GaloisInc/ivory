@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -8,11 +11,13 @@ module Ivory.ModelCheck.CVC4 where
 
 import           Prelude hiding (exp)
 import           Data.List (intersperse)
+import           Control.Applicative
 import           Data.Monoid
 import           Data.Word
 import           Data.Int
 import qualified Data.ByteString.Char8 as B
 import           MonadLib.Monads
+import           GHC.Exts (IsString(..),IsList(..))
 
 --------------------------------------------------------------------------------
 
@@ -22,11 +27,29 @@ type Func = String
 --------------------------------------------------------------------------------
 -- Concrete syntax
 
+newtype PP' a = PP
+  { unPP :: Reader Int a
+  } deriving (Functor,Applicative,Monad)
+
+prec :: PP' Int
+prec = PP ask
+
+withPrec :: Int -> PP' a -> PP' a
+withPrec d (PP m) = PP $ local d m
+
+runPP :: Int -> PP' a -> a
+runPP i = runReader i . unPP
+
+instance IsString a => IsString (PP' a) where
+  fromString = PP . return . fromString
+
+type PP  = PP' B.ByteString
+
 class Concrete a where
   concrete :: a -> B.ByteString
-  concrete = runReader 0 . concPrec
-  concPrec :: a -> Reader Int B.ByteString
-  concPrec = return . concrete
+  concrete = runPP 0 . concs
+  concs :: a -> PP
+  concs = return . concrete
 
 instance Concrete B.ByteString where
   concrete = id
@@ -52,17 +75,27 @@ data Statement = TypeDecl Type
                -- Arbitrary stmt constructed by-hand.
                | forall a. Concrete a => Statement a
 
+instance IsList Statement where
+  type Item Statement = B.ByteString
+  fromList ss = Statement $ endSemi $ B.unwords ss
+
+instance IsString Statement where
+  fromString = Statement . B.pack
+
 instance Concrete Statement where
-  concrete st = case st of
-    TypeDecl  ty -> stmt [concrete ty, ":", "TYPE"]
-    VarDecl v ty -> stmt [concrete v , ":", concrete ty]
-    Assert   exp -> stmt ["ASSERT"   , concrete exp]
-    Query    exp -> stmt ["QUERY"    , concrete exp]
-    Statement  a -> stmt [concrete a]
+  concs st = case st of
+    TypeDecl  ty -> stmt $ concs ty <+> ":" <+> "TYPE"
+    VarDecl v ty -> stmt $ concs v  <+> ":" <+> concs ty
+    Assert   exp -> stmt $         "ASSERT" <+> concs exp
+    Query    exp -> stmt $         "QUERY"  <+> concs exp
+    Statement  a -> stmt $ concs a
 
 -- | properly format a space-separated line, ended by a semicolon.
-stmt :: [B.ByteString] -> B.ByteString
-stmt = flip B.snoc ';' . B.unwords
+stmt :: PP -> PP
+stmt = liftM endSemi
+
+endSemi :: B.ByteString -> B.ByteString
+endSemi = flip B.snoc ';'
 
 typeDecl :: Type -> Statement
 typeDecl = TypeDecl
@@ -75,6 +108,17 @@ assert = Assert
 
 query :: Expr -> Statement
 query = Query
+
+(<^>) :: PP -> PP -> PP
+(<^>) = liftM2 (<>)
+infixr 2 <^>
+
+(<+>) :: PP -> PP -> PP
+m1 <+> m2 = do
+  s1 <- m1
+  s2 <- m2
+  return $ s1 <> " " <> s2
+infixr 2 <+>
 
 --------------------------------------------------------------------------------
 -- Expressions and literals
@@ -101,105 +145,108 @@ data Type = Void
   deriving (Show, Read, Eq)
 
 instance Concrete Type where
-  concPrec typ = case typ of
-    Bool          -> return "BOOLEAN"
-    Real          -> return "REAL"
-    Integer       -> return "INT"
-    (Struct name) -> return $ B.pack name
-    Void          -> return "[]"
-    Char          -> return "CHAR"
-    Opaque        -> return "OPAQUE"
-    Arr n t       -> parens' 10 $ do
-      s <- concPrec t
-      return $ "ARRAY INT OF " <> s
-    Fun ts r       -> parens' 4 $ do
-      s1 <- concPrec a
-      s2 <- concPrec b
-      return $ s1 <> " -> " <> s2
-    Tuple ts      -> return
-       $ "["
-      <> B.concat
-       ( intersperse ", "
-       $ map concrete ts
-       )
-      <> "]"
+  concs typ = case typ of
+    Bool          -> "BOOLEAN"
+    Real          -> "REAL"
+    Integer       -> "INT"
+    (Struct name) -> str name
+    Void          -> "[]"
+    Char          -> "CHAR"
+    Opaque        -> "OPAQUE"
+    Arr n t       -> parens 10 $ "ARRAY INT OF" <+> concs t
+    Fun ts r       -> parens 4
+      $ parenGrp (map concs ts) <+> "->" <+> concs r
+    Tuple ts      -> brackGrp $ map concs ts
 
-data Expr = Var Var
-          -- Boolean expressions
-          | T
-          | F
-          | Not      Expr
-          | And      Expr Expr
-          | Or       Expr Expr
-          | Impl     Expr Expr
-          | Eq       Expr Expr
-          | Le       Expr Expr
-          | Leq      Expr Expr
-          | Ge       Expr Expr
-          | Geq      Expr Expr
-          -- Numeric expressions
-          | forall a . (Show a, Concrete a, Num a) => NumLit a
-          | Add      Expr Expr
-          | Sub      Expr Expr
-          | Call     Func [Expr]
+data Expr
+  = Var Var
+  -- Boolean expressions
+  | T
+  | F
+  | Not      Expr
+  | And      Expr Expr
+  | Or       Expr Expr
+  | Impl     Expr Expr
+  | Eq       Expr Expr
+  | Lt       Expr Expr
+  | Leq      Expr Expr
+  | Gt       Expr Expr
+  | Geq      Expr Expr
+  -- Numeric expressions
+  | Add      Expr Expr
+  | Sub      Expr Expr
+  | Mul      Expr Expr
+  | Cond     Expr Expr Expr
+  | Abs      Expr
+  | Signum   Expr
+  | Div      Expr Expr
+  | forall a . (Show a, Concrete a, Num a) => NumLit a
+  -- Void, Function, Array
+  | Unit
+  | Call     Func [Expr]
+  | Index    Expr Expr
 
 deriving instance Show Expr
 
-leaf :: Expr -> Bool
-leaf exp =
-  case exp of
-    (Var _)    -> True
-    T          -> True
-    F          -> True
-    (NumLit _) -> True
-    _          -> False
+parens :: Int -> PP -> PP
+parens d m = do
+  p <- prec
+  let f = if p > d then wrap "(" ")" else id
+  f $ withPrec (succ d) m
 
-parens :: Expr -> B.ByteString
-parens exp =
-  if leaf exp
-    then concrete exp
-    else  '(' `B.cons` (concrete exp `B.snoc` ')')
+sep :: B.ByteString -> [PP] -> PP
+sep s = liftM B.concat . sequence . intersperse (return s)
 
-parens' :: Int
-       -> Reader Int B.ByteString
-       -> Reader Int B.ByteString
-parens' d m = do
-  prec <- ask
-  if prec > d
-    then do
-      s <- m'
-      return $ "(" <> s <> ")"
-    else m'
-  where
-  m' = local (succ d) m
+commaSep :: [PP] -> PP
+commaSep = sep ", "
 
-sep :: B.ByteString -> [Reader Int B.ByteString] -> Reader Int B.ByteString
-sep = undefined
+wrap :: B.ByteString -> B.ByteString -> PP -> PP
+wrap o c m = do
+  s <- m
+  return $ o <> s <> c
 
-words' :: [Reader Int B.ByteString] -> Reader Int B.ByteString
-words' = liftM B.concat . sequence . intersperse (return " ")
+parWrap :: PP -> PP
+parWrap = wrap "(" ")"
+
+brkWrap :: PP -> PP
+brkWrap = wrap "[" "]"
+
+parenGrp :: [PP] -> PP
+parenGrp = parWrap . commaSep
+
+brackGrp :: [PP] -> PP
+brackGrp = brkWrap . commaSep
+
+spaces :: [PP] -> PP
+spaces = juxt . intersperse (return " ")
+
+juxt :: [PP] -> PP
+juxt = liftM B.concat . sequence
+
+str :: String -> PP
+str = return . B.pack
 
 instance Concrete Expr where
-  concPrec exp = case exp of
-    Var v       -> concPrec v
-    T           -> return "TRUE"
-    F           -> return "FALSE"
-    NumLit   n  -> concPrec n
-    Not e       -> parens' 10 $ words' [return "NOT", concPrec e]
-    And  e0 e1  -> parens' 10 $ words' [concPrec e0, return "AND", concPrec e1]
-    Or   e0 e1  -> parens' 10 $ words' [concPrec e0, return "OR" , concPrec e1]
-    Impl e0 e1  -> parens' 10 $ words' [concPrec e0, return "=>" , concPrec e1]
-    Eq   e0 e1  -> parens' 10 $ words' [concPrec e0, return "="  , concPrec e1]
-    Le   e0 e1  -> parens' 10 $ words' [concPrec e0, return "<"  , concPrec e1]
-    Leq  e0 e1  -> parens' 10 $ words' [concPrec e0, return "<=" , concPrec e1]
-    Ge   e0 e1  -> parens' 10 $ words' [concPrec e0, return ">"  , concPrec e1]
-    Geq  e0 e1  -> parens' 10 $ words' [concPrec e0, return ">=" , concPrec e1]
-    Add  e0 e1  -> parens' 10 $ words' [concPrec e0, return "+"  , concPrec e1]
-    Sub  e0 e1  -> parens' 10 $ words' [concPrec e0, return "-"  , concPrec e1]
-    Call f args -> return $ concrete f
-                `B.append` ('(' `B.cons` (args' `B.snoc` ')'))
-      where
-      args' = B.concat $ intersperse ", " (map concrete args)
+  concs exp = case exp of
+    Var v       -> concs v
+    T           -> "TRUE"
+    F           -> "FALSE"
+    NumLit   n  -> concs n
+    Not e       -> parens 10 $              "NOT" <+> concs e
+    And   e0 e1 -> parens 10 $ concs e0 <+> "AND" <+> concs e1
+    Or    e0 e1 -> parens 10 $ concs e0 <+> "OR"  <+> concs e1
+    Impl  e0 e1 -> parens 10 $ concs e0 <+> "=>"  <+> concs e1
+    Eq    e0 e1 -> parens 10 $ concs e0 <+> "="   <+> concs e1
+    Lt    e0 e1 -> parens 10 $ concs e0 <+> "<"   <+> concs e1
+    Leq   e0 e1 -> parens 10 $ concs e0 <+> "<="  <+> concs e1
+    Gt    e0 e1 -> parens 10 $ concs e0 <+> ">"   <+> concs e1
+    Geq   e0 e1 -> parens 10 $ concs e0 <+> ">="  <+> concs e1
+    Add   e0 e1 -> parens 10 $ concs e0 <+> "+"   <+> concs e1
+    Sub   e0 e1 -> parens 10 $ concs e0 <+> "-"   <+> concs e1
+    Mul   e0 e1 -> parens 10 $ concs e0 <+> "*"   <+> concs e1
+    Div   e0 e1 -> parens 10 $ concs e0 <+> "/"   <+> concs e1
+    Index e0 e1 -> parens 10 $ concs e0 <^> "[" <^> concs e1 <^> "]"
+    Call f args -> parens 10 $ str f <^> brackGrp (map concs args)
 
 var :: Var -> Expr
 var = Var
@@ -226,13 +273,13 @@ not' = Not
 (.==) = Eq
 
 (.<) :: Expr -> Expr -> Expr
-(.<) = Le
+(.<) = Lt
 
 (.<=) :: Expr -> Expr -> Expr
 (.<=) = Leq
 
 (.>) :: Expr -> Expr -> Expr
-(.>) = Ge
+(.>) = Gt
 
 (.>=) :: Expr -> Expr -> Expr
 (.>=) = Geq
@@ -249,8 +296,14 @@ lit = NumLit
 intLit :: Integer -> Expr
 intLit = lit
 
+charLit :: Char -> Expr
+charLit = intLit . toEnum . fromEnum
+
 realLit :: Integer -> Expr
 realLit = lit
+
+nullLit :: Expr
+nullLit = Unit
 
 call :: Func -> [Expr] -> Expr
 call = Call
@@ -263,7 +316,7 @@ call = Call
 
 boundedFunc :: forall a . (Show a, Integral a, Bounded a)
                 => Func -> a -> Statement
-boundedFunc f _sz = Statement $ B.unwords
+boundedFunc f _sz = 
   [ B.pack f, ":", "INT", "->", "BOOLEAN"
   , "=", "LAMBDA", "(x:INT)", ":"
   , exp (toInt minBound) (toInt maxBound)
@@ -301,6 +354,15 @@ int64Bound  :: Statement
 int64Bound  = boundedFunc int64   (0 :: Int64)
 
 ----------------------------------------
+-- Types
+
+charType :: Statement
+charType = "CHAR : TYPE = INT"
+
+opaqueType :: Statement
+opaqueType = "OPAQUE : TYPE"
+
+----------------------------------------
 -- Mod
 
 modAbs :: Func
@@ -313,7 +375,7 @@ modAbs = "mod"
 --
 -- a % b is abstracted with a fresh var v.
 modFunc :: Statement
-modFunc = Statement $ B.unwords
+modFunc = 
   [ B.pack modAbs, ":", "(INT, INT, INT)", "->", "BOOLEAN"
   , "=", "LAMBDA", "(v:INT, a:INT, b:INT)", ":"
   , concrete exp
@@ -329,8 +391,8 @@ modFunc = Statement $ B.unwords
 cvc4Lib :: [Statement]
 cvc4Lib =
   [ word8Bound, word16Bound, word32Bound, word64Bound
-  , int8Bound,  int16Bound,  int32Bound,  int64Bound
-  , modFunc
+  , int8Bound ,  int16Bound,  int32Bound,  int64Bound
+  , charType  , opaqueType , modFunc
   ]
 
 --------------------------------------------------------------------------------
@@ -338,3 +400,4 @@ cvc4Lib =
 
 foo :: Statement
 foo = assert $ (intLit 3 .== var "x") .&& (var "x" .< intLit 4)
+

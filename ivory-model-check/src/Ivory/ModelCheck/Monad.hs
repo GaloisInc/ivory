@@ -26,6 +26,7 @@ import           Data.Maybe
 import           Data.List
 import           Data.Monoid
 import           Control.Applicative
+import           Control.Monad (when,unless)
 import           MonadLib
 import qualified Data.Map.Lazy         as M
 
@@ -132,9 +133,9 @@ addType :: Type -> ModelCheck ()
 addType ty = do
   st <- get
   let ps = symSt st
-  if ty `elem` types ps then return ()
-    else do let ps' = ps { types = ty : types ps }
-            set st { symSt = ps' }
+  unless (ty `elem` types ps) $ do
+    let ps' = ps { types = ty : types ps }
+    set st { symSt = ps' }
 
 addInvariant :: Expr -> ModelCheck ()
 addInvariant exp = do
