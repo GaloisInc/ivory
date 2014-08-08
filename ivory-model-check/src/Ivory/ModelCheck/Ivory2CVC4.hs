@@ -67,9 +67,9 @@ toBody ens stmt =
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
     I.Local t v inits      -> toLocal t v inits
-
+    ----
     I.AllocRef t ref name  -> toAlloc t ref name
-
+    ----
     I.Loop v exp inc blk   -> toLoop ens v exp inc blk
     I.Call t retV nm args  -> stub'
     I.Assume _             -> stub'

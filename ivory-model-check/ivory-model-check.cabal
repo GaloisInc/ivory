@@ -9,7 +9,6 @@ author: Galois, Inc.
  
 library
     build-depends:
-        ivory-examples -any,
         base >=4.6,
         containers -any,
         filepath -any,
