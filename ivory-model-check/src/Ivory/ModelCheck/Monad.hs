@@ -62,10 +62,9 @@ data SymExecSt = SymExecSt
   , symQuery :: Queries
   }
 
-newtype ModelCheck a = ModelCheck (StateT SymExecSt Id a)
-  -- { unModelCheck ::
-  -- }
-    deriving (Functor, Applicative, Monad)
+newtype ModelCheck a = ModelCheck
+  { unModelCheck :: StateT SymExecSt Id a
+  } deriving (Functor, Applicative, Monad)
 
 --------------------------------------------------------------------------------
 

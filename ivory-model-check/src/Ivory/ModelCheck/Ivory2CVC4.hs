@@ -1,13 +1,14 @@
+
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
 import           Prelude hiding (exp)
-import           Data.Word
+-- import           Data.Word
 import           Control.Monad
 import qualified Ivory.Language.Syntax as I
 import           Ivory.Opts.ConstFold (constFold)
-import           Ivory.Opts.Overflow (overflowFold)
+-- import           Ivory.Opts.Overflow (overflowFold)
 
 import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
@@ -37,11 +38,11 @@ modelCheckProc I.Proc { I.procSym      = sym
                       , I.procEnsures  = ensures
                       }
     -- XXX ignore requires/ensures for now
-  = --let ens  = map I.getEnsure ensures
-    --let reqs = map (toRequire . I.getRequire) requires
-    do
+  =  do
+  let ens  = map I.getEnsure ensures
+  -- let reqs = map (toRequire . I.getRequire) requires
   mapM_ toParam args
-  mapM_ (toBody undefined) body
+  mapM_ (toBody ens) body
 
 --------------------------------------------------------------------------------
 
@@ -64,13 +65,19 @@ toBody ens stmt =
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
---    I.Call t retV nm args  -> error "Calls undefined"
     I.Local t v inits      -> toLocal t v inits
 
     I.AllocRef t ref name  -> toAlloc t ref name
 
-    I.Loop v exp inc blk   -> toLoop v exp inc blk
-    _                      -> error $ "XXX Unimplemented: " ++ show stmt
+    I.Loop v exp inc blk   -> toLoop ens v exp inc blk
+    I.Call t retV nm args  -> stub'
+    I.Assume _             -> stub'
+    I.RefCopy _ _ _        -> stub'
+    I.Forever _            -> stub'
+    I.Break                -> stub'
+    I.Comment _            -> stub'
+    where
+    stub' = stub "toBody" $ show stmt
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
@@ -98,8 +105,12 @@ toLocal t v inits = do
 toInit :: I.Init -> ModelCheck Expr
 toInit init =
   case init of
---    I.InitZero       -> lit 0
+    I.InitZero       -> return $ intLit 0
     I.InitExpr t exp -> toExpr t exp
+    I.InitStruct _   -> stub'
+    I.InitArray  _   -> stub'
+    where
+    stub' = stub "toInit" $ show init
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
@@ -109,26 +120,22 @@ toAssign t v exp = do
 
 -- XXX Abstraction (to implement): If there is load/stores in the block, the we
 -- don't care how many times it iterates.  It's pure.
-toLoop :: I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
-toLoop v start end blk =
+toLoop :: [I.Cond] -> I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
+toLoop ens v start end blk =
   mapM_ go ixs
   where
   go :: Integer -> ModelCheck ()
   go ix = do
-    v' <- addEnvVar t (toVar v)
+    v' <- addEnvVar (I.TyInt I.Int32) $ toVar v
     addInvariant (var v' .== intLit ix)
-    mapM_ (toBody undefined) blk
+    mapM_ (toBody ens) blk
+  ----
+  ixs = case lOp of
+    Incr -> takeWhile (<= lEnd) $ iterate succ lStart
+    Decr -> takeWhile (>= lEnd) $ iterate pred lStart
+    where
+    Loop lStart lEnd lOp = loopIterations start end
 
-  t = I.TyInt I.Int32
-
-  loopData = loopIterations start end
-
-  ixs | loopOp loopData == Incr
-      = takeWhile (<= endVal loopData) $
-          iterate (+ 1) (startVal loopData)
-      | loopOp loopData == Decr
-      = takeWhile (>= endVal loopData) $
-          iterate (flip (-) 1) (startVal loopData)
 
 toIfTE :: [I.Cond] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens cond blk0 blk1 = do
@@ -142,7 +149,7 @@ toIfTE ens cond blk0 blk1 = do
   runBranch :: SymExecSt -> Expr -> [I.Stmt] -> ModelCheck ()
   runBranch st b blk = do
     resetSt st                   -- Empty state except environment
-    mapM_ (toBody undefined) blk -- Body under the invariant
+    mapM_ (toBody ens) blk -- Body under the invariant
     branchSt b                   -- Make conditions under hypothesis b
 
 --------------------------------------------------------------------------------
@@ -155,43 +162,93 @@ toExpr t exp = case exp of
     case lit of
       I.LitInteger i -> intLit i
       I.LitBool b    -> if b then T else F
-  I.ExpLabel{}               -> err "toExpr" (show exp) -- Already covered
-  I.ExpToIx e i              -> err "toExpr" (show exp)
+      I.LitFloat  _  -> stub'
+      I.LitDouble _  -> stub'
+      I.LitString _  -> stub'
+      I.LitChar   _  -> stub'
+      I.LitNull      -> stub'
   I.ExpSafeCast t' e         -> do e' <- toExpr t' e
                                    assertBoundedVar t e'
                                    return e'
   I.ExpOp op args            -> toExprOp t op args
   I.ExpAddrOfGlobal s        -> return (var s)
+  I.ExpIndex _ _ _ _         -> stub'
+  I.ExpMaxMin _              -> stub'
+  I.ExpLabel{}               -> err "toExpr" (show exp) -- Already covered
+  I.ExpToIx e i              -> err "toExpr" (show exp)
+  where
+  stub' = stub "toExpr" $ show exp
 
 --------------------------------------------------------------------------------
 
 toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args = case op of
-  I.ExpEq t'      -> go t' (.==)
+  I.ExpEq t'      -> op2 t' Eq
   I.ExpNeq t'     -> toExpr t (I.ExpOp I.ExpNot [I.ExpOp (I.ExpEq t') args])
-  I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
-  I.ExpAnd        -> go t (.&&)
-  I.ExpOr         -> go t (.||)
-  I.ExpLt orEq t' ->
-    case orEq of
-      True  -> go t' (.<=)
-      False -> go t' (.<)
+  I.ExpCond       -> stub' "ExpCond"
+  ----------------------------------------
   I.ExpGt orEq t' ->
     case orEq of
-      True  -> go t' (.>=)
-      False -> go t' (.>)
-  I.ExpMod        -> toMod t arg0 arg1
-  I.ExpAdd        -> go t (.+)
-  I.ExpSub        -> go t (.-)
-  I.ExpNegate     ->
+      True  -> op2 t' Geq
+      False -> op2 t' Ge
+  I.ExpLt orEq t' ->
+    case orEq of
+      True  -> op2 t' Leq
+      False -> op2 t' Le
+  ----------------------------------------
+  I.ExpNot -> toExpr I.TyBool arg0 >>= return . not'
+  I.ExpAnd -> op2 t And
+  I.ExpOr  -> op2 t Or
+  ----------------------------------------
+  I.ExpMul    -> stub' "ExpMul"
+  I.ExpAdd    -> op2 t Add
+  I.ExpSub    -> op2 t Sub
+  I.ExpNegate ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg
-  _               -> error $ "toExprOp error: no op " ++ show op
+  I.ExpAbs    -> stub' "ExpAbs"
+  I.ExpSignum -> stub' "ExpSignum"
+  ----------------------------------------
+  I.ExpMod   -> toMod t arg0 arg1
+  I.ExpDiv   -> stub' "ExpDiv"
+  I.ExpRecip -> stub' "ExpRecip"
+  ----------------------------------------
+  I.ExpFExp     -> stub' "ExpFExp"
+  I.ExpFSqrt    -> stub' "ExpFSqrt"
+  I.ExpFLog     -> stub' "ExpFLog"
+  I.ExpFPow     -> stub' "ExpFPow"
+  I.ExpFLogBase -> stub' "ExpFLogBase"
+  I.ExpFSin     -> stub' "ExpFSin"
+  I.ExpFTan     -> stub' "ExpFTan"
+  I.ExpFCos     -> stub' "ExpFCos"
+  I.ExpFSinh    -> stub' "ExpFASinh"
+  I.ExpFCosh    -> stub' "ExpFACosh"
+  I.ExpFTanh    -> stub' "ExpFATanh"
+  I.ExpFAsin    -> stub' "ExpFAsin"
+  I.ExpFAtan    -> stub' "ExpFAtan"
+  I.ExpFAcos    -> stub' "ExpFACos"
+  I.ExpFAsinh   -> stub' "ExpFAsinh"
+  I.ExpFAtanh   -> stub' "ExpFAtanh"
+  I.ExpFAcosh   -> stub' "ExpFACosh"
+  ----------------------------------------
+  I.ExpIsNan t' -> stub' "ExpIsNan"
+  I.ExpIsInf t' -> stub' "ExpIsInf"
+  I.ExpRoundF   -> stub' "ExpRoundF"
+  I.ExpCeilF    -> stub' "ExpCeilF"
+  I.ExpFloorF   -> stub' "ExpFlorF"
+  ----------------------------------------
+  I.ExpBitAnd        -> stub' "ExpBitAnd"
+  I.ExpBitOr         -> stub' "ExpBitOr"
+  I.ExpBitXor        -> stub' "ExpBitXor"
+  I.ExpBitComplement -> stub' "ExpBitComplement"
+  I.ExpBitShiftL     -> stub' "ExpBitShiftL"
+  I.ExpBitShiftR     -> stub' "ExpBitShiftR"
   where
+  stub' op = stub "toExprOp" $ op ++ ": " ++ show args
   arg0 = args !! 0
   arg1 = args !! 1
-
-  go t' op = do
+  ----
+  op2 t' op = do
     e0 <- toExpr t' arg0
     e1 <- toExpr t' arg1
     return (e0 `op` e1)
@@ -247,16 +304,18 @@ toType t = case t of
   I.TyChar         -> return Char
   I.TyFloat        -> return Real
   I.TyDouble       -> return Real
-  I.TyProc t' [ts] -> err "toType" "proc"
   I.TyRef t'       -> toType t'
   I.TyConstRef t'  -> toType t'
   I.TyPtr t'       -> toType t'
-  I.TyArr i t'     -> err "toType" "arr"
+  I.TyArr i t'     -> return . (Arr i) =<< toType t'
   I.TyCArray t'    -> err "toType" "carray"
   I.TyOpaque       -> return Opaque
   I.TyStruct name  -> do let ty = Struct name
                          addType ty
                          return ty
+  I.TyProc t' ts   -> do ts' <- mapM toType ts
+                         r   <- toType t'
+                         return $ Fun ts' r
   -- _            -> error $ show t
 
 updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
@@ -410,6 +469,10 @@ assertBoundedVar t e = getBounds t
 
 err :: String -> String -> a
 err f msg = error $ "in ivory-model-check. Unexpected: " ++ msg
+         ++ " in function " ++ f
+
+stub :: String -> String -> a
+stub f case_ = error $ "in ivory-model-check. Case undefined for: " ++ case_
          ++ " in function " ++ f
 
 --------------------------------------------------------------------------------
