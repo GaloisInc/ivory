@@ -307,12 +307,11 @@ blkStmt :
   | if exp '{' stmts '}'
       else '{' stmts '}'             { IfTE $2 (reverse $4) (reverse $8) }
 
--- 1 or more statements.
+-- Zero or more statements.
 stmts :: { [Stmt] }
 stmts : stmts simpleStmt ';'   { $2 : $1 }
       | stmts blkStmt          { $2 : $1 }
-      | simpleStmt ';'         { [$1] }
-      | blkStmt                { [$1] }
+      | {- empty -}            { [] }
 
 ----------------------------------------
 -- Initializers
