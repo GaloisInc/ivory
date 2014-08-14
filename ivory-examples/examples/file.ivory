@@ -11,6 +11,13 @@ Boo foo(Boo x) {
   return (bar + x);
 }
 
+-- empty statemnts in ite
+void foo30(Boo x) {
+  if(true) {}
+  else { return; }
+  return;
+}
+
 -- Allocation on the stack.  Dereference is an expression.  All statements are
 -- terminated with a ';'.
 int32_t foo0() {

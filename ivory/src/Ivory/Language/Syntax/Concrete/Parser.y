@@ -175,6 +175,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   string   { TokReserved "string" }
 
   ty       { TokReserved "type" }
+  include  { TokReserved "include" }
 
   -- Bit data
   bitdata  { TokReserved "bitdata" }
@@ -239,7 +240,14 @@ defs : defs procDef       { GlobalProc     $2 : $1 }
      | defs bdDef         { GlobalBitData  $2 : $1 }
      | defs typeDef       { GlobalTypeDef  $2 : $1 }
      | defs constDef      { GlobalConstDef $2 : $1 }
+     | defs includeDef    { GlobalInclude  $2 : $1 }
      | {- empty -}        { [] }
+
+----------------------------------------
+-- Include other modules (Ivory's "depend")
+
+includeDef :: { IncludeDef }
+includeDef : include ident { IncludeDef $2 }
 
 ----------------------------------------
 -- Constant definitions

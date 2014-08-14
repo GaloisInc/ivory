@@ -94,11 +94,11 @@ tokens :-
   memcpy  { lexReserved }
 
 -- Reserved words
-
   struct   { lexReserved }
   abstract { lexReserved }
   string   { lexReserved }
   type     { lexReserved }
+  include  { lexReserved }
 
   -- C style
   bool     { lexReserved }

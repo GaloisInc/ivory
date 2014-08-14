@@ -24,7 +24,15 @@ data GlobalSym = GlobalProc ProcDef
                | GlobalBitData BitDataDef
                | GlobalTypeDef TypeDef
                | GlobalConstDef ConstDef
+               | GlobalInclude IncludeDef
   deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Includes
+
+data IncludeDef = IncludeDef
+  { inclModule :: String
+  } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Constant definition

@@ -12,16 +12,20 @@
 --
 
 module Ivory.Language.Syntax.Concrete.QQ
-  ( ivory
-  , ivoryFile
-  ) where
+  -- ( ivory
+  -- , ivoryFile
+  -- )
+    where
 
-import           Prelude hiding (exp, init)
+import           Prelude hiding (exp, init, const)
 import           Data.Char
+import           Data.Maybe
+import           System.FilePath
 
-import qualified Language.Haskell.TH       as Q
-import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
+import qualified Language.Haskell.TH        as Q
+import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
 import           Language.Haskell.TH.Quote
+import           Language.Haskell.TH.Syntax (addDependentFile)
 
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Proxy  as I
@@ -33,7 +37,7 @@ import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 
-import Ivory.Language.Syntax.Concrete.ParseAST
+import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
 import Ivory.Language.Syntax.Concrete.Parser
 
 --------------------------------------------------------------------------------
@@ -42,104 +46,141 @@ import Ivory.Language.Syntax.Concrete.Parser
 -- | Quasiquoter for defining Ivory statements in C-like syntax.  No module
 -- generated.
 ivory :: QuasiQuoter
-ivory = ivory' False
+ivory = justDecQQ decP
+  where
+  decP str = do
+    let defs = reverse (runParser str)
+    decs    <- mapM mkDef defs
+    return (concat decs)
 
 -- | Parse a file.  Use
 --
 -- ivoryFile|foo.ivory|]
 --
--- To parse file ```foo.ivory```
--- Generates a module definition by default.
+-- To parse file ```foo.ivory``` Generates a module definition by default with a
+-- module name that is constructed from the filename and path such that
+--
+-- "dira/dirb/foobar.ivory"
+--
+-- has a module name
+--
+-- diradirbfoobar
+--
+-- Like `quoteFile` except we also process the filename.
 ivoryFile :: QuasiQuoter
-ivoryFile = quoteFile (ivory' True)
+ivoryFile = justDecQQ decP
+  where
+  decP filePath = do
+    str <- runIO (readFile filePath)
+    addDependentFile filePath
+    let defs      = reverse (runParser str)
+    decs         <- mapM mkDef defs
+    let fileName  = concat
+                  $ filter (not . (any isPathSeparator))
+                  $ splitDirectories
+                  $ dropExtensions filePath
+    theModule    <- ivoryMod (map toLower fileName)
+                             (catMaybes $ map getModData defs)
+    return (concat decs ++ theModule)
 
--- | If Boolean is true, QuasiQuoter generates a module definition.
-ivory' :: Bool -> QuasiQuoter
-ivory' b = QuasiQuoter
+justDecQQ :: (String -> Q [Dec]) -> QuasiQuoter
+justDecQQ decQQ = QuasiQuoter
   { quoteExp  = err "quoteExp"
   , quotePat  = err "quotePat"
-  , quoteDec  = decP
+  , quoteDec  = decQQ
   , quoteType = err "quoteType"
   }
   where
-  decP str = do
-    let defs      = reverse (runParser str)
-    decs         <- mapM mkDef defs
-    let ivoryDefs = filter (\case
-                              GlobalTypeDef{}  -> False
-                              GlobalConstDef{} -> False
-                              _                -> True
-                           ) defs
-    theModule    <- ivoryMod ivoryDefs
-    let maybeMod  = if b then theModule else []
-    return (concat decs ++ maybeMod)
   err str = error $ str ++ " not implemented for c quasiquoter."
 
 --------------------------------------------------------------------------------
 
+-- | Filter module data from all global definitions.
+getModData :: GlobalSym -> Maybe ModuleData
+getModData sym = case sym of
+  GlobalProc       d -> Just (ModProc d)
+  GlobalStruct     d -> Just (ModStruct d)
+  GlobalBitData{}    -> Nothing
+  GlobalTypeDef{}    -> Nothing
+  GlobalConstDef{}   -> Nothing
+  GlobalInclude    i -> Just (ModInclude i)
+
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
-  GlobalProc    d      -> fromProc d
-  GlobalStruct  d      -> fromStruct d
-  GlobalBitData d      -> fromBitData d
-  GlobalTypeDef  tyDef  -> singList (fromTypeDef tyDef)
-  GlobalConstDef tyDef  -> singList (fromConstDef tyDef)
+  GlobalProc    d       -> fromProc d
+  GlobalStruct  d       -> fromStruct d
+  GlobalBitData d       -> fromBitData d
+  GlobalTypeDef tyDef   -> singList (fromTypeDef tyDef)
+  GlobalConstDef const  -> singList (fromConstDef const)
+  -- No definition to make for includes.
+  GlobalInclude{}       -> return []
   where
   singList x = (:[]) `fmap` x
 
 -- | Define an Ivory module, one per Haskell module.
-ivoryMod :: [GlobalSym] -> Q [Dec]
-ivoryMod incls = do
+ivoryMod :: String -> [ModuleData] -> Q [Dec]
+ivoryMod modName incls = do
   modTy <- mkModTy
   mi    <- modImp
   return [modTy, mi]
   where
   modImp :: Q Dec
   modImp = do
-    nm <- modNameQ
     bd <- modBody
-    return $ ValD (VarP $ mkName nm)
+    return $ ValD (VarP $ mkName modName)
                   (NormalB bd)
                   []
 
-  -- Produces both the string name and Haskell declaration name.
-  --
-  -- foo_package = package "foo_package" ...
-  --
-  modNameQ :: Q String
-  modNameQ = location >>= (return . (++ "_package") . mkValidHsVar . loc_module)
-    where
-    -- Module names are uppercase and have full context.  Turn Foo.Bar.FooBar into
-    -- foobar for the Ivory module name.
-    mkValidHsVar :: String -> String
-    mkValidHsVar ""      = error "Empty module name in ivoryMod!"
-    mkValidHsVar fullMod = map toLower
-      $ reverse (takeWhile (/= '.') (reverse fullMod))
-
   modBody = do
-    nm <- stringE =<< modNameQ
+    nm       <- stringE modName
     let pkg   = AppE (VarE 'I.package) nm
     let doblk = map (NoBindS . ivorySymMod) incls
     return (AppE pkg (DoE doblk))
 
-  mkModTy = do
-    nm <- modNameQ
-    return $ SigD (mkName nm) (ConT ''I.Module)
+  mkModTy = return $ SigD (mkName modName) (ConT ''I.Module)
 
   -- | Include an Ivory symbol into the Ivory module.
-  ivorySymMod :: GlobalSym -> Q.Exp
-  ivorySymMod def = case def of
-    GlobalProc   d
+  ivorySymMod :: ModuleData -> Q.Exp
+  ivorySymMod m = case m of
+    ModProc      d
       -> AppE (VarE 'I.incl) (VarE $ mkName (procSym d))
-    GlobalStruct d
+    ModStruct    d
       -> AppE (VarE 'I.defStruct)
               (SigE (ConE 'I.Proxy)
                     (AppT (ConT ''I.Proxy) (LitT (StrTyLit (structSym d)))))
-    GlobalTypeDef{}
-      -> error "global typedef in ivorySymMod"
-    GlobalConstDef{}
-      -> error "global constDef in ivorySymMod"
+    ModInclude    incl
+      -> AppE (VarE 'I.depend) (VarE $ mkName $ inclModule incl)
 
+--------------------------------------------------------------------------------
+
+-- | Data to put in the Ivory module.
+data ModuleData =
+    ModProc    ProcDef
+  | ModStruct  StructDef
+  | ModInclude IncludeDef
+  deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+
+-- My own `quoteFile` implementation to grab the file name to pass to module
+-- construction.
+-- quoteFile :: QuasiQuoter -> QuasiQuoter
+-- quoteFile (QuasiQuoter { quoteExp  = qe
+--                        , quotePat  = qp
+--                        , quoteType = qt
+--                        , quoteDec  = qd }
+--           )
+--   = QuasiQuoter { quoteExp  = get qe
+--                 , quotePat  = get qp
+--                 , quoteType = get qt
+--                 , quoteDec  = get qd
+--                 }
+--   where
+--    get :: (String -> Q a) -> String -> Q a
+--    get old_quoter file_name = do file_cts <- runIO (readFile file_name)
+--                                  addDependentFile file_name
+--                                  old_quoter file_cts
+--                                  return file_name
 
 --------------------------------------------------------------------------------
 
