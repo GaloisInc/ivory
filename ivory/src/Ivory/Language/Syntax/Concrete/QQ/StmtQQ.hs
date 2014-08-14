@@ -44,8 +44,9 @@ type TStmtM a = QStM T.Stmt a
 --------------------------------------------------------------------------------
 
 fromProgram :: [Stmt] -> Q T.Exp
-fromProgram program = return .
-  DoE =<< (runToSt $ forM_ program fromStmt)
+fromProgram program =
+  if null program then [| return () |]
+    else  return . DoE =<< (runToSt $ forM_ program fromStmt)
 
 fromBlock :: [Stmt] -> TStmtM T.Exp
 fromBlock = liftQ . fromProgram
