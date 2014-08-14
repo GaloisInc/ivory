@@ -11,7 +11,7 @@ import Ivory.Language.Sint
 import Ivory.Language.Type
 import Ivory.Language.Uint
 
-import Data.Word
+import Data.Word()
 
 import qualified Ivory.Language.Syntax as AST
 

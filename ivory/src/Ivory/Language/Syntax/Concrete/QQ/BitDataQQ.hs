@@ -28,7 +28,7 @@ import qualified Ivory.Language.Cast  as I
 import qualified Ivory.Language.IBool as I
 import qualified Ivory.Language.Init  as I
 import qualified Ivory.Language.Ref   as I
-import Ivory.Language.Syntax.Concrete.ParseAST
+import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
 
 import qualified Ivory.Language.BitData.Bits    as B
 import qualified Ivory.Language.BitData.BitData as B
