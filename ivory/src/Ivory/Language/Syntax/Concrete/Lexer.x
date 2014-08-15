@@ -30,7 +30,7 @@ $alpha       = [a-zA-Z]
 $lowerletter = [a-z]
 $capletter   = [A-Z]
 
-@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \: \# \_]+
+@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \: \# \_ \.]+
 @tyident     = $capletter   [$alpha $digit [_ \']]*
 @ident       = $lowerletter [$alpha $digit [_ \']]*
 @brack       = [\( \) \[ \] \{ \}]

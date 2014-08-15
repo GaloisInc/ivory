@@ -123,12 +123,12 @@ uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
 
 -- Field access from a struct pointer.
 bool foo13(* struct Foo f) {
-  return *(f &> aFoo);
+  return *(f . aFoo);
 }
 
 -- Allocated on either the stack or globally, with user-provided type-variable (xx).
 xx* uint32_t foo14(xx* struct Foo f) {
-  let a = f &> aBar;
+  let a = f . aBar;
   let u = a ! 2;
   return u;
 }
@@ -140,7 +140,7 @@ uint32_t foo15(uint32_t a, * struct Foo f, * struct Foo g) {
 { pre(a < 4);
   pre(a > 0);
   post(return > 5);
-  pre(* f &> aFoo && * g &> aFoo);
+  pre(* f . aFoo && * g . aFoo);
 }
 
 -- Stack allocated variable.

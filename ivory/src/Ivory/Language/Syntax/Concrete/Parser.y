@@ -80,7 +80,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ':'       { TokSym ":" }
 
   -- Struct field dereference
-  '&>'      { TokSym "&>" }
+  '.'       { TokSym "." }
 
   '=='      { TokSym "==" }
   '!='      { TokSym "!=" }
@@ -202,7 +202,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %left '+' '-'
 %left '*' '/' '%'
 %right '*' '~' '!' '-'
-%left '&>'
+%left '.'
 %right
   abs
   signum
@@ -299,6 +299,7 @@ simpleStmt :
   | assign ident '=' exp          { Assign $2 $4 }
   | return                        { ReturnVoid }
   | return exp                    { Return $2 }
+  -- Allocation
   | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 $5) }
   | alloc ident '[' ']' '='
       '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
@@ -340,7 +341,7 @@ exp : integer            { ExpLit (LitInteger $1) }
     | return             { ExpRet }
     | '(' exp ')'        { $2 }
     | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
-    | ident '&>' ident   { ExpFieldRef $1 $3 }
+    | ident '.' ident    { ExpFieldRef $1 $3 }
     | '*' exp            { ExpDeref $2 }
     -- XXX antiExpP
 
