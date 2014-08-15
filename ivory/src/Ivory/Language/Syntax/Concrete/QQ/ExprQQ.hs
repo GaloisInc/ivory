@@ -95,9 +95,9 @@ fromOpExp env op args = case op of
   BitAndOp        -> mkInfix '(I..&)
   BitOrOp         -> mkInfix '(I..|)
   BitXorOp        -> mkInfix '(I..^)
-  BitComplementOp -> mkUn 'I.iComplement
-  BitShiftLOp     -> mkUn 'I.iShiftL
-  BitShiftROp     -> mkUn 'I.iShiftR
+  BitComplementOp -> mkUn  'I.iComplement
+  BitShiftLOp     -> mkBin 'I.iShiftL
+  BitShiftROp     -> mkBin 'I.iShiftR
 
   ConstRefOp      -> mkUn 'I.constRef
 
