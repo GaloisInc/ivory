@@ -104,6 +104,7 @@ uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
 
 -- Field access from a struct pointer.
 bool foo13(* struct Foo f) {
+  f . aFoo = true;
   return *(f . aFoo);
 }
 
@@ -136,9 +137,18 @@ uint32_t foo17(G*uint32_t i) {
 }
 
 -- Structs
+
+-- Haskell types
 struct Foo
  { aBar :: Array 4 (Stored SomeInt)
  ; aFoo :: Stored IBool
+ }
+
+-- C-like types
+struct Goo
+ { &int32_t aGoo;
+   &bool bGoo;
+   int32_t[4] cGoo;
  }
 
 struct Boo

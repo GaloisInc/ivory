@@ -224,6 +224,7 @@ data Stmt
 data RefLVal
   = RefVar RefVar
   | ArrIx RefVar Exp
+  | StructField RefVar FieldNm
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------

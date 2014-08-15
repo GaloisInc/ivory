@@ -102,7 +102,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   '>'       { TokSym ">" }
 
   '|'       { TokSym "|" }
-  '&'       { TokSym "&" }
+  '&'       { TokSym "&" } -- Also used as an area type
   '^'       { TokSym "^" }
   '~'       { TokSym "~" }
 
@@ -304,8 +304,11 @@ simpleStmt :
   | alloc ident '[' ']' '='
       '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
   | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
-  | '*' ident '=' exp             { Store (RefVar $2) $4 }
-  | '*' arrExp '=' exp            { Store (ArrIx (fst $2) (snd $2)) $4 }
+  -- Storing
+  | '*' ident    '=' exp          { Store (RefVar $2) $4 }
+  | '*' arrExp   '=' exp          { Store (ArrIx (fst $2) (snd $2)) $4 }
+  | '*' fieldExp '=' exp          { Store (StructField (fst $2) (snd $2)) $4 }
+
   | ident '(' exps ')'            { Call Nothing $1 (reverse $3) }
   | ident '=' ident '(' exps ')'  { Call (Just $1) $3 (reverse $5) }
 
@@ -341,7 +344,7 @@ exp : integer            { ExpLit (LitInteger $1) }
     | return             { ExpRet }
     | '(' exp ')'        { $2 }
     | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
-    | ident '.' ident    { ExpFieldRef $1 $3 }
+    | fieldExp           { ExpFieldRef (fst $1) (snd $1) }
     | '*' exp            { ExpDeref $2 }
     -- XXX antiExpP
 
@@ -404,6 +407,8 @@ exp : integer            { ExpLit (LitInteger $1) }
 arrExp :: { (RefVar, Exp) }
 arrExp : ident '!' exp  { ($1, $3) }
 
+fieldExp :: { (RefVar, RefVar) }
+fieldExp : ident '.' ident  { ($1, $3) }
 
 ----------------------------------------
 -- Types
@@ -456,6 +461,7 @@ areaC :: { Area }
 areaC :
     arrayTypeC        { $1 }
   | struct structName { TyStruct $2 }
+  | '&' baseTypeC     { TyStored $2 }
 
 arrayTypeC :: { Area }
 arrayTypeC :
@@ -542,6 +548,7 @@ structName :
 
 field :: { Field }
 field : ident '::' areaHS { Field $1 $3 }
+      | areaC ident       { Field $2 $1 }
 
 -- 1 or more fields, separated (but optionally ending with) ';'.
 fields :: { [Field] }

@@ -28,6 +28,7 @@ import qualified Ivory.Language.Proc   as I
 import qualified Ivory.Language.Assert as I
 import qualified Ivory.Language.IBool  as I
 import qualified Ivory.Language.Array  as I
+import qualified Ivory.Language.Struct as I
 import qualified Ivory.Language.Loop   as I
 import qualified Ivory.Language.Monad  as I
 
@@ -78,12 +79,15 @@ fromStmt stmt = case stmt of
       e <- fromExp exp
       let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'I.store) p) e)
       case ptr of
-        RefVar ref      ->    -- ref
-          storeIt (VarE (mkName ref))
-        ArrIx ref ixExp -> do -- (arr ! ix)
-          ix <- fromExp ixExp
-          let p' = InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just ix)
-          storeIt p'
+        RefVar ref -- ref
+          -> storeIt (VarE (mkName ref))
+        ArrIx ref ixExp -- (arr ! ix)
+          -> do ix <- fromExp ixExp
+                storeIt $ InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just ix)
+        StructField struct field -- (struct . field)
+          -> storeIt $ InfixE (Just (VarE (mkName struct)))
+                              (VarE '(I.~>))
+                              (Just (VarE (mkName field)))
   Assign var exp
     -> do
     e <- fromExp exp
