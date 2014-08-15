@@ -195,6 +195,10 @@ data ExpOp
 
   | ConstRefOp
 
+  | SafeCast
+  | CastWith
+  | TwosCompCast
+
   deriving (Show, Read, Eq, Ord)
 
 data AllocRef

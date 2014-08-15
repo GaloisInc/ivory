@@ -43,35 +43,40 @@ import Ivory.Language.Syntax.Concrete.Lexer
   forever  { TokReserved "forever" }
 
  -- Expressions
-  abs     { TokReserved "abs" }
-  signum  { TokReserved "signum" }
-  expOp   { TokReserved "exp" }
-  sqrt    { TokReserved "sqrt" }
-  log     { TokReserved "log" }
-  pow     { TokReserved "pow" }
+  abs          { TokReserved "abs" }
+  signum       { TokReserved "signum" }
+  expOp        { TokReserved "exp" }
+  sqrt         { TokReserved "sqrt" }
+  log          { TokReserved "log" }
+  pow          { TokReserved "pow" }
 
-  sin     { TokReserved "sin" }
-  cos     { TokReserved "cos" }
-  tan     { TokReserved "tan" }
+  sin          { TokReserved "sin" }
+  cos          { TokReserved "cos" }
+  tan          { TokReserved "tan" }
 
-  asin    { TokReserved "asin" }
-  acos    { TokReserved "acos" }
-  atan    { TokReserved "atan" }
+  asin         { TokReserved "asin" }
+  acos         { TokReserved "acos" }
+  atan         { TokReserved "atan" }
 
-  sinh    { TokReserved "sinh" }
-  cosh    { TokReserved "cosh" }
-  tanh    { TokReserved "tanh" }
+  sinh         { TokReserved "sinh" }
+  cosh         { TokReserved "cosh" }
+  tanh         { TokReserved "tanh" }
 
-  asinh   { TokReserved "asinh" }
-  acosh   { TokReserved "acosh" }
-  atanh   { TokReserved "atanh" }
+  asinh        { TokReserved "asinh" }
+  acosh        { TokReserved "acosh" }
+  atanh        { TokReserved "atanh" }
 
-  isnan   { TokReserved "isnan" }
-  isinf   { TokReserved "isinf" }
-  round   { TokReserved "round" }
-  ceil    { TokReserved "ceil" }
-  floor   { TokReserved "floor" }
-  const   { TokReserved "const" }
+  isnan        { TokReserved "isnan" }
+  isinf        { TokReserved "isinf" }
+  round        { TokReserved "round" }
+  ceil         { TokReserved "ceil" }
+  floor        { TokReserved "floor" }
+  const        { TokReserved "const" }
+
+  -- Casting
+  safeCast     { TokReserved "safeCast" }
+  castWith     { TokReserved "castWith" }
+  twosCompCast { TokReserved "twosCompCast" }
 
   -- Type
   '::'      { TokSym "::" }
@@ -102,7 +107,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   '>'       { TokSym ">" }
 
   '|'       { TokSym "|" }
-  '&'       { TokSym "&" } -- Also used as an area type
+  '&'       { TokSym "&" }
   '^'       { TokSym "^" }
   '~'       { TokSym "~" }
 
@@ -228,7 +233,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ceil
   floor
   const
-
+  safeCast
+  castWith
+  -- twosCompCast
 %%
 
 ----------------------------------------
@@ -309,8 +316,8 @@ simpleStmt :
   | '*' arrExp   '=' exp          { Store (ArrIx (fst $2) (snd $2)) $4 }
   | '*' fieldExp '=' exp          { Store (StructField (fst $2) (snd $2)) $4 }
 
-  | ident '(' exps ')'            { Call Nothing $1 (reverse $3) }
-  | ident '=' ident '(' exps ')'  { Call (Just $1) $3 (reverse $5) }
+  | ident expArgs                 { Call Nothing $1 $2 }
+  | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
 
 blkStmt :: { Stmt }
 blkStmt :
@@ -325,8 +332,8 @@ stmts : stmts simpleStmt ';'   { $2 : $1 }
       | stmts blkStmt          { $2 : $1 }
       | {- empty -}            { [] }
 
-----------------------------------------
--- Initializers
+expArgs :: { [Exp] }
+expArgs : '(' exps ')' { reverse $2 }
 
 -- Zero or more expressions, separated by arbitrary many ','s.
 exps :: { [Exp] }
@@ -340,42 +347,21 @@ exps :  exps ',' exp           { $3 : $1 }
 exp :: { Exp }
 exp : integer            { ExpLit (LitInteger $1) }
     | ident              { ExpVar $1 }
+
     -- Used only in post-conditions.
     | return             { ExpRet }
+
     | '(' exp ')'        { $2 }
     | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
     | fieldExp           { ExpFieldRef (fst $1) (snd $1) }
     | '*' exp            { ExpDeref $2 }
     -- XXX antiExpP
+    | libFuncExp         { $1 }
 
     -- Unary operators
     | '!'          exp { ExpOp NotOp [$2] }
     | '-'          exp { ExpOp NegateOp [$2] }
     | '~'          exp { ExpOp BitComplementOp [$2] }
-    | abs          exp { ExpOp AbsOp [$2] }
-    | signum       exp { ExpOp SignumOp [$2] }
-    | expOp        exp { ExpOp FExpOp [$2] }
-    | sqrt         exp { ExpOp FSqrtOp [$2] }
-    | log          exp { ExpOp FLogOp [$2] }
-    | pow          exp { ExpOp FPowOp [$2] }
-    | sin          exp { ExpOp FSinOp [$2] }
-    | cos          exp { ExpOp FCosOp [$2] }
-    | tan          exp { ExpOp FTanOp [$2] }
-    | asin         exp { ExpOp FAsinOp [$2] }
-    | acos         exp { ExpOp FAcosOp [$2] }
-    | atan         exp { ExpOp FAtanOp [$2] }
-    | sinh         exp { ExpOp FSinhOp [$2] }
-    | cosh         exp { ExpOp FCoshOp [$2] }
-    | tanh         exp { ExpOp FTanhOp [$2] }
-    | asinh        exp { ExpOp FAsinhOp [$2] }
-    | acosh        exp { ExpOp FAcoshOp [$2] }
-    | atanh        exp { ExpOp FAtanhOp [$2] }
-    | isnan        exp { ExpOp IsNanOp [$2] }
-    | isinf        exp { ExpOp IsInfOp [$2] }
-    | round        exp { ExpOp RoundFOp [$2] }
-    | ceil         exp { ExpOp CeilFOp [$2] }
-    | floor        exp { ExpOp FloorFOp [$2] }
-    | const        exp { ExpOp ConstRefOp [$2] }
 
     -- Binary operators
     | exp '||'  exp      { ExpOp OrOp [$1, $3] }
@@ -403,6 +389,37 @@ exp : integer            { ExpLit (LitInteger $1) }
 
     -- Tertiary operators
     | exp '?' exp ':' exp { ExpOp CondOp [$1, $3, $5] }
+
+libFuncExp :: { Exp }
+libFuncExp :
+      abs          expArgs { ExpOp AbsOp        $2 }
+    | signum       expArgs { ExpOp SignumOp     $2 }
+    | expOp        expArgs { ExpOp FExpOp       $2 }
+    | sqrt         expArgs { ExpOp FSqrtOp      $2 }
+    | log          expArgs { ExpOp FLogOp       $2 }
+    | pow          expArgs { ExpOp FPowOp       $2 }
+    | sin          expArgs { ExpOp FSinOp       $2 }
+    | cos          expArgs { ExpOp FCosOp       $2 }
+    | tan          expArgs { ExpOp FTanOp       $2 }
+    | asin         expArgs { ExpOp FAsinOp      $2 }
+    | acos         expArgs { ExpOp FAcosOp      $2 }
+    | atan         expArgs { ExpOp FAtanOp      $2 }
+    | sinh         expArgs { ExpOp FSinhOp      $2 }
+    | cosh         expArgs { ExpOp FCoshOp      $2 }
+    | tanh         expArgs { ExpOp FTanhOp      $2 }
+    | asinh        expArgs { ExpOp FAsinhOp     $2 }
+    | acosh        expArgs { ExpOp FAcoshOp     $2 }
+    | atanh        expArgs { ExpOp FAtanhOp     $2 }
+    | isnan        expArgs { ExpOp IsNanOp      $2 }
+    | isinf        expArgs { ExpOp IsInfOp      $2 }
+    | round        expArgs { ExpOp RoundFOp     $2 }
+    | ceil         expArgs { ExpOp CeilFOp      $2 }
+    | floor        expArgs { ExpOp FloorFOp     $2 }
+    | const        expArgs { ExpOp ConstRefOp   $2 }
+
+    | castWith     expArgs { ExpOp CastWith     $2 }
+    | safeCast     expArgs { ExpOp SafeCast     $2 }
+    | twosCompCast expArgs { ExpOp TwosCompCast $2 }
 
 arrExp :: { (RefVar, Exp) }
 arrExp : ident '!' exp  { ($1, $3) }
@@ -548,7 +565,8 @@ structName :
 
 field :: { Field }
 field : ident '::' areaHS { Field $1 $3 }
-      | areaC ident       { Field $2 $1 }
+      | areaC     ident   { Field $2 $1 }
+      | baseTypeC ident   { Field $2 (TyStored $1) }
 
 -- 1 or more fields, separated (but optionally ending with) ';'.
 fields :: { [Field] }

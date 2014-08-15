@@ -11,6 +11,11 @@ Boo foo(Boo x) {
   return (bar + x);
 }
 
+-- Calling builtin functions.
+void foo67(* float a)
+{ *a = sin(*a);
+}
+
 -- empty statemnts in ite
 void foo30(Boo x) {
   if(true) {}
@@ -146,8 +151,8 @@ struct Foo
 
 -- C-like types
 struct Goo
- { &int32_t aGoo;
-   &bool bGoo;
+ { int32_t aGoo;
+   bool bGoo;
    int32_t[4] cGoo;
  }
 
@@ -171,4 +176,12 @@ void mapProc(*uint8_t[4] arr, uint8_t x) {
     let v = arr ! ix;
     *v = *v + x;
   }
+}
+
+-- Casting
+void foo57(* uint8_t a, * uint16_t b, * int8_t c, * int32_t d)
+{
+  *b = safeCast(*a);     -- can always safely cast
+  *b = castWith(3, *d);  -- cast with a default value if out of range
+  *c = twosCompCast(*a); -- interpret under 2s compliment
 }

@@ -27,6 +27,7 @@ import qualified  Ivory.Language.Ref      as I
 import qualified  Ivory.Language.IBool    as I
 import qualified  Ivory.Language.Array    as I
 import qualified  Ivory.Language.Struct   as I
+import qualified  Ivory.Language.Cast     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
@@ -100,13 +101,17 @@ fromOpExp env op args = case op of
 
   ConstRefOp      -> mkUn 'I.constRef
 
+  SafeCast        -> mkUn  'I.safeCast
+  CastWith        -> mkBin 'I.castWith
+  TwosCompCast    -> mkUn  'I.twosComplementCast
+
   where
-  getArg i = toExp env (args !! i)
-  mkArg    = Just . getArg
+  getArg i    = toExp env (args !! i)
+  mkArg       = Just . getArg
   mkInfix op' = InfixE (mkArg 0) (VarE op') (mkArg 1)
-  mkTert  op' =
-    InfixE (mkArg 0) (VarE op') (Just $ TupE [getArg 1, getArg 2])
-  mkUn op' = AppE (VarE op') (getArg 0)
+  mkTert  op' = InfixE (mkArg 0) (VarE op') (Just $ TupE [getArg 1, getArg 2])
+  mkUn    op' = AppE (VarE op') (getArg 0)
+  mkBin   op' = AppE (AppE (VarE op') (getArg 0)) (getArg 1)
 
 toExp :: DerefVarEnv -> Exp -> T.Exp
 toExp env exp = case exp of
