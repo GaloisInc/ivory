@@ -97,7 +97,7 @@ module Ivory.Language (
     -- ** Bit operators
   , IvoryBits((.&),(.|),(.^),iComplement,iShiftL,iShiftR, iBitSize), extractByte
   , BitSplit(lbits, ubits), BitCast(bitCast)
-  , TwosComplementCast(twosComplementCast)
+  , TwosComplementCast(twosComplementCast, twosComplementRep)
 
     -- ** Bit data
 
@@ -237,3 +237,96 @@ import Ivory.Language.BitData.BitData
 import Ivory.Language.BitData.Bits
 import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
+
+--------------------------------------------------------------------------------
+
+[ivory|
+
+-- void foo() {}
+
+-- struct Foo
+-- { -- aFoo :: Stored Sint32;
+--   uint16_t aBar;
+-- }
+
+-- void bar(* struct Foo x)
+-- {
+--   * x.aBar = 3;
+-- }
+
+-- void foo57(* uint8_t a, * uint16_t b, * int8_t c, * int32_t d)
+-- {
+--   *b = safeCast(*a);
+--   *b = castWith(3, *d);
+--   *c = twosCompCast(*a);
+-- }
+
+-- void foo67(* float a)
+-- { *a = sin(*a);
+-- }
+
+-- struct Foo
+-- { int32_t aFoo; }
+
+
+int32_t unpackSint32(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{
+  alloc *x = 0;
+  *x = safeCast(a) | safeCast(b) << 0x8 | safeCast(c) << 0x10 | safeCast(d) << 0x18;
+  return twosCompCast(*x);
+}
+
+int32_t unpack(* uint8_t[10] msg, int32_t ixx)
+{
+ let ix = toIx(ixx);
+  unpackSint32( * msg ! ix
+              , * msg ! ix+1
+              , * msg ! ix+2
+              , * msg ! ix+3
+              );
+}
+
+void pack(*uint8_t[10] msg, int32_t x, int32_t ixx)
+{
+  let ix = toIx(ixx);
+  let ux = twosCompRep(x);
+  * msg ! ix     = bitCast(ux);
+  * msg ! (ix+1) = bitCast(ux >> 0x08);
+  * msg ! (ix+2) = bitCast(ux >> 0x10);
+  * msg ! (ix+3) = bitCast(ux >> 0x18);
+}
+
+|]
+
+
+
+-- unpack ::
+--        forall c_a14tn . Def ((:->) '[Ref c_a14tn (Array 10 (Stored Uint8))] Sint32)
+-- unpack
+--        = proc
+--            "unpack"
+--            (\ msg
+--               -> body
+--                    (do { x <- local (ival 0);
+--                          arrayMap
+--                            (\ ix
+--                               -> do { ifte_
+--                                         ((ix >=? 2) .&& (ix <=? 5))
+--                                         (do { deref_msg_a14to <- deref (msg ! ix);
+--                                               tmp <- assign (safeCast deref_msg_a14to);
+--                                               deref_x_a14tp <- deref x;
+--                                               store x (deref_x_a14tp .| (iShiftL tmp 4 )) })
+--                                         (return ()) });
+--                          deref_x_a14tq <- deref x;
+--                          ret (twosComplementCast deref_x_a14tq) }))
+
+-- packSint32 :: Def ([Uint8, Uint8, Uint8, Uint8] :-> Sint32)
+-- packSint32 = proc "p" $ \a b c d -> body $ do
+--   x <- local (ival 0)
+--   store x (sh a 0 .| sh b 1 .| sh c 2 .| sh d 3)
+--   dx <- deref x
+--   ret (twosComplementCast dx)
+--   where
+--   sh x i = safeCast x `iShiftL` i*8
+
+-- (castDefault $ fromIx ix)
