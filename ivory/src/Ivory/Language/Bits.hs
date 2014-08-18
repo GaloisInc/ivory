@@ -10,6 +10,7 @@ import Ivory.Language.IBool
 import Ivory.Language.Sint
 import Ivory.Language.Type
 import Ivory.Language.Uint
+import Ivory.Language.IIntegral
 
 import Data.Word()
 
@@ -116,6 +117,10 @@ class ( IvoryBits unsigned
       , IvoryEq unsigned
       , IvoryExpr signed
       , Num signed
+      , IvoryIntegral unsigned
+      , Bounded unsigned
+      , Bounded signed
+      , IvoryOrd signed
       ) => TwosComplementCast unsigned signed
       | signed -> unsigned, unsigned -> signed where
 
@@ -144,11 +149,31 @@ class ( IvoryBits unsigned
   -- sign-magnitude representations, and this algorithm is expected to
   -- work in those implementations as well.
   twosComplementCast :: unsigned -> signed
-  twosComplementCast v = ((v `iShiftR` fromIntegral (iBitSize v - 1)) ==? 1) ?
+  twosComplementCast v = ((v `iShiftR` n) ==? 1) ?
     ( negate (ivoryCast (iComplement v)) - 1
     , ivoryCast v)
+    where
+    n = fromIntegral (iBitSize v - 1)
 
-instance TwosComplementCast Uint8 Sint8
+  -- Takes a signed value interpreted as a two's complement, and returns an
+  -- unsigned value with the identity bit pattern. For the instances below, this
+  -- is guaranteed not to overflow.
+  twosComplementRep :: signed -> unsigned
+  twosComplementRep v = (v <? 0) ?
+    ( m - (s1 - 1)
+    , ivoryCast v
+    )
+    where
+    m :: unsigned
+    m = maxBound :: unsigned
+    -- v is negative when s1 is used. If v == minBound, then (-v) overflows the
+    -- signed type. So we find maxBound of the signed type within the unsigned
+    -- type with maxBound / 2 + 1 (e.g., 255/2+1 == 128 for int8_t and uint8_t).
+    s1 :: unsigned
+    s1 = (v ==? minBound) ? (maxBound `iDiv` 2 + 1, ivoryCast $ negate v)
+
+-- Instances *must* have the same bit-width.
+instance TwosComplementCast Uint8  Sint8
 instance TwosComplementCast Uint16 Sint16
 instance TwosComplementCast Uint32 Sint32
 instance TwosComplementCast Uint64 Sint64

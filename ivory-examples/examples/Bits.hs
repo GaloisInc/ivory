@@ -17,6 +17,8 @@ cmodule = package "Bits" $ do
   incl test2
   incl test3
   incl test4
+  incl test5
+  incl test6
 
 test1 :: Def ('[Uint8, Uint16, Uint32, Uint64] :-> Uint64)
 test1 = proc "test1" $ \u8 u16 u32 u64 -> body $ do
@@ -77,3 +79,11 @@ test4 = proc "test4" $ body $ do
   setBit n 8
   clearBit n 3
   ret =<< deref n
+
+test5 :: Def ('[Sint8] :-> Uint8)
+test5 = proc "test5" $ \s -> body $
+  ret (twosComplementRep s)
+
+test6 :: Def ('[Uint8] :-> Sint8)
+test6 = proc "test6" $ \s -> body $
+  ret (twosComplementCast s)
