@@ -198,6 +198,9 @@ data ExpOp
   | SafeCast
   | CastWith
   | TwosCompCast
+  | TwosCompRep
+
+  | ToIx
 
   deriving (Show, Read, Eq, Ord)
 

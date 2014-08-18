@@ -61,41 +61,44 @@ tokens :-
   forever  { lexReserved }
 
 -- Reserved words: expressions
-  abs          { lexReserved }
-  signum       { lexReserved }
-  exp          { lexReserved }
-  sqrt         { lexReserved }
-  log          { lexReserved }
-  pow          { lexReserved }
+  abs              { lexReserved }
+  signum           { lexReserved }
+  exp              { lexReserved }
+  sqrt             { lexReserved }
+  log              { lexReserved }
+  pow              { lexReserved }
 
-  sin          { lexReserved }
-  cos          { lexReserved }
-  tan          { lexReserved }
+  sin              { lexReserved }
+  cos              { lexReserved }
+  tan              { lexReserved }
 
-  asin         { lexReserved }
-  acos         { lexReserved }
-  atan         { lexReserved }
+  asin             { lexReserved }
+  acos             { lexReserved }
+  atan             { lexReserved }
 
-  sinh         { lexReserved }
-  cosh         { lexReserved }
-  tanh         { lexReserved }
+  sinh             { lexReserved }
+  cosh             { lexReserved }
+  tanh             { lexReserved }
 
-  asinh        { lexReserved }
-  acosh        { lexReserved }
-  atanh        { lexReserved }
+  asinh            { lexReserved }
+  acosh            { lexReserved }
+  atanh            { lexReserved }
 
-  isnan        { lexReserved }
-  isinf        { lexReserved }
-  round        { lexReserved }
-  ceil         { lexReserved }
-  floor        { lexReserved }
-  const        { lexReserved }
+  isnan            { lexReserved }
+  isinf            { lexReserved }
+  round            { lexReserved }
+  ceil             { lexReserved }
+  floor            { lexReserved }
+  const            { lexReserved }
 
-  memcpy       { lexReserved }
+  memcpy           { lexReserved }
 
-  safeCast     { lexReserved }
-  castWith     { lexReserved }
-  twosCompCast { lexReserved }
+  safeCast         { lexReserved }
+  castWith         { lexReserved }
+  twosCompCast     { lexReserved }
+  twosCompRep      { lexReserved }
+
+  toIx             { lexReserved }
 
 -- Reserved words
   struct   { lexReserved }

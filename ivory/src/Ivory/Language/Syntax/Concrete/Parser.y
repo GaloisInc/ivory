@@ -74,9 +74,13 @@ import Ivory.Language.Syntax.Concrete.Lexer
   const        { TokReserved "const" }
 
   -- Casting
-  safeCast     { TokReserved "safeCast" }
-  castWith     { TokReserved "castWith" }
-  twosCompCast { TokReserved "twosCompCast" }
+  safeCast         { TokReserved "safeCast" }
+  castWith         { TokReserved "castWith" }
+  twosCompCast     { TokReserved "twosCompCast" }
+  twosCompRep      { TokReserved "twosCompRep" }
+
+  -- Other internals
+  toIx         { TokReserved "toIx" }
 
   -- Type
   '::'      { TokSym "::" }
@@ -233,9 +237,6 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ceil
   floor
   const
-  safeCast
-  castWith
-  -- twosCompCast
 %%
 
 ----------------------------------------
@@ -417,9 +418,12 @@ libFuncExp :
     | floor        expArgs { ExpOp FloorFOp     $2 }
     | const        expArgs { ExpOp ConstRefOp   $2 }
 
-    | castWith     expArgs { ExpOp CastWith     $2 }
-    | safeCast     expArgs { ExpOp SafeCast     $2 }
-    | twosCompCast expArgs { ExpOp TwosCompCast $2 }
+    | castWith     expArgs     { ExpOp CastWith     $2 }
+    | safeCast     expArgs     { ExpOp SafeCast     $2 }
+    | twosCompCast expArgs     { ExpOp TwosCompCast $2 }
+    | twosCompRep  expArgs     { ExpOp TwosCompRep  $2 }
+
+    | toIx         expArgs { ExpOp ToIx         $2 }
 
 arrExp :: { (RefVar, Exp) }
 arrExp : ident '!' exp  { ($1, $3) }

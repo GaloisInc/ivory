@@ -48,62 +48,65 @@ fromLit lit = case lit of
 
 fromOpExp :: DerefVarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of
-  EqOp            -> mkInfix '(I.==?)
-  NeqOp           -> mkInfix '(I./=?)
-  CondOp          -> mkTert  '(I.?)
+  EqOp             -> mkInfix '(I.==?)
+  NeqOp            -> mkInfix '(I./=?)
+  CondOp           -> mkTert  '(I.?)
 
-  GtOp g          -> mkInfix $ if g then '(I.>=?) else '(I.>?)
-  LtOp g          -> mkInfix $ if g then '(I.<=?) else '(I.<?)
+  GtOp g           -> mkInfix $ if g then '(I.>=?) else '(I.>?)
+  LtOp g           -> mkInfix $ if g then '(I.<=?) else '(I.<?)
 
-  NotOp           -> mkUn 'I.iNot
-  AndOp           -> mkInfix '(I..&&)
-  OrOp            -> mkInfix '(I..||)
+  NotOp            -> mkUn 'I.iNot
+  AndOp            -> mkInfix '(I..&&)
+  OrOp             -> mkInfix '(I..||)
 
-  MulOp           -> mkInfix '(*)
-  AddOp           -> mkInfix '(+)
-  SubOp           -> mkInfix '(-)
-  NegateOp        -> mkInfix 'negate
-  AbsOp           -> mkUn 'abs
-  SignumOp        -> mkUn 'signum
+  MulOp            -> mkInfix '(*)
+  AddOp            -> mkInfix '(+)
+  SubOp            -> mkInfix '(-)
+  NegateOp         -> mkInfix 'negate
+  AbsOp            -> mkUn 'abs
+  SignumOp         -> mkUn 'signum
 
-  DivOp           -> mkInfix 'I.iDiv -- truncate toward 0 (Haskell's 'quot')
-  ModOp           -> mkInfix '(I..%)
+  DivOp            -> mkInfix 'I.iDiv -- truncate toward 0 (Haskell's 'quot')
+  ModOp            -> mkInfix '(I..%)
 
-  FExpOp          -> mkUn 'P.exp
-  FSqrtOp         -> mkUn 'sqrt
-  FLogOp          -> mkUn 'log
-  FPowOp          -> mkInfix '(**)
-  FSinOp          -> mkUn 'sin
-  FTanOp          -> mkUn 'tan
-  FCosOp          -> mkUn 'cos
-  FAsinOp         -> mkUn 'asin
-  FAtanOp         -> mkUn 'atan
-  FAcosOp         -> mkUn 'acos
-  FSinhOp         -> mkUn 'sinh
-  FTanhOp         -> mkUn 'tanh
-  FCoshOp         -> mkUn 'cosh
-  FAsinhOp        -> mkUn 'asinh
-  FAtanhOp        -> mkUn 'atanh
-  FAcoshOp        -> mkUn 'acosh
+  FExpOp           -> mkUn 'P.exp
+  FSqrtOp          -> mkUn 'sqrt
+  FLogOp           -> mkUn 'log
+  FPowOp           -> mkInfix '(**)
+  FSinOp           -> mkUn 'sin
+  FTanOp           -> mkUn 'tan
+  FCosOp           -> mkUn 'cos
+  FAsinOp          -> mkUn 'asin
+  FAtanOp          -> mkUn 'atan
+  FAcosOp          -> mkUn 'acos
+  FSinhOp          -> mkUn 'sinh
+  FTanhOp          -> mkUn 'tanh
+  FCoshOp          -> mkUn 'cosh
+  FAsinhOp         -> mkUn 'asinh
+  FAtanhOp         -> mkUn 'atanh
+  FAcoshOp         -> mkUn 'acosh
 
-  IsNanOp         -> mkUn 'I.isnan
-  IsInfOp         -> mkUn 'I.isinf
-  RoundFOp        -> mkUn 'I.roundF
-  CeilFOp         -> mkUn 'I.ceilF
-  FloorFOp        -> mkUn 'I.floorF
+  IsNanOp          -> mkUn 'I.isnan
+  IsInfOp          -> mkUn 'I.isinf
+  RoundFOp         -> mkUn 'I.roundF
+  CeilFOp          -> mkUn 'I.ceilF
+  FloorFOp         -> mkUn 'I.floorF
 
-  BitAndOp        -> mkInfix '(I..&)
-  BitOrOp         -> mkInfix '(I..|)
-  BitXorOp        -> mkInfix '(I..^)
-  BitComplementOp -> mkUn  'I.iComplement
-  BitShiftLOp     -> mkBin 'I.iShiftL
-  BitShiftROp     -> mkBin 'I.iShiftR
+  BitAndOp         -> mkInfix '(I..&)
+  BitOrOp          -> mkInfix '(I..|)
+  BitXorOp         -> mkInfix '(I..^)
+  BitComplementOp  -> mkUn  'I.iComplement
+  BitShiftLOp      -> mkBin 'I.iShiftL
+  BitShiftROp      -> mkBin 'I.iShiftR
 
-  ConstRefOp      -> mkUn 'I.constRef
+  ConstRefOp       -> mkUn 'I.constRef
 
-  SafeCast        -> mkUn  'I.safeCast
-  CastWith        -> mkBin 'I.castWith
-  TwosCompCast    -> mkUn  'I.twosComplementCast
+  SafeCast         -> mkUn  'I.safeCast
+  CastWith         -> mkBin 'I.castWith
+  TwosCompCast     -> mkUn  'I.twosComplementCast
+  TwosCompRep      -> mkUn  'I.twosComplementRep
+
+  ToIx             -> mkUn  'I.toIx
 
   where
   getArg i    = toExp env (args !! i)
