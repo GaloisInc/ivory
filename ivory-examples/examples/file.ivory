@@ -72,15 +72,15 @@ uint32_t foo6(v *uint32_t[3] arr0) {
 -- foo7 :: Def ('[IBool, Uint32] :-> Uint32)
 --
 uint32_t foo7(bool b, uint32_t a) {
-    return (b && !b ? a+3 : signum abs a - 4);
+    return (b && !b ? a+3 : signum(abs(a)) - 4);
 }
 
 -- Function calls, with a return value and without.
 uint32_t foo8(bool b, uint32_t a) {
     foo2();
-    x = foo7 (b, a);
+    x = foo7(b, a);
     foo7 (b, a);
-    return (b && !b ? a+3 : signum abs a - x);
+    return (b && !b ? a+3 : signum(abs(a)) - x);
 }
 
 -- Local assignment.
@@ -89,6 +89,7 @@ uint32_t foo9(uint32_t a) {
     let b = a + 3;
     return b;
   }
+  return 0;
 }
 
 -- Memcopy.
@@ -109,7 +110,7 @@ uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
 
 -- Field access from a struct pointer.
 bool foo13(* struct Foo f) {
-  f . aFoo = true;
+  * f . aFoo = true;
   return *(f . aFoo);
 }
 
@@ -185,3 +186,34 @@ void foo57(* uint8_t a, * uint16_t b, * int8_t c, * int32_t d)
   *b = castWith(3, *d);  -- cast with a default value if out of range
   *c = twosCompCast(*a); -- interpret under 2s compliment
 }
+
+
+-- Hypothetical pack and unpack functions.
+int32_t unpackSint32(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{
+  alloc *x = 0;
+  *x = safeCast(a) | safeCast(b) << 0x8 | safeCast(c) << 0x10 | safeCast(d) << 0x18;
+  return twosCompCast(*x);
+}
+
+int32_t unpack(* uint8_t[10] msg, int32_t ixx)
+{
+ let ix = toIx(ixx);
+ res = unpackSint32( * msg ! ix
+                   , * msg ! (ix+1)
+                   , * msg ! (ix+2)
+                   , * msg ! (ix+3)
+                   );
+ return res;
+}
+
+void pack(*uint8_t[10] msg, int32_t x, int32_t ixx)
+{
+  let ix = toIx(ixx);
+  let ux = twosCompRep(x);
+  * msg ! ix     = bitCast(ux);
+  * msg ! (ix+1) = bitCast(ux >> 0x08);
+  * msg ! (ix+2) = bitCast(ux >> 0x10);
+  * msg ! (ix+3) = bitCast(ux >> 0x18);
+}
+
