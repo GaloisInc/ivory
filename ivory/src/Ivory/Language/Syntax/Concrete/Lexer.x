@@ -26,6 +26,7 @@ import Numeric (readInt)
 --------------------------------------------------------------------------------
 
 $digit       = 0-9
+$hexdig      = [0-9A-Fa-f]
 $alpha       = [a-zA-Z]
 $lowerletter = [a-z]
 $capletter   = [A-Z]
@@ -37,14 +38,16 @@ $capletter   = [A-Z]
 @sep         = [\, \;]
 @filepath    = \" [$printable # \" # $white]+ \"
 @bitlit      = $digit+ b [0 1]+
+@hexlit      = 0x $hexdig+
 --------------------------------------------------------------------------------
 
 tokens :-
   $white+ ;
   "--".*  ;
 
-  $digit+ { lex (TokInteger . read) }
-  @bitlit { lex readBitLit }
+  $digit+  { lex (TokInteger . read) }
+  @hexlit  { lex (TokInteger . read) }
+  @bitlit  { lex readBitLit }
 
 -- Reserved words: statements
   if       { lexReserved }
@@ -94,6 +97,7 @@ tokens :-
   memcpy           { lexReserved }
 
   safeCast         { lexReserved }
+  bitCast          { lexReserved }
   castWith         { lexReserved }
   twosCompCast     { lexReserved }
   twosCompRep      { lexReserved }
@@ -202,6 +206,7 @@ readBin s =
 -- Token types:
 data Token =
     TokInteger Integer
+  | TokHex Integer
   | TokBitLit (Integer, Integer) -- width, value (e.g., 5b0101)
   | TokIdent String
   | TokTyIdent String

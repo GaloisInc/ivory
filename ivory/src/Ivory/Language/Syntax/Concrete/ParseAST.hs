@@ -196,6 +196,7 @@ data ExpOp
   | ConstRefOp
 
   | SafeCast
+  | BitCast
   | CastWith
   | TwosCompCast
   | TwosCompRep

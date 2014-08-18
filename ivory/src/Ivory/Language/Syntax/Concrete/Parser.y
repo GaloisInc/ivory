@@ -75,6 +75,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 
   -- Casting
   safeCast         { TokReserved "safeCast" }
+  bitCast          { TokReserved "bitCast" }
   castWith         { TokReserved "castWith" }
   twosCompCast     { TokReserved "twosCompCast" }
   twosCompRep      { TokReserved "twosCompRep" }
@@ -420,6 +421,7 @@ libFuncExp :
 
     | castWith     expArgs     { ExpOp CastWith     $2 }
     | safeCast     expArgs     { ExpOp SafeCast     $2 }
+    | bitCast      expArgs     { ExpOp BitCast      $2 }
     | twosCompCast expArgs     { ExpOp TwosCompCast $2 }
     | twosCompRep  expArgs     { ExpOp TwosCompRep  $2 }
 

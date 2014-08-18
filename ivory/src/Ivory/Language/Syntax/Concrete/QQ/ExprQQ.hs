@@ -102,6 +102,7 @@ fromOpExp env op args = case op of
   ConstRefOp       -> mkUn 'I.constRef
 
   SafeCast         -> mkUn  'I.safeCast
+  BitCast          -> mkUn  'I.bitCast
   CastWith         -> mkBin 'I.castWith
   TwosCompCast     -> mkUn  'I.twosComplementCast
   TwosCompRep      -> mkUn  'I.twosComplementRep
