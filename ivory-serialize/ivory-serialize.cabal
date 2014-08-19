@@ -1,0 +1,29 @@
+name:                ivory-serialize
+version:             0.1
+author:              Galois, Inc.
+maintainer:          pat@galois.com
+category:            Language
+build-type:          Simple
+cabal-version:       >= 1.10
+license:             BSD3
+
+data-files: support/ivory_serialize_prim.h
+
+library
+  exposed-modules:      Ivory.Serialize,
+                        Ivory.Serialize.Array,
+                        Ivory.Serialize.Atoms,
+                        Ivory.Serialize.Class,
+                        Ivory.Serialize.Safe,
+                        Ivory.Serialize.SearchDir
+
+  other-modules:        Paths_ivory_serialize
+
+  build-depends:        base >= 4.6,
+                        filepath,
+                        monadLib,
+                        ivory
+
+  hs-source-dirs:       src
+  default-language:     Haskell2010
+  ghc-options:          -Wall
