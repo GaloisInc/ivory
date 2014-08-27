@@ -14,7 +14,7 @@
 
 module Ivory.Language.Syntax.Concrete.Lexer where
 
-import Prelude hiding (lex)
+import Prelude hiding (lex, id)
 import Data.Char (digitToInt)
 import Numeric (readInt)
 
@@ -31,7 +31,7 @@ $alpha       = [a-zA-Z]
 $lowerletter = [a-z]
 $capletter   = [A-Z]
 
-@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \: \# \_ \.]+
+@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \: \# \_ \. \$]+
 @tyident     = $capletter   [$alpha $digit [_ \']]*
 @ident       = $lowerletter [$alpha $digit [_ \']]*
 @brack       = [\( \) \[ \] \{ \}]
@@ -39,15 +39,16 @@ $capletter   = [A-Z]
 @filepath    = \" [$printable # \" # $white]+ \"
 @bitlit      = $digit+ b [0 1]+
 @hexlit      = 0x $hexdig+
+
 --------------------------------------------------------------------------------
 
 tokens :-
   $white+ ;
   "--".*  ;
 
-  $digit+  { lex (TokInteger . read) }
-  @hexlit  { lex (TokInteger . read) }
-  @bitlit  { lex readBitLit }
+  $digit+      { lex (TokInteger . read) }
+  @hexlit      { lex (TokInteger . read) }
+  @bitlit      { lex readBitLit }
 
 -- Reserved words: statements
   if       { lexReserved }
@@ -214,7 +215,6 @@ data Token =
   | TokSym String
   | TokBrack String
   | TokSep String
-  | TokQuote
   | TokFilePath String
   | TokEOF
   deriving (Show, Read, Eq)

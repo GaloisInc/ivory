@@ -83,11 +83,11 @@ fromStmt stmt = case stmt of
           -> storeIt (VarE (mkName ref))
         ArrIx ref ixExp -- (arr ! ix)
           -> do ix <- fromExp ixExp
-                storeIt $ InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just ix)
+                storeIt $ InfixE (Just (mkVar ref)) (VarE '(I.!)) (Just ix)
         StructField struct field -- (struct . field)
-          -> storeIt $ InfixE (Just (VarE (mkName struct)))
+          -> storeIt $ InfixE (Just (mkVar struct))
                               (VarE '(I.~>))
-                              (Just (VarE (mkName field)))
+                              (Just (mkVar field))
   Assign var exp
     -> do
     e <- fromExp exp
@@ -96,12 +96,11 @@ fromStmt stmt = case stmt of
   Call mres sym exps
     -> do
     es <- mapM fromExp exps
-    let func f   = AppE (VarE f) (VarE $ mkName sym)
-    let callit f = foldl AppE (func f) es
+    let call f = AppE (VarE f) (mkVar sym)
     insert $ case mres of
-      Nothing  -> NoBindS (callit 'I.call_)
+      Nothing  -> NoBindS (callit (call 'I.call_) es)
       Just res -> let r = mkName res in
-                  BindS (VarP r) (callit 'I.call)
+                  BindS (VarP r) (callit (call 'I.call) es)
   RefCopy refDest refSrc
     -> do
     eDest <- fromExp refDest
@@ -118,6 +117,13 @@ fromStmt stmt = case stmt of
     -> do
     b <- fromBlock blk
     insert $ NoBindS (AppE (VarE 'I.arrayMap) (LamE [VarP (mkName ixVar)] b))
+  -- Either a single variable or a function call.
+  IvoryMacro v exps
+    -> do es <- mapM fromExp exps
+          insert $ NoBindS $ callit (VarE $ mkName v) es
+
+callit :: T.Exp -> [T.Exp] -> T.Exp
+callit f args = foldl AppE f args
 
 --------------------------------------------------------------------------------
 -- Initializers
@@ -158,7 +164,7 @@ insertDerefStmt :: DerefExp -> TStmtM DerefVarEnv
 insertDerefStmt dv = case dv of
   RefExp var    -> do
     nm <- liftQ (freshDeref var)
-    insertDeref nm (VarE (mkName var))
+    insertDeref nm (mkVar var)
     return [(dv, nm)]
   RefArrIxExp ref ixExp -> do
     env <- mkDerefStmts ixExp
@@ -176,3 +182,7 @@ insertDerefStmt dv = case dv of
   insertDeref nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
 
 --------------------------------------------------------------------------------
+-- Helpers
+
+mkVar :: String -> T.Exp
+mkVar = VarE . mkName

@@ -226,6 +226,7 @@ data Stmt
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
   | Forever [Stmt]
+  | IvoryMacro String [Exp]
 -- Break XXX Too dangerous (and difficult) for non-macro use?
   deriving (Show, Read, Eq, Ord)
 

@@ -42,6 +42,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
   loop     { TokReserved "map" }
   forever  { TokReserved "forever" }
 
+  -- Start of Ivory macros
+  iMacro   { TokSym "$" }
+
  -- Expressions
   abs          { TokReserved "abs" }
   signum       { TokReserved "signum" }
@@ -320,6 +323,9 @@ simpleStmt :
 
   | ident expArgs                 { Call Nothing $1 $2 }
   | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
+  -- Ivory macro
+  | iMacro ident                  { IvoryMacro $2 [] }
+  | iMacro ident expArgs          { IvoryMacro $2 $3 }
 
 blkStmt :: { Stmt }
 blkStmt :
