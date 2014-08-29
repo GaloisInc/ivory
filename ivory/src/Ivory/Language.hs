@@ -6,9 +6,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
--- XXX testing
-{-# LANGUAGE QuasiQuotes #-}
-
 module Ivory.Language (
     -- * Kinds
     Area(..)
@@ -242,16 +239,3 @@ import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
 
 --------------------------------------------------------------------------------
-
-bar x i = store x i
-
-boo x = ret x;
-
-goo a b = a + b
-
-[ivory|
-int32_t foo(* int32_t x) {
-  $bar(*x, 7);
-  return ($goo(*x, *x));
-}
-|]
