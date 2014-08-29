@@ -311,11 +311,13 @@ simpleStmt :
   | assign ident '=' exp          { Assign $2 $4 }
   | return                        { ReturnVoid }
   | return exp                    { Return $2 }
+
   -- Allocation
   | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 $5) }
   | alloc ident '[' ']' '='
       '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
   | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
+
   -- Storing
   | '*' ident    '=' exp          { Store (RefVar $2) $4 }
   | '*' arrExp   '=' exp          { Store (ArrIx (fst $2) (snd $2)) $4 }
@@ -323,9 +325,8 @@ simpleStmt :
 
   | ident expArgs                 { Call Nothing $1 $2 }
   | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
-  -- Ivory macro
-  | iMacro ident                  { IvoryMacro $2 [] }
-  | iMacro ident expArgs          { IvoryMacro $2 $3 }
+
+  | iMacroCall                    { IvoryMacroStmt (fst $1) (snd $1) }
 
 blkStmt :: { Stmt }
 blkStmt :
@@ -354,6 +355,8 @@ exps :  exps ',' exp           { $3 : $1 }
 -- Expressions
 exp :: { Exp }
 exp : integer            { ExpLit (LitInteger $1) }
+
+    -- Works for Haskell values, too!
     | ident              { ExpVar $1 }
 
     -- Used only in post-conditions.
@@ -363,13 +366,14 @@ exp : integer            { ExpLit (LitInteger $1) }
     | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
     | fieldExp           { ExpFieldRef (fst $1) (snd $1) }
     | '*' exp            { ExpDeref $2 }
-    -- XXX antiExpP
+
     | libFuncExp         { $1 }
+    | iMacroCall         { IvoryMacroExp (fst $1) (snd $1) }
 
     -- Unary operators
-    | '!'          exp { ExpOp NotOp [$2] }
-    | '-'          exp { ExpOp NegateOp [$2] }
-    | '~'          exp { ExpOp BitComplementOp [$2] }
+    | '!'       exp      { ExpOp NotOp [$2] }
+    | '-'       exp      { ExpOp NegateOp [$2] }
+    | '~'       exp      { ExpOp BitComplementOp [$2] }
 
     -- Binary operators
     | exp '||'  exp      { ExpOp OrOp [$1, $3] }
@@ -438,6 +442,16 @@ arrExp : ident '!' exp  { ($1, $3) }
 
 fieldExp :: { (RefVar, RefVar) }
 fieldExp : ident '.' ident  { ($1, $3) }
+
+----------------------------------------
+-- Macros
+
+-- Used in statements and expressions
+iMacroCall :: { (String, [Exp]) }
+iMacroCall : -- Ivory macros
+             iMacro ident         { ($2, []) }
+             -- Haskell function call
+           | iMacro ident expArgs { ($2, $3) }
 
 ----------------------------------------
 -- Types

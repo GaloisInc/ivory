@@ -135,8 +135,7 @@ data Exp
   | ExpOp ExpOp [Exp]
   | ExpArrIxRef RefVar Exp
   | ExpFieldRef RefVar FieldNm
-  | ExpAnti String
-    -- ^ Ivory antiquotation
+  | IvoryMacroExp String [Exp]
   deriving (Show, Read, Eq, Ord)
 
 data ExpOp
@@ -226,7 +225,7 @@ data Stmt
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
   | Forever [Stmt]
-  | IvoryMacro String [Exp]
+  | IvoryMacroStmt String [Exp]
 -- Break XXX Too dangerous (and difficult) for non-macro use?
   deriving (Show, Read, Eq, Ord)
 

@@ -131,10 +131,10 @@ toExp env exp = case exp of
     -> toArrIxExp env ref ixExp
   ExpFieldRef ref fieldNm
     -> toFieldExp ref fieldNm
-  ExpAnti str
-    -> VarE (mkName str)
   ExpRet
     -> VarE (mkName "return")
+  IvoryMacroExp v args
+    -> callit (mkVar v) (map (toExp env) args)
 
 --------------------------------------------------------------------------------
 

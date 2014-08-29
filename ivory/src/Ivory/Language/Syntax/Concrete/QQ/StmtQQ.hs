@@ -118,12 +118,9 @@ fromStmt stmt = case stmt of
     b <- fromBlock blk
     insert $ NoBindS (AppE (VarE 'I.arrayMap) (LamE [VarP (mkName ixVar)] b))
   -- Either a single variable or a function call.
-  IvoryMacro v exps
+  IvoryMacroStmt v exps
     -> do es <- mapM fromExp exps
-          insert $ NoBindS $ callit (VarE $ mkName v) es
-
-callit :: T.Exp -> [T.Exp] -> T.Exp
-callit f args = foldl AppE f args
+          insert $ NoBindS $ callit (mkVar v) es
 
 --------------------------------------------------------------------------------
 -- Initializers
@@ -182,7 +179,3 @@ insertDerefStmt dv = case dv of
   insertDeref nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
 
 --------------------------------------------------------------------------------
--- Helpers
-
-mkVar :: String -> T.Exp
-mkVar = VarE . mkName

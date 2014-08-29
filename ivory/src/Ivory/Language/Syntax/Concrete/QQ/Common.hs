@@ -58,15 +58,14 @@ runToSt m = snd `fmap` runToQ m
 -- making a monadic Ivory statement.
 collectRefExps :: Exp -> [DerefExp]
 collectRefExps exp = nub $ case exp of
-  ExpDeref e         -> [toDerefExp e]
-  ExpOp _ args       -> concatMap collectRefExps args
-  ExpArrIxRef _ e    -> collectRefExps e
-
-  ExpLit{}           -> []
-  ExpVar{}           -> []
-  ExpRet{}           -> []
-  ExpFieldRef{}      -> []
-  ExpAnti{}          -> []
+  ExpDeref e           -> [toDerefExp e]
+  ExpOp _ args         -> concatMap collectRefExps args
+  ExpArrIxRef _ e      -> collectRefExps e
+  ExpLit{}             -> []
+  ExpVar{}             -> []
+  ExpRet{}             -> []
+  ExpFieldRef{}        -> []
+  IvoryMacroExp _ args -> concatMap collectRefExps args
 
 -- Unpack a dereference expression
 toDerefExp :: Exp -> DerefExp
@@ -76,3 +75,12 @@ toDerefExp e = case e of
   ExpFieldRef ref fn -> RefFieldExp ref fn
   _                  -> error $ "Dereference of expression "
                      ++ show e ++ " is not permitted."
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+mkVar :: String -> T.Exp
+mkVar = VarE . mkName
+
+callit :: T.Exp -> [T.Exp] -> T.Exp
+callit f args = foldl AppE f args
