@@ -1,34 +1,19 @@
 -- # -*- mode: haskell -*-
 
--- Define an expression
+-- Define a top-level expression
 bar = 3 + 2;
 
--- Define a type alias
+-- Define a top-level type alias.
 type Boo = int8_t;
 
--- Use them
+-- Use the expression and alias
 Boo foo(Boo x) {
   return (bar + x);
 }
 
--- Calling builtin functions.
+-- Calling builtin functions
 void foo67(* float a)
 { *a = sin(*a);
-}
-
--- empty statemnts in ite
-void foo30(Boo x) {
-  if(true) {}
-  else { return; }
-  return;
-}
-
--- Allocation on the stack.  Dereference is an expression.  All statements are
--- terminated with a ';'.
-int32_t foo0() {
-  alloc *x = 3;
-  *x = 4;
-  return *x + 4;
 }
 
 -- if-the-else blocks.  Braces are mandatory.
@@ -43,34 +28,52 @@ int32_t foo1() {
   }
 }
 
--- Void return statement.
-void foo2() {
-  if (true) {
-    return;
-  }
-  else {
-    return ;
-  }
+-- Empty statemnts in if-then-else
+void foo30(Boo x) {
+  if(true) {}
+  else { return; }
+  return;
 }
 
--- Allocate an array and index into it.  This function has type
---
--- foo6 :: Def ('[Ref s (Array 3 (Stored Uint32))] :-> Uint32)
---
+-- Allocation on the stack (dereference is an expression)
+int32_t foo0() {
+  alloc *x = 3;
+  *x = 4;
+  return *x + 4;
+}
+
+-- Global allocation (G), stack allocation (S), and undetermined scope (var c)
+uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
+  *b = *a;
+  return *b + *c + *d;
+}
+
+-- Allocated on either the stack or globally, with user-provided type-variable (xx).
+xx* uint32_t foo14(xx* struct Foo f) {
+  let a = f . aBar;
+  let u = a ! 2;
+  return u;
+}
+
+-- Allocate an array and index into it. A precondition is given for the function
+-- argument.
 uint32_t foo6(v *uint32_t[3] arr0) {
   alloc arr1[] = {1,2,3};
   map ix {
     *arr0 ! ix = *arr1 ! ix;
   }
-  return *arr0 ! 1 ;
+  -- Same as *arr0 ! 1 ;
+  return arr0[1] ;
 }
-{ pre(*arr0 ! 1 > 0);
+{ pre(arr0[1] > 0);
 }
 
+-- Define a struct.
 struct Bar00 {
   int32_t aBar00;
 }
 
+-- Use a struct. Polymorphic region reference.
 void foo00(* int32_t[5] arr, * struct Bar00 str) {
   -- The following two are equivalent
   * arr ! 2   = 3;
@@ -82,13 +85,12 @@ void foo00(* int32_t[5] arr, * struct Bar00 str) {
   arr[2]      = arr[3];
 }
 
--- Boolean operators.  This function has type
---
--- foo7 :: Def ('[IBool, Uint32] :-> Uint32)
---
+-- Boolean operators
 uint32_t foo7(bool b, uint32_t a) {
     return (b && !b ? a+3 : signum(abs(a)) - 4);
 }
+
+void foo2() {return;}
 
 -- Function calls, with a return value and without.
 uint32_t foo8(bool b, uint32_t a) {
@@ -98,7 +100,7 @@ uint32_t foo8(bool b, uint32_t a) {
     return (b && !b ? a+3 : signum(abs(a)) - x);
 }
 
--- Local assignment.
+-- Local assignment (constant).
 uint32_t foo9(uint32_t a) {
   forever {
     let b = a + 3;
@@ -115,25 +117,6 @@ void foo10(*uint32_t[3] r0, *uint32_t[3] r1) {
 -- Const decorators.
 uint32_t foo11(const *uint32_t i) {
   return *i;
-}
-
--- Global allocation (G), stack allocation (S), and undetermined scope (var c).
-uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
-  *b = *a;
-  return *b + *c + *d;
-}
-
--- Field access from a struct pointer.
-bool foo13(* struct Foo f) {
-  * f . aFoo = true;
-  return *(f . aFoo);
-}
-
--- Allocated on either the stack or globally, with user-provided type-variable (xx).
-xx* uint32_t foo14(xx* struct Foo f) {
-  let a = f . aBar;
-  let u = a ! 2;
-  return u;
 }
 
 -- Pre and post conditions.
@@ -157,28 +140,23 @@ uint32_t foo17(G*uint32_t i) {
   return *i;
 }
 
--- Structs
-
--- Haskell types
+-- Struct declared with Haskell types (and type alias in Haskell)
 struct Foo
  { aBar :: Array 4 (Stored SomeInt)
  ; aFoo :: Stored IBool
  }
 
--- C-like types
+-- Struct declared with C-like types
 struct Goo
  { int32_t aGoo;
    bool bGoo;
    int32_t[4] cGoo;
  }
 
-struct Boo
- { aFooVar :: Stored (Ix 3)
- }
-
 -- Safe string structs
 string struct ParamStruct 16
 
+-- Nested struct references
 struct Foo2
   { foo2f :: Struct Foo
   }
@@ -186,7 +164,7 @@ struct Foo2
 -- Abstract structs
 abstract struct fooStruct "foobar/foo.h"
 
--- Local naming
+-- Mapping over an array
 void mapProc(*uint8_t[4] arr, uint8_t x) {
   map ix {
     let v = arr ! ix;
@@ -202,8 +180,18 @@ void foo57(* uint8_t a, * uint16_t b, * int8_t c, * int32_t d)
   *c = twosCompCast(*a); -- interpret under 2s compliment
 }
 
+-- Statements and expression macros
+void foo68(int32_t x, int32_t y) {
+  -- macroStmts is a Haskell function
+  $macroStmts(x, y);
+  -- macroExp is a Haskell function, too
+  if($macroExp(x, y)) { return; }
+  else { return; }
+}
 
--- Hypothetical pack and unpack functions.
+------------------------------------------------------------
+-- Larger example (hypothetical pack and unpack functions). In practice, use
+-- ivory-serialize.
 int32_t unpackSint32(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
 {
   alloc *x = 0;
@@ -232,3 +220,4 @@ void pack(*uint8_t[10] msg, int32_t x, int32_t ixx)
   * msg ! (ix+3) = bitCast(ux >> 0x18);
 }
 
+------------------------------------------------------------
