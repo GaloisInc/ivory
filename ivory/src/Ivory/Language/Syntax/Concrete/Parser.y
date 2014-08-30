@@ -94,6 +94,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 
   -- Struct field dereference
   '.'       { TokSym "." }
+  '->'      { TokSym "->" }
 
   '=='      { TokSym "==" }
   '!='      { TokSym "!=" }
@@ -216,6 +217,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %left '*' '/' '%'
 %right '*' '~' '!' '-'
 %left '.'
+%left '->'
 %right
   abs
   signum
@@ -321,7 +323,9 @@ simpleStmt :
   -- Storing
   | '*' ident    '=' exp          { Store (RefVar $2) $4 }
   | '*' arrExp   '=' exp          { Store (ArrIx (fst $2) (snd $2)) $4 }
+  | arrDeref     '=' exp          { Store (ArrIx (fst $1) (snd $1)) $3 }
   | '*' fieldExp '=' exp          { Store (StructField (fst $2) (snd $2)) $4 }
+  | fieldDeref   '=' exp          { Store (StructField (fst $1) (snd $1)) $3 }
 
   | ident expArgs                 { Call Nothing $1 $2 }
   | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
@@ -359,12 +363,14 @@ exp : integer            { ExpLit (LitInteger $1) }
     -- Works for Haskell values, too!
     | ident              { ExpVar $1 }
 
-    -- Used only in post-conditions.
+    -- Used only in post-conditions (otherwise, it's a statement).
     | return             { ExpRet }
 
     | '(' exp ')'        { $2 }
-    | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
-    | fieldExp           { ExpFieldRef (fst $1) (snd $1) }
+    | arrExp             { ExpArrIxRef   (fst $1) (snd $1) }
+    | arrDeref           { ExpDeref (ExpArrIxRef (fst $1) (snd $1)) }
+    | fieldExp           { ExpFieldRef   (fst $1) (snd $1) }
+    | fieldDeref         { ExpDeref (ExpFieldRef (fst $1) (snd $1)) }
     | '*' exp            { ExpDeref $2 }
 
     | libFuncExp         { $1 }
@@ -440,8 +446,14 @@ libFuncExp :
 arrExp :: { (RefVar, Exp) }
 arrExp : ident '!' exp  { ($1, $3) }
 
-fieldExp :: { (RefVar, RefVar) }
+arrDeref :: { (RefVar, Exp) }
+arrDeref : ident '[' exp ']'  { ($1, $3) }
+
+fieldExp :: { (RefVar, FieldNm) }
 fieldExp : ident '.' ident  { ($1, $3) }
+
+fieldDeref :: { (RefVar, FieldNm) }
+fieldDeref : ident '->' ident  { ($1, $3) }
 
 ----------------------------------------
 -- Macros
