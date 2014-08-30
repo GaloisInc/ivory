@@ -85,6 +85,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 
   -- Other internals
   toIx         { TokReserved "toIx" }
+  toCArray     { TokReserved "toCArray" }
 
   -- Type
   '::'      { TokSym "::" }
@@ -442,6 +443,7 @@ libFuncExp :
     | twosCompRep  expArgs     { ExpOp TwosCompRep  $2 }
 
     | toIx         expArgs { ExpOp ToIx         $2 }
+    | toCArray     expArgs { ExpOp ToCArray     $2 }
 
 arrExp :: { (RefVar, Exp) }
 arrExp : ident '!' exp  { ($1, $3) }

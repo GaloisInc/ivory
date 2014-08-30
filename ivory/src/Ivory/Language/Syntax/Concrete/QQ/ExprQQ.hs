@@ -26,6 +26,7 @@ import qualified  Ivory.Language.Float    as I
 import qualified  Ivory.Language.Ref      as I
 import qualified  Ivory.Language.IBool    as I
 import qualified  Ivory.Language.Array    as I
+import qualified  Ivory.Language.CArray   as I
 import qualified  Ivory.Language.Struct   as I
 import qualified  Ivory.Language.Cast     as I
 
@@ -108,6 +109,7 @@ fromOpExp env op args = case op of
   TwosCompRep      -> mkUn  'I.twosComplementRep
 
   ToIx             -> mkUn  'I.toIx
+  ToCArray         -> mkUn  'I.toCArray
 
   where
   getArg i    = toExp env (args !! i)

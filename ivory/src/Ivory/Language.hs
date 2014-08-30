@@ -6,6 +6,11 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
+-- XXX
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE FlexibleInstances #-}
+
+
 module Ivory.Language (
     -- * Kinds
     Area(..)
@@ -239,3 +244,7 @@ import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
 
 --------------------------------------------------------------------------------
+
+[ivory|
+
+|]

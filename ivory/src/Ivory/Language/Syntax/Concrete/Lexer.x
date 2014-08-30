@@ -104,6 +104,7 @@ tokens :-
   twosCompRep      { lexReserved }
 
   toIx             { lexReserved }
+  toCArray         { lexReserved }
 
 -- Reserved words
   struct   { lexReserved }

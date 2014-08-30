@@ -201,6 +201,7 @@ data ExpOp
   | TwosCompRep
 
   | ToIx
+  | ToCArray
 
   deriving (Show, Read, Eq, Ord)
 
