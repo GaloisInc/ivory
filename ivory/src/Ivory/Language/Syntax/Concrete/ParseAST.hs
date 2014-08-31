@@ -15,6 +15,7 @@ type RefVar    = String
 type IxVar     = String
 type TypeVar   = String
 type FieldNm   = String
+type MacroVar  = String
 
 --------------------------------------------------------------------------------
 
@@ -226,8 +227,13 @@ data Stmt
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
   | Forever [Stmt]
-  | IvoryMacroStmt String [Exp]
+  | IvoryMacroStmt Macro String [Exp]
 -- Break XXX Too dangerous (and difficult) for non-macro use?
+  deriving (Show, Read, Eq, Ord)
+
+data Macro =
+    NoBind
+  | Bind MacroVar
   deriving (Show, Read, Eq, Ord)
 
 data RefLVal

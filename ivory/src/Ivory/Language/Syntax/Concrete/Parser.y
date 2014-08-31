@@ -138,6 +138,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ';'       { TokSep ";" }
   ','       { TokSep "," }
 
+  '<-'      { TokSym "<-" }
   -- Types
   bool     { TokReserved "bool" }
   char     { TokReserved "char" }
@@ -331,7 +332,8 @@ simpleStmt :
   | ident expArgs                 { Call Nothing $1 $2 }
   | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
 
-  | iMacroCall                    { IvoryMacroStmt (fst $1) (snd $1) }
+  | iMacroCall                    { IvoryMacroStmt NoBind (fst $1) (snd $1) }
+  | ident '<-' iMacroCall         { IvoryMacroStmt (Bind $1) (fst $3) (snd $3) }
 
 blkStmt :: { Stmt }
 blkStmt :
