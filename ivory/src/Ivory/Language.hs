@@ -49,8 +49,10 @@ module Ivory.Language (
     -- ** Characters
   , IChar(), char
 
-    -- ** Strings
+    -- ** Constant strings
   , IString()
+    -- ** Dynamic bounded-length strings
+  , IvoryString(..)
 
     -- ** Signed Integers
   , Sint8()
@@ -163,9 +165,6 @@ module Ivory.Language (
   , ANat
   , fromTypeNat
 
-    -- ** Strings
-  , IvoryString(..)
-
     -- ** Looping
   , for, times
   , breakOut
@@ -243,8 +242,18 @@ import Ivory.Language.BitData.Bits
 import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------
+-------------
+
+foo x = do
+  a <- local (ival 0)
+  store a x
+  b <- deref a
+  return b
 
 [ivory|
-
+int32_t bar(int32_t x) {
+  a <- $foo(x);
+  return a;
+}
 |]
