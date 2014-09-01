@@ -51,7 +51,7 @@ uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
 -- Allocated on either the stack or globally, with user-provided type-variable (xx).
 xx* uint32_t foo14(xx* struct Foo f) {
   let a = f . aBar;
-  let u = a ! 2;
+  let u = a @ 2;
   return u;
 }
 
@@ -60,9 +60,9 @@ xx* uint32_t foo14(xx* struct Foo f) {
 uint32_t foo6(v *uint32_t[3] arr0) {
   alloc arr1[] = {1,2,3};
   map ix {
-    *arr0 ! ix = *arr1 ! ix;
+    *arr0 @ ix = *arr1 @ ix;
   }
-  -- Same as *arr0 ! 1 ;
+  -- Same as *arr0 @ 1 ;
   return arr0[1] ;
 }
 { pre(arr0[1] > 0);
@@ -76,7 +76,7 @@ struct Bar00 {
 -- Use a struct. Polymorphic region reference.
 void foo00(* int32_t[5] arr, * struct Bar00 str) {
   -- The following two are equivalent
-  * arr ! 2   = 3;
+  * arr @ 2   = 3;
     arr[2]    = 4;
   -- As well as the next two
   *str.aBar00 = 1;
@@ -170,7 +170,7 @@ abstract struct fooStruct "foobar/foo.h"
 -- Mapping over an array
 void mapProc(*uint8_t[4] arr, uint8_t x) {
   map ix {
-    let v = arr ! ix;
+    let v = arr @ ix;
     *v = *v + x;
   }
 }
@@ -207,10 +207,10 @@ int32_t unpackSint32(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
 int32_t unpack(* uint8_t[10] msg, int32_t ixx)
 {
  let ix = toIx(ixx);
- res = unpackSint32( * msg ! ix
-                   , * msg ! (ix+1)
-                   , * msg ! (ix+2)
-                   , * msg ! (ix+3)
+ res = unpackSint32( * msg @ ix
+                   , * msg @ (ix+1)
+                   , * msg @ (ix+2)
+                   , * msg @ (ix+3)
                    );
  return res;
 }
@@ -219,10 +219,10 @@ void pack(*uint8_t[10] msg, int32_t x, int32_t ixx)
 {
   let ix = toIx(ixx);
   let ux = twosCompRep(x);
-  * msg ! ix     = bitCast(ux);
-  * msg ! (ix+1) = bitCast(ux >> 0x08);
-  * msg ! (ix+2) = bitCast(ux >> 0x10);
-  * msg ! (ix+3) = bitCast(ux >> 0x18);
+  * msg @ ix     = bitCast(ux);
+  * msg @ (ix+1) = bitCast(ux >> 0x08);
+  * msg @ (ix+2) = bitCast(ux >> 0x10);
+  * msg @ (ix+3) = bitCast(ux >> 0x18);
 }
 
 ------------------------------------------------------------

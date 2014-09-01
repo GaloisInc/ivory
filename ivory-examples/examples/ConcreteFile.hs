@@ -16,7 +16,6 @@
 
 module Concrete where
 
-import Prelude hiding (return)
 import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend

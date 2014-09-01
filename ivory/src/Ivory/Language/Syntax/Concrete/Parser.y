@@ -139,6 +139,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ','       { TokSep "," }
 
   '<-'      { TokSym "<-" }
+  '@'       { TokSym "@" }
   -- Types
   bool     { TokReserved "bool" }
   char     { TokReserved "char" }
@@ -218,8 +219,8 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %left '+' '-'
 %left '*' '/' '%'
 %right '*' '~' '!' '-'
-%left '.'
-%left '->'
+-- '[' assumed to be followed by ']'
+%left '.' '@' '->' '['
 %right
   abs
   signum
@@ -448,7 +449,7 @@ libFuncExp :
     | toCArray     expArgs { ExpOp ToCArray     $2 }
 
 arrExp :: { (RefVar, Exp) }
-arrExp : ident '!' exp  { ($1, $3) }
+arrExp : ident '@' exp  { ($1, $3) }
 
 arrDeref :: { (RefVar, Exp) }
 arrDeref : ident '[' exp ']'  { ($1, $3) }
