@@ -31,6 +31,11 @@ macroStmts x y = do
   a <- local (ival 0)
   store a (x + y)
 
+macroStmtsRet x y = do
+  a <- local (ival 0)
+  store a (x + y)
+  return =<< deref a
+
 macroExp x y = do
   x <? y
 

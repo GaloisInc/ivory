@@ -153,8 +153,11 @@ struct Goo
    int32_t[4] cGoo;
  }
 
--- Safe string structs
-string struct ParamStruct 16
+-- Safe string structs: strings of max length 16 bytes Generates two field
+-- labels: stringLengthL (int32_t) and stringDataL (array uint8_t[16]). The type
+-- of the struct is ivory_string_FooStr. See the String library in ivory-stdlib
+-- for some string library functions.
+string struct FooStr 16
 
 -- Nested struct references
 struct Foo2
@@ -181,12 +184,14 @@ void foo57(* uint8_t a, * uint16_t b, * int8_t c, * int32_t d)
 }
 
 -- Statements and expression macros
-void foo68(int32_t x, int32_t y) {
+int32_t foo68(int32_t x, int32_t y) {
   -- macroStmts is a Haskell function
   $macroStmts(x, y);
+  -- with a return value (Ivory eff a)
+  a <- $macroStmtsRet(x, y);
   -- macroExp is a Haskell function, too
-  if($macroExp(x, y)) { return; }
-  else { return; }
+  if($macroExp(x, y)) { return x; }
+  else { return a; }
 }
 
 ------------------------------------------------------------
