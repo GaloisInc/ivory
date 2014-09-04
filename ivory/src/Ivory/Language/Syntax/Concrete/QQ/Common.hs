@@ -22,7 +22,6 @@ import           Data.Monoid
 import qualified Data.DList as D
 import           Control.Applicative
 
-import Ivory.Language.Syntax.Concrete.QQ.Types
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
@@ -56,25 +55,20 @@ runToSt m = snd `fmap` runToQ m
 
 -- Collect up the variables used in a dereference expression to be used in
 -- making a monadic Ivory statement.
-collectRefExps :: Exp -> [DerefExp]
+collectRefExps :: Exp -> [Area]
 collectRefExps exp = nub $ case exp of
-  ExpDeref e           -> [toDerefExp e]
+  ExpDeref area        -> [area]
   ExpOp _ args         -> concatMap collectRefExps args
-  ExpArrIxRef _ e      -> collectRefExps e
   ExpLit{}             -> []
   ExpVar{}             -> []
   ExpRet{}             -> []
-  ExpFieldRef{}        -> []
   IvoryMacroExp _ args -> concatMap collectRefExps args
 
--- Unpack a dereference expression
-toDerefExp :: Exp -> DerefExp
-toDerefExp e = case e of
-  ExpVar v           -> RefExp v
-  ExpArrIxRef ref ix -> RefArrIxExp ref ix
-  ExpFieldRef ref fn -> RefFieldExp ref fn
-  _                  -> error $ "Dereference of expression "
-                     ++ show e ++ " is not permitted."
+  -- where
+  -- collectAreas area = case area of
+  --   AreaVar{}      -> []
+  --   ArrayArea a e  -> area : (collectAreas a ++ collectRefExps e)
+  --   StructArea a f -> collectAreas a
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -84,3 +78,14 @@ mkVar = VarE . mkName
 
 callit :: T.Exp -> [T.Exp] -> T.Exp
 callit f args = foldl AppE f args
+
+--------------------------------------------------------------------------------
+
+-- We use a state monad over the Q monad to keep track of expressions in the
+-- parsed language that we'll turn into statements in Ivory.
+type TStmtM a = QStM T.Stmt a
+
+--------------------------------------------------------------------------------
+
+-- | Dereference expression environment
+type DerefVarEnv = [(Area, Name)]
