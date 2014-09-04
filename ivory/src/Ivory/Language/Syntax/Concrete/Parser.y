@@ -313,7 +313,8 @@ simpleStmt :: { Stmt }
 simpleStmt :
     assert exp                    { Assert $2 }
   | assume exp                    { Assume $2 }
-  | assign ident '=' exp          { Assign $2 $4 }
+  | assign ident '=' area         { Assign $2 (Right $4) }
+  | assign ident '=' exp          { Assign $2 (Left $4) }
   | return                        { ReturnVoid }
   | return exp                    { Return $2 }
 
@@ -324,11 +325,14 @@ simpleStmt :
   | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
 
   -- Storing
-  | '*' ident    '=' exp          { Store (RefVar $2) $4 }
-  | '*' arrExp   '=' exp          { Store (ArrIx (fst $2) (snd $2)) $4 }
-  | arrDeref     '=' exp          { Store (ArrIx (fst $1) (snd $1)) $3 }
-  | '*' fieldExp '=' exp          { Store (StructField (fst $2) (snd $2)) $4 }
-  | fieldDeref   '=' exp          { Store (StructField (fst $1) (snd $1)) $3 }
+  | '*' ident          '=' exp    { Store (AreaVar $2) $4 }
+  | '*' area           '=' exp    { Store $2 $4 }
+  | ident '[' exp ']'  '=' exp    { Store (ArrayArea (AreaVar $1) $3) $6 }
+  | ident '->' ident   '=' exp
+      { Store (StructArea (AreaVar $1) $3) $5 }
+  | '(' area ')' '[' exp ']'  '=' exp    { Store (ArrayArea $2 $5) $8 }
+  | '(' area ')' '->' ident   '=' exp
+      { Store (StructArea $2 $5) $7 }
 
   | ident expArgs                 { Call Nothing $1 $2 }
   | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
@@ -371,11 +375,14 @@ exp : integer            { ExpLit (LitInteger $1) }
     | return             { ExpRet }
 
     | '(' exp ')'        { $2 }
-    | arrExp             { ExpArrIxRef   (fst $1) (snd $1) }
-    | arrDeref           { ExpDeref (ExpArrIxRef (fst $1) (snd $1)) }
-    | fieldExp           { ExpFieldRef   (fst $1) (snd $1) }
-    | fieldDeref         { ExpDeref (ExpFieldRef (fst $1) (snd $1)) }
-    | '*' exp            { ExpDeref $2 }
+
+    -- Dereferences
+    | '*' ident                  { ExpDeref (AreaVar $2) }
+    | '*' area                   { ExpDeref $2 }
+    | ident '[' exp ']'          { ExpDeref (ArrayArea (AreaVar $1) $3) }
+    | ident '->' ident           { ExpDeref (StructArea (AreaVar $1) $3) }
+    | '(' area ')' '[' exp ']'   { ExpDeref (ArrayArea  $2 $5) }
+    | '(' area ')' '->' ident    { ExpDeref (StructArea $2 $5) }
 
     | libFuncExp         { $1 }
     | iMacroCall         { IvoryMacroExp (fst $1) (snd $1) }
@@ -439,26 +446,23 @@ libFuncExp :
     | floor        expArgs { ExpOp FloorFOp     $2 }
     | const        expArgs { ExpOp ConstRefOp   $2 }
 
-    | castWith     expArgs     { ExpOp CastWith     $2 }
-    | safeCast     expArgs     { ExpOp SafeCast     $2 }
-    | bitCast      expArgs     { ExpOp BitCast      $2 }
-    | twosCompCast expArgs     { ExpOp TwosCompCast $2 }
-    | twosCompRep  expArgs     { ExpOp TwosCompRep  $2 }
+    | castWith     expArgs { ExpOp CastWith     $2 }
+    | safeCast     expArgs { ExpOp SafeCast     $2 }
+    | bitCast      expArgs { ExpOp BitCast      $2 }
+    | twosCompCast expArgs { ExpOp TwosCompCast $2 }
+    | twosCompRep  expArgs { ExpOp TwosCompRep  $2 }
 
     | toIx         expArgs { ExpOp ToIx         $2 }
     | toCArray     expArgs { ExpOp ToCArray     $2 }
 
-arrExp :: { (RefVar, Exp) }
-arrExp : ident '@' exp  { ($1, $3) }
+----------------------------------------
+-- Areas
 
-arrDeref :: { (RefVar, Exp) }
-arrDeref : ident '[' exp ']'  { ($1, $3) }
-
-fieldExp :: { (RefVar, FieldNm) }
-fieldExp : ident '.' ident  { ($1, $3) }
-
-fieldDeref :: { (RefVar, FieldNm) }
-fieldDeref : ident '->' ident  { ($1, $3) }
+area :: { Area }
+area : '(' area ')' '@' exp   { ArrayArea  $2 $5 }
+     | '(' area ')' '.' ident { StructArea $2 $5 }
+     | ident '@' exp          { ArrayArea  (AreaVar $1) $3 }
+     | ident '.' ident        { StructArea (AreaVar $1) $3 }
 
 ----------------------------------------
 -- Macros
@@ -512,18 +516,18 @@ refTypeC :
     refC baseTypeC { $1 (TyStored $2) }
   | refC areaC     { $1 $2 }
 
-refC :: { Area -> Type }
+refC :: { AreaTy -> Type }
 refC :
           scopeC '*' { TyRef $1 }
   | const scopeC '*' { TyConstRef $2 }
 
-areaC :: { Area }
+areaC :: { AreaTy }
 areaC :
     arrayTypeC        { $1 }
   | struct structName { TyStruct $2 }
   | '&' baseTypeC     { TyStored $2 }
 
-arrayTypeC :: { Area }
+arrayTypeC :: { AreaTy }
 arrayTypeC :
     baseTypeC '[' integer ']' { TyArray (TyStored $1) $3 }
   | areaC     '[' integer ']' { TyArray $1            $3 }
@@ -565,7 +569,7 @@ baseTypeHS :
   | '(' baseTypeHS ')' { $2 }
   | tyident            { TySynonym $1 }
 
-areaHS :: { Area }
+areaHS :: { AreaTy }
 areaHS :
     Stored baseTypeHS          { TyStored $2 }
   | Struct structName          { TyStruct $2 }

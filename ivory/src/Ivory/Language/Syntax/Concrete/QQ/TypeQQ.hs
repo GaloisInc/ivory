@@ -112,15 +112,15 @@ fromStoredTy ty = do
   s   <- liftPromote 'I.Stored
   return (AppT s ty')
 
-fromRef :: Name -> Scope -> Area -> TTyVar T.Type
+fromRef :: Name -> Scope -> AreaTy -> TTyVar T.Type
 fromRef constr mem area = do
-  a      <- fromArea area
+  a      <- fromAreaTy area
   ma     <- fromScope mem
   return $ AppT (AppT (ConT constr) ma) a
 
-fromArrayTy :: Area -> Integer -> TTyVar T.Type
+fromArrayTy :: AreaTy -> Integer -> TTyVar T.Type
 fromArrayTy area sz = do
-  a      <- fromArea area
+  a      <- fromAreaTy area
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr (szTy sz)) a
 
@@ -141,11 +141,11 @@ fromType ty = case ty of
   TyIx ix           -> return (AppT (ConT ''I.Ix) (szTy ix))
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
-  TyArea area       -> fromArea area
+  TyArea area       -> fromAreaTy area
   TySynonym str     -> liftCon (mkName str)
 
-fromArea :: Area -> TTyVar T.Type
-fromArea area = case area of
+fromAreaTy :: AreaTy -> TTyVar T.Type
+fromAreaTy area = case area of
   TyArray a sz      -> fromArrayTy a sz
   TyStruct nm       -> fromStructTy nm
   TyStored ty       -> fromStoredTy ty

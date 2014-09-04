@@ -78,20 +78,20 @@ data Type
   | TyChar                     -- ^ Characters
   | TyFloat                    -- ^ Floats
   | TyDouble                   -- ^ Doubles
-  | TyRef      Scope Area      -- ^ References
-  | TyConstRef Scope Area      -- ^ Constant References
+  | TyRef      Scope AreaTy    -- ^ References
+  | TyConstRef Scope AreaTy    -- ^ Constant References
   -- XXX
   -- | TyPtr Type              -- ^ Pointers
   | TyIx Integer               -- ^ Index type
-  | TyArea Area                -- ^ Area types
+  | TyArea AreaTy              -- ^ Area types
   | TySynonym String           -- ^ Type synonym
   deriving (Show, Read, Eq, Ord)
 
-data Area =
+data AreaTy =
     TyStruct String            -- ^ Structures
-  | TyArray Area Integer       -- ^ Arrays of fixed length
+  | TyArray AreaTy Integer     -- ^ Arrays of fixed length
   -- XXX
-  --  | TyCArray Area          -- ^ C Arrays
+  --  | TyCArray AreaTy        -- ^ C Arrays
   | TyStored Type
   | AreaSynonym String         -- ^ Synonym
   deriving (Show, Read, Eq, Ord)
@@ -122,6 +122,15 @@ data WordSize
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
+-- Areas
+
+data Area
+  = AreaVar    RefVar
+  | ArrayArea  Area  Exp
+  | StructArea Area  RefVar
+  deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
 -- Expressions
 
 data Literal
@@ -132,10 +141,8 @@ data Exp
   = ExpLit Literal
   | ExpVar Var
   | ExpRet -- Used only in post-conditions
-  | ExpDeref Exp -- Note: these are statements in Ivory.
+  | ExpDeref Area -- Note: these are statements in Ivory.
   | ExpOp ExpOp [Exp]
-  | ExpArrIxRef RefVar Exp
-  | ExpFieldRef RefVar FieldNm
   | IvoryMacroExp String [Exp]
   deriving (Show, Read, Eq, Ord)
 
@@ -219,8 +226,8 @@ data Stmt
   | Return Exp
   | ReturnVoid
   -- Deref dereferencing is an expression in our language here.
-  | Store RefLVal Exp
-  | Assign Var Exp
+  | Store Area Exp
+  | Assign Var (Either Exp Area)
   | Call (Maybe Var) FnSym [Exp]
   | RefCopy Exp Exp
 -- Local is AllocRef
@@ -234,12 +241,6 @@ data Stmt
 data Macro =
     NoBind
   | Bind MacroVar
-  deriving (Show, Read, Eq, Ord)
-
-data RefLVal
-  = RefVar RefVar
-  | ArrIx RefVar Exp
-  | StructField RefVar FieldNm
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -262,7 +263,7 @@ ivoryStringStructName = ("ivory_string_" ++)
 
 data Field = Field
   { fieldName :: FieldNm
-  , fieldType :: Area
+  , fieldType :: AreaTy
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------

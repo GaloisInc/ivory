@@ -245,15 +245,37 @@ import qualified Ivory.Language.Syntax.AST as AST
 -------------------------------------------------------------------
 -------------
 
-foo x = do
-  a <- local (ival 0)
-  store a x
-  b <- deref a
-  return b
+-- [ivory|
+-- -- struct Bar { int32_t aBar; }
+
+-- struct Bar { aBar :: Array 10 (Stored Sint32); }
+
+-- struct Boo { struct Bar aBoo; }
+-- |]
+
+-- fooBar :: Def ('[Ref s (Struct "Boo")] :-> Sint32)
+-- fooBar = proc "fooBar" $ \ref -> body $ do
+--   x <- deref (ref ~> aBoo ~> aBar ! 3)
+--   ret x
+
+-- foo x = do
+--   a <- local (ival 0)
+--   store a x
+--   b <- deref a
+--   return b
 
 [ivory|
-int32_t bar(int32_t x) {
-  a <- $foo(x);
-  return a;
+
+struct Bar { int32_t aBar; }
+
+struct Boo { struct Bar aBoo; }
+
+int32_t bar(int32_t x, * struct Boo a, * int32_t y, * int32_t[10] arr) {
+  (a . aBoo) -> aBar = *y;
+  (a . aBoo) -> aBar = *y;
+  arr[toIx(*y + *y)] = *y + *y;
+  return 3 ;
+  -- a <- $foo(x);
+  -- return a;
 }
 |]

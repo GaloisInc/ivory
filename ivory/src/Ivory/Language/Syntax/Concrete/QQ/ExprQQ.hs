@@ -13,8 +13,6 @@ module Ivory.Language.Syntax.Concrete.QQ.ExprQQ where
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
-import Ivory.Language.Syntax.Concrete.QQ.Types
-
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
@@ -27,7 +25,6 @@ import qualified  Ivory.Language.Ref      as I
 import qualified  Ivory.Language.IBool    as I
 import qualified  Ivory.Language.Array    as I
 import qualified  Ivory.Language.CArray   as I
-import qualified  Ivory.Language.Struct   as I
 import qualified  Ivory.Language.Cast     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
@@ -129,10 +126,6 @@ toExp env exp = case exp of
     -> VarE (lookupDerefVar e env)
   ExpOp op args
     -> fromOpExp env op args
-  ExpArrIxRef ref ixExp
-    -> toArrIxExp env ref ixExp
-  ExpFieldRef ref fieldNm
-    -> toFieldExp ref fieldNm
   ExpRet
     -> VarE (mkName "return")
   IvoryMacroExp v args
@@ -142,22 +135,10 @@ toExp env exp = case exp of
 
 -- Returns the fresh variable that is the do-block binding from the dereference
 -- statement.
-lookupDerefVar :: Exp -> DerefVarEnv -> Name
-lookupDerefVar exp env =
-  case lookup (toDerefExp exp) env of
+lookupDerefVar :: Area -> DerefVarEnv -> Name
+lookupDerefVar area env =
+  case lookup area env of
     Nothing -> error "Internal error in lookupDerefVar"
     Just rv -> rv
 
 --------------------------------------------------------------------------------
--- Helpers
-
-toArrIxExp :: DerefVarEnv -> RefVar -> Exp -> T.Exp
-toArrIxExp env ref ixExp =
-  let tExp = toExp env ixExp in
-  InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just tExp)
-
-toFieldExp :: RefVar -> FieldNm -> T.Exp
-toFieldExp ref fieldNm =
-  InfixE (nm ref) (VarE '(I.~>)) (nm fieldNm)
-  where
-  nm = Just . VarE . mkName

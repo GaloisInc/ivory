@@ -89,3 +89,8 @@ type TStmtM a = QStM T.Stmt a
 
 -- | Dereference expression environment
 type DerefVarEnv = [(Area, Name)]
+
+--------------------------------------------------------------------------------
+
+-- | How to insert a dereference
+type Insert a = Name -> T.Exp -> QStM a ()
