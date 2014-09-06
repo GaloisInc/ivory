@@ -78,7 +78,7 @@ instance ( ANat n, IvoryIntegral to, Default to
               = ivoryCast (fromIx ix)
               | otherwise
               = error ixCastError
-  -- -- It doesn't make sense to case an index downwards dynamically.
+  -- -- It doesn't make sense to cast an index downwards dynamically.
   -- inBounds _ _ = error ixCastError
 
 ixCastError :: String
