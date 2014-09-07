@@ -6,7 +6,6 @@
 
 module Ivory.Language.Loop where
 
-import Ivory.Language.IIntegral
 import Ivory.Language.IBool
 import Ivory.Language.Assert
 import Ivory.Language.Array
@@ -29,18 +28,19 @@ loop :: forall eff n a. (ANat n)
      -> (Ix n -> Ivory (E.AllowBreak eff) a)
      -> Ivory eff ()
 loop incr fromIdx toIdx body = do
-  let maxSz :: IxRep
-      maxSz = fromInteger $ ixSize (undefined :: Ix n)
-  let trans v = unwrapExpr $ wrapExpr v .% maxSz
-  let from  = rawIxVal fromIdx
-  let to    = rawIxVal toIdx
-  ix        <- freshVar "ix"
-  let ixVar = wrapExpr (AST.ExpVar ix)
-  (_,block) <- collect (body ixVar)
-  let asst v = compilerAssert (wrapExpr v <? maxSz .&& (-1::IxRep) <=? wrapExpr v)
+  let sz      = fromTypeNat (aNat :: Proxy n)
+  let from    = wrapExpr $ rawIxVal fromIdx
+  let to      = wrapExpr $ rawIxVal toIdx
+  -- You shouldn't rely on modulo arithmetic via Ix types. That the values are
+  -- in-bounds is enforced.
+  let asst v  = compilerAssert (v <? fromInteger sz .&& (0::IxRep) <=? v)
+
+  ix         <- freshVar "ix"
+  let ixVar   = wrapExpr (AST.ExpVar ix)
+  (_,block)  <- collect (body ixVar)
   asst from
   asst to
-  emit (AST.Loop ix (trans from) (incr $ trans to) (blockStmts block))
+  emit $ AST.Loop ix (unwrapExpr fromIdx) (incr $ unwrapExpr toIdx) (blockStmts block)
 
 upTo :: ANat n
      => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
@@ -50,23 +50,23 @@ downTo :: ANat n
        => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 downTo = loop AST.DecrTo
 
--- | Run the computation n times, where
+-- | Run the computation n+1 times, where
 -- @
---   n :: Ix m, 0 <= n <= m.
+--   n :: Ix m, 0 <= n < m.
 -- @
--- Indexes increment from 0 to n-1 incluseively.
+-- Indexes increment from 0 to n-1 inclusively.
 for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-for n f = upTo 0 (n-1) f
+for n f = upTo 0 n f
 
--- | Run the computation n times, where
+-- | Run the computation n+1 times, where
 -- @
---   n :: Ix m, 0 <= n <= m.
+--   n :: Ix m, 0 <= n < m.
 -- @
 -- Indexes decrement from n-1 to 0 inclusively.
 times :: forall eff n a. ANat n
       => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-times n f = downTo (n-1) 0 f
+times n f = downTo n 0 f
 
 arrayMap :: forall eff n a . ANat n
          => (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
