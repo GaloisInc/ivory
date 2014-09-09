@@ -16,8 +16,8 @@ import           Prelude hiding (exp, init)
 
 import Ivory.Language.Syntax.Concrete.QQ.Common
 
-import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
-import qualified Language.Haskell.TH as T
+import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
+import qualified Language.Haskell.TH   as T
 
 import qualified Ivory.Language.Init   as I
 import qualified Ivory.Language.Ref    as I
@@ -64,27 +64,25 @@ fromStmt stmt = case stmt of
     insert $ NoBindS (AppE (VarE 'I.ret) e)
   ReturnVoid
     -> insert $ NoBindS (VarE 'I.retVoid)
-  Store area exp
+  Store exp0 exp1
     -> do
-      a <- fromAreaStmt area
-      e <- fromExpStmt exp
-      let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'I.store) p) e)
-      storeIt a
-  Assign var rval
+    a <- fromAreaStmt (storeExp exp0)
+    e <- fromExpStmt exp1
+    let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'I.store) p) e)
+    storeIt a
+  Assign var exp
     -> do
-    rv <- case rval of
-            Left a  -> fromExpStmt a
-            Right a -> fromArea insertDerefStmt a
+    e <- fromExpStmt exp
     let v = mkName var
-    insert $ BindS (VarP v) (AppE (VarE 'I.assign) rv)
-  Call mres sym exps
+    insert $ BindS (VarP v) (AppE (VarE 'I.assign) e)
+  Call mres sym args
     -> do
-    es <- mapM fromExpStmt exps
+    eas <- fromArgs args
     let call f = AppE (VarE f) (mkVar sym)
     insert $ case mres of
-      Nothing  -> NoBindS (callit (call 'I.call_) es)
+      Nothing  -> NoBindS (callit (call 'I.call_) eas)
       Just res -> let r = mkName res in
-                  BindS (VarP r) (callit (call 'I.call) es)
+                  BindS (VarP r) (callit (call 'I.call) eas)
   RefCopy refDest refSrc
     -> do
     eDest <- fromExpStmt refDest
@@ -102,9 +100,9 @@ fromStmt stmt = case stmt of
     b <- fromBlock blk
     insert $ NoBindS (AppE (VarE 'I.arrayMap) (LamE [VarP (mkName ixVar)] b))
   -- Either a single variable or a function call.
-  IvoryMacroStmt m v exps
-    -> do es <- mapM fromExpStmt exps
-          let c = callit (mkVar v) es
+  IvoryMacroStmt m v args
+    -> do as <- fromArgs args
+          let c = callit (mkVar v) as
           insert $ case m of
                      NoBind  -> NoBindS c
                      Bind bv -> BindS (VarP $ mkName bv) c
@@ -114,8 +112,10 @@ fromStmt stmt = case stmt of
 
 fromAlloc :: AllocRef -> TStmtM ()
 fromAlloc alloc = case alloc of
-  AllocBase ref exp
-    -> do e <- fromExpStmt exp
+  AllocBase ref mexp
+    -> do e <- case mexp of
+                 Nothing  -> return (VarE 'I.izero)
+                 Just exp -> fromExpStmt exp
           let p = mkName ref
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.ival) e))
@@ -126,6 +126,14 @@ fromAlloc alloc = case alloc of
           let p = mkName arr
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.iarray) init))
+  AllocStruct s fieldAssigns
+    -> do es <- mapM (fromExpStmt . snd) fieldAssigns
+          let mkIval = AppE (VarE 'I.ival)
+          let assign (fnm, e) = InfixE (Just $ mkVar fnm) (VarE '(I..=)) (Just $ mkIval e)
+          let init = ListE $ map assign (zip (fst $ unzip fieldAssigns) es)
+          let p = mkName s
+          insert $ BindS (VarP p)
+                         (AppE (VarE 'I.local) (AppE (VarE 'I.istruct) init))
 
 --------------------------------------------------------------------------------
 
@@ -138,3 +146,10 @@ fromExpStmt = fromExp insertDerefStmt
 fromAreaStmt :: Area -> QStM T.Stmt T.Exp
 fromAreaStmt = fromArea insertDerefStmt
 
+fromArgs :: [Exp] -> QStM T.Stmt [T.Exp]
+fromArgs = mapM fromExpStmt
+
+storeExp :: Exp -> Area
+storeExp exp = case exp of
+  ExpDeref e -> expToArea e
+  _          -> error $ "Expected a dereference expression in a store statement: " ++ show exp

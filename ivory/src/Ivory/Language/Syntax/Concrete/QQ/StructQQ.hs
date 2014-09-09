@@ -143,6 +143,7 @@ mkStringDef ty_s len = do
   let struct_def = StructDef struct_s [data_f, len_f]
 
   d1 <- fromStruct struct_def
+--  sizeofDef <- mkIvorySizeOf struct_s
   d2 <- sequence
     [ tySynD ty_n [] struct_t
     , instanceD (cxt []) (appT (conT ''S.IvoryString) struct_t)

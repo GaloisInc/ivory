@@ -122,15 +122,6 @@ data WordSize
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
--- Areas
-
-data Area
-  = AreaVar    RefVar
-  | ArrayArea  Area  Exp
-  | StructArea Area  RefVar
-  deriving (Show, Read, Eq, Ord)
-
---------------------------------------------------------------------------------
 -- Expressions
 
 data Literal
@@ -141,9 +132,11 @@ data Exp
   = ExpLit Literal
   | ExpVar Var
   | ExpRet -- Used only in post-conditions
-  | ExpDeref Area -- Note: these are statements in Ivory.
   | ExpOp ExpOp [Exp]
   | IvoryMacroExp String [Exp]
+  | ExpDeref  Exp
+  | ExpArray  Exp Exp
+  | ExpStruct Exp Exp
   deriving (Show, Read, Eq, Ord)
 
 data ExpOp
@@ -209,13 +202,21 @@ data ExpOp
   | TwosCompRep
 
   | ToIx
+  | FromIx
+  | IxSize
+  | ArrayLen
+  | ConstRef
+  | SizeOf
+  | NullPtr
+  | RefToPtr
   | ToCArray
 
   deriving (Show, Read, Eq, Ord)
 
 data AllocRef
-  = AllocBase RefVar Exp
-  | AllocArr  RefVar [Exp]
+  = AllocBase    RefVar (Maybe Exp)
+  | AllocArr     RefVar [Exp]
+  | AllocStruct  RefVar [(FieldNm, Exp)]
   deriving (Show, Read, Eq, Ord)
 
 -- | AST for parsing C-like statements.
@@ -226,8 +227,8 @@ data Stmt
   | Return Exp
   | ReturnVoid
   -- Deref dereferencing is an expression in our language here.
-  | Store Area Exp
-  | Assign Var (Either Exp Area)
+  | Store Exp Exp
+  | Assign Var Exp
   | Call (Maybe Var) FnSym [Exp]
   | RefCopy Exp Exp
 -- Local is AllocRef

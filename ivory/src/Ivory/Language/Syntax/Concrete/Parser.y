@@ -8,6 +8,8 @@
 --
 -- Parser.hs file is generated!
 
+-- XXX add alloc for structs
+
 module Ivory.Language.Syntax.Concrete.Parser where
 
 import Ivory.Language.Syntax.Concrete.ParseAST
@@ -38,6 +40,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   assign   { TokReserved "let" }
   return   { TokReserved "return" }
   alloc    { TokReserved "alloc" }
+  store    { TokReserved "store" }
   refCopy  { TokReserved "memcpy" }
   loop     { TokReserved "map" }
   forever  { TokReserved "forever" }
@@ -84,8 +87,17 @@ import Ivory.Language.Syntax.Concrete.Lexer
   twosCompRep      { TokReserved "twosCompRep" }
 
   -- Other internals
-  toIx         { TokReserved "toIx" }
-  toCArray     { TokReserved "toCArray" }
+
+  fromIx           { TokReserved "fromIx" }
+  ixSize           { TokReserved "ixSize" }
+  toIx             { TokReserved "toIx" }
+  toCArray         { TokReserved "toCArray" }
+  arrayLen         { TokReserved "arrayLen" }
+
+  constRef         {  TokReserved "constRef" }
+  sizeOf           { TokReserved "sizeOf" }
+  nullPtr          { TokReserved "nullPtr" }
+  refToPtr         { TokReserved "refToPtr" }
 
   -- Type
   '::'      { TokSym "::" }
@@ -138,7 +150,6 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ';'       { TokSep ";" }
   ','       { TokSep "," }
 
-  '<-'      { TokSym "<-" }
   '@'       { TokSym "@" }
   -- Types
   bool     { TokReserved "bool" }
@@ -313,32 +324,30 @@ simpleStmt :: { Stmt }
 simpleStmt :
     assert exp                    { Assert $2 }
   | assume exp                    { Assume $2 }
-  | assign ident '=' area         { Assign $2 (Right $4) }
-  | assign ident '=' exp          { Assign $2 (Left $4) }
+  | assign ident '=' exp          { Assign $2 $4 }
   | return                        { ReturnVoid }
   | return exp                    { Return $2 }
 
   -- Allocation
-  | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 $5) }
+  | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 (Just $5)) }
   | alloc ident '[' ']' '='
       '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
+  | alloc ident '='
+      '{' fieldAssigns '}'        { AllocRef (AllocStruct $2 (reverse $5)) }
+  | alloc '*' ident               { AllocRef (AllocBase $3 Nothing) }
+  | alloc ident '[' ']'           { AllocRef (AllocArr $2 []) }
+  | alloc ident                   { AllocRef (AllocStruct $2 []) }
+
   | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
 
   -- Storing
-  | '*' ident          '=' exp    { Store (AreaVar $2) $4 }
-  | '*' area           '=' exp    { Store $2 $4 }
-  | ident '[' exp ']'  '=' exp    { Store (ArrayArea (AreaVar $1) $3) $6 }
-  | ident '->' ident   '=' exp
-      { Store (StructArea (AreaVar $1) $3) $5 }
-  | '(' area ')' '[' exp ']'  '=' exp    { Store (ArrayArea $2 $5) $8 }
-  | '(' area ')' '->' ident   '=' exp
-      { Store (StructArea $2 $5) $7 }
+  | store exp as exp              { Store $2 $4 }
 
   | ident expArgs                 { Call Nothing $1 $2 }
   | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
 
   | iMacroCall                    { IvoryMacroStmt NoBind (fst $1) (snd $1) }
-  | ident '<-' iMacroCall         { IvoryMacroStmt (Bind $1) (fst $3) (snd $3) }
+  | ident '=' iMacroCall          { IvoryMacroStmt (Bind $1) (fst $3) (snd $3) }
 
 blkStmt :: { Stmt }
 blkStmt :
@@ -358,10 +367,20 @@ expArgs : '(' exps ')' { reverse $2 }
 
 -- Zero or more expressions, separated by arbitrary many ','s.
 exps :: { [Exp] }
-exps :  exps ',' exp           { $3 : $1 }
-      | exps ','               { $1 }
-      | exp                    { [$1] }
-      | {- empty -}            { [] }
+exps : exps ',' exp           { $3 : $1 }
+     | exps ','               { $1 }
+     | exp                    { [$1] }
+     | {- empty -}            { [] }
+
+fieldAssigns :: { [(FieldNm, Exp)] }
+fieldAssigns :
+    fieldAssigns ',' fieldAssign { $3 : $1 }
+  | fieldAssigns ','             { $1 }
+  | fieldAssign                  { [$1] }
+  | {- empty -}                  { [] }
+
+fieldAssign :: { (FieldNm, Exp) }
+fieldAssign : ident '=' exp { ($1, $3) }
 
 ----------------------------------------
 -- Expressions
@@ -376,16 +395,17 @@ exp : integer            { ExpLit (LitInteger $1) }
 
     | '(' exp ')'        { $2 }
 
-    -- Dereferences
-    | '*' ident                  { ExpDeref (AreaVar $2) }
-    | '*' area                   { ExpDeref $2 }
-    | ident '[' exp ']'          { ExpDeref (ArrayArea (AreaVar $1) $3) }
-    | ident '->' ident           { ExpDeref (StructArea (AreaVar $1) $3) }
-    | '(' area ')' '[' exp ']'   { ExpDeref (ArrayArea  $2 $5) }
-    | '(' area ')' '->' ident    { ExpDeref (StructArea $2 $5) }
+    -- Areas
+    | '*' exp              { ExpDeref $2 }
+    | exp '@' exp          { ExpArray $1 $3 }
+    | exp '[' exp ']'      { ExpDeref (ExpArray $1 $3) }
+    | exp '.' exp          { ExpStruct $1 $3 }
+    | exp '->' exp         { ExpDeref (ExpStruct $1 $3) }
 
-    | libFuncExp         { $1 }
-    | iMacroCall         { IvoryMacroExp (fst $1) (snd $1) }
+    | libFuncExp           { $1 }
+    -- Ivory expression macros
+    | iMacro ident         { IvoryMacroExp $2 [] }
+    | iMacro ident expArgs { IvoryMacroExp $2 $3 }
 
     -- Unary operators
     | '!'       exp      { ExpOp NotOp [$2] }
@@ -453,16 +473,14 @@ libFuncExp :
     | twosCompRep  expArgs { ExpOp TwosCompRep  $2 }
 
     | toIx         expArgs { ExpOp ToIx         $2 }
+    | fromIx       expArgs { ExpOp FromIx       $2 }
+    | ixSize       expArgs { ExpOp IxSize       $2 }
+    | arrayLen     expArgs { ExpOp ArrayLen     $2 }
+    | constRef     expArgs { ExpOp ConstRef     $2 }
+    | sizeOf       expArgs { ExpOp SizeOf       $2 }
+    | nullPtr      expArgs { ExpOp NullPtr      $2 }
+    | refToPtr     expArgs { ExpOp RefToPtr     $2 }
     | toCArray     expArgs { ExpOp ToCArray     $2 }
-
-----------------------------------------
--- Areas
-
-area :: { Area }
-area : '(' area ')' '@' exp   { ArrayArea  $2 $5 }
-     | '(' area ')' '.' ident { StructArea $2 $5 }
-     | ident '@' exp          { ArrayArea  (AreaVar $1) $3 }
-     | ident '.' ident        { StructArea (AreaVar $1) $3 }
 
 ----------------------------------------
 -- Macros
@@ -470,7 +488,7 @@ area : '(' area ')' '@' exp   { ArrayArea  $2 $5 }
 -- Used in statements and expressions
 iMacroCall :: { (String, [Exp]) }
 iMacroCall : -- Ivory macros
-             iMacro ident         { ($2, []) }
+             iMacro ident          { ($2, []) }
              -- Haskell function call
            | iMacro ident expArgs { ($2, $3) }
 

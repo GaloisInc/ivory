@@ -62,12 +62,13 @@ insertDeref f area = do
   -- helps us track it's usage.
   freshDeref = newName . ("deref_" ++) . areaToVar
 
+-- Base names for dereference variables
 areaToVar :: Area -> String
 areaToVar area = case area of
   AreaVar v               -> v
   -- Ignore the expression. Ok, since these are bases to fresh vars.
   ArrayArea area' _       -> areaToVar area'
-  StructArea area' field  -> areaToVar area' ++ ('_':field)
+  StructArea area0 area1  -> areaToVar area0 ++ ('_': areaToVar area1)
 
 --------------------------------------------------------------------------------
 
@@ -75,15 +76,16 @@ areaToVar area = case area of
 fromArea :: Insert a -> Area -> QStM a T.Exp
 fromArea f area = case area of
   AreaVar v -- ref
-    -> return $ VarE $ mkName v
+    -> return (mkVar v)
   ArrayArea area' ixExp -- (arr @ ix)
     -> do ix <- (fromExp f) ixExp
           a  <- (fromArea f) area'
           return $ InfixE (Just a) (VarE '(I.!)) (Just ix)
-  StructArea area' field -- (area . field)
-    -> do a <- (fromArea f) area'
-          return $ InfixE (Just a)
+  StructArea area0 area1 -- (area . area)
+    -> do a0 <- (fromArea f) area0
+          a1 <- (fromArea f) area1
+          return $ InfixE (Just a0)
                           (VarE '(I.~>))
-                          (Just (mkVar field))
+                          (Just a1)
 
 --------------------------------------------------------------------------------

@@ -24,8 +24,11 @@ import qualified  Ivory.Language.Float    as I
 import qualified  Ivory.Language.Ref      as I
 import qualified  Ivory.Language.IBool    as I
 import qualified  Ivory.Language.Array    as I
+import qualified  Ivory.Language.Struct   as I
 import qualified  Ivory.Language.CArray   as I
 import qualified  Ivory.Language.Cast     as I
+import qualified  Ivory.Language.Ptr      as I
+import qualified  Ivory.Language.SizeOf   as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
@@ -106,7 +109,14 @@ fromOpExp env op args = case op of
   TwosCompRep      -> mkUn  'I.twosComplementRep
 
   ToIx             -> mkUn  'I.toIx
+  FromIx           -> mkUn  'I.fromIx
   ToCArray         -> mkUn  'I.toCArray
+  ArrayLen         -> mkUn  'I.arrayLen
+  ConstRef         -> mkUn  'I.constRef
+  SizeOf           -> mkUn  'I.sizeOf
+  NullPtr          -> mkUn  'I.nullPtr
+  RefToPtr         -> mkUn  'I.refToPtr
+  IxSize           -> mkUn  'I.ixSize
 
   where
   getArg i    = toExp env (args !! i)
@@ -122,14 +132,18 @@ toExp env exp = case exp of
     -> fromLit lit
   ExpVar v
     -> VarE (mkName v)
-  ExpDeref e
-    -> VarE (lookupDerefVar e env)
-  ExpOp op args
-    -> fromOpExp env op args
   ExpRet
     -> VarE (mkName "return")
+  ExpOp op args
+    -> fromOpExp env op args
   IvoryMacroExp v args
     -> callit (mkVar v) (map (toExp env) args)
+  ExpDeref e
+    -> VarE (lookupDerefVar (expToArea e) env)
+  ExpArray e0 e1
+    -> InfixE (Just $ toExp env e0) (VarE '(I.!)) (Just $ toExp env e1)
+  ExpStruct e0 e1
+    -> InfixE (Just $ toExp env e0) (VarE '(I.~>)) (Just $ toExp env e1)
 
 --------------------------------------------------------------------------------
 

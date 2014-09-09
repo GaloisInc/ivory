@@ -60,7 +60,8 @@ tokens :-
   let      { lexReserved }
   return   { lexReserved }
   alloc    { lexReserved }
-  memcpy   { lexReserved }
+  store    { lexReserved }
+  as       { lexReserved }
   map      { lexReserved }
   forever  { lexReserved }
 
@@ -103,8 +104,16 @@ tokens :-
   twosCompCast     { lexReserved }
   twosCompRep      { lexReserved }
 
+  fromIx           { lexReserved }
+  ixSize           { lexReserved }
   toIx             { lexReserved }
   toCArray         { lexReserved }
+  arrayLen         { lexReserved }
+
+  constRef         { lexReserved }
+  sizeOf           { lexReserved }
+  nullPtr          { lexReserved }
+  refToPtr         { lexReserved }
 
 -- Reserved words
   struct   { lexReserved }
@@ -165,7 +174,6 @@ tokens :-
   Bit      { lexReserved }
   Bits     { lexReserved }
   BitArray { lexReserved }
-  as       { lexReserved }
 
 -- Identifiers
   @ident    { lex TokIdent }

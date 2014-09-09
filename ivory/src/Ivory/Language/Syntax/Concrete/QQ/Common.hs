@@ -53,22 +53,34 @@ runToSt m = snd `fmap` runToQ m
 
 --------------------------------------------------------------------------------
 
+-- Expression that are areas in the language.
+data Area =
+    AreaVar String
+  | ArrayArea Area Exp
+  | StructArea Area Area
+  deriving (Show, Read, Eq)
+
+-- Should only be called on parsed expressions that are areas (arguments to ExpDeref). Error otherwise.
+expToArea :: Exp -> Area
+expToArea exp = case exp of
+  ExpVar v        -> AreaVar v
+  ExpArray  e0 e1 -> ArrayArea (expToArea e0) e1
+  ExpStruct e0 e1 -> StructArea (expToArea e0) (expToArea e1)
+  _               -> error $ "Expression " ++ show exp ++ " instead of area."
+
 -- Collect up the variables used in a dereference expression to be used in
 -- making a monadic Ivory statement.
 collectRefExps :: Exp -> [Area]
 collectRefExps exp = nub $ case exp of
-  ExpDeref area        -> [area]
-  ExpOp _ args         -> concatMap collectRefExps args
   ExpLit{}             -> []
   ExpVar{}             -> []
   ExpRet{}             -> []
+  ExpOp _ args         -> concatMap collectRefExps args
   IvoryMacroExp _ args -> concatMap collectRefExps args
-
-  -- where
-  -- collectAreas area = case area of
-  --   AreaVar{}      -> []
-  --   ArrayArea a e  -> area : (collectAreas a ++ collectRefExps e)
-  --   StructArea a f -> collectAreas a
+  -- expressions used in array indexing are extracted in processing areas.
+  ExpDeref e           -> [expToArea e]
+  ExpArray e0 e1       -> collectRefExps e0 ++ collectRefExps e1
+  ExpStruct e0 e1      -> collectRefExps e0 ++ collectRefExps e1
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -94,3 +106,5 @@ type DerefVarEnv = [(Area, Name)]
 
 -- | How to insert a dereference
 type Insert a = Name -> T.Exp -> QStM a ()
+
+--------------------------------------------------------------------------------
