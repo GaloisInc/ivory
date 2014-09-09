@@ -6,7 +6,7 @@ programming in C, without sacrificing expressivity.
 
 This repository includes a [user guide][userguide] and some
 [examples][examples] Ivory programs. More information and tutorials are
-available on [the languages page on smaccmpilot.org](http://smaccmpilot.org/languages).
+available on [ivorylang.org](http://ivorylang.org).
 
 
 ## Contents
@@ -25,12 +25,36 @@ available on [the languages page on smaccmpilot.org](http://smaccmpilot.org/lang
 ## Installing
 
 Ivory is written in Haskell and uses several recent GHC extensions.  It is known
-to work with with GHC 7.6.2. and 7.6.3. It is not compatible with GHC 7.8.x at
-this time. Expect 7.8 support to include changes that will break 7.6
-compatibility.
+to work with with GHC 7.6.2,  7.6.3, and the 7.8.x series.
 
 We recommend using a cabal sandbox containing these Ivory language packages and
 any programs which use them.
+
+### Note on `language-c-quote`
+
+At this time, `ivory-backend-c` depends on [a fork][fork-c] of Geoff Mainland's
+`language-c-quote` package. Therefore, you must first install our fork of the
+package (version `0.8.1`) in your sandbox from sources:
+
+```sh
+
+$ git clone https://github.com/galoisinc/ivory
+$ cd ivory
+$ git clone https://github.com/pchickey/language-c-quote
+$ cabal sandbox init
+$ cabal install language-c-quote/language-c-quote.cabal
+$ cabal install ivory/ivory.cabal \
+   ivory-opts/ivory-opts.cabal \
+   ivory-backend-c/ivory-backend-c.cabal \
+   ivory-examples/ivory-examples.cabal \
+   ivory-hw/ivory-hw.cabal \
+   ivory-quickcheck/ivory-quickcheck.cabal \
+   ivory-serialize/ivory-serialize.cabal \
+   ivory-stdlib/ivory-stdlib.cabal
+
+```
+
+[fork-c]: https://github.com/pchickey/language-c-quote
 
 ## Copyright and license
 Copyright 2013-2014 [Galois, Inc.][galois]
