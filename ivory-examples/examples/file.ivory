@@ -27,7 +27,7 @@ int32_t foo1() {
   }
 }
 
--- Empty statemnts in if-then-else
+-- Empty statements in if-then-else
 void foo30(Boo x) {
   if(true) {}
   else { return; }
