@@ -30,7 +30,7 @@ import qualified Ivory.Language.Monad  as I
 import           Control.Monad (forM_)
 
 import Ivory.Language.Syntax.Concrete.ParseAST
-import Ivory.Language.Syntax.Concrete.QQ.AreaQQ
+import Ivory.Language.Syntax.Concrete.QQ.BindExp
 
 --------------------------------------------------------------------------------
 
@@ -75,14 +75,15 @@ fromStmt stmt = case stmt of
     e <- fromExpStmt exp
     let v = mkName var
     insert $ BindS (VarP v) (AppE (VarE 'I.assign) e)
-  Call mres sym args
+  NoBindCall sym args
     -> do
-    eas <- fromArgs args
+    es <- fromArgs args
     let call f = AppE (VarE f) (mkVar sym)
-    insert $ case mres of
-      Nothing  -> NoBindS (callit (call 'I.call_) eas)
-      Just res -> let r = mkName res in
-                  BindS (VarP r) (callit (call 'I.call) eas)
+    insert $ NoBindS (callit (call 'I.call_) es)
+  BindExp var exp
+    -> do
+    e <- fromExpStmt exp
+    insert $ BindS (VarP $ mkName var) e
   RefCopy refDest refSrc
     -> do
     eDest <- fromExpStmt refDest
@@ -136,15 +137,6 @@ fromAlloc alloc = case alloc of
                          (AppE (VarE 'I.local) (AppE (VarE 'I.istruct) init))
 
 --------------------------------------------------------------------------------
-
-insertDerefStmt :: Insert T.Stmt
-insertDerefStmt nm exp = insert $ BindS (VarP nm) (AppE (VarE 'I.deref) exp)
-
-fromExpStmt :: Exp -> QStM T.Stmt T.Exp
-fromExpStmt = fromExp insertDerefStmt
-
-fromAreaStmt :: Area -> QStM T.Stmt T.Exp
-fromAreaStmt = fromArea insertDerefStmt
 
 fromArgs :: [Exp] -> QStM T.Stmt [T.Exp]
 fromArgs = mapM fromExpStmt

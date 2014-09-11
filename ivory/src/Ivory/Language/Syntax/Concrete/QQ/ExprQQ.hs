@@ -47,7 +47,7 @@ fromLit :: Literal -> T.Exp
 fromLit lit = case lit of
   LitInteger int -> LitE (IntegerL int)
 
-fromOpExp :: DerefVarEnv -> ExpOp -> [Exp] -> T.Exp
+fromOpExp :: VarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of
   EqOp             -> mkInfix '(I.==?)
   NeqOp            -> mkInfix '(I./=?)
@@ -126,7 +126,7 @@ fromOpExp env op args = case op of
   mkUn    op' = AppE (VarE op') (getArg 0)
   mkBin   op' = AppE (AppE (VarE op') (getArg 0)) (getArg 1)
 
-toExp :: DerefVarEnv -> Exp -> T.Exp
+toExp :: VarEnv -> Exp -> T.Exp
 toExp env exp = case exp of
   ExpLit lit
     -> fromLit lit
@@ -139,20 +139,13 @@ toExp env exp = case exp of
   IvoryMacroExp v args
     -> callit (mkVar v) (map (toExp env) args)
   ExpDeref e
-    -> VarE (lookupDerefVar (expToArea e) env)
+    -> VarE $ lookupDerefVar (expToArea e) env
   ExpArray e0 e1
     -> InfixE (Just $ toExp env e0) (VarE '(I.!)) (Just $ toExp env e1)
   ExpStruct e0 e1
     -> InfixE (Just $ toExp env e0) (VarE '(I.~>)) (Just $ toExp env e1)
-
---------------------------------------------------------------------------------
-
--- Returns the fresh variable that is the do-block binding from the dereference
--- statement.
-lookupDerefVar :: Area -> DerefVarEnv -> Name
-lookupDerefVar area env =
-  case lookup area env of
-    Nothing -> error "Internal error in lookupDerefVar"
-    Just rv -> rv
+  -- Must be a call that returns a value
+  ExpCall sym args
+    -> VarE $ lookupVar (expToCall sym args) env
 
 --------------------------------------------------------------------------------

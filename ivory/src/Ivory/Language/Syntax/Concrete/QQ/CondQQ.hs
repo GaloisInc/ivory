@@ -20,7 +20,7 @@ import qualified Ivory.Language.Cond as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
-import Ivory.Language.Syntax.Concrete.QQ.AreaQQ
+import Ivory.Language.Syntax.Concrete.QQ.BindExp
 import Ivory.Language.Syntax.Concrete.QQ.Common
 
 --------------------------------------------------------------------------------
@@ -58,4 +58,8 @@ fromExpCond :: Exp -> QStM (T.Exp, Name) T.Exp
 fromExpCond = fromExp insertDerefCond
 
 insertDerefCond :: Insert (T.Exp, Name)
-insertDerefCond nm exp = insert (exp, nm)
+insertDerefCond key nm exp
+  | isArea key
+  = insert (exp, nm)
+  | otherwise
+  = error $ "Cannot insert " ++ show exp ++ " in pre/post conditions!"

@@ -137,6 +137,7 @@ data Exp
   | ExpDeref  Exp
   | ExpArray  Exp Exp
   | ExpStruct Exp Exp
+  | ExpCall FnSym [Exp]
   deriving (Show, Read, Eq, Ord)
 
 data ExpOp
@@ -229,7 +230,8 @@ data Stmt
   -- Deref dereferencing is an expression in our language here.
   | Store Exp Exp
   | Assign Var Exp
-  | Call (Maybe Var) FnSym [Exp]
+  | BindExp Var Exp
+  | NoBindCall Var [Exp]
   | RefCopy Exp Exp
 -- Local is AllocRef
   | AllocRef AllocRef

@@ -343,11 +343,12 @@ simpleStmt :
   -- Storing
   | store exp as exp              { Store $2 $4 }
 
-  | ident expArgs                 { Call Nothing $1 $2 }
-  | ident '=' ident expArgs       { Call (Just $1) $3 $4 }
+  -- Function calls
+  | ident expArgs                 { NoBindCall $1 $2 }
+  | ident '=' exp                 { BindExp $1 $3 }
 
-  | iMacroCall                    { IvoryMacroStmt NoBind (fst $1) (snd $1) }
-  | ident '=' iMacroCall          { IvoryMacroStmt (Bind $1) (fst $3) (snd $3) }
+  | iMacro ident                  { IvoryMacroStmt NoBind $2 [] }
+  -- | ident '=' iMacro ident expArgs { IvoryMacroStmt (Bind $1) $4 $5) }
 
 blkStmt :: { Stmt }
 blkStmt :
@@ -406,6 +407,9 @@ exp : integer            { ExpLit (LitInteger $1) }
     -- Ivory expression macros
     | iMacro ident         { IvoryMacroExp $2 [] }
     | iMacro ident expArgs { IvoryMacroExp $2 $3 }
+
+    -- Function calls
+    | ident expArgs        { ExpCall $1 $2 }
 
     -- Unary operators
     | '!'       exp      { ExpOp NotOp [$2] }
@@ -481,16 +485,6 @@ libFuncExp :
     | nullPtr      expArgs { ExpOp NullPtr      $2 }
     | refToPtr     expArgs { ExpOp RefToPtr     $2 }
     | toCArray     expArgs { ExpOp ToCArray     $2 }
-
-----------------------------------------
--- Macros
-
--- Used in statements and expressions
-iMacroCall :: { (String, [Exp]) }
-iMacroCall : -- Ivory macros
-             iMacro ident          { ($2, []) }
-             -- Haskell function call
-           | iMacro ident expArgs { ($2, $3) }
 
 ----------------------------------------
 -- Types

@@ -16,7 +16,7 @@
 module Ivory.Stdlib.String
   ( copy_istring , strcpy , strncpy , strncpy_uint8 , strncmp
   , stdlibStringModule, stringInit, istr_eq, sz_from_istr
-  , istr_from_sz
+  , istr_from_sz, istr_copy
   ) where
 
 import Data.Char (ord)
