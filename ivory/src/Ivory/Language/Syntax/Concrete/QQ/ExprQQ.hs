@@ -8,7 +8,10 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.Syntax.Concrete.QQ.ExprQQ where
+module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
+  ( toExp
+  , fromConstDef
+  ) where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P

@@ -230,7 +230,6 @@ data Stmt
   -- Deref dereferencing is an expression in our language here.
   | Store Exp Exp
   | Assign Var Exp
-  | BindExp Var Exp
   | NoBindCall Var [Exp]
   | RefCopy Exp Exp
 -- Local is AllocRef

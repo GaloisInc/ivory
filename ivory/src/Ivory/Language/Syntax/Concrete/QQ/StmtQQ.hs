@@ -31,6 +31,7 @@ import           Control.Monad (forM_)
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.QQ.BindExp
+import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 
 --------------------------------------------------------------------------------
 
@@ -80,10 +81,6 @@ fromStmt stmt = case stmt of
     es <- fromArgs args
     let call f = AppE (VarE f) (mkVar sym)
     insert $ NoBindS (callit (call 'I.call_) es)
-  BindExp var exp
-    -> do
-    e <- fromExpStmt exp
-    insert $ BindS (VarP $ mkName var) e
   RefCopy refDest refSrc
     -> do
     eDest <- fromExpStmt refDest

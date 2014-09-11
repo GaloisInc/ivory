@@ -345,7 +345,6 @@ simpleStmt :
 
   -- Function calls
   | ident expArgs                 { NoBindCall $1 $2 }
-  | ident '=' exp                 { BindExp $1 $3 }
 
   | iMacro ident                  { IvoryMacroStmt NoBind $2 [] }
   -- | ident '=' iMacro ident expArgs { IvoryMacroStmt (Bind $1) $4 $5) }
