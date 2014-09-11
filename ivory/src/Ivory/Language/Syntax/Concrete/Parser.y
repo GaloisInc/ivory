@@ -151,6 +151,8 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ','       { TokSep "," }
 
   '@'       { TokSym "@" }
+  '<-'      { TokSym "<-" }
+
   -- Types
   bool     { TokReserved "bool" }
   char     { TokReserved "char" }
@@ -346,8 +348,12 @@ simpleStmt :
   -- Function calls
   | ident expArgs                 { NoBindCall $1 $2 }
 
-  | iMacro ident                  { IvoryMacroStmt NoBind $2 [] }
-  -- | ident '=' iMacro ident expArgs { IvoryMacroStmt (Bind $1) $4 $5) }
+  | ivoryMacro                    {IvoryMacroStmt Nothing $1 }
+  | ident '<-' ivoryMacro         {IvoryMacroStmt (Just $1) $3 }
+
+ivoryMacro :: { (String, [Exp]) }
+ivoryMacro : iMacro ident          { ($2, []) }
+           | iMacro ident expArgs  { ($2, $3) }
 
 blkStmt :: { Stmt }
 blkStmt :
@@ -403,9 +409,9 @@ exp : integer            { ExpLit (LitInteger $1) }
     | exp '->' exp         { ExpDeref (ExpStruct $1 $3) }
 
     | libFuncExp           { $1 }
+
     -- Ivory expression macros
-    | iMacro ident         { IvoryMacroExp $2 [] }
-    | iMacro ident expArgs { IvoryMacroExp $2 $3 }
+    | ivoryMacro           { IvoryMacroExp $1 }
 
     -- Function calls
     | ident expArgs        { ExpCall $1 $2 }

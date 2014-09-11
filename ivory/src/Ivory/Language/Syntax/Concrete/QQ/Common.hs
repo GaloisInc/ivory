@@ -106,16 +106,16 @@ expToArea exp = case exp of
 -- Collect up the variables used in an expression that require an Ivory statement.
 collectBindExps :: Exp -> [Key]
 collectBindExps exp = nub $ case exp of
-  ExpLit{}             -> []
-  ExpVar{}             -> []
-  ExpRet{}             -> []
-  ExpOp _ args         -> concatMap collectBindExps args
-  IvoryMacroExp _ args -> concatMap collectBindExps args
+  ExpLit{}                -> []
+  ExpVar{}                -> []
+  ExpRet{}                -> []
+  ExpOp _ args            -> concatMap collectBindExps args
+  IvoryMacroExp (_, args) -> concatMap collectBindExps args
   -- expressions used in array indexing are extracted in processing areas.
-  ExpDeref e           -> [areaToKey (expToArea e)]
-  ExpArray e0 e1       -> collectBindExps e0 ++ collectBindExps e1
-  ExpStruct e0 e1      -> collectBindExps e0 ++ collectBindExps e1
-  ExpCall fn args      -> [callToKey (Call fn args)]
+  ExpDeref e              -> [areaToKey (expToArea e)]
+  ExpArray e0 e1          -> collectBindExps e0 ++ collectBindExps e1
+  ExpStruct e0 e1         -> collectBindExps e0 ++ collectBindExps e1
+  ExpCall fn args         -> [callToKey (Call fn args)]
 
 --------------------------------------------------------------------------------
 -- Helpers

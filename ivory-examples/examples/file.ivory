@@ -1,9 +1,46 @@
 -- # -*- mode: haskell -*-
 
+[ivory|
+
+-- A top level definition.
 bar = 3 + 2;
 
 -- Define a top-level type alias.
 type Boo = int8_t;
+
+-- (Both of the above can be done on Haskell and you can use antiquotation.)
+
+-- Struct declared with Haskell types (and type alias in Haskell)
+struct Foo
+ { aBar :: Array 4 (Stored SomeInt)
+ ; aFoo :: Stored IBool
+ }
+
+-- Define a struct.
+struct Bar00 {
+  int32_t aBar00;
+}
+
+-- Safe string structs: strings of max length 16 bytes Generates two field
+-- labels: stringLengthL (int32_t) and stringDataL (array uint8_t[16]). The type
+-- of the struct is ivory_string_FooStr. See the String library in ivory-stdlib
+-- for some string library functions.
+string struct FooStr 16
+
+-- Nested struct references
+struct Foo2
+  { foo2f :: Struct Foo
+  }
+
+-- Abstract structs
+abstract struct fooStruct "foobar/foo.h"
+
+-- Struct declared with C-like types
+struct Goo
+ { int32_t aGoo;
+   bool bGoo;
+   int32_t[4] cGoo;
+ }
 
 -- Use the expression and alias
 Boo foo(Boo x) {
@@ -68,11 +105,6 @@ uint32_t foo6(v *uint32_t[3] arr0) {
 { pre(arr0[1] > 0);
 }
 
--- Define a struct.
-struct Bar00 {
-  int32_t aBar00;
-}
-
 -- Use a struct. Polymorphic region reference.
 void foo00(* int32_t[5] arr, * struct Bar00 str) {
   -- The following two are equivalent
@@ -95,7 +127,7 @@ void foo2() {return;}
 -- Function calls, with a return value and without.
 uint32_t foo8(bool b, uint32_t a) {
     foo2();
-    x = foo7(b, a);
+    let x = foo7(b, a);
     foo7 (b, a);
     return (b && !b ? a+3 : signum(abs(a)) - x);
 }
@@ -140,38 +172,11 @@ uint32_t foo17(G*uint32_t i) {
   return *i;
 }
 
--- Struct declared with Haskell types (and type alias in Haskell)
-struct Foo
- { aBar :: Array 4 (Stored SomeInt)
- ; aFoo :: Stored IBool
- }
-
 -- allocate and initialize a struct.
 void foo92() {
   alloc s = {aFoo = true};
   return;
 }
-
--- Struct declared with C-like types
-struct Goo
- { int32_t aGoo;
-   bool bGoo;
-   int32_t[4] cGoo;
- }
-
--- Safe string structs: strings of max length 16 bytes Generates two field
--- labels: stringLengthL (int32_t) and stringDataL (array uint8_t[16]). The type
--- of the struct is ivory_string_FooStr. See the String library in ivory-stdlib
--- for some string library functions.
-string struct FooStr 16
-
--- Nested struct references
-struct Foo2
-  { foo2f :: Struct Foo
-  }
-
--- Abstract structs
-abstract struct fooStruct "foobar/foo.h"
 
 -- Mapping over an array
 void mapProc(*uint8_t[4] arr, uint8_t x) {
@@ -194,10 +199,20 @@ int32_t foo68(int32_t x, int32_t y) {
   -- macroStmts is a Haskell function
   $macroStmts(x, y);
   -- with a return value (Ivory eff a)
-  a = $macroStmtsRet(x, y);
+  a <- $macroStmtsRet(x, y);
   -- macroExp is a Haskell function, too
   if($macroExp(x, y)) { return x; }
   else { return a; }
+}
+
+int32_t foo100(int32_t x) {
+  return x;
+}
+
+-- Calling functions (with return values) as expressions
+int32_t bar82() {
+  let y = foo100(4);
+  return foo100(foo100(y));
 }
 
 ------------------------------------------------------------
@@ -213,11 +228,11 @@ int32_t unpackSint32(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
 int32_t unpack(* uint8_t[10] msg, int32_t ixx)
 {
  let ix = toIx(ixx);
- res = unpackSint32( * msg @ ix
-                   , * msg @ (ix+1)
-                   , * msg @ (ix+2)
-                   , * msg @ (ix+3)
-                   );
+ let res = unpackSint32( * msg @ ix
+                       , * msg @ (ix+1)
+                       , * msg @ (ix+2)
+                       , * msg @ (ix+3)
+                       );
  return res;
 }
 

@@ -31,7 +31,6 @@ import           Control.Monad (forM_)
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.QQ.BindExp
-import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 
 --------------------------------------------------------------------------------
 
@@ -98,12 +97,12 @@ fromStmt stmt = case stmt of
     b <- fromBlock blk
     insert $ NoBindS (AppE (VarE 'I.arrayMap) (LamE [VarP (mkName ixVar)] b))
   -- Either a single variable or a function call.
-  IvoryMacroStmt m v args
-    -> do as <- fromArgs args
-          let c = callit (mkVar v) as
-          insert $ case m of
-                     NoBind  -> NoBindS c
-                     Bind bv -> BindS (VarP $ mkName bv) c
+  IvoryMacroStmt mv (nm,args)
+    -> do es <- fromArgs args
+          let c = callit (mkVar nm) es
+          insert $ case mv of
+                     Nothing -> NoBindS c
+                     Just v  -> BindS (VarP $ mkName v) c
 
 --------------------------------------------------------------------------------
 -- Initializers

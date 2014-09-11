@@ -139,7 +139,7 @@ toExp env exp = case exp of
     -> VarE (mkName "return")
   ExpOp op args
     -> fromOpExp env op args
-  IvoryMacroExp v args
+  IvoryMacroExp (v,args)
     -> callit (mkVar v) (map (toExp env) args)
   ExpDeref e
     -> VarE $ lookupDerefVar (expToArea e) env

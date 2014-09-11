@@ -133,7 +133,7 @@ data Exp
   | ExpVar Var
   | ExpRet -- Used only in post-conditions
   | ExpOp ExpOp [Exp]
-  | IvoryMacroExp String [Exp]
+  | IvoryMacroExp (String,[Exp])
   | ExpDeref  Exp
   | ExpArray  Exp Exp
   | ExpStruct Exp Exp
@@ -236,13 +236,8 @@ data Stmt
   | AllocRef AllocRef
   | Loop IxVar [Stmt]
   | Forever [Stmt]
-  | IvoryMacroStmt Macro String [Exp]
+  | IvoryMacroStmt (Maybe Var) (String, [Exp])
 -- Break XXX Too dangerous (and difficult) for non-macro use?
-  deriving (Show, Read, Eq, Ord)
-
-data Macro =
-    NoBind
-  | Bind MacroVar
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
