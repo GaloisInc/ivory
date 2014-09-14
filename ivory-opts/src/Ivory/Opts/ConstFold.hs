@@ -154,24 +154,34 @@ arg1 = flip (!!) 1
 arg2 :: [a] -> a
 arg2 = flip (!!) 2
 
-mkCfBool :: [I.Expr] -> [Maybe Bool]
-mkCfBool = map destBoolLit
-
 -- | Reconstruct an operator, folding away operations when possible.
 cfOp :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-cfOp ty op args = case op of
-  I.ExpEq t  -> cfOrd t
-  I.ExpNeq t -> cfOrd t
+cfOp ty op args = cfOp' ty op $ case op of
+  I.ExpEq t -> cfargs t args
+  I.ExpNeq t -> cfargs t args
+  I.ExpCond -> let (cond, rest) = splitAt 1 args in cfargs I.TyBool cond ++ cfargs ty rest
+  I.ExpGt _ t -> cfargs t args
+  I.ExpLt _ t -> cfargs t args
+  I.ExpIsNan t  -> cfargs t args
+  I.ExpIsInf t  -> cfargs t args
+  _ -> cfargs ty args
+  where
+  cfargs ty' = mkCfArgs ty' . map (cf ty')
+
+cfOp' :: I.Type -> I.ExpOp -> [CfVal] -> I.Expr
+cfOp' ty op args = case op of
+  I.ExpEq _  -> cfOrd
+  I.ExpNeq _ -> cfOrd
   I.ExpCond
-    | Just b <- arg0 goBoolArgs
+    | CfBool b <- arg0 args
     -> if b then a1 else a2
     -- If both branches have the same result, we dont care about the branch
     -- condition.  XXX This can be expensive
     | a1 == a2
     -> a1
-    | otherwise -> noop ty
-    where a1 = arg1 (toExpr' ty)
-          a2 = arg2 (toExpr' ty)
+    | otherwise -> noop
+    where a1 = toExpr $ arg1 args
+          a2 = toExpr $ arg2 args
   I.ExpGt orEq t
     | orEq      -> goOrd t gteCheck args
     | otherwise -> goOrd t gtCheck args
@@ -179,27 +189,27 @@ cfOp ty op args = case op of
     | orEq      -> goOrd t gteCheck (reverse args)
     | otherwise -> goOrd t gtCheck  (reverse args)
   I.ExpNot
-    | Just b <- arg0 goBoolArgs
+    | CfBool b <- arg0 args
     -> I.ExpLit (I.LitBool (not b))
-    | otherwise -> noop ty
+    | otherwise -> noop
   I.ExpAnd
-    | Just lb <- arg0 goBoolArgs
-    , Just rb <- arg1 goBoolArgs
+    | CfBool lb <- arg0 args
+    , CfBool rb <- arg1 args
     -> I.ExpLit (I.LitBool (lb && rb))
-    | Just lb <- arg0 goBoolArgs
-    -> if lb then arg1 (toExpr' ty) else I.ExpLit (I.LitBool False)
-    | Just rb <- arg1 goBoolArgs
-    -> if rb then arg0 (toExpr' ty) else I.ExpLit (I.LitBool False)
-    | otherwise -> noop ty
+    | CfBool lb <- arg0 args
+    -> if lb then toExpr $ arg1 args else I.ExpLit (I.LitBool False)
+    | CfBool rb <- arg1 args
+    -> if rb then toExpr $ arg0 args else I.ExpLit (I.LitBool False)
+    | otherwise -> noop
   I.ExpOr
-    | Just lb <- arg0 goBoolArgs
-    , Just rb <- arg1 goBoolArgs
+    | CfBool lb <- arg0 args
+    , CfBool rb <- arg1 args
     -> I.ExpLit (I.LitBool (lb || rb))
-    | Just lb <- arg0 goBoolArgs
-    -> if lb then I.ExpLit (I.LitBool True) else arg1 (toExpr' ty)
-    | Just rb <- arg1 goBoolArgs
-    -> if rb then I.ExpLit (I.LitBool True) else arg0 (toExpr' ty)
-    | otherwise -> noop ty
+    | CfBool lb <- arg0 args
+    -> if lb then I.ExpLit (I.LitBool True) else toExpr $ arg1 args
+    | CfBool rb <- arg1 args
+    -> if rb then I.ExpLit (I.LitBool True) else toExpr $ arg0 args
+    | otherwise -> noop
 
   I.ExpMul      -> goNum
   I.ExpAdd      -> goNum
@@ -212,8 +222,8 @@ cfOp ty op args = case op of
   I.ExpMod      -> goI2
   I.ExpRecip    -> goF
 
-  I.ExpIsNan t  -> goFB t
-  I.ExpIsInf t  -> goFB t
+  I.ExpIsNan _  -> goFB
+  I.ExpIsInf _  -> goFB
 
   I.ExpFExp     -> goF
   I.ExpFSqrt    -> goF
@@ -233,35 +243,26 @@ cfOp ty op args = case op of
   I.ExpFAcosh   -> goF
   I.ExpFAtanh   -> goF
 
-  I.ExpBitAnd        -> toExpr (cfBitAnd ty $ goArgs ty)
-  I.ExpBitOr         -> toExpr (cfBitOr ty  $ goArgs ty)
+  I.ExpBitAnd        -> toExpr (cfBitAnd ty args)
+  I.ExpBitOr         -> toExpr (cfBitOr ty args)
 
   -- Unimplemented right now
-  I.ExpRoundF        -> noop ty
-  I.ExpCeilF         -> noop ty
-  I.ExpFloorF        -> noop ty
-  I.ExpBitXor        -> noop ty
-  I.ExpBitComplement -> noop ty
-  I.ExpBitShiftL     -> noop ty
-  I.ExpBitShiftR     -> noop ty
+  I.ExpRoundF        -> noop
+  I.ExpCeilF         -> noop
+  I.ExpFloorF        -> noop
+  I.ExpBitXor        -> noop
+  I.ExpBitComplement -> noop
+  I.ExpBitShiftL     -> noop
+  I.ExpBitShiftR     -> noop
 
   where
-  goArgs ty'    = mkCfArgs ty' $ mkArgs ty' args
-  toExpr'       = map toExpr . goArgs
-  goBoolArgs    = mkCfBool $ mkArgs I.TyBool args
-  noop          = I.ExpOp op . map toExpr . goArgs
-  goI2          = toExpr (cfIntOp2 ty op $ goArgs ty)
-  goF           = toExpr (cfFloating op $ goArgs ty)
-  goFB ty'      = toExpr (cfFloatingB op $ goArgs ty')
-  cfOrd ty'     = toExpr (cfOrd2 op $ goArgs ty')
-  goOrd ty' chk args' =
-    let args0 = mkCfArgs ty' $ mkArgs ty' args' in
-    fromOrdChecks (cfOrd ty') (chk ty' args0)
-  goNum         = toExpr (cfNum ty op $ goArgs ty)
-
-  -- The only call to the main cf function, outside of cf itself.
-  mkArgs :: I.Type -> [I.Expr] -> [I.Expr]
-  mkArgs = map . cf
+  noop          = I.ExpOp op $ map toExpr args
+  goI2          = toExpr (cfIntOp2 ty op args)
+  goF           = toExpr (cfFloating op args)
+  goFB          = toExpr (cfFloatingB op args)
+  cfOrd         = toExpr (cfOrd2 op args)
+  goOrd ty' chk args' = fromOrdChecks cfOrd (chk ty' args')
+  goNum         = toExpr (cfNum ty op args)
 
 --------------------------------------------------------------------------------
 
