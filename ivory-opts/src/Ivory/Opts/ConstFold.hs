@@ -18,6 +18,7 @@ import qualified Ivory.Language.Syntax.AST as I
 import qualified Ivory.Language.Syntax.Type as I
 import Ivory.Language.Cast (toMaxSize, toMinSize)
 
+import Control.Arrow (second)
 import Data.Maybe
 import Data.List
 import qualified Data.DList as D
@@ -79,7 +80,7 @@ stmtFold cxt opt blk stmt =
     I.Store t e0 e1      -> snoc $ I.Store t (opt t e0) (opt t e1)
     I.Assign t v e       -> snoc $ I.Assign t v (opt t e)
     I.Call t mv c tys    -> snoc $ I.Call t mv c (map (typedFold opt) tys)
-    I.Local{}            -> snoc stmt
+    I.Local t var i      -> snoc $ I.Local t var $ constFoldInits i
     I.RefCopy t e0 e1    -> snoc $ I.RefCopy t (opt t e0) (opt t e1)
     I.AllocRef{}         -> snoc stmt
     I.Loop v e incr blk' ->
@@ -100,6 +101,12 @@ stmtFold cxt opt blk stmt =
         newFold' = foldl' sf D.empty
         newFold  = D.toList . newFold'
         snoc     = (blk `D.snoc`)
+
+constFoldInits :: I.Init -> I.Init
+constFoldInits I.InitZero = I.InitZero
+constFoldInits (I.InitExpr ty expr) = I.InitExpr ty $ cf ty expr
+constFoldInits (I.InitStruct i) = I.InitStruct $ map (second constFoldInits) i
+constFoldInits (I.InitArray i) = I.InitArray $ map constFoldInits i
 
 --------------------------------------------------------------------------------
 -- Expressions
