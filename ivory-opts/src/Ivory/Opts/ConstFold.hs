@@ -175,6 +175,11 @@ cfOp' ty op args = case op of
   I.ExpCond
     | CfBool b <- arg0 args
     -> if b then a1 else a2
+    -- If either branch is a boolean literal, reduce to logical AND or OR.
+    | ty == I.TyBool && arg1 args == CfBool True -> cfOp' ty I.ExpOr [arg0 args, arg2 args]
+    | ty == I.TyBool && arg1 args == CfBool False -> cfOp' ty I.ExpAnd $ mkCfArgs ty [cfOp' ty I.ExpNot [arg0 args]] ++ [arg2 args]
+    | ty == I.TyBool && arg2 args == CfBool True -> cfOp' ty I.ExpOr $ mkCfArgs ty [cfOp' ty I.ExpNot [arg0 args]] ++ [arg1 args]
+    | ty == I.TyBool && arg2 args == CfBool False -> cfOp' ty I.ExpAnd [arg0 args, arg1 args]
     -- If both branches have the same result, we dont care about the branch
     -- condition.  XXX This can be expensive
     | a1 == a2
