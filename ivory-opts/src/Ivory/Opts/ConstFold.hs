@@ -193,10 +193,13 @@ cfOp' ty op args = case op of
   I.ExpLt orEq t
     | orEq      -> goOrd t gteCheck (reverse args)
     | otherwise -> goOrd t gtCheck  (reverse args)
-  I.ExpNot
-    | CfBool b <- arg0 args
-    -> I.ExpLit (I.LitBool (not b))
-    | otherwise -> noop
+  I.ExpNot -> case arg0 args of
+    CfBool b -> I.ExpLit (I.LitBool (not b))
+    CfExpr (I.ExpOp (I.ExpEq t) args') -> I.ExpOp (I.ExpNeq t) args'
+    CfExpr (I.ExpOp (I.ExpNeq t) args') -> I.ExpOp (I.ExpEq t) args'
+    CfExpr (I.ExpOp (I.ExpGt orEq t) args') -> I.ExpOp (I.ExpLt (not orEq) t) args'
+    CfExpr (I.ExpOp (I.ExpLt orEq t) args') -> I.ExpOp (I.ExpGt (not orEq) t) args'
+    _ -> noop
   I.ExpAnd
     | CfBool lb <- arg0 args
     , CfBool rb <- arg1 args
