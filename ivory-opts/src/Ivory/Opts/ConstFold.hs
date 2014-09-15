@@ -41,6 +41,8 @@ procFold opt proc =
 stmtFold :: String -> ExprOpt -> D.DList I.Stmt -> I.Stmt -> D.DList I.Stmt
 stmtFold cxt opt blk stmt =
   case stmt of
+    I.IfTE _ [] []       -> blk
+    I.IfTE e [] b1       -> stmtFold cxt opt blk $ I.IfTE (I.ExpOp I.ExpNot [e]) b1 []
     I.IfTE e b0 b1       ->
       let e' = opt I.TyBool e in
       case e' of
