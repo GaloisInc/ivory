@@ -55,9 +55,6 @@ toExpr val = case val of
   CfDouble d    -> I.ExpLit (I.LitDouble d)
   CfExpr ex     -> ex
 
-toCfInt :: I.Type -> Integer -> CfVal
-toCfInt ty i = CfInteger (isMaxMin ty i) i
-
 --------------------------------------------------------------------------------
 
 -- | Whether the bounded integer represents a max or min value for its size.
@@ -105,35 +102,22 @@ mkCfArgs ty exps = map toCfVal exps
 
 
 cfBitAnd :: I.Type -> [CfVal] -> CfVal
-cfBitAnd ty [l,r]
-  | ones ty  l = r
-  | ones ty  r = l
-  | zeros ty l = toCfInt ty 0
-  | zeros ty r = toCfInt ty 0
-  | otherwise  = CfExpr (I.ExpOp I.ExpBitAnd [toExpr l, toExpr r])
+cfBitAnd ty [l, r] = case (ty, l, r) of
+  (I.TyWord _, CfInteger Min _, _) -> l
+  (I.TyWord _, CfInteger Max _, _) -> r
+  (I.TyWord _, _, CfInteger Min _) -> r
+  (I.TyWord _, _, CfInteger Max _) -> l
+  _ -> CfExpr (I.ExpOp I.ExpBitAnd [toExpr l, toExpr r])
 cfBitAnd _ _ = err "Wrong number of args to cfBitAnd in constant folder."
 
 cfBitOr :: I.Type -> [CfVal] -> CfVal
-cfBitOr ty [l,r]
-  | zeros ty l = r
-  | zeros ty r = l
-  | ones ty  l = toCfInt ty 1
-  | ones ty  r = toCfInt ty 1
-  | otherwise  = CfExpr (I.ExpOp I.ExpBitOr [toExpr l, toExpr r])
+cfBitOr ty [l, r] = case (ty, l, r) of
+  (I.TyWord _, CfInteger Min _, _) -> r
+  (I.TyWord _, CfInteger Max _, _) -> l
+  (I.TyWord _, _, CfInteger Min _) -> l
+  (I.TyWord _, _, CfInteger Max _) -> r
+  _ -> CfExpr (I.ExpOp I.ExpBitOr [toExpr l, toExpr r])
 cfBitOr _ _ = err "Wrong number of args to cfBitOr in constant folder."
-
--- Min values for word types.
-zeros :: I.Type -> CfVal -> Bool
-zeros I.TyWord{} (CfInteger _ i) = i == 0
-zeros _ _ = False
-
--- Max values for word types.
-ones :: I.Type -> CfVal -> Bool
-ones ty (CfInteger _ i) =
-  case ty of
-    I.TyWord{} -> maybe False (i ==) (toMaxSize ty)
-    _          -> False
-ones _ _ = False
 
 --------------------------------------------------------------------------------
 
