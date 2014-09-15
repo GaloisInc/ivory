@@ -100,7 +100,7 @@ mkCfArgs ty exps = map toCfVal exps
                                     return (Max, s)
     I.ExpMaxMin False         -> do s <- toMinSize ty
                                     return (Min, s)
-    I.ExpLit (I.LitInteger i) -> Just (None, i)
+    I.ExpLit (I.LitInteger i) -> Just (isMaxMin ty i, i)
     _                         -> Nothing
 
 
