@@ -92,10 +92,15 @@ fromStmt stmt = case stmt of
 --  Break -> insert $ NoBindS (VarE 'I.break)
   AllocRef alloc
     -> fromAlloc alloc
-  Loop ixVar blk
+  MapArr ixVar blk
     -> do
     b <- fromBlock blk
     insert $ NoBindS (AppE (VarE 'I.arrayMap) (LamE [VarP (mkName ixVar)] b))
+  UpTo exp ixVar blk
+    -> do
+    e <- fromExpStmt exp
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (AppE (VarE 'I.for) e) (LamE [VarP (mkName ixVar)] b))
   -- Either a single variable or a function call.
   IvoryMacroStmt mv (nm,args)
     -> do es <- fromArgs args

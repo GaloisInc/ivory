@@ -8,7 +8,9 @@
 --
 -- Parser.hs file is generated!
 
--- XXX add alloc for structs
+-- XXX type syns for c types in struct defs?
+-- empty modules ok for stand-alone files
+-- explicit types for allocs, lets, top-level defs
 
 module Ivory.Language.Syntax.Concrete.Parser where
 
@@ -42,7 +44,8 @@ import Ivory.Language.Syntax.Concrete.Lexer
   alloc    { TokReserved "alloc" }
   store    { TokReserved "store" }
   refCopy  { TokReserved "memcpy" }
-  loop     { TokReserved "map" }
+  mapArr   { TokReserved "map" }
+  upTo     { TokReserved "upTo" }
   forever  { TokReserved "forever" }
 
   -- Start of Ivory macros
@@ -357,7 +360,8 @@ ivoryMacro : iMacro ident          { ($2, []) }
 
 blkStmt :: { Stmt }
 blkStmt :
-    loop ident '{' stmts '}'         { Loop $2 (reverse $4) }
+    mapArr ident '{' stmts '}'       { MapArr $2 (reverse $4) }
+  | upTo exp ident '{' stmts '}'     { UpTo   $2 $3 (reverse $5) }
   | forever '{' stmts '}'            { Forever (reverse $3) }
   | if exp '{' stmts '}'
       else '{' stmts '}'             { IfTE $2 (reverse $4) (reverse $8) }

@@ -63,6 +63,7 @@ tokens :-
   store    { lexReserved }
   as       { lexReserved }
   map      { lexReserved }
+  upTo     { lexReserved }
   forever  { lexReserved }
 
 -- Reserved words: expressions

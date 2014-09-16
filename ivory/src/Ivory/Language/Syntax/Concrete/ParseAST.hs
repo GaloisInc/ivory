@@ -234,7 +234,8 @@ data Stmt
   | RefCopy Exp Exp
 -- Local is AllocRef
   | AllocRef AllocRef
-  | Loop IxVar [Stmt]
+  | MapArr IxVar [Stmt]
+  | UpTo Exp IxVar [Stmt]
   | Forever [Stmt]
   | IvoryMacroStmt (Maybe Var) (String, [Exp])
 -- Break XXX Too dangerous (and difficult) for non-macro use?
