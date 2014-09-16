@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 --
 -- Constant folding computations in Haskell.
 --
@@ -26,6 +28,7 @@ import qualified Ivory.Language.Syntax.Type as I
 import Ivory.Language.Cast (toMaxSize, toMinSize)
 
 import Control.Monad (mzero,msum)
+import Data.Bits
 import Data.Maybe
 
 import Data.Word
@@ -107,7 +110,7 @@ cfBitAnd ty [l, r] = case (ty, l, r) of
   (I.TyWord _, CfInteger Max _, _) -> r
   (I.TyWord _, _, CfInteger Min _) -> r
   (I.TyWord _, _, CfInteger Max _) -> l
-  _ -> CfExpr (I.ExpOp I.ExpBitAnd [toExpr l, toExpr r])
+  _ -> abc (combineBits (.&.)) ty I.ExpBitAnd l r
 cfBitAnd _ _ = err "Wrong number of args to cfBitAnd in constant folder."
 
 cfBitOr :: I.Type -> [CfVal] -> CfVal
@@ -116,8 +119,45 @@ cfBitOr ty [l, r] = case (ty, l, r) of
   (I.TyWord _, CfInteger Max _, _) -> l
   (I.TyWord _, _, CfInteger Min _) -> l
   (I.TyWord _, _, CfInteger Max _) -> r
-  _ -> CfExpr (I.ExpOp I.ExpBitOr [toExpr l, toExpr r])
+  _ -> abc (combineBits (.|.)) ty I.ExpBitOr l r
 cfBitOr _ _ = err "Wrong number of args to cfBitOr in constant folder."
+
+
+combineBits :: (Integer -> Integer -> Integer) -> I.ExpOp -> CfVal -> CfVal -> CfVal
+combineBits f _ (CfInteger _ x) (CfInteger _ y) = CfInteger None $ f x y
+combineBits _ op x y = CfExpr $ I.ExpOp op [toExpr x, toExpr y]
+
+--------------------------------------------------------------------------------
+
+----------------------------------------
+-- Gather constants from an associative/commutative tree of operators
+
+{-
+Rules for normalizing constants in Associative Binary Commutative operators:
+
+op [const, const]: evaluate the op. (establishes that each op has at least one non-const child)
+op [const, var] -> cf op [var, const] (allowed by commutativity; establishes that consts are only right-children)
+op [a, op [b, c]] -> cf op [cf op [a, b], c] (allowed by associativity; establishes that right child is not this op, so can't contain more constants)
+op [op [var, const], const] -> op [var, cf op [const, const]] (allowed by associativity; establishes that if right-child is const, left-child does not contain any constants)
+op [op [var1, const], var2] -> op [op [var1, var2], const] (allowed by associativity and commutativity; establishes that left-child does not contain constants; note that var1 and var2 can't contain constants by these rules)
+anything else: unchanged
+
+These rules assume that the operands have already had these rules
+applied bottom-up, and avoid re-doing any work in subtrees that haven't
+changed.
+-}
+
+abc :: (I.ExpOp -> CfVal -> CfVal -> CfVal) -> I.Type -> I.ExpOp -> CfVal -> CfVal -> CfVal
+abc combine ty op (CfExpr lhs) rhs = case (lhs, rhs) of
+  (_, CfExpr (I.ExpOp op' (mkCfArgs ty -> [b, c]))) | op == op' -> abc combine ty op (abc combine ty op (CfExpr lhs) b) c
+  (I.ExpOp _ (_ : (mkCfArgs ty -> [CfExpr _])), _) -> noop
+  (I.ExpOp op' [a, b], CfExpr c) | op == op' -> CfExpr (I.ExpOp op [I.ExpOp op [a, c], b])
+  (I.ExpOp op' (a : (mkCfArgs ty -> [b])), c) | op == op' -> CfExpr (I.ExpOp op [a, toExpr $ combine op b c])
+  _ -> noop
+  where
+  noop = CfExpr (I.ExpOp op [lhs, toExpr rhs])
+abc combine ty op lhs rhs@(CfExpr _) = abc combine ty op rhs lhs
+abc combine _ op lhs rhs = combine op lhs rhs
 
 --------------------------------------------------------------------------------
 
