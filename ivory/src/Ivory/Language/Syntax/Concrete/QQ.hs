@@ -119,7 +119,8 @@ mkDef def = case def of
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: String -> [ModuleData] -> Q [Dec]
-ivoryMod modName incls = do
+ivoryMod _modName []    = return []
+ivoryMod  modName incls = do
   modTy <- mkModTy
   mi    <- modImp
   return [modTy, mi]

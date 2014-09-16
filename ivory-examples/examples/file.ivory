@@ -8,10 +8,9 @@ type Boo = int8_t;
 
 -- (Both of the above can be done on Haskell and you can use antiquotation.)
 
--- Struct declared with Haskell types (and type alias in Haskell)
 struct Foo
- { aBar :: Array 4 (Stored SomeInt)
- ; aFoo :: Stored IBool
+ { SomeInt[4] aBar
+ ; bool aFoo
  }
 
 -- Define a struct.
@@ -27,7 +26,7 @@ string struct FooStr 16
 
 -- Nested struct references
 struct Foo2
-  { foo2f :: Struct Foo
+  { struct Foo foo2f
   }
 
 -- Abstract structs

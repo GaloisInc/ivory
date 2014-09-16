@@ -143,28 +143,6 @@ tokens :-
   S        { lexReserved }
   G        { lexReserved }
 
-  -- Haskell style
-  IBool    { lexReserved }
-  IChar    { lexReserved }
-  IFloat   { lexReserved }
-  IDouble  { lexReserved }
-
-  Sint8    { lexReserved }
-  Sint16   { lexReserved }
-  Sint32   { lexReserved }
-  Sint64   { lexReserved }
-
-  Uint8    { lexReserved }
-  Uint16   { lexReserved }
-  Uint32   { lexReserved }
-  Uint64   { lexReserved }
-
-  Ref      { lexReserved }
-  ConstRef { lexReserved }
-  Array    { lexReserved }
-  Struct   { lexReserved }
-  Stored   { lexReserved }
-
   Ix       { lexReserved }
 
   Stack    { lexReserved }
