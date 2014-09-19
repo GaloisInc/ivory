@@ -365,7 +365,7 @@ instance Bounded Expr where
 instance Fractional Expr where
   l / r        = ExpOp ExpDiv [l,r]
   recip a      = ExpOp ExpRecip [a]
-  fromRational = error "fromRational not implemented for Expr"
+  fromRational a = fromInteger (numerator a) / fromInteger (denominator a)
 
 instance Floating Expr where
   pi          = error "pi not implemented for Expr"
