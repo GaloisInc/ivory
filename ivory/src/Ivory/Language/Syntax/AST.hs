@@ -9,6 +9,8 @@ import Ivory.Language.Syntax.Type
 import Data.Monoid (Monoid(..))
 import Language.Haskell.TH.Lift (deriveLiftMany)
 import Language.Haskell.TH.Syntax (Lift(..))
+
+import Data.Ratio (denominator, numerator)
 import qualified Data.Set as Set
 
 
