@@ -44,7 +44,7 @@ fromTypeDef (TypeDef syn ty) = do
   (t, _) <- runToQ (fromType ty)
   return (TySynD n [] t)
 
---------------------------------------------------------------------------------
+-- --------------------------------------------------------------------------------
 
 -- Data type to keep track of class constraints
 data Class = Int -- SingI type constraint
@@ -59,7 +59,7 @@ data TyVar = TyVar
 -- need to quantify later.
 type TTyVar a = QStM TyVar a
 
---------------------------------------------------------------------------------
+-- --------------------------------------------------------------------------------
 
 fromIntSz :: IntSize -> Name
 fromIntSz sz = case sz of
@@ -106,21 +106,69 @@ mkTyVar v classes = do
 
 --------------------------------------------------------------------------------
 
+-- Syntactic check for base types
+-- isBaseType :: T.Type -> Bool
+-- isBaseType ty
+--   | ty == PromotedT '()            = True
+
+--   | ty == PromotedT 'I.Sint8       = True
+--   | ty == PromotedT 'I.Sint16      = True
+--   | ty == PromotedT 'I.Sint32      = True
+--   | ty == PromotedT 'I.Sint64      = True
+
+--   | ty == PromotedT 'I.Uint8       = True
+--   | ty == PromotedT 'I.Uint16      = True
+--   | ty == PromotedT 'I.Uint32      = True
+--   | ty == PromotedT 'I.Uint64      = True
+
+--   | ty == PromotedT 'I.IBool       = True
+--   | ty == PromotedT 'I.IChar       = True
+--   | ty == PromotedT 'I.IFloat      = True
+--   | ty == PromotedT 'I.IDouble     = True
+--   | otherwise                      =
+--     let ix = PromotedT 'I.Ix in
+--     case ty of
+--       AppT i _ -> i == ix
+--       _        -> False
+
+isBaseType :: Type -> Bool
+isBaseType ty = case ty of
+  TyVoid            -> True
+  TyInt sz          -> True
+  TyWord sz         -> True
+  TyBool            -> True
+  TyChar            -> True
+  TyFloat           -> True
+  TyDouble          -> True
+  TyIx ix           -> True
+  TyStored area     -> False
+  TyStruct nm       -> False
+  TyArray a sz      -> False
+  TyRef qma qt      -> False
+  TyConstRef qma qt -> False
+  TySynonym str     -> False
+
+maybeAddStored :: Type -> Type
+maybeAddStored ty =
+  if isBaseType ty
+    then TyStored ty
+    else ty
+
 fromStoredTy :: Type -> TTyVar T.Type
 fromStoredTy ty = do
   ty' <- fromType ty
   s   <- liftPromote 'I.Stored
   return (AppT s ty')
 
-fromRef :: Name -> Scope -> AreaTy -> TTyVar T.Type
+fromRef :: Name -> Scope -> Type -> TTyVar T.Type
 fromRef constr mem area = do
-  a      <- fromAreaTy area
+  a      <- fromType (maybeAddStored area)
   ma     <- fromScope mem
   return $ AppT (AppT (ConT constr) ma) a
 
-fromArrayTy :: AreaTy -> Integer -> TTyVar T.Type
+fromArrayTy :: Type -> Integer -> TTyVar T.Type
 fromArrayTy area sz = do
-  a      <- fromAreaTy area
+  a      <- fromType (maybeAddStored area)
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr (szTy sz)) a
 
@@ -139,17 +187,12 @@ fromType ty = case ty of
   TyFloat           -> liftCon ''I.IFloat
   TyDouble          -> liftCon ''I.IDouble
   TyIx ix           -> return (AppT (ConT ''I.Ix) (szTy ix))
+  TyStored area     -> fromStoredTy area
+  TyStruct nm       -> fromStructTy nm
+  TyArray a sz      -> fromArrayTy a sz
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
-  TyArea area       -> fromAreaTy area
   TySynonym str     -> liftCon (mkName str)
-
-fromAreaTy :: AreaTy -> TTyVar T.Type
-fromAreaTy area = case area of
-  TyArray a sz      -> fromArrayTy a sz
-  TyStruct nm       -> fromStructTy nm
-  TyStored ty       -> fromStoredTy ty
-  AreaSynonym str   -> liftCon (mkName str)
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
@@ -186,7 +229,6 @@ fromProcType (ProcDef retTy procName args _ _) = do
   allTyVars = nub . (map (PlainTV . tyVar))
   allCtxs   = nub . (concatMap mkCxt)
 
-
 --------------------------------------------------------------------------------
 -- Helpers
 
@@ -204,3 +246,5 @@ szTy = LitT . NumTyLit
 
 liftCon :: Name -> TTyVar T.Type
 liftCon = liftQ . conT
+
+

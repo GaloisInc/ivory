@@ -140,13 +140,37 @@ tokens :-
   uint32_t { lexReserved }
   uint64_t { lexReserved }
 
+  ix_t     { lexReserved }
+
   S        { lexReserved }
   G        { lexReserved }
 
-  Ix       { lexReserved }
-
+  -- Haskell style
   Stack    { lexReserved }
   Global   { lexReserved }
+
+  IBool    { lexReserved }
+  IChar    { lexReserved }
+  IFloat   { lexReserved }
+  IDouble  { lexReserved }
+
+  Sint8    { lexReserved }
+  Sint16   { lexReserved }
+  Sint32   { lexReserved }
+  Sint64   { lexReserved }
+
+  Uint8    { lexReserved }
+  Uint16   { lexReserved }
+  Uint32   { lexReserved }
+  Uint64   { lexReserved }
+
+  Ref      { lexReserved }
+  ConstRef { lexReserved }
+  Array    { lexReserved }
+  Struct   { lexReserved }
+  Stored   { lexReserved }
+
+  Ix       { lexReserved }
 
   -- Bit data
   bitdata  { lexReserved }

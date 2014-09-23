@@ -8,15 +8,21 @@ type Boo = int8_t;
 
 -- (Both of the above can be done on Haskell and you can use antiquotation.)
 
-struct Foo
- { SomeInt[4] aBar
- ; bool aFoo
- }
-
--- Define a struct.
+-- Define a struct. A base type is turned into a memory area by adding a
+-- '&'. Note this is a type-level operator. Arrays and structs are always memory
+-- areas.
 struct Bar00 {
-  int32_t aBar00;
+  &int32_t aBar00;
 }
+
+struct Foo
+ { -- When context makes apparent and we can syntactically check the type, a
+   -- base type is promoted to a memory area (i.e., bool is rewritten to &bool).
+   bool aFoo
+   -- '&' at the type level binds mostly tightly and is righ-associative. When
+   -- we use a type alias, the '&' must be added explicitly.
+ ; &SomeInt[4] aBar
+ }
 
 -- Safe string structs: strings of max length 16 bytes Generates two field
 -- labels: stringLengthL (int32_t) and stringDataL (array uint8_t[16]). The type
@@ -260,3 +266,4 @@ int32_t bar72(int32_t x, * struct Boo a, * int32_t y, * int32_t[10] arr) {
   store arr[toIx(*y + *y)]  as *y + *y;
   return a.aBoo->aBar7;
 }
+

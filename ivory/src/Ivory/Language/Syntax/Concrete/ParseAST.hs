@@ -78,22 +78,15 @@ data Type
   | TyChar                     -- ^ Characters
   | TyFloat                    -- ^ Floats
   | TyDouble                   -- ^ Doubles
-  | TyRef      Scope AreaTy    -- ^ References
-  | TyConstRef Scope AreaTy    -- ^ Constant References
   -- XXX
   -- | TyPtr Type              -- ^ Pointers
   | TyIx Integer               -- ^ Index type
-  | TyArea AreaTy              -- ^ Area types
+  | TyStored Type              -- ^ References
+  | TyStruct String            -- ^ Structures
+  | TyArray Type Integer       -- ^ Arrays of fixed lignth
+  | TyRef      Scope Type      -- ^ References
+  | TyConstRef Scope Type      -- ^ Constant References
   | TySynonym String           -- ^ Type synonym
-  deriving (Show, Read, Eq, Ord)
-
-data AreaTy =
-    TyStruct String            -- ^ Structures
-  | TyArray AreaTy Integer     -- ^ Arrays of fixed length
-  -- XXX
-  --  | TyCArray AreaTy        -- ^ C Arrays
-  | TyStored Type
-  | AreaSynonym String         -- ^ Synonym
   deriving (Show, Read, Eq, Ord)
 
 data Scope =
@@ -261,7 +254,7 @@ ivoryStringStructName = ("ivory_string_" ++)
 
 data Field = Field
   { fieldName :: FieldNm
-  , fieldType :: AreaTy
+  , fieldType :: Type
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -307,3 +300,4 @@ data BitField = BitField
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
+

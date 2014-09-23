@@ -109,11 +109,13 @@ mkLabel sym f =
   where
   field = mkName (fieldName f)
 
-mkType :: AreaTy -> TypeQ
-mkType a = runToQ (fromAreaTy a) >>= (return . fst)
+mkType :: Type -> TypeQ
+mkType area = do
+  ty <- runToQ $ fromType $ maybeAddStored area
+  return (fst ty)
 
 -- | Turn a parsed type into its AST representation.
-mkTypeE :: AreaTy -> ExpQ
+mkTypeE :: Type -> ExpQ
 mkTypeE ty =
   appE (varE 'A.ivoryArea)
        (sigE (conE 'Proxy)

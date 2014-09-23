@@ -8,7 +8,8 @@
 --
 -- Parser.hs file is generated!
 
--- XXX type syns for c types in struct defs?
+-- TODO
+-- Fix types to allow type syns at all levels
 -- explicit types for allocs, lets, top-level defs
 
 module Ivory.Language.Syntax.Concrete.Parser where
@@ -175,6 +176,33 @@ import Ivory.Language.Syntax.Concrete.Lexer
   S        { TokReserved "S" }
   G        { TokReserved "G" }
 
+  IBool     { TokReserved "IBool" }
+  IChar     { TokReserved "IChar" }
+  IFloat    { TokReserved "IFloat" }
+  IDouble   { TokReserved "IDouble" }
+
+  Sint8     { TokReserved "Sint8" }
+  Sint16    { TokReserved "Sint16" }
+  Sint32    { TokReserved "Sint32" }
+  Sint64    { TokReserved "Sint64" }
+
+  Uint8    { TokReserved "Uint8" }
+  Uint16   { TokReserved "Uint16" }
+  Uint32   { TokReserved "Uint32" }
+  Uint64   { TokReserved "Uint64" }
+
+  Ix       { TokReserved "Ix" }
+  ix_t     { TokReserved "ix_t" }
+
+  Ref      { TokReserved "Ref" }
+  ConstRef { TokReserved "ConstRef" }
+  Array    { TokReserved "Array" }
+  Struct   { TokReserved "Struct" }
+  Stored   { TokReserved "Stored" }
+
+  Stack    { TokReserved "Stack" }
+  Global   { TokReserved "Global" }
+
   -- Keywords
   struct   { TokReserved "struct" }
   abstract { TokReserved "abstract" }
@@ -201,7 +229,6 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %left '&&'
 %left '|'
 %left '^'
-%left '&'
 %nonassoc '==' '!='
 %nonassoc '<' '<=' '>' '>='
 %left '<<' '>>'
@@ -210,6 +237,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %right '*' '~' '!' '-'
 -- '[' assumed to be followed by ']'
 %left '.' '@' '->' '['
+%right '&'
 %right
   abs
   signum
@@ -477,58 +505,40 @@ typeDef :
 
 type :: { Type }
 type :
-    cType     { $1 }
---  | hsType    { $1 }
+    simpleCType      { $1 }
+  | cType            { $1 }
+  | tyident          { TySynonym $1 }
+  | '(' type ')'     { $2 }
 
 -- C-style types
 
+simpleCType :: { Type }
+simpleCType :
+    bool                      { TyBool }
+  | char                      { TyChar }
+  | float                     { TyFloat }
+  | double                    { TyDouble }
+  | void                      { TyVoid }
+
+  | int8_t                    { TyInt Int8 }
+  | int16_t                   { TyInt Int16 }
+  | int32_t                   { TyInt Int32 }
+  | int64_t                   { TyInt Int64 }
+
+  | uint8_t                   { TyWord Word8 }
+  | uint16_t                  { TyWord Word16 }
+  | uint32_t                  { TyWord Word32 }
+  | uint64_t                  { TyWord Word64 }
+
+  | ix_t integer              { TyIx $2 }
+
 cType :: { Type }
 cType :
-    baseTypeC     { $1 }
-  | refTypeC      { $1 }
-
-baseTypeC :: { Type }
-baseTypeC :
-    bool     { TyBool }
-  | char     { TyChar }
-  | float    { TyFloat }
-  | double   { TyDouble }
-  | void     { TyVoid }
-
-  | int8_t   { TyInt Int8 }
-  | int16_t  { TyInt Int16 }
-  | int32_t  { TyInt Int32 }
-  | int64_t  { TyInt Int64 }
-
-  | uint8_t  { TyWord Word8 }
-  | uint16_t { TyWord Word16 }
-  | uint32_t { TyWord Word32 }
-  | uint64_t { TyWord Word64 }
-
-  | tyident  { TySynonym $1 }
-
-refTypeC :: { Type }
-refTypeC :
-    refC baseTypeC { $1 (TyStored $2) }
-  | refC areaC     { $1 $2 }
---  | tyident  { TySynonym $1 }
-
-refC :: { AreaTy -> Type }
-refC :
-          scopeC '*' { TyRef $1 }
-  | const scopeC '*' { TyConstRef $2 }
-
-areaC :: { AreaTy }
-areaC :
-    arrayTypeC        { $1 }
-  | struct structName { TyStruct $2 }
-  | '&' baseTypeC     { TyStored $2 }
---  | tyident           { AreaSynonym $1 }
-
-arrayTypeC :: { AreaTy }
-arrayTypeC :
-    baseTypeC '[' integer ']' { TyArray (TyStored $1) $3 }
-  | areaC     '[' integer ']' { TyArray $1            $3 }
+          scopeC '*' type        { TyRef      $1 $3 }
+  | const scopeC '*' type        { TyConstRef $2 $4 }
+  | type  '[' integer ']'        { TyArray    $1 $3 }
+  | struct structName            { TyStruct   $2 }
+  | '&' type                     { TyStored   $2 }
 
 scopeC :: { Scope }
 scopeC :
@@ -537,6 +547,47 @@ scopeC :
   | ident       { PolyMem (Just $1) }
   | {- empty -} { PolyMem Nothing }
 
+typeHS :: { Type }
+typeHS :
+    simpleHSType     { $1 }
+  | hsType           { $1 }
+  | tyident          { TySynonym $1 }
+  | '(' typeHS ')'     { $2 }
+
+-- Haskell-style types
+simpleHSType :: { Type }
+simpleHSType :
+    IBool                   { TyBool }
+  | IChar                   { TyChar }
+  | IFloat                  { TyFloat }
+  | IDouble                 { TyDouble }
+  | '(' ')'                 { TyVoid }
+
+  | Sint8                   { TyInt Int8 }
+  | Sint16                  { TyInt Int16 }
+  | Sint32                  { TyInt Int32 }
+  | Sint64                  { TyInt Int64 }
+
+  | Uint8                   { TyWord Word8 }
+  | Uint16                  { TyWord Word16 }
+  | Uint32                  { TyWord Word32 }
+  | Uint64                  { TyWord Word64 }
+
+  | Ix integer              { TyIx $2 }
+
+hsType :: { Type }
+hsType :
+    Stored   typeHS         { TyStored      $2 }
+  | Struct   structName     { TyStruct      $2 }
+  | Array    integer typeHS { TyArray    $3 $2 }
+  | Ref      scopeHS typeHS { TyRef      $2 $3 }
+  | ConstRef scopeHS typeHS { TyConstRef $2 $3 }
+
+scopeHS :: { Scope }
+scopeHS : Stack tyident { Stack (Just $2) }
+        | Global        { Global }
+
+-- Bit types
 bitType :: { BitTy }
 bitType :
     Bit                        { Bit }
@@ -561,8 +612,11 @@ structName :
   | ident   { $1 }
 
 field :: { Field }
-field : areaC     ident   { Field $2 $1 }
-      | baseTypeC ident   { Field $2 (TyStored $1) }
+field :
+  -- Haskell style
+    ident '::' typeHS  { Field $1 $3 }
+  -- C style
+  | type ident         { Field $2 $1 }
 
 -- 1 or more fields, separated (but optionally ending with) ';'.
 fields :: { [Field] }
