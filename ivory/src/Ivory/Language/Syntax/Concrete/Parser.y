@@ -237,6 +237,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %right '*' '~' '!' '-'
 -- '[' assumed to be followed by ']'
 %left '.' '@' '->' '['
+-- Tighter than normal binding
 %right '&'
 %right
   abs
@@ -412,6 +413,7 @@ exp : integer            { ExpLit (LitInteger $1) }
     | exp '[' exp ']'      { ExpDeref (ExpArray $1 $3) }
     | exp '.' exp          { ExpStruct $1 $3 }
     | exp '->' exp         { ExpDeref (ExpStruct $1 $3) }
+    | '&' ident            { ExpAddrOf $2 }
 
     | libFuncExp           { $1 }
 

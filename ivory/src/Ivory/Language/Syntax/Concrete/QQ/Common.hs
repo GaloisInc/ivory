@@ -90,6 +90,7 @@ expToCall sym args = Call sym args
 -- Expression that are areas in the language.
 data Area =
     AreaVar String
+  | AddrOf Area
   | ArrayArea Area Exp
   | StructArea Area Area
   deriving (Show, Read, Eq)
@@ -99,6 +100,8 @@ data Area =
 expToArea :: Exp -> Area
 expToArea exp = case exp of
   ExpVar v        -> AreaVar v
+  ExpAddrOf v     -> AddrOf (AreaVar v)
+  -- e1 below can't be an area---it's an index into the array.
   ExpArray  e0 e1 -> ArrayArea (expToArea e0) e1
   ExpStruct e0 e1 -> StructArea (expToArea e0) (expToArea e1)
   _               -> error $ "Expression " ++ show exp ++ " instead of area."
@@ -116,6 +119,7 @@ collectBindExps exp = nub $ case exp of
   ExpArray e0 e1          -> collectBindExps e0 ++ collectBindExps e1
   ExpStruct e0 e1         -> collectBindExps e0 ++ collectBindExps e1
   ExpCall fn args         -> [callToKey (Call fn args)]
+  ExpAddrOf{}             -> []
 
 --------------------------------------------------------------------------------
 -- Helpers

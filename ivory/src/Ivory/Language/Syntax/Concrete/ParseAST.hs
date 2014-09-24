@@ -131,6 +131,7 @@ data Exp
   | ExpArray  Exp Exp
   | ExpStruct Exp Exp
   | ExpCall FnSym [Exp]
+  | ExpAddrOf Var
   deriving (Show, Read, Eq, Ord)
 
 data ExpOp

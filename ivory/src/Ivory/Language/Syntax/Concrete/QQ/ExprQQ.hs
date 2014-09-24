@@ -11,6 +11,9 @@
 module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
   ( toExp
   , fromConstDef
+  , toArray
+  , toStruct
+  , toAddrOf
   ) where
 
 import           Prelude hiding (exp, init)
@@ -25,6 +28,7 @@ import qualified Ivory.Language.IIntegral as I
 import qualified Ivory.Language.Bits      as I
 import qualified  Ivory.Language.Float    as I
 import qualified  Ivory.Language.Ref      as I
+import qualified  Ivory.Language.MemArea  as I
 import qualified  Ivory.Language.IBool    as I
 import qualified  Ivory.Language.Array    as I
 import qualified  Ivory.Language.Struct   as I
@@ -144,11 +148,25 @@ toExp env exp = case exp of
   ExpDeref e
     -> VarE $ lookupDerefVar (expToArea e) env
   ExpArray e0 e1
-    -> InfixE (Just $ toExp env e0) (VarE '(I.!)) (Just $ toExp env e1)
+    -> toArray (toExp env e0) (toExp env e1)
   ExpStruct e0 e1
-    -> InfixE (Just $ toExp env e0) (VarE '(I.~>)) (Just $ toExp env e1)
+    -> toStruct (toExp env e0) (toExp env e1)
   -- Must be a call that returns a value
   ExpCall sym args
     -> VarE $ lookupVar (expToCall sym args) env
+  ExpAddrOf v
+    -> toAddrOf $ VarE $ mkName v
+
+--------------------------------------------------------------------------------
+-- These are shared by toExp above and fromArea in BindExp.
+
+toArray :: T.Exp -> T.Exp -> T.Exp
+toArray e0 e1 = InfixE (Just e0) (VarE '(I.!)) (Just e1)
+
+toStruct :: T.Exp -> T.Exp -> T.Exp
+toStruct e0 e1 = InfixE (Just e0) (VarE '(I.~>)) (Just e1)
+
+toAddrOf :: T.Exp -> T.Exp
+toAddrOf = AppE (VarE 'I.addrOf)
 
 --------------------------------------------------------------------------------

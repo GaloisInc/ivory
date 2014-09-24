@@ -20,10 +20,11 @@ import Prelude hiding (exp)
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 
-import qualified Ivory.Language.Array  as I
-import qualified Ivory.Language.Struct as I
-import qualified Ivory.Language.Proc   as I
-import qualified Ivory.Language.Ref    as I
+import qualified Ivory.Language.Array    as I
+import qualified Ivory.Language.MemArea  as I
+import qualified Ivory.Language.Struct   as I
+import qualified Ivory.Language.Proc     as I
+import qualified Ivory.Language.Ref      as I
 
 import           Ivory.Language.Syntax.Concrete.QQ.Common
 import           Ivory.Language.Syntax.Concrete.ParseAST
@@ -87,6 +88,7 @@ callToVar (Call sym _) = sym
 areaToVar :: Area -> String
 areaToVar area = case area of
   AreaVar v               -> v
+  AddrOf v                -> areaToVar v
   -- Ignore the expression. Ok, since these are bases to fresh vars.
   ArrayArea area' _       -> areaToVar area'
   StructArea area0 area1  -> areaToVar area0 ++ ('_': areaToVar area1)
@@ -96,16 +98,17 @@ fromArea :: Insert a -> Area -> QStM a T.Exp
 fromArea f area = case area of
   AreaVar v -- ref
     -> return (mkVar v)
+  AddrOf area' -- ref
+    -> do a <- (fromArea f) area'
+          return $ toAddrOf a
   ArrayArea area' ixExp -- (arr @ ix)
     -> do ix <- (fromExp f) ixExp
           a  <- (fromArea f) area'
-          return $ InfixE (Just a) (VarE '(I.!)) (Just ix)
+          return $ toArray a ix
   StructArea area0 area1 -- (area . area)
     -> do a0 <- (fromArea f) area0
           a1 <- (fromArea f) area1
-          return $ InfixE (Just a0)
-                          (VarE '(I.~>))
-                          (Just a1)
+          return $ toStruct a0 a1
 
 -- We want to generate a fresh name that won't capture other user-defined
 -- names, since we're inserting these variables. We'll make a name base that
