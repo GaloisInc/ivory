@@ -107,46 +107,22 @@ mkTyVar v classes = do
 --------------------------------------------------------------------------------
 
 -- Syntactic check for base types
--- isBaseType :: T.Type -> Bool
--- isBaseType ty
---   | ty == PromotedT '()            = True
-
---   | ty == PromotedT 'I.Sint8       = True
---   | ty == PromotedT 'I.Sint16      = True
---   | ty == PromotedT 'I.Sint32      = True
---   | ty == PromotedT 'I.Sint64      = True
-
---   | ty == PromotedT 'I.Uint8       = True
---   | ty == PromotedT 'I.Uint16      = True
---   | ty == PromotedT 'I.Uint32      = True
---   | ty == PromotedT 'I.Uint64      = True
-
---   | ty == PromotedT 'I.IBool       = True
---   | ty == PromotedT 'I.IChar       = True
---   | ty == PromotedT 'I.IFloat      = True
---   | ty == PromotedT 'I.IDouble     = True
---   | otherwise                      =
---     let ix = PromotedT 'I.Ix in
---     case ty of
---       AppT i _ -> i == ix
---       _        -> False
-
 isBaseType :: Type -> Bool
 isBaseType ty = case ty of
-  TyVoid            -> True
-  TyInt sz          -> True
-  TyWord sz         -> True
-  TyBool            -> True
-  TyChar            -> True
-  TyFloat           -> True
-  TyDouble          -> True
-  TyIx ix           -> True
-  TyStored area     -> False
-  TyStruct nm       -> False
-  TyArray a sz      -> False
-  TyRef qma qt      -> False
-  TyConstRef qma qt -> False
-  TySynonym str     -> False
+  TyVoid       -> True
+  TyInt{}      -> True
+  TyWord{}     -> True
+  TyBool       -> True
+  TyChar       -> True
+  TyFloat      -> True
+  TyDouble     -> True
+  TyIx{}       -> True
+  TyStored{}   -> False
+  TyStruct{}   -> False
+  TyArray{}    -> False
+  TyRef{}      -> False
+  TyConstRef{} -> False
+  TySynonym{}  -> False
 
 maybeAddStored :: Type -> Type
 maybeAddStored ty =
