@@ -336,14 +336,16 @@ simpleStmt :
   | return exp                    { Return $2 }
 
   -- Allocation
+  | alloc '*' ident               { AllocRef (AllocBase $3 Nothing) }
   | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 (Just $5)) }
+
+  | alloc ident '[' ']'           { AllocRef (AllocArr $2 []) }
   | alloc ident '[' ']' '='
       '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
+
+  | alloc ident                   { AllocRef (AllocStruct $2 []) }
   | alloc ident '='
       '{' fieldAssigns '}'        { AllocRef (AllocStruct $2 (reverse $5)) }
-  | alloc '*' ident               { AllocRef (AllocBase $3 Nothing) }
-  | alloc ident '[' ']'           { AllocRef (AllocArr $2 []) }
-  | alloc ident                   { AllocRef (AllocStruct $2 []) }
 
   | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
 
