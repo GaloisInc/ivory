@@ -26,11 +26,11 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %error     { parseError }
 
 %token
-  integer     { TokInteger $$ }
-  bitlit      { TokBitLit $$ }
-  ident       { TokIdent $$ }
-  tyident     { TokTyIdent $$ }
-  fp          { TokFilePath $$ }
+  integer      { TokInteger $$ }
+  bitlit       { TokBitLit $$ }
+  identifier   { TokIdent $$ }
+  tyidentifier { TokTyIdent $$ }
+  fp           { TokFilePath $$ }
 
   -- Statements
   if       { TokReserved "if" }
@@ -683,6 +683,19 @@ bdItem :
 -- First field is width, second is "b[0,1]+"
 bitLiteral :: { BitLiteral }
 bitLiteral : bitlit { BitLitKnown (fst $1) (snd $1) }
+
+--------------------------------------------------------------------------------
+-- Namespaces
+
+ident :: { String }
+ident :
+    identifier                  { $1 }
+  | tyidentifier '.' identifier { $1 ++ '.':$3 }
+
+tyident :: { String }
+tyident :
+    tyidentifier                  { $1 }
+  | tyidentifier '.' tyidentifier { $1 ++ '.':$3 }
 
 --------------------------------------------------------------------------------
 
