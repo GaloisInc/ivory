@@ -46,7 +46,9 @@ modelCheckProc I.Proc { I.procSym      = sym
 --------------------------------------------------------------------------------
 
 toParam :: I.Typed I.Var -> ModelCheck ()
-toParam (I.Typed t val) = void $ addEnvVar t (toVar val)
+toParam (I.Typed t val) = do
+  v <- addEnvVar t (toVar val)
+  assertBoundedVar t (var v)
 
 --------------------------------------------------------------------------------
 
@@ -181,8 +183,8 @@ toExprOp t op args = case op of
       True  -> go t' (.>=)
       False -> go t' (.>)
   I.ExpMod        -> toMod t arg0 arg1
-  I.ExpAdd        -> go t (.+)
-  I.ExpSub        -> go t (.-)
+  I.ExpAdd        -> ensureBounded t =<< go t (.+)
+  I.ExpSub        -> ensureBounded t =<< go t (.-)
   I.ExpNegate     ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg
@@ -195,6 +197,10 @@ toExprOp t op args = case op of
     e0 <- toExpr t' arg0
     e1 <- toExpr t' arg1
     return (e0 `op` e1)
+
+  ensureBounded t' e = do
+    ensureBoundedVar t' e
+    return e
 
 -- Abstraction: a % b (C semantics) implies
 --
@@ -382,13 +388,11 @@ varOp = I.ExpVar . I.VarName
 addEnvVar :: I.Type -> Var -> ModelCheck Var
 addEnvVar t v = do
   t' <- toType t
-  v' <- declUpdateEnv t' v
-  assertBoundedVar t (var v')
-  return v'
+  declUpdateEnv t' v
 
 -- Call the appropriate cvc4lib functions.
-assertBoundedVar :: I.Type -> Expr -> ModelCheck ()
-assertBoundedVar t e = getBounds t
+checkBoundedVar :: (Expr -> ModelCheck ()) -> I.Type -> Expr -> ModelCheck ()
+checkBoundedVar chk t e = getBounds t
   where
   getBounds t' = case t' of
     I.TyWord w -> case w of
@@ -405,7 +409,13 @@ assertBoundedVar t e = getBounds t
 
     _         -> return ()
 
-  c f = addInvariant (call f [e])
+  c f = chk (call f [e])
+
+assertBoundedVar :: I.Type -> Expr -> ModelCheck ()
+assertBoundedVar = checkBoundedVar addInvariant
+
+ensureBoundedVar :: I.Type -> Expr -> ModelCheck ()
+ensureBoundedVar = checkBoundedVar addQuery
 
 
 err :: String -> String -> a
