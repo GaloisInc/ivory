@@ -165,6 +165,7 @@ foo1 = L.proc "foo1" $ \y x -> body $ do
               (L.assert $ y ==? 0)
               retVoid)
     (do z <- assign x
+        -- this *should* fail
         L.assert (z >=? 3))
   retVoid
 
@@ -190,6 +191,7 @@ m2 = package "foo2" (incl foo2)
 foo3 :: Def ('[] :-> ())
 foo3 = L.proc "foo3" $ body $ do
   x <- local (ival (1 :: Sint32))
+  -- since ivory loops are bounded, we can just unroll the whole thing!
   for (toIx (2 :: Sint32) :: Ix 4) $ \ix -> do
     store x (fromIx ix)
     y <- deref x
@@ -218,8 +220,11 @@ m4 = package "foo4" (incl foo4)
 foo5 :: Def ('[] :-> ())
 foo5 = L.proc "foo5" $ body $ do
   x <- local (ival (1 :: Sint32))
+  -- for loops from 0 to n-1, inclusive
   for (toIx (9 :: Sint32) :: Ix 10) $ \ix -> do
     store x (fromIx ix)
+    y <- deref x
+    L.assert (y <=? 10)
   y <- deref x
   L.assert ((y ==? 8))
 
