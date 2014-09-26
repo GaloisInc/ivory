@@ -36,12 +36,10 @@ modelCheckProc I.Proc { I.procSym      = sym
                       , I.procRequires = requires
                       , I.procEnsures  = ensures
                       }
-    -- XXX ignore requires/ensures for now
-  = --let ens  = map I.getEnsure ensures
-    --let reqs = map (toRequire . I.getRequire) requires
-    do
+  = do
   mapM_ toParam args
-  mapM_ (toBody undefined) body
+  mapM_ toRequire requires
+  mapM_ (toBody ensures) body
 
 --------------------------------------------------------------------------------
 
@@ -52,17 +50,55 @@ toParam (I.Typed t val) = do
 
 --------------------------------------------------------------------------------
 
+toRequire :: I.Require -> ModelCheck ()
+toRequire (I.Require cond) = do
+  e <- toAssertion id cond
+  addInvariant e
+
+--------------------------------------------------------------------------------
+
+toEnsure :: I.Expr -> I.Ensure -> ModelCheck ()
+toEnsure retE (I.Ensure cond) = do
+  e <- toAssertion loop cond
+  addQuery e
+  where
+  -- Replace ensures variable with the return expression.
+  loop :: I.Expr -> I.Expr
+  loop e = case e of
+    I.ExpSym{}             -> e
+    I.ExpVar v             -> if v == I.retval then retE else e
+    I.ExpLit{}             -> e
+    I.ExpOp op args        -> I.ExpOp op (map loop args)
+    I.ExpLabel t e0 s      -> I.ExpLabel t (loop e0) s
+    I.ExpIndex t e0 t1 e1  -> I.ExpIndex t (loop e0) t1 (loop e1)
+    I.ExpSafeCast t e0     -> I.ExpSafeCast t (loop e0)
+    I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
+    I.ExpAddrOfGlobal{}    -> e
+
+--------------------------------------------------------------------------------
+
+toAssertion :: (I.Expr -> I.Expr) -> I.Cond -> ModelCheck Expr
+toAssertion trans cond = case cond of
+    I.CondBool exp -> toExpr I.TyBool (trans exp)
+    -- I.CondDeref t e var c ->
+    --   let res = (toBody []) (I.Deref t var (trans e)) in
+    --   let c1  = toAssertion trans call c in
+    --   [cstm| { $items:res $item:c1 } |]
+
+--------------------------------------------------------------------------------
+
 -- | Symbolically execute statements, carrying the return requirements forward
 -- to each location that there is a return statement.
-toBody :: [I.Cond] -> I.Stmt -> ModelCheck ()
+toBody :: [I.Ensure] -> I.Stmt -> ModelCheck ()
 toBody ens stmt =
-  let toBody' = toBody ens in
   case stmt of
     I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
     I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.CompilerAssert exp   -> addQuery =<< toExpr I.TyBool exp
-    I.Return (I.Typed t e) -> void (toExpr t e)
-    I.ReturnVoid           -> return ()
+    I.Return (I.Typed t e) -> toReturn ens t e
+    I.ReturnVoid           -> mapM_ (toEnsure explode) ens
+       where
+         explode = error "tried to use retval in `ensures` with `retVoid`"
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
@@ -73,6 +109,11 @@ toBody ens stmt =
 
     I.Loop v exp inc blk   -> toLoop v exp inc blk
     _                      -> error $ "XXX Unimplemented: " ++ show stmt
+
+toReturn :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
+toReturn ens t exp = do
+  void $ toCheckedExpr t exp
+  mapM_ (toEnsure exp) ens
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
@@ -88,7 +129,7 @@ toAlloc t ref name = do
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t ptr exp = do
   v' <- updateEnvRef t ptr
-  e  <- toExpr t exp
+  e  <- toCheckedExpr t exp
   addInvariant (var v' .== e)
 
 toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
@@ -106,7 +147,7 @@ toInit init =
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
   v' <- addEnvVar t (toVar v)
-  e  <- toExpr t exp
+  e  <- toCheckedExpr t exp
   addInvariant $ (var v' .== e)
 
 -- XXX Abstraction (to implement): If there is load/stores in the block, the we
@@ -132,7 +173,7 @@ toLoop v start end blk =
       = takeWhile (>= endVal loopData) $
           iterate (flip (-) 1) (startVal loopData)
 
-toIfTE :: [I.Cond] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
+toIfTE :: [I.Ensure] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens cond blk0 blk1 = do
   st  <- getState
   b   <- toExpr I.TyBool cond
@@ -144,10 +185,17 @@ toIfTE ens cond blk0 blk1 = do
   runBranch :: SymExecSt -> Expr -> [I.Stmt] -> ModelCheck ()
   runBranch st b blk = do
     resetSt st                   -- Empty state except environment
-    mapM_ (toBody undefined) blk -- Body under the invariant
+    mapM_ (toBody ens) blk       -- Body under the invariant
     branchSt b                   -- Make conditions under hypothesis b
 
 --------------------------------------------------------------------------------
+
+toCheckedExpr :: I.Type -> I.Expr -> ModelCheck Expr
+toCheckedExpr t exp = do
+  e <- toExpr t exp
+  ensureBoundedVar t e
+  return e
+
 
 toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
@@ -183,8 +231,8 @@ toExprOp t op args = case op of
       True  -> go t' (.>=)
       False -> go t' (.>)
   I.ExpMod        -> toMod t arg0 arg1
-  I.ExpAdd        -> ensureBounded t =<< go t (.+)
-  I.ExpSub        -> ensureBounded t =<< go t (.-)
+  I.ExpAdd        -> go t (.+)
+  I.ExpSub        -> go t (.-)
   I.ExpNegate     ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg
@@ -197,10 +245,6 @@ toExprOp t op args = case op of
     e0 <- toExpr t' arg0
     e1 <- toExpr t' arg1
     return (e0 `op` e1)
-
-  ensureBounded t' e = do
-    ensureBoundedVar t' e
-    return e
 
 -- Abstraction: a % b (C semantics) implies
 --
@@ -351,37 +395,6 @@ litOp t n = I.ExpLit e
 
 varOp :: Var -> I.Expr
 varOp = I.ExpVar . I.VarName
-
--- toRequire = undefined
--- toRequire :: I.Cond -> C.BlockItem
--- toRequire = toAssertion id "REQUIRES"
-
--- -- | Takes the return expression, the condition, and returns a 'BlockItem'.
--- toEnsure :: I.Expr -> I.Cond -> C.BlockItem
--- toEnsure retE = toAssertion (loop retE) "ENSURES"
---   where
---   -- Replace ensures variable with the return expression.
---   loop :: I.Expr -> I.Expr -> I.Expr
---   loop e = case e of
---     I.ExpSym{}             -> e
---     I.ExpVar v             -> if v == I.retval then retE else e
---     I.ExpLit{}             -> e
---     I.ExpOp op args        -> I.ExpOp op (map loop args)
---     I.ExpLabel t e0 s      -> I.ExpLabel t (loop e0) s
---     I.ExpIndex t e0 t1 e1  -> I.ExpIndex t (loop e0) t1 (loop e1)
---     I.ExpSafeCast t e0     -> I.ExpSafeCast t (loop e0)
---     I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
---     I.ExpAddrOfGlobal{}    -> e
-
--- toAssertion :: (I.Expr -> I.Expr) -> String -> I.Cond -> C.BlockItem
--- toAssertion trans call cond = C.BlockStm $
---   case cond of
---     I.CondBool e          ->
---       [cstm| $id:call($exp:(toExpr I.TyBool (trans e))); |]
---     I.CondDeref t e var c ->
---       let res = (toBody []) (I.Deref t var (trans e)) in
---       let c1  = toAssertion trans call c in
---       [cstm| { $items:res $item:c1 } |]
 
 --------------------------------------------------------------------------------
 

@@ -292,3 +292,17 @@ foo9 = L.proc "foo9" $ \f -> body $ do
 
 m9 :: Module
 m9 = package "foo9" (incl foo9)
+
+-----------------------
+
+foo10 :: Def ('[Uint8] :-> Uint8)
+foo10 = L.proc "foo10" $ \x ->
+        requires (x <? 10)
+      $ ensures (\r -> r ==? x + 1)
+      $ body $ do
+        r <- assign $ x + 1
+        ret r
+
+m10 :: Module
+m10 = package "foo10" (incl foo10)
+    
