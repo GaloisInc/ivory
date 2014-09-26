@@ -20,9 +20,6 @@ import Prelude hiding (exp)
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 
-import qualified Ivory.Language.Array    as I
-import qualified Ivory.Language.MemArea  as I
-import qualified Ivory.Language.Struct   as I
 import qualified Ivory.Language.Proc     as I
 import qualified Ivory.Language.Ref      as I
 
