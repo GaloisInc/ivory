@@ -10,11 +10,14 @@ module Ivory.ModelCheck.Monad
   , getState
   , setState
   , joinState
+  , addProc
+  , lookupProc
   , addType
   , declUpdateEnv
   , lookupVar
   , incReservedVar
   , addQuery
+  , addEnsure
   , addInvariant
   , resetSt
   , branchSt
@@ -29,6 +32,7 @@ import           Control.Applicative
 import           MonadLib
 import qualified Data.Map.Lazy         as M
 
+import qualified Ivory.Language.Syntax as I
 import           Ivory.ModelCheck.CVC4 hiding (query, var)
 
 -- XXX
@@ -60,6 +64,7 @@ data SymExecSt = SymExecSt
   , symEnv   :: Env
   , symSt    :: ProgramSt
   , symQuery :: Queries
+  , symProcs :: M.Map I.Sym I.Proc
   }
 
 newtype ModelCheck a = ModelCheck (StateT SymExecSt Id a)
@@ -77,6 +82,7 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symEnv   = mempty
                       , symSt    = mempty
                       , symQuery = mempty
+                      , symProcs = mempty
                       }
 
 mcVar :: String
@@ -133,9 +139,9 @@ addType :: Type -> ModelCheck ()
 addType ty = do
   st <- get
   let ps = symSt st
-  if ty `elem` types ps then return ()
-    else do let ps' = ps { types = ty : types ps }
-            set st { symSt = ps' }
+  unless (ty `elem` types ps) $ do
+    let ps' = ps { types = ty : types ps }
+    set st { symSt = ps' }
 
 addInvariant :: Expr -> ModelCheck ()
 addInvariant exp = do
@@ -162,10 +168,22 @@ addQuery exp = do
   q  <- getQueries
   setQueries q { assertQueries = exp : assertQueries q }
 
--- addEnsure :: Expr -> ModelCheck ()
--- addEnsure exp = do
---   q  <- getQueries
---   setQueries q { ensureQueries = exp : ensureQueries q }
+addEnsure :: Expr -> ModelCheck ()
+addEnsure exp = do
+  q  <- getQueries
+  setQueries q { ensureQueries = exp : ensureQueries q }
+
+addProc :: I.Proc -> ModelCheck ()
+addProc p = do
+  st <- get
+  set st { symProcs = M.insert (I.procSym p) p (symProcs st) }
+
+lookupProc :: I.Sym -> ModelCheck I.Proc
+lookupProc nm = do
+  st <- get
+  case M.lookup nm (symProcs st) of
+    Nothing -> error $ "couldn't find proc: " ++ show nm
+    Just p  -> return p
 
 -- | Lookup a variable in the environment.  If it's not in there return a fresh
 -- variable (and update the environment) and declare it (which is why we need
@@ -282,14 +300,17 @@ instance Monoid SymExecSt where
                      , symEnv   = mempty
                      , symSt    = mempty
                      , symQuery = mempty
+                     , symProcs = mempty
                      }
-  (SymExecSt f0 e0 s0 q0) `mappend` (SymExecSt f1 e1 s1 q1)
+  (SymExecSt f0 e0 s0 q0 p0) `mappend` (SymExecSt f1 e1 s1 q1 p1)
     | f0 /= f1 = error "Sym states have different function symbols."
+    | p0 /= p1 = error "Sym states have different proc environments."
     | otherwise =
       SymExecSt { funcSym  = f0
                 , symEnv   = e0 `M.union` e1
                 , symSt    = s0 `mappend` s1
                 , symQuery = q0 `mappend` q1
+                , symProcs = p0
                 }
 
 --------------------------------------------------------------------------------

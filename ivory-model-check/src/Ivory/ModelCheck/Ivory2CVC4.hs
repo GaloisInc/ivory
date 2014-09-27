@@ -18,10 +18,11 @@ import           Ivory.ModelCheck.Monad
 --------------------------------------------------------------------------------
 
 modelCheckMod :: I.Module -> ModelCheck ()
-modelCheckMod m =
+modelCheckMod m = do
   -- We rely on constant folding having happend in the model-checker.  E.g., in
   -- computing the number of loop iterations.
   -- mapM_ (modelCheckProc . overflowFold . constFold) (getProcs $ I.modProcs m)
+  mapM_ addProc (getProcs $ I.modProcs m)
   mapM_ (modelCheckProc . constFold) (getProcs $ I.modProcs m)
   where
   getProcs ps = I.public ps ++ I.private ps
@@ -102,7 +103,7 @@ toBody ens stmt =
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
---    I.Call t retV nm args  -> error "Calls undefined"
+    I.Call t retV nm args  -> toCall t retV nm args
     I.Local t v inits      -> toLocal t v inits
 
     I.AllocRef t ref name  -> toAlloc t ref name
@@ -149,6 +150,11 @@ toAssign t v exp = do
   v' <- addEnvVar t (toVar v)
   e  <- toCheckedExpr t exp
   addInvariant $ (var v' .== e)
+
+toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
+toCall t retV nm args = do
+  
+  undefined
 
 -- XXX Abstraction (to implement): If there is load/stores in the block, the we
 -- don't care how many times it iterates.  It's pure.
