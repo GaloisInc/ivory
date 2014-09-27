@@ -40,15 +40,22 @@ import qualified  Ivory.Language.SizeOf   as I
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 import Ivory.Language.Syntax.Concrete.QQ.Common
+import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 --------------------------------------------------------------------------------
 -- Expressions
 
 -- | Top-level constant definition.
-fromConstDef :: ConstDef -> Q Dec
-fromConstDef (ConstDef sym e) = do
+fromConstDef :: ConstDef -> Q [Dec]
+fromConstDef (ConstDef sym e mtype) = do
   n <- newName sym
-  return (ValD (VarP n) (NormalB $ toExp [] e) [])
+  let def = ValD (VarP n) (NormalB $ toExp [] e) []
+  case mtype of
+    Nothing -> return [def]
+    Just ty -> do tyQ <- runToQ (fromType ty)
+                  -- Ignore possible type variables---should be any for a
+                  -- top-level constant.
+                  return [SigD n (fst tyQ), def]
 
 fromLit :: Literal -> T.Exp
 fromLit lit = case lit of

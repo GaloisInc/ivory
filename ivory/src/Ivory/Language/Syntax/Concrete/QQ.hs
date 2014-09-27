@@ -111,7 +111,7 @@ mkDef def = case def of
   GlobalStruct  d       -> fromStruct d
   GlobalBitData d       -> fromBitData d
   GlobalTypeDef tyDef   -> singList (fromTypeDef tyDef)
-  GlobalConstDef const  -> singList (fromConstDef const)
+  GlobalConstDef const  -> fromConstDef const
   -- No definition to make for includes.
   GlobalInclude{}       -> return []
   where

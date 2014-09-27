@@ -44,7 +44,7 @@ fromTypeDef (TypeDef syn ty) = do
   (t, _) <- runToQ (fromType ty)
   return (TySynD n [] t)
 
--- --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 -- Data type to keep track of class constraints
 data Class = Int -- SingI type constraint

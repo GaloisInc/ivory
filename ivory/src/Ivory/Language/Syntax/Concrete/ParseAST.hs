@@ -39,8 +39,9 @@ data IncludeDef = IncludeDef
 -- Constant definition
 
 data ConstDef = ConstDef
-  { constSym :: String
-  , constExp :: Exp
+  { constSym  :: String
+  , constExp  :: Exp
+  , constType :: Maybe Type
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -223,7 +224,7 @@ data Stmt
   | ReturnVoid
   -- Deref dereferencing is an expression in our language here.
   | Store Exp Exp
-  | Assign Var Exp
+  | Assign Var Exp (Maybe Type)
   | NoBindCall Var [Exp]
   | RefCopy Exp Exp
 -- Local is AllocRef

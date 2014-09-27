@@ -288,7 +288,9 @@ includeDef : include ident { IncludeDef $2 }
 -- Constant definitions
 
 constDef :: { ConstDef }
-constDef : ident '=' exp ';' { ConstDef $1 $3 }
+constDef :
+         ident '=' exp ';' { ConstDef $1 $3 Nothing   }
+  | type ident '=' exp ';' { ConstDef $2 $4 (Just $1) }
 
 ----------------------------------------
 -- Procs
@@ -331,7 +333,8 @@ simpleStmt :: { Stmt }
 simpleStmt :
     assert exp                    { Assert $2 }
   | assume exp                    { Assume $2 }
-  | assign ident '=' exp          { Assign $2 $4 }
+  | assign      ident '=' exp     { Assign $2 $4 Nothing   }
+  | assign type ident '=' exp     { Assign $3 $5 (Just $2) }
   | return                        { ReturnVoid }
   | return exp                    { Return $2 }
 

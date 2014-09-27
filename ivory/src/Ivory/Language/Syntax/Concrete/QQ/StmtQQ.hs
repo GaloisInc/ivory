@@ -31,6 +31,7 @@ import           Control.Monad (forM_)
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.QQ.BindExp
+import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 --------------------------------------------------------------------------------
 
@@ -70,11 +71,15 @@ fromStmt stmt = case stmt of
     e <- fromExpStmt exp1
     let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'I.store) p) e)
     storeIt a
-  Assign var exp
+  Assign var exp mtype
     -> do
     e <- fromExpStmt exp
     let v = mkName var
-    insert $ BindS (VarP v) (AppE (VarE 'I.assign) e)
+    eTy <- case mtype of
+             Nothing -> return e
+             Just ty -> do tyQ <- liftQ $ runToQ (fromType ty)
+                           return (SigE e (fst tyQ))
+    insert $ BindS (VarP v) (AppE (VarE 'I.assign) eTy)
   NoBindCall sym args
     -> do
     es <- fromArgs args
