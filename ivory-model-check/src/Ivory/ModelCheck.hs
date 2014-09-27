@@ -306,3 +306,17 @@ foo10 = L.proc "foo10" $ \x ->
 m10 :: Module
 m10 = package "foo10" (incl foo10)
     
+-----------------------
+
+foo11 :: Def ('[Ix 10] :-> ())
+foo11 = L.proc "foo11" $ \n -> 
+        requires (0 <=? n)
+      $ requires (n <? 10)
+      $ body $ do
+          x <- local (ival (0 :: Sint8))
+          for n $ \i -> do
+            x' <- deref x
+            store x $ x' + safeCast i
+
+m11 :: Module
+m11 = package "foo11" (incl foo11)

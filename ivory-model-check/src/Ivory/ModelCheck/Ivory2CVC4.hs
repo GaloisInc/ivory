@@ -206,7 +206,7 @@ toExpr t exp = case exp of
       I.LitInteger i -> intLit i
       I.LitBool b    -> if b then T else F
   I.ExpLabel{}               -> err "toExpr" (show exp) -- Already covered
-  I.ExpToIx e i              -> err "toExpr" (show exp)
+  I.ExpToIx e i              -> toExpr t e -- err "toExpr" (show exp)
   I.ExpSafeCast t' e         -> do e' <- toExpr t' e
                                    assertBoundedVar t e'
                                    return e'
@@ -345,7 +345,14 @@ loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
   getLit e = case e of
     I.ExpLit l   -> case l of
       I.LitInteger i -> i
-      _              -> err "loopIterations" (show e)
+      _              -> err "loopIterations.ExpLit" (show e)
+
+    -- Abstract unknown loop length to max allowed by Ix bound
+    -- FIXME: this can't possibly scale well..
+    I.ExpOp I.ExpMod [_, I.ExpLit l] -> case l of
+      I.LitInteger i -> i
+      _              -> err "loopIterations.ExpLit" (show e)
+
     _            -> err "loopIterations" (show e)
 
   fromIncr = case end of
