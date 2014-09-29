@@ -325,7 +325,9 @@ m11 = package "foo11" (incl foo11)
 
 foo12 :: Def ('[Uint8] :-> Uint8)
 foo12 = L.proc "foo12" $ \n -> 
-        body $ do
+        requires (n >=? 0)
+      $ ensures (\r -> r >=? n)
+      $ body $ do
           ifte_ (n ==? 0)
             (ret n)
             (do n' <- L.call foo12 (n-1)

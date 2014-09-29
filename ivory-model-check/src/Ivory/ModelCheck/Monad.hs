@@ -246,6 +246,7 @@ branchSt exp = do
                       , symEnv   = symEnv st
                       , symSt    = ps'
                       , symQuery = queries'
+                      , symProcs = symProcs st
                       }
   set st'
   where

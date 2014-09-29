@@ -60,14 +60,17 @@ toRequire (I.Require cond) = do
 
 toEnsure :: I.Expr -> I.Ensure -> ModelCheck ()
 toEnsure retE (I.Ensure cond) = do
-  e <- toAssertion loop cond
+  e <- toAssertion (subst [(I.retval, retE)]) cond
   addQuery e
+
+subst :: [(I.Var, I.Expr)] -> I.Expr -> I.Expr
+subst su = loop
   where
-  -- Replace ensures variable with the return expression.
-  loop :: I.Expr -> I.Expr
   loop e = case e of
     I.ExpSym{}             -> e
-    I.ExpVar v             -> if v == I.retval then retE else e
+    I.ExpVar v             -> case lookup v su of
+                               Nothing -> e
+                               Just e' -> e'
     I.ExpLit{}             -> e
     I.ExpOp op args        -> I.ExpOp op (map loop args)
     I.ExpLabel t e0 s      -> I.ExpLabel t (loop e0) s
@@ -113,7 +116,7 @@ toBody ens stmt =
 
 toReturn :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 toReturn ens t exp = do
-  void $ toCheckedExpr t exp
+  void $ toExpr t exp
   mapM_ (toEnsure exp) ens
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
@@ -130,7 +133,7 @@ toAlloc t ref name = do
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t ptr exp = do
   v' <- updateEnvRef t ptr
-  e  <- toCheckedExpr t exp
+  e  <- toExpr t exp
   addInvariant (var v' .== e)
 
 toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
@@ -147,14 +150,32 @@ toInit init =
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
+  e  <- toExpr t exp
   v' <- addEnvVar t (toVar v)
-  e  <- toCheckedExpr t exp
   addInvariant $ (var v' .== e)
 
 toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
 toCall t retV nm args = do
-  
-  undefined
+  pc <- lookupProc $ toName nm
+
+  forM_ (zip (I.procArgs pc) args) $ \ (I.Typed _ v, I.Typed t e) -> do
+    toAssign t v e
+  checkRequires $ I.procRequires pc
+
+  case retV of
+    Nothing -> return () -- TODO: can we have an ensures clause for a void func?
+    Just v  -> do
+      r <- addEnvVar t (toVar v)
+      assumeEnsures [(I.retval, I.ExpVar $ I.VarName r)]
+                    (I.procEnsures pc)
+      return ()
+  where
+  checkRequires reqs = forM_ reqs $ \ (I.Require c) -> do
+    addQuery =<< toAssertion id c
+    
+  assumeEnsures su ens = forM_ ens $ \ (I.Ensure c) -> do
+    addInvariant =<< toAssertion (subst su) c
+
 
 -- XXX Abstraction (to implement): If there is load/stores in the block, the we
 -- don't care how many times it iterates.  It's pure.
@@ -195,13 +216,6 @@ toIfTE ens cond blk0 blk1 = do
     branchSt b                   -- Make conditions under hypothesis b
 
 --------------------------------------------------------------------------------
-
-toCheckedExpr :: I.Type -> I.Expr -> ModelCheck Expr
-toCheckedExpr t exp = do
-  e <- toExpr t exp
-  ensureBoundedVar t e
-  return e
-
 
 toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
