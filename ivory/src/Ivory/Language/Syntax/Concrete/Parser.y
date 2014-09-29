@@ -9,8 +9,8 @@
 -- Parser.hs file is generated!
 
 -- TODO
--- Fix types to allow type syns at all levels
--- explicit types for allocs, lets, top-level defs
+-- explicit types for lets
+-- remove constRef (const covers it)
 
 module Ivory.Language.Syntax.Concrete.Parser where
 
@@ -97,7 +97,6 @@ import Ivory.Language.Syntax.Concrete.Lexer
   toCArray         { TokReserved "toCArray" }
   arrayLen         { TokReserved "arrayLen" }
 
-  constRef         {  TokReserved "constRef" }
   sizeOf           { TokReserved "sizeOf" }
   nullPtr          { TokReserved "nullPtr" }
   refToPtr         { TokReserved "refToPtr" }
@@ -497,7 +496,6 @@ libFuncExp :
     | fromIx       expArgs { ExpOp FromIx       $2 }
     | ixSize       expArgs { ExpOp IxSize       $2 }
     | arrayLen     expArgs { ExpOp ArrayLen     $2 }
-    | constRef     expArgs { ExpOp ConstRef     $2 }
     | sizeOf       expArgs { ExpOp SizeOf       $2 }
     | nullPtr      expArgs { ExpOp NullPtr      $2 }
     | refToPtr     expArgs { ExpOp RefToPtr     $2 }

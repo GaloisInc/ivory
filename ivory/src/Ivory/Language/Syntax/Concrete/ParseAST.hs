@@ -201,7 +201,6 @@ data ExpOp
   | FromIx
   | IxSize
   | ArrayLen
-  | ConstRef
   | SizeOf
   | NullPtr
   | RefToPtr

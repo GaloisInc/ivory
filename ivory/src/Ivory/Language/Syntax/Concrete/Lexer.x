@@ -111,7 +111,6 @@ tokens :-
   toCArray         { lexReserved }
   arrayLen         { lexReserved }
 
-  constRef         { lexReserved }
   sizeOf           { lexReserved }
   nullPtr          { lexReserved }
   refToPtr         { lexReserved }
