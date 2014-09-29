@@ -7,7 +7,7 @@
 --------------------------------------------------------------------------------
 
 module Ivory.Opts.Overflow
-  ( overflowFold
+  ( overflowFold, ext
   ) where
 
 import Ivory.Opts.AssertFold

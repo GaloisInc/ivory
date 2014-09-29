@@ -105,6 +105,7 @@ data Expr = Var Var
           | And      Expr Expr
           | Or       Expr Expr
           | Impl     Expr Expr
+          | Equiv    Expr Expr
           | Eq       Expr Expr
           | Le       Expr Expr
           | Leq      Expr Expr
@@ -117,6 +118,27 @@ data Expr = Var Var
           | Call     Func [Expr]
 
 deriving instance Show Expr
+
+substExpr :: [(Var, Expr)] -> Expr -> Expr
+substExpr su = go
+  where
+  go (Var v)     = case lookup v su of
+                     Nothing -> Var v
+                     Just e  -> e
+  go (Not e)     = Not (go e)
+  go (And x y)   = And (go x) (go y)
+  go (Or x y)    = Or (go x) (go y)
+  go (Impl x y)  = Impl (go x) (go y)
+  go (Equiv x y) = Equiv (go x) (go y)
+  go (Eq x y)    = Eq (go x) (go y)
+  go (Le x y)    = Le (go x) (go y)
+  go (Leq x y)   = Leq (go x) (go y)
+  go (Ge x y)    = Ge (go x) (go y)
+  go (Geq x y)   = Geq (go x) (go y)
+  go (Add x y)   = Add (go x) (go y)
+  go (Sub x y)   = Sub (go x) (go y)
+  go (Call f es) = Call f (map go es)
+  go e           = e
 
 leaf :: Expr -> Bool
 leaf exp =
@@ -141,6 +163,7 @@ instance Concrete Expr where
   concrete (And e0 e1)   = B.unwords [parens e0, "AND", parens e1]
   concrete (Or e0 e1)    = B.unwords [parens e0, "OR" , parens e1]
   concrete (Impl e0 e1)  = B.unwords [parens e0, "=>" , parens e1]
+  concrete (Equiv e0 e1) = B.unwords [parens e0, "<=>", parens e1]
   concrete (Eq e0 e1)    = B.unwords [parens e0, "=" , parens e1]
   concrete (Le e0 e1)    = B.unwords [parens e0, "<" , parens e1]
   concrete (Leq e0 e1)   = B.unwords [parens e0, "<=" , parens e1]
@@ -174,6 +197,9 @@ not' = Not
 
 (.=>) :: Expr -> Expr -> Expr
 (.=>) = Impl
+
+(.<=>) :: Expr -> Expr -> Expr
+(.<=>) = Equiv
 
 (.==) :: Expr -> Expr -> Expr
 (.==) = Eq

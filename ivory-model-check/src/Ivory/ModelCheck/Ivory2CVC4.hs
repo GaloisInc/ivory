@@ -3,8 +3,10 @@ module Ivory.ModelCheck.Ivory2CVC4
  where
 
 import           Prelude hiding (exp)
+import           Data.Maybe
 import           Data.Word
 import           Control.Monad
+import qualified Ivory.Language.Cast as I
 import qualified Ivory.Language.Syntax as I
 import           Ivory.Opts.ConstFold (constFold)
 import           Ivory.Opts.Overflow (overflowFold)
@@ -13,7 +15,7 @@ import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
 
 -- XXX testing
---import Debug.Trace
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 
@@ -23,7 +25,7 @@ modelCheckMod m = do
   -- computing the number of loop iterations.
   -- mapM_ (modelCheckProc . overflowFold . constFold) (getProcs $ I.modProcs m)
   mapM_ addProc (getProcs $ I.modProcs m)
-  mapM_ (modelCheckProc . constFold) (getProcs $ I.modProcs m)
+  mapM_ (modelCheckProc . overflowFold . constFold) (getProcs $ I.modProcs m)
   where
   getProcs ps = I.public ps ++ I.private ps
 
@@ -40,7 +42,9 @@ modelCheckProc I.Proc { I.procSym      = sym
   = do
   mapM_ toParam args
   mapM_ toRequire requires
-  mapM_ (toBody ensures) body
+  addEnvVar ret "retval"
+  ens <- mapM toEnsure ensures
+  mapM_ (toBody ens) body
 
 --------------------------------------------------------------------------------
 
@@ -58,26 +62,8 @@ toRequire (I.Require cond) = do
 
 --------------------------------------------------------------------------------
 
-toEnsure :: I.Expr -> I.Ensure -> ModelCheck ()
-toEnsure retE (I.Ensure cond) = do
-  e <- toAssertion (subst [(I.retval, retE)]) cond
-  addQuery e
-
-subst :: [(I.Var, I.Expr)] -> I.Expr -> I.Expr
-subst su = loop
-  where
-  loop e = case e of
-    I.ExpSym{}             -> e
-    I.ExpVar v             -> case lookup v su of
-                               Nothing -> e
-                               Just e' -> e'
-    I.ExpLit{}             -> e
-    I.ExpOp op args        -> I.ExpOp op (map loop args)
-    I.ExpLabel t e0 s      -> I.ExpLabel t (loop e0) s
-    I.ExpIndex t e0 t1 e1  -> I.ExpIndex t (loop e0) t1 (loop e1)
-    I.ExpSafeCast t e0     -> I.ExpSafeCast t (loop e0)
-    I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
-    I.ExpAddrOfGlobal{}    -> e
+toEnsure :: I.Ensure -> ModelCheck Expr
+toEnsure (I.Ensure cond) = toAssertion id cond
 
 --------------------------------------------------------------------------------
 
@@ -93,16 +79,14 @@ toAssertion trans cond = case cond of
 
 -- | Symbolically execute statements, carrying the return requirements forward
 -- to each location that there is a return statement.
-toBody :: [I.Ensure] -> I.Stmt -> ModelCheck ()
+toBody :: [Expr] -> I.Stmt -> ModelCheck ()
 toBody ens stmt =
   case stmt of
     I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
     I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.CompilerAssert exp   -> addQuery =<< toExpr I.TyBool exp
     I.Return (I.Typed t e) -> toReturn ens t e
-    I.ReturnVoid           -> mapM_ (toEnsure explode) ens
-       where
-         explode = error "tried to use retval in `ensures` with `retVoid`"
+    I.ReturnVoid           -> return () -- queryEnsures ens 
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
@@ -114,10 +98,10 @@ toBody ens stmt =
     I.Loop v exp inc blk   -> toLoop v exp inc blk
     _                      -> error $ "XXX Unimplemented: " ++ show stmt
 
-toReturn :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
+toReturn :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
 toReturn ens t exp = do
   void $ toExpr t exp
-  mapM_ (toEnsure exp) ens
+  queryEnsures ens t exp
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
@@ -155,7 +139,7 @@ toAssign t v exp = do
   addInvariant $ (var v' .== e)
 
 toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
-toCall t retV nm args = do
+toCall _ retV nm args = do
   pc <- lookupProc $ toName nm
 
   forM_ (zip (I.procArgs pc) args) $ \ (I.Typed _ v, I.Typed t e) -> do
@@ -165,7 +149,7 @@ toCall t retV nm args = do
   case retV of
     Nothing -> return () -- TODO: can we have an ensures clause for a void func?
     Just v  -> do
-      r <- addEnvVar t (toVar v)
+      r <- addEnvVar (I.procRetTy pc) (toVar v)
       assumeEnsures [(I.retval, I.ExpVar $ I.VarName r)]
                     (I.procEnsures pc)
       return ()
@@ -200,7 +184,7 @@ toLoop v start end blk =
       = takeWhile (>= endVal loopData) $
           iterate (flip (-) 1) (startVal loopData)
 
-toIfTE :: [I.Ensure] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
+toIfTE :: [Expr] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens cond blk0 blk1 = do
   st  <- getState
   b   <- toExpr I.TyBool cond
@@ -232,12 +216,14 @@ toExpr t exp = case exp of
                                    return e'
   I.ExpOp op args            -> toExprOp t op args
   I.ExpAddrOfGlobal s        -> return (var s)
+  I.ExpMaxMin True           -> return $ intLit $ fromJust $ I.toMaxSize t
+  I.ExpMaxMin False          -> return $ intLit $ fromJust $ I.toMinSize t
 
 --------------------------------------------------------------------------------
 
 toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args = case op of
-  I.ExpEq t'      -> go t' (.==)
+  I.ExpEq t'      -> go t' (mkEq t')
   I.ExpNeq t'     -> toExpr t (I.ExpOp I.ExpNot [I.ExpOp (I.ExpEq t') args])
   I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
   I.ExpAnd        -> go t (.&&)
@@ -260,6 +246,9 @@ toExprOp t op args = case op of
   where
   arg0 = args !! 0
   arg1 = args !! 1
+
+  mkEq I.TyBool = (.<=>)
+  mkEq _        = (.==)
 
   go t' op = do
     e0 <- toExpr t' arg0
@@ -431,8 +420,8 @@ addEnvVar t v = do
   declUpdateEnv t' v
 
 -- Call the appropriate cvc4lib functions.
-checkBoundedVar :: (Expr -> ModelCheck ()) -> I.Type -> Expr -> ModelCheck ()
-checkBoundedVar chk t e = getBounds t
+assertBoundedVar :: I.Type -> Expr -> ModelCheck ()
+assertBoundedVar t e = getBounds t
   where
   getBounds t' = case t' of
     I.TyWord w -> case w of
@@ -449,14 +438,29 @@ checkBoundedVar chk t e = getBounds t
 
     _         -> return ()
 
-  c f = chk (call f [e])
+  c f = addInvariant (call f [e])
 
-assertBoundedVar :: I.Type -> Expr -> ModelCheck ()
-assertBoundedVar = checkBoundedVar addInvariant
+subst :: [(I.Var, I.Expr)] -> I.Expr -> I.Expr
+subst su = loop
+  where
+  loop e = case e of
+    I.ExpSym{}             -> e
+    I.ExpVar v             -> case lookup v su of
+                               Nothing -> e
+                               Just e' -> e'
+    I.ExpLit{}             -> e
+    I.ExpOp op args        -> I.ExpOp op (map loop args)
+    I.ExpLabel t e0 s      -> I.ExpLabel t (loop e0) s
+    I.ExpIndex t e0 t1 e1  -> I.ExpIndex t (loop e0) t1 (loop e1)
+    I.ExpSafeCast t e0     -> I.ExpSafeCast t (loop e0)
+    I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
+    I.ExpAddrOfGlobal{}    -> e
+    I.ExpMaxMin{}          -> e
 
-ensureBoundedVar :: I.Type -> Expr -> ModelCheck ()
-ensureBoundedVar = checkBoundedVar addQuery
-
+queryEnsures :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
+queryEnsures ens t retE = do
+  exp <- toExpr t retE
+  mapM_ (addQuery . substExpr [("retval", exp)]) ens
 
 err :: String -> String -> a
 err f msg = error $ "in ivory-model-check. Unexpected: " ++ msg

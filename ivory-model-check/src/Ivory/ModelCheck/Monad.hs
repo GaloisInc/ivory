@@ -34,6 +34,7 @@ import qualified Data.Map.Lazy         as M
 
 import qualified Ivory.Language.Syntax as I
 import           Ivory.ModelCheck.CVC4 hiding (query, var)
+import qualified Ivory.Opts.Overflow   as I
 
 -- XXX
 --import Debug.Trace
@@ -82,7 +83,7 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symEnv   = mempty
                       , symSt    = mempty
                       , symQuery = mempty
-                      , symProcs = mempty
+                      , symProcs = overflowProcs
                       }
 
 mcVar :: String
@@ -315,3 +316,56 @@ instance Monoid SymExecSt where
                 }
 
 --------------------------------------------------------------------------------
+-- Contracts for overflow assertions
+
+overflowProcs = M.fromList $
+  map mkAdd is ++ map mkAdd ws ++ map mkSub is ++ map mkSub ws
+  where
+  is = map I.TyInt  [I.Int8,  I.Int16,  I.Int32,  I.Int64]
+  ws = map I.TyWord [I.Word8, I.Word16, I.Word32, I.Word64]
+
+mkAdd :: I.Type -> (I.Sym, I.Proc)
+mkAdd t = (nm, pc)
+  where
+  nm = "add_ovf_" ++ I.ext t
+  pc = I.Proc { I.procSym = nm
+              , I.procRetTy = I.TyBool
+              , I.procArgs = [I.Typed t v0, I.Typed t v1]
+              , I.procBody = []
+              , I.procRequires = []
+              , I.procEnsures = [I.Ensure $ I.CondBool $ I.ExpOp (I.ExpEq I.TyBool)
+                                 [ I.ExpVar I.retval
+                                 , I.ExpOp I.ExpAnd
+                                  [ I.ExpOp (I.ExpLt True t)
+                                    [minBound, I.ExpVar v0 + I.ExpVar v1]
+                                  , I.ExpOp (I.ExpGt True t)
+                                    [maxBound, I.ExpVar v0 + I.ExpVar v1]
+                                  ]
+                                 ]
+                                ]
+              }
+  v0 = I.VarName "var0"
+  v1 = I.VarName "var1"
+
+mkSub :: I.Type -> (I.Sym, I.Proc)
+mkSub t = (nm, pc)
+  where
+  nm = "sub_ovf_" ++ I.ext t
+  pc = I.Proc { I.procSym = nm
+              , I.procRetTy = I.TyBool
+              , I.procArgs = [I.Typed t v0, I.Typed t v1]
+              , I.procBody = []
+              , I.procRequires = []
+              , I.procEnsures = [I.Ensure $ I.CondBool $ I.ExpOp (I.ExpEq I.TyBool)
+                                 [ I.ExpVar I.retval
+                                 , I.ExpOp I.ExpAnd
+                                   [ I.ExpOp (I.ExpLt True t)
+                                     [minBound, I.ExpVar v0 - I.ExpVar v1]
+                                   , I.ExpOp (I.ExpGt True t)
+                                     [maxBound, I.ExpVar v0 - I.ExpVar v1]
+                                   ]
+                                 ]
+                                ]
+              }
+  v0 = I.VarName "var0"
+  v1 = I.VarName "var1"
