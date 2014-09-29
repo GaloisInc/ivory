@@ -126,7 +126,6 @@ fromOpExp env op args = case op of
   FromIx           -> mkUn  'I.fromIx
   ToCArray         -> mkUn  'I.toCArray
   ArrayLen         -> mkUn  'I.arrayLen
-  ConstRef         -> mkUn  'I.constRef
   SizeOf           -> mkUn  'I.sizeOf
   NullPtr          -> mkUn  'I.nullPtr
   RefToPtr         -> mkUn  'I.refToPtr
