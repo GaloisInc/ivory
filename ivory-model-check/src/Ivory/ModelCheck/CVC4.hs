@@ -115,8 +115,6 @@ data Expr = Var Var
           | forall a . (Show a, Concrete a, Num a) => NumLit a
           | Add      Expr Expr
           | Sub      Expr Expr
-          | Mul      Expr Expr
-          | Div      Expr Expr
           | Call     Func [Expr]
 
 deriving instance Show Expr
@@ -174,9 +172,6 @@ instance Concrete Expr where
   concrete (NumLit n)    = concrete n
   concrete (Add e0 e1)   = B.unwords [parens e0, "+", parens e1]
   concrete (Sub e0 e1)   = B.unwords [parens e0, "-", parens e1]
-  -- FIXME: probably shouldn't rely on SMT to handle any form of non-linear arithmetic
-  concrete (Mul e0 e1)   = B.unwords [parens e0, "*", parens e1]
-  concrete (Div e0 e1)   = B.unwords [parens e0, "/", parens e1]
   concrete (Call f args) = concrete f
                 `B.append` ('(' `B.cons` (args' `B.snoc` ')'))
     where
@@ -226,12 +221,6 @@ not' = Not
 
 (.-) :: Expr -> Expr -> Expr
 (.-) = Sub
-
-(.*) :: Expr -> Expr -> Expr
-(.*) = Mul
-
-(./) :: Expr -> Expr -> Expr
-(./) = Div
 
 lit :: (Show a, Concrete a, Num a) => a -> Expr
 lit = NumLit
@@ -316,11 +305,57 @@ modFunc = Statement $ B.unwords
   exp =   ((a .>= z) .&& (v .>= z) .&& (v .< b) .&& (v .<= a))
       .|| ((a .< z)  .&& (v .<= z) .&& (v .> b) .&& (v .>= a))
 
+----------------------------------------
+-- Mul
+
+mulAbs :: Func
+mulAbs = "mul"
+
+mulFunc :: Statement
+mulFunc = Statement $ B.unwords
+  [ B.pack mulAbs, ":", "(INT, INT, INT)", "->", "BOOLEAN"
+  , "=", "LAMBDA", "(v:INT, a:INT, b:INT)", ":"
+  , concrete exp
+  ]
+  where
+  v = var "v"
+  a = var "a"
+  b = var "b"
+  z = intLit 0
+  o = intLit 1
+  exp =   (((a .== z) .|| (b .== z)) .=> (v .== z))
+      .&& ((a .== o) .=> (v .== b))
+      .&& ((b .== o) .=> (v .== a))
+      .&& (((a .> o) .&& (b .> o)) .=> ((v .> a) .&& (v .> b)))
+  
+----------------------------------------
+-- Div
+
+divAbs :: Func
+divAbs = "div"
+
+divFunc :: Statement
+divFunc = Statement $ B.unwords
+  [ B.pack divAbs, ":", "(INT, INT, INT)", "->", "BOOLEAN"
+  , "=", "LAMBDA", "(v:INT, a:INT, b:INT)", ":"
+  , concrete exp
+  ]
+  where
+  v = var "v"
+  a = var "a"
+  b = var "b"
+  z = intLit 0
+  o = intLit 1
+  exp =   ((b .== o) .=> (v .== a))
+      .&& ((a .== z) .=> (v .== z))
+      .&& (((a .>= o) .&& (b .> o)) .=> ((v .>= z) .&& (v .< a)))
+
+
 cvc4Lib :: [Statement]
 cvc4Lib =
   [ word8Bound, word16Bound, word32Bound, word64Bound
   , int8Bound,  int16Bound,  int32Bound,  int64Bound
-  , modFunc
+  , modFunc, mulFunc, divFunc
   ]
 
 --------------------------------------------------------------------------------

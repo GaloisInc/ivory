@@ -79,7 +79,7 @@ modelCheck args m = do
   out  <- reverse <$> runCVC4 args file
   case out of
    ("valid":_) -> return (Inconsistent, file)
-   (_:results)
+   ("invalid":results)
      | all (=="valid") results -> return (Safe, file)
      | otherwise -> return (Unsafe bad, file)
      where
@@ -88,6 +88,7 @@ modelCheck args m = do
              | r <- results
              , r == "invalid"
              ]
+   _ -> return (Error (show out), file)
 
 --------------------------------------------------------------------------------
 

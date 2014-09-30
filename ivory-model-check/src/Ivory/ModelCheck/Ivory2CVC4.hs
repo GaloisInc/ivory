@@ -240,8 +240,8 @@ toExprOp t op args = case op of
   I.ExpMod        -> toMod t arg0 arg1
   I.ExpAdd        -> go t (.+)
   I.ExpSub        -> go t (.-)
-  I.ExpMul        -> go t (.*)
-  I.ExpDiv        -> go t (./)
+  I.ExpMul        -> toMul t arg0 arg1
+  I.ExpDiv        -> toDiv t arg0 arg1
   I.ExpNegate     ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg
@@ -272,6 +272,24 @@ toMod t e0 e1 = do
   b <- toExpr t e1
   let v' = var v
   addInvariant (call modAbs [v', a, b])
+  return v'
+
+toMul :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
+toMul t e0 e1 = do
+  v <- incReservedVar =<< toType t
+  a <- toExpr t e0
+  b <- toExpr t e1
+  let v' = var v
+  addInvariant (call mulAbs [v', a, b])
+  return v'
+
+toDiv :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
+toDiv t e0 e1 = do
+  v <- incReservedVar =<< toType t
+  a <- toExpr t e0
+  b <- toExpr t e1
+  let v' = var v
+  addInvariant (call divAbs [v', a, b])
   return v'
 
 --------------------------------------------------------------------------------
