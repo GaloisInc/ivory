@@ -115,6 +115,8 @@ data Expr = Var Var
           | forall a . (Show a, Concrete a, Num a) => NumLit a
           | Add      Expr Expr
           | Sub      Expr Expr
+          | Mul      Expr Expr
+          | Div      Expr Expr
           | Call     Func [Expr]
 
 deriving instance Show Expr
@@ -172,6 +174,9 @@ instance Concrete Expr where
   concrete (NumLit n)    = concrete n
   concrete (Add e0 e1)   = B.unwords [parens e0, "+", parens e1]
   concrete (Sub e0 e1)   = B.unwords [parens e0, "-", parens e1]
+  -- FIXME: probably shouldn't rely on SMT to handle any form of non-linear arithmetic
+  concrete (Mul e0 e1)   = B.unwords [parens e0, "*", parens e1]
+  concrete (Div e0 e1)   = B.unwords [parens e0, "/", parens e1]
   concrete (Call f args) = concrete f
                 `B.append` ('(' `B.cons` (args' `B.snoc` ')'))
     where
@@ -221,6 +226,12 @@ not' = Not
 
 (.-) :: Expr -> Expr -> Expr
 (.-) = Sub
+
+(.*) :: Expr -> Expr -> Expr
+(.*) = Mul
+
+(./) :: Expr -> Expr -> Expr
+(./) = Div
 
 lit :: (Show a, Concrete a, Num a) => a -> Expr
 lit = NumLit

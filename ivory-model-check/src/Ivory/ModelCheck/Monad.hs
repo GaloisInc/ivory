@@ -28,6 +28,8 @@ import           Prelude hiding (exp)
 import           Data.Maybe
 import           Data.List
 import           Data.Monoid
+import           Data.Int
+import           Data.Word
 import           Control.Applicative
 import           MonadLib
 import qualified Data.Map.Lazy         as M
@@ -318,8 +320,12 @@ instance Monoid SymExecSt where
 --------------------------------------------------------------------------------
 -- Contracts for overflow assertions
 
-overflowProcs = M.fromList $
-  map mkAdd is ++ map mkAdd ws ++ map mkSub is ++ map mkSub ws
+overflowProcs = M.fromList $ concat
+  [ map mkAdd is, map mkAdd ws
+  , map mkSub is, map mkSub ws
+  , map mkMul is, map mkMul ws
+  , map mkDiv is, map mkDiv ws
+  ]
   where
   is = map I.TyInt  [I.Int8,  I.Int16,  I.Int32,  I.Int64]
   ws = map I.TyWord [I.Word8, I.Word16, I.Word32, I.Word64]
@@ -363,6 +369,87 @@ mkSub t = (nm, pc)
                                      [minBound, I.ExpVar v0 - I.ExpVar v1]
                                    , I.ExpOp (I.ExpGt True t)
                                      [maxBound, I.ExpVar v0 - I.ExpVar v1]
+                                   ]
+                                 ]
+                                ]
+              }
+  v0 = I.VarName "var0"
+  v1 = I.VarName "var1"
+
+-- NOTE: very crude approximation of multiplication overflow
+mkMul :: I.Type -> (I.Sym, I.Proc)
+mkMul t = (nm, pc)
+  where
+  nm = "mul_ovf_" ++ I.ext t
+  pc = I.Proc { I.procSym = nm
+              , I.procRetTy = I.TyBool
+              , I.procArgs = [I.Typed t v0, I.Typed t v1]
+              , I.procBody = []
+              , I.procRequires = []
+              , I.procEnsures = [ I.Ensure $ I.CondBool $ I.ExpOp (I.ExpEq I.TyBool)
+                                  [ I.ExpVar I.retval
+                                  , I.ExpOp I.ExpAnd
+                                    [ I.ExpOp I.ExpOr
+                                      [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v0, minBound ]
+                                      , I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, (-1) ]
+                                      ]
+                                    , I.ExpOp I.ExpAnd
+                                      [ I.ExpOp I.ExpOr
+                                        [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, minBound ]
+                                        , I.ExpOp (I.ExpNeq t) [ I.ExpVar v0, (-1) ]
+                                        ]
+                                      , I.ExpOp I.ExpOr
+                                        [ I.ExpOp (I.ExpEq t) [ I.ExpVar v0, 0 ]
+                                        , I.ExpOp I.ExpOr
+                                          [ I.ExpOp (I.ExpEq t) [ I.ExpVar v1, 0 ]
+                                          , I.ExpOp I.ExpAnd
+                                            [ I.ExpOp (I.ExpLt True t)
+                                              [ I.ExpVar v0, sqrtMax ]
+                                            , I.ExpOp (I.ExpLt True t)
+                                              [ I.ExpVar v1, sqrtMax ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+              }
+  v0 = I.VarName "var0"
+  v1 = I.VarName "var1"
+
+  sqrtMax :: I.Expr
+  sqrtMax = fromInteger . floor . sqrt . fromInteger $ max
+  max :: Integer
+  max = case t of 
+          I.TyInt (I.Int8)    -> toInteger (maxBound :: Int8)
+          I.TyInt (I.Int16)   -> toInteger (maxBound :: Int16)
+          I.TyInt (I.Int32)   -> toInteger (maxBound :: Int32)
+          I.TyInt (I.Int64)   -> toInteger (maxBound :: Int64)
+          I.TyWord (I.Word8)  -> toInteger (maxBound :: Word8)
+          I.TyWord (I.Word16) -> toInteger (maxBound :: Word16)
+          I.TyWord (I.Word32) -> toInteger (maxBound :: Word32)
+          I.TyWord (I.Word64) -> toInteger (maxBound :: Word64)
+
+
+mkDiv :: I.Type -> (I.Sym, I.Proc)
+mkDiv t = (nm, pc)
+  where
+  nm = "div_ovf_" ++ I.ext t
+  pc = I.Proc { I.procSym = nm
+              , I.procRetTy = I.TyBool
+              , I.procArgs = [I.Typed t v0, I.Typed t v1]
+              , I.procBody = []
+              , I.procRequires = []
+              , I.procEnsures = [I.Ensure $ I.CondBool $ I.ExpOp (I.ExpEq I.TyBool)
+                                 [ I.ExpVar I.retval
+                                 , I.ExpOp I.ExpAnd
+                                   [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, 0]
+                                   --NOTE: this could be omitted in the unsigned case
+                                   , I.ExpOp I.ExpOr
+                                     [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v0, minBound ]
+                                     , I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, (-1)]
+                                     ]
                                    ]
                                  ]
                                 ]

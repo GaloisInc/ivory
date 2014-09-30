@@ -42,7 +42,8 @@ modelCheckProc I.Proc { I.procSym      = sym
   = do
   mapM_ toParam args
   mapM_ toRequire requires
-  addEnvVar ret "retval"
+  unless (ret == I.TyVoid) $
+    void $ addEnvVar ret "retval"
   ens <- mapM toEnsure ensures
   mapM_ (toBody ens) body
 
@@ -239,6 +240,8 @@ toExprOp t op args = case op of
   I.ExpMod        -> toMod t arg0 arg1
   I.ExpAdd        -> go t (.+)
   I.ExpSub        -> go t (.-)
+  I.ExpMul        -> go t (.*)
+  I.ExpDiv        -> go t (./)
   I.ExpNegate     ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg

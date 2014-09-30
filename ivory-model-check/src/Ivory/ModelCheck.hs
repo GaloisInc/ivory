@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ParallelListComp #-}
 --XXX testing
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
@@ -17,8 +18,10 @@ import           System.FilePath.Posix
 import           System.Directory
 import           System.Process
 import           System.IO
+import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString.Char8       as B
+import           Data.List
 
 -- XXX testing
 import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
@@ -46,16 +49,45 @@ initArgs = Args
 
 --------------------------------------------------------------------------------
 
-modelCheck' :: I.Module -> IO ()
-modelCheck' = modelCheck initArgs
+data Result = Safe | Unsafe [String] | Inconsistent | Error String
+            deriving (Show, Eq)
 
-modelCheck :: Args -> I.Module -> IO ()
+isSafe Safe = True
+isSafe _    = False
+
+isUnsafe (Unsafe _) = True
+isUnsafe _          = False
+
+showResult :: Result -> String
+showResult Safe         = "Safe"
+showResult Inconsistent = "Inconsistent"
+showResult (Unsafe qs)  = "Unsafe: " ++ intercalate ", " qs
+showResult (Error e)    = "Error: " ++ e
+
+modelCheck' :: I.Module -> IO ()
+modelCheck' mod = do
+  (res, file) <- modelCheck initArgs mod
+  print file
+  print res
+
+modelCheck :: Args -> I.Module -> IO (Result, FilePath)
 modelCheck args m = do
   let (_, st) = runMC (modelCheckMod m)
   let bs = B.unlines (mkScript st)
   debugging args st bs
   file <- writeInput bs
-  printResults st =<< runCVC4 args file
+  out  <- reverse <$> runCVC4 args file
+  case out of
+   ("valid":_) -> return (Inconsistent, file)
+   (_:results)
+     | all (=="valid") results -> return (Safe, file)
+     | otherwise -> return (Unsafe bad, file)
+     where
+       bad = [ B.unpack $ concrete q
+             | q <- reverse $ tail $ allQueries st
+             | r <- results
+             , r == "invalid"
+             ]
 
 --------------------------------------------------------------------------------
 
@@ -125,7 +157,7 @@ writeInput bs = do
   let tempDir = dir </> "cvc4-inputs"
   createDirectoryIfMissing False tempDir
   (file, hd) <- openTempFile tempDir "cvc4input.cvc"
-  putStrLn $ "Created temp file " ++ file ++ "\n"
+  -- putStrLn $ "Created temp file " ++ file ++ "\n"
   B.hPut hd bs
   hClose hd
   return file
@@ -152,185 +184,3 @@ printResults st results = do
   where
   printRes (q,res) = printf "%-30s : %s\n" (B.unpack q) res
 
---------------------------------------------------------------------------------
--- XXX testing
-
-str :: B.ByteString
-str = B.pack "QUERY TRUE;"
-
-foo1 :: Def ('[Uint8, Uint8] :-> ())
-foo1 = L.proc "foo1" $ \y x -> body $ do
-  ifte_ (y <? 3)
-    (do ifte_ (y ==? 3)
-              (L.assert $ y ==? 0)
-              retVoid)
-    (do z <- assign x
-        -- this *should* fail
-        L.assert (z >=? 3))
-  retVoid
-
-m1 :: Module
-m1 = package "foo1" (incl foo1)
-
------------------------
-
-foo2 :: Def ('[] :-> ())
-foo2 = L.proc "foo2" $ body $ do
-  x <- local (ival (0 :: Uint8))
-  store x 3
-  y <- assign x
-  z <- deref y
-  L.assert (z ==? 3)
-  retVoid
-
-m2 :: Module
-m2 = package "foo2" (incl foo2)
-
------------------------
-
-foo3 :: Def ('[] :-> ())
-foo3 = L.proc "foo3" $ body $ do
-  x <- local (ival (1 :: Sint32))
-  -- since ivory loops are bounded, we can just unroll the whole thing!
-  for (toIx (2 :: Sint32) :: Ix 4) $ \ix -> do
-    store x (fromIx ix)
-    y <- deref x
-    L.assert ((y <? 4) L..&& (y >=? 0))
-
-m3 :: Module
-m3 = package "foo3" (incl foo3)
-
------------------------
-
-foo4 :: Def ('[] :-> ())
-foo4 = L.proc "foo4" $ body $ do
-  x <- local (ival (1 :: Sint32))
-  -- store x (7 .% 2)
-  -- store x (4 .% 3)
-  store x 1
-  y <- deref x
-  -- L.assert (y <? 2)
-  L.assert (y ==? 1)
-
-m4 :: Module
-m4 = package "foo4" (incl foo4)
-
------------------------
-
-foo5 :: Def ('[] :-> ())
-foo5 = L.proc "foo5" $ body $ do
-  x <- local (ival (1 :: Sint32))
-  -- for loops from 0 to n-1, inclusive
-  for (toIx (9 :: Sint32) :: Ix 10) $ \ix -> do
-    store x (fromIx ix)
-    y <- deref x
-    L.assert (y <=? 10)
-  y <- deref x
-  L.assert ((y ==? 8))
-
-m5 :: Module
-m5 = package "foo5" (incl foo5)
-
------------------------
-
-foo6 :: Def ('[Uint8] :-> ())
-foo6 = L.proc "foo1" $ \x -> body $ do
-  y <- local (ival (0 :: Uint8))
-  ifte_ (x <? 3)
-        (do a <- local (ival (9 :: Uint8))
-            b <- deref a
-            store y b
-        )
-        (do a <- local (ival (7 :: Uint8))
-            b <- deref a
-            store y b
-        )
-  z <- deref y
-  L.assert (z <=? 9)
-  L.assert (z >=? 7)
-
-m6 :: Module
-m6 = package "foo6" (incl foo6)
-
------------------------
-
-foo7 :: Def ('[Uint8, Uint8] :-> Uint8)
-foo7 = L.proc "foo7" $ \x y -> body $ do
-  ret (x + y)
-
-m7 :: Module
-m7 = package "foo7" (incl foo7)
-
------------------------
-
-foo8 :: Def ('[Uint8] :-> Uint8)
-foo8 = L.proc "foo8" $ \x -> body $ do
-  let y = x .% 3
-  L.assert (y <? 4)
-  ret y
-
-m8 :: Module
-m8 = package "foo8" (incl foo8)
-
------------------------
-
-[ivory|
-struct foo
-{ aFoo :: Stored Uint8
-; bFoo :: Stored Uint8
-}
-|]
-
-foo9 :: Def ('[Ref s (L.Struct "foo")] :-> ())
-foo9 = L.proc "foo9" $ \f -> body $ do
-  store (f ~> aFoo) 3
-  store (f ~> bFoo) 1
-  store (f ~> aFoo) 4
-  x <- deref (f ~> aFoo)
-  y <- deref (f ~> bFoo)
-  L.assert (x ==? 4 L..&& y ==? 1)
-
-m9 :: Module
-m9 = package "foo9" (incl foo9)
-
------------------------
-
-foo10 :: Def ('[Uint8] :-> Uint8)
-foo10 = L.proc "foo10" $ \x ->
-        requires (x <? 10)
-      $ ensures (\r -> r ==? x + 1)
-      $ body $ do
-        r <- assign $ x + 1
-        ret r
-
-m10 :: Module
-m10 = package "foo10" (incl foo10)
-    
------------------------
-
-foo11 :: Def ('[Ix 10] :-> ())
-foo11 = L.proc "foo11" $ \n -> 
-        requires (0 <=? n)
-      $ requires (n <? 10)
-      $ body $ do
-          x <- local (ival (0 :: Sint8))
-          for n $ \i -> do
-            x' <- deref x
-            store x $ x' + safeCast i
-
-m11 :: Module
-m11 = package "foo11" (incl foo11)
-
------------------------
-
-foo12 :: Def ('[Uint8] :-> Uint8)
-foo12 = L.proc "foo12" $ \n -> 
-        ensures (\r -> r ==? n)
-      $ body $ do
-          ifte_ (n ==? 0)
-            (ret n)
-            (do n' <- L.call foo12 (n-1)
-                ret (n' + 1))
-
-m12 :: Module
-m12 = package "foo12" (incl foo12)
