@@ -15,6 +15,7 @@ type RefVar    = String
 type IxVar     = String
 type TypeVar   = String
 type FieldNm   = String
+type MacroVar  = String
 
 --------------------------------------------------------------------------------
 
@@ -22,7 +23,34 @@ type FieldNm   = String
 data GlobalSym = GlobalProc ProcDef
                | GlobalStruct StructDef
                | GlobalBitData BitDataDef
+               | GlobalTypeDef TypeDef
+               | GlobalConstDef ConstDef
+               | GlobalInclude IncludeDef
   deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Includes
+
+data IncludeDef = IncludeDef
+  { inclModule :: String
+  } deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Constant definition
+
+data ConstDef = ConstDef
+  { constSym  :: String
+  , constExp  :: Exp
+  , constType :: Maybe Type
+  } deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Type definition
+
+data TypeDef = TypeDef
+  { tySym :: String
+  , tyDef :: Type
+  } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Procs
@@ -51,22 +79,15 @@ data Type
   | TyChar                     -- ^ Characters
   | TyFloat                    -- ^ Floats
   | TyDouble                   -- ^ Doubles
-  | TyRef      Scope Area      -- ^ References
-  | TyConstRef Scope Area      -- ^ Constant References
   -- XXX
   -- | TyPtr Type              -- ^ Pointers
   | TyIx Integer               -- ^ Index type
-  | TyArea Area                -- ^ Area types
+  | TyStored Type              -- ^ References
+  | TyStruct String            -- ^ Structures
+  | TyArray Type Integer       -- ^ Arrays of fixed lignth
+  | TyRef      Scope Type      -- ^ References
+  | TyConstRef Scope Type      -- ^ Constant References
   | TySynonym String           -- ^ Type synonym
-  deriving (Show, Read, Eq, Ord)
-
-data Area =
-    TyStruct String            -- ^ Structures
-  | TyArray Area Integer       -- ^ Arrays of fixed length
-  -- XXX
-  --  | TyCArray Area          -- ^ C Arrays
-  | TyStored Type
-  | AreaSynonym String         -- ^ Synonym
   deriving (Show, Read, Eq, Ord)
 
 data Scope =
@@ -105,12 +126,13 @@ data Exp
   = ExpLit Literal
   | ExpVar Var
   | ExpRet -- Used only in post-conditions
-  | ExpDeref Exp -- Note: these are statements in Ivory.
   | ExpOp ExpOp [Exp]
-  | ExpArrIxRef RefVar Exp
-  | ExpFieldRef RefVar FieldNm
-  | ExpAnti String
-    -- ^ Ivory antiquotation
+  | IvoryMacroExp (String,[Exp])
+  | ExpDeref  Exp
+  | ExpArray  Exp Exp
+  | ExpStruct Exp Exp
+  | ExpCall FnSym [Exp]
+  | ExpAddrOf Var
   deriving (Show, Read, Eq, Ord)
 
 data ExpOp
@@ -169,11 +191,28 @@ data ExpOp
 
   | ConstRefOp
 
+  | SafeCast
+  | BitCast
+  | CastWith
+  | TwosCompCast
+  | TwosCompRep
+
+  | ToIx
+  | FromIx
+  | IxSize
+  | ArrayLen
+  | ConstRef
+  | SizeOf
+  | NullPtr
+  | RefToPtr
+  | ToCArray
+
   deriving (Show, Read, Eq, Ord)
 
 data AllocRef
-  = AllocBase RefVar Exp
-  | AllocArr  RefVar [Exp]
+  = AllocBase    RefVar (Maybe Exp)
+  | AllocArr     RefVar [Exp]
+  | AllocStruct  RefVar [(FieldNm, Exp)]
   deriving (Show, Read, Eq, Ord)
 
 -- | AST for parsing C-like statements.
@@ -184,20 +223,17 @@ data Stmt
   | Return Exp
   | ReturnVoid
   -- Deref dereferencing is an expression in our language here.
-  | Store RefLVal Exp
-  | Assign Var Exp
-  | Call (Maybe Var) FnSym [Exp]
+  | Store Exp Exp
+  | Assign Var Exp (Maybe Type)
+  | NoBindCall Var [Exp]
   | RefCopy Exp Exp
 -- Local is AllocRef
   | AllocRef AllocRef
-  | Loop IxVar [Stmt]
+  | MapArr IxVar [Stmt]
+  | UpTo Exp IxVar [Stmt]
   | Forever [Stmt]
+  | IvoryMacroStmt (Maybe Var) (String, [Exp])
 -- Break XXX Too dangerous (and difficult) for non-macro use?
-  deriving (Show, Read, Eq, Ord)
-
-data RefLVal
-  = RefVar RefVar
-  | ArrIx RefVar Exp
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -220,7 +256,7 @@ ivoryStringStructName = ("ivory_string_" ++)
 
 data Field = Field
   { fieldName :: FieldNm
-  , fieldType :: Area
+  , fieldType :: Type
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -266,3 +302,4 @@ data BitField = BitField
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
+

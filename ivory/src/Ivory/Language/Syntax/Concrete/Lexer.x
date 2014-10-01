@@ -14,7 +14,7 @@
 
 module Ivory.Language.Syntax.Concrete.Lexer where
 
-import Prelude hiding (lex)
+import Prelude hiding (lex, id)
 import Data.Char (digitToInt)
 import Numeric (readInt)
 
@@ -26,25 +26,29 @@ import Numeric (readInt)
 --------------------------------------------------------------------------------
 
 $digit       = 0-9
+$hexdig      = [0-9A-Fa-f]
 $alpha       = [a-zA-Z]
 $lowerletter = [a-z]
 $capletter   = [A-Z]
 
-@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \: \# \_]+
+@sym         = [\/ \* \+ \- \= \< \> \! \% \| \& \^ \~ \? \: \# \_ \. \$ \@]+
 @tyident     = $capletter   [$alpha $digit [_ \']]*
 @ident       = $lowerletter [$alpha $digit [_ \']]*
 @brack       = [\( \) \[ \] \{ \}]
 @sep         = [\, \;]
 @filepath    = \" [$printable # \" # $white]+ \"
 @bitlit      = $digit+ b [0 1]+
+@hexlit      = 0x $hexdig+
+
 --------------------------------------------------------------------------------
 
 tokens :-
   $white+ ;
   "--".*  ;
 
-  $digit+ { lex (TokInteger . read) }
-  @bitlit { lex readBitLit }
+  $digit+      { lex (TokInteger . read) }
+  @hexlit      { lex (TokInteger . read) }
+  @bitlit      { lex readBitLit }
 
 -- Reserved words: statements
   if       { lexReserved }
@@ -56,48 +60,68 @@ tokens :-
   let      { lexReserved }
   return   { lexReserved }
   alloc    { lexReserved }
-  memcpy   { lexReserved }
+  store    { lexReserved }
+  as       { lexReserved }
   map      { lexReserved }
+  upTo     { lexReserved }
   forever  { lexReserved }
 
 -- Reserved words: expressions
-  abs     { lexReserved }
-  signum  { lexReserved }
-  exp     { lexReserved }
-  sqrt    { lexReserved }
-  log     { lexReserved }
-  pow     { lexReserved }
+  abs              { lexReserved }
+  signum           { lexReserved }
+  exp              { lexReserved }
+  sqrt             { lexReserved }
+  log              { lexReserved }
+  pow              { lexReserved }
 
-  sin     { lexReserved }
-  cos     { lexReserved }
-  tan     { lexReserved }
+  sin              { lexReserved }
+  cos              { lexReserved }
+  tan              { lexReserved }
 
-  asin    { lexReserved }
-  acos    { lexReserved }
-  atan    { lexReserved }
+  asin             { lexReserved }
+  acos             { lexReserved }
+  atan             { lexReserved }
 
-  sinh    { lexReserved }
-  cosh    { lexReserved }
-  tanh    { lexReserved }
+  sinh             { lexReserved }
+  cosh             { lexReserved }
+  tanh             { lexReserved }
 
-  asinh   { lexReserved }
-  acosh   { lexReserved }
-  atanh   { lexReserved }
+  asinh            { lexReserved }
+  acosh            { lexReserved }
+  atanh            { lexReserved }
 
-  isnan   { lexReserved }
-  isinf   { lexReserved }
-  round   { lexReserved }
-  ceil    { lexReserved }
-  floor   { lexReserved }
-  const   { lexReserved }
+  isnan            { lexReserved }
+  isinf            { lexReserved }
+  round            { lexReserved }
+  ceil             { lexReserved }
+  floor            { lexReserved }
+  const            { lexReserved }
 
-  memcpy  { lexReserved }
+  memcpy           { lexReserved }
+
+  safeCast         { lexReserved }
+  bitCast          { lexReserved }
+  castWith         { lexReserved }
+  twosCompCast     { lexReserved }
+  twosCompRep      { lexReserved }
+
+  fromIx           { lexReserved }
+  ixSize           { lexReserved }
+  toIx             { lexReserved }
+  toCArray         { lexReserved }
+  arrayLen         { lexReserved }
+
+  constRef         { lexReserved }
+  sizeOf           { lexReserved }
+  nullPtr          { lexReserved }
+  refToPtr         { lexReserved }
 
 -- Reserved words
-
   struct   { lexReserved }
   abstract { lexReserved }
   string   { lexReserved }
+  type     { lexReserved }
+  include  { lexReserved }
 
   -- C style
   bool     { lexReserved }
@@ -116,10 +140,15 @@ tokens :-
   uint32_t { lexReserved }
   uint64_t { lexReserved }
 
+  ix_t     { lexReserved }
+
   S        { lexReserved }
   G        { lexReserved }
 
   -- Haskell style
+  Stack    { lexReserved }
+  Global   { lexReserved }
+
   IBool    { lexReserved }
   IChar    { lexReserved }
   IFloat   { lexReserved }
@@ -143,15 +172,11 @@ tokens :-
 
   Ix       { lexReserved }
 
-  Stack    { lexReserved }
-  Global   { lexReserved }
-
   -- Bit data
   bitdata  { lexReserved }
   Bit      { lexReserved }
   Bits     { lexReserved }
   BitArray { lexReserved }
-  as       { lexReserved }
 
 -- Identifiers
   @ident    { lex TokIdent }
@@ -194,6 +219,7 @@ readBin s =
 -- Token types:
 data Token =
     TokInteger Integer
+  | TokHex Integer
   | TokBitLit (Integer, Integer) -- width, value (e.g., 5b0101)
   | TokIdent String
   | TokTyIdent String
@@ -201,7 +227,6 @@ data Token =
   | TokSym String
   | TokBrack String
   | TokSep String
-  | TokQuote
   | TokFilePath String
   | TokEOF
   deriving (Show, Read, Eq)

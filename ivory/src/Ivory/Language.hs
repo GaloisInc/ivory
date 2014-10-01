@@ -6,6 +6,10 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
+-- XXX
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Ivory.Language (
     -- * Kinds
     Area(..)
@@ -44,8 +48,10 @@ module Ivory.Language (
     -- ** Characters
   , IChar(), char
 
-    -- ** Strings
+    -- ** Constant strings
   , IString()
+    -- ** Dynamic bounded-length strings
+  , IvoryString(..)
 
     -- ** Signed Integers
   , Sint8()
@@ -97,6 +103,7 @@ module Ivory.Language (
     -- ** Bit operators
   , IvoryBits((.&),(.|),(.^),iComplement,iShiftL,iShiftR, iBitSize), extractByte
   , BitSplit(lbits, ubits), BitCast(bitCast)
+  , TwosComplementCast(twosComplementCast, twosComplementRep)
 
     -- ** Bit data
 
@@ -155,9 +162,7 @@ module Ivory.Language (
   , arrayLen
   , toCArray
   , ANat
-
-    -- ** Strings
-  , IvoryString(..)
+  , fromTypeNat
 
     -- ** Looping
   , for, times
@@ -198,6 +203,9 @@ module Ivory.Language (
 
   ) where
 
+-- XXX
+import Language.Haskell.TH hiding (Body)
+
 import Ivory.Language.Area
 import Ivory.Language.Array
 import Ivory.Language.Assert
@@ -235,3 +243,18 @@ import Ivory.Language.BitData.BitData
 import Ivory.Language.BitData.Bits
 import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
+
+
+
+foo = runQ $ pragSpecD (mkName "foo") (conT (mkName "Int")) AllPhases
+
+[ivory|
+
+uint8_t bar = 3;
+bar2 = 3;
+
+uint8_t pro() {
+  let uint8_t xx = 3;
+  return xx;
+}
+|]

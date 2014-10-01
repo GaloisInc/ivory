@@ -109,11 +109,13 @@ mkLabel sym f =
   where
   field = mkName (fieldName f)
 
-mkType :: Area -> TypeQ
-mkType a = runToQ (fromArea a) >>= (return . fst)
+mkType :: Type -> TypeQ
+mkType area = do
+  ty <- runToQ $ fromType $ maybeAddStored area
+  return (fst ty)
 
 -- | Turn a parsed type into its AST representation.
-mkTypeE :: Area -> ExpQ
+mkTypeE :: Type -> ExpQ
 mkTypeE ty =
   appE (varE 'A.ivoryArea)
        (sigE (conE 'Proxy)
@@ -143,6 +145,7 @@ mkStringDef ty_s len = do
   let struct_def = StructDef struct_s [data_f, len_f]
 
   d1 <- fromStruct struct_def
+--  sizeofDef <- mkIvorySizeOf struct_s
   d2 <- sequence
     [ tySynD ty_n [] struct_t
     , instanceD (cxt []) (appT (conT ''S.IvoryString) struct_t)

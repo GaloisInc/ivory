@@ -8,6 +8,10 @@
 --
 -- Parser.hs file is generated!
 
+-- TODO
+-- Fix types to allow type syns at all levels
+-- explicit types for allocs, lets, top-level defs
+
 module Ivory.Language.Syntax.Concrete.Parser where
 
 import Ivory.Language.Syntax.Concrete.ParseAST
@@ -22,11 +26,11 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %error     { parseError }
 
 %token
-  integer     { TokInteger $$ }
-  bitlit      { TokBitLit $$ }
-  ident       { TokIdent $$ }
-  tyident     { TokTyIdent $$ }
-  fp          { TokFilePath $$ }
+  integer      { TokInteger $$ }
+  bitlit       { TokBitLit $$ }
+  identifier   { TokIdent $$ }
+  tyidentifier { TokTyIdent $$ }
+  fp           { TokFilePath $$ }
 
   -- Statements
   if       { TokReserved "if" }
@@ -38,40 +42,65 @@ import Ivory.Language.Syntax.Concrete.Lexer
   assign   { TokReserved "let" }
   return   { TokReserved "return" }
   alloc    { TokReserved "alloc" }
+  store    { TokReserved "store" }
   refCopy  { TokReserved "memcpy" }
-  loop     { TokReserved "map" }
+  mapArr   { TokReserved "map" }
+  upTo     { TokReserved "upTo" }
   forever  { TokReserved "forever" }
 
+  -- Start of Ivory macros
+  iMacro   { TokSym "$" }
+
  -- Expressions
-  abs     { TokReserved "abs" }
-  signum  { TokReserved "signum" }
-  expOp   { TokReserved "exp" }
-  sqrt    { TokReserved "sqrt" }
-  log     { TokReserved "log" }
-  pow     { TokReserved "pow" }
+  abs          { TokReserved "abs" }
+  signum       { TokReserved "signum" }
+  expOp        { TokReserved "exp" }
+  sqrt         { TokReserved "sqrt" }
+  log          { TokReserved "log" }
+  pow          { TokReserved "pow" }
 
-  sin     { TokReserved "sin" }
-  cos     { TokReserved "cos" }
-  tan     { TokReserved "tan" }
+  sin          { TokReserved "sin" }
+  cos          { TokReserved "cos" }
+  tan          { TokReserved "tan" }
 
-  asin    { TokReserved "asin" }
-  acos    { TokReserved "acos" }
-  atan    { TokReserved "atan" }
+  asin         { TokReserved "asin" }
+  acos         { TokReserved "acos" }
+  atan         { TokReserved "atan" }
 
-  sinh    { TokReserved "sinh" }
-  cosh    { TokReserved "cosh" }
-  tanh    { TokReserved "tanh" }
+  sinh         { TokReserved "sinh" }
+  cosh         { TokReserved "cosh" }
+  tanh         { TokReserved "tanh" }
 
-  asinh   { TokReserved "asinh" }
-  acosh   { TokReserved "acosh" }
-  atanh   { TokReserved "atanh" }
+  asinh        { TokReserved "asinh" }
+  acosh        { TokReserved "acosh" }
+  atanh        { TokReserved "atanh" }
 
-  isnan   { TokReserved "isnan" }
-  isinf   { TokReserved "isinf" }
-  round   { TokReserved "round" }
-  ceil    { TokReserved "ceil" }
-  floor   { TokReserved "floor" }
-  const   { TokReserved "const" }
+  isnan        { TokReserved "isnan" }
+  isinf        { TokReserved "isinf" }
+  round        { TokReserved "round" }
+  ceil         { TokReserved "ceil" }
+  floor        { TokReserved "floor" }
+  const        { TokReserved "const" }
+
+  -- Casting
+  safeCast         { TokReserved "safeCast" }
+  bitCast          { TokReserved "bitCast" }
+  castWith         { TokReserved "castWith" }
+  twosCompCast     { TokReserved "twosCompCast" }
+  twosCompRep      { TokReserved "twosCompRep" }
+
+  -- Other internals
+
+  fromIx           { TokReserved "fromIx" }
+  ixSize           { TokReserved "ixSize" }
+  toIx             { TokReserved "toIx" }
+  toCArray         { TokReserved "toCArray" }
+  arrayLen         { TokReserved "arrayLen" }
+
+  constRef         {  TokReserved "constRef" }
+  sizeOf           { TokReserved "sizeOf" }
+  nullPtr          { TokReserved "nullPtr" }
+  refToPtr         { TokReserved "refToPtr" }
 
   -- Type
   '::'      { TokSym "::" }
@@ -80,7 +109,8 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ':'       { TokSym ":" }
 
   -- Struct field dereference
-  '&>'      { TokSym "&>" }
+  '.'       { TokSym "." }
+  '->'      { TokSym "->" }
 
   '=='      { TokSym "==" }
   '!='      { TokSym "!=" }
@@ -123,6 +153,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ';'       { TokSep ";" }
   ','       { TokSep "," }
 
+  '@'       { TokSym "@" }
+  '<-'      { TokSym "<-" }
+
   -- Types
   bool     { TokReserved "bool" }
   char     { TokReserved "char" }
@@ -159,6 +192,7 @@ import Ivory.Language.Syntax.Concrete.Lexer
   Uint64   { TokReserved "Uint64" }
 
   Ix       { TokReserved "Ix" }
+  ix_t     { TokReserved "ix_t" }
 
   Ref      { TokReserved "Ref" }
   ConstRef { TokReserved "ConstRef" }
@@ -173,6 +207,9 @@ import Ivory.Language.Syntax.Concrete.Lexer
   struct   { TokReserved "struct" }
   abstract { TokReserved "abstract" }
   string   { TokReserved "string" }
+
+  ty       { TokReserved "type" }
+  include  { TokReserved "include" }
 
   -- Bit data
   bitdata  { TokReserved "bitdata" }
@@ -192,14 +229,16 @@ import Ivory.Language.Syntax.Concrete.Lexer
 %left '&&'
 %left '|'
 %left '^'
-%left '&'
 %nonassoc '==' '!='
 %nonassoc '<' '<=' '>' '>='
 %left '<<' '>>'
 %left '+' '-'
 %left '*' '/' '%'
 %right '*' '~' '!' '-'
-%left '&>'
+-- '[' assumed to be followed by ']'
+%left '.' '@' '->' '['
+-- Tighter than normal binding
+%right '&'
 %right
   abs
   signum
@@ -225,17 +264,33 @@ import Ivory.Language.Syntax.Concrete.Lexer
   ceil
   floor
   const
-
 %%
 
 ----------------------------------------
 -- Top-level definitions
 
 defs :: { [GlobalSym] }
-defs : defs procDef       { GlobalProc    $2 : $1 }
-     | defs structDef     { GlobalStruct  $2 : $1 }
-     | defs bdDef         { GlobalBitData $2 : $1 }
+defs : defs procDef       { GlobalProc     $2 : $1 }
+     | defs structDef     { GlobalStruct   $2 : $1 }
+     | defs bdDef         { GlobalBitData  $2 : $1 }
+     | defs typeDef       { GlobalTypeDef  $2 : $1 }
+     | defs constDef      { GlobalConstDef $2 : $1 }
+     | defs includeDef    { GlobalInclude  $2 : $1 }
      | {- empty -}        { [] }
+
+----------------------------------------
+-- Include other modules (Ivory's "depend")
+
+includeDef :: { IncludeDef }
+includeDef : include ident { IncludeDef $2 }
+
+----------------------------------------
+-- Constant definitions
+
+constDef :: { ConstDef }
+constDef :
+         ident '=' exp ';' { ConstDef $1 $3 Nothing   }
+  | type ident '=' exp ';' { ConstDef $2 $4 (Just $1) }
 
 ----------------------------------------
 -- Procs
@@ -246,7 +301,7 @@ procDef :
     '{' stmts '}' prePostBlk { ProcDef $1 $2 (reverse $4) (reverse $7) $9 }
 
 tyArg :: { (Type, Var) }
-tyArg : type tyident { ($1, $2) }
+tyArg : type ident { ($1, $2) }
 
 -- Zero or more typed arguments, separated by arbitrary many ','s.
 args :: { [(Type, Var)] }
@@ -278,83 +333,105 @@ simpleStmt :: { Stmt }
 simpleStmt :
     assert exp                    { Assert $2 }
   | assume exp                    { Assume $2 }
-  | assign ident '=' exp          { Assign $2 $4 }
+  | assign      ident '=' exp     { Assign $2 $4 Nothing   }
+  | assign type ident '=' exp     { Assign $3 $5 (Just $2) }
   | return                        { ReturnVoid }
   | return exp                    { Return $2 }
-  | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 $5) }
+
+  -- Allocation
+  | alloc '*' ident               { AllocRef (AllocBase $3 Nothing) }
+  | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 (Just $5)) }
+
+  | alloc ident '[' ']'           { AllocRef (AllocArr $2 []) }
   | alloc ident '[' ']' '='
       '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
+
+  | alloc ident                   { AllocRef (AllocStruct $2 []) }
+  | alloc ident '='
+      '{' fieldAssigns '}'        { AllocRef (AllocStruct $2 (reverse $5)) }
+
   | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
-  | '*' ident '=' exp             { Store (RefVar $2) $4 }
-  | '*' arrExp '=' exp            { Store (ArrIx (fst $2) (snd $2)) $4 }
-  | ident '(' exps ')'            { Call Nothing $1 (reverse $3) }
-  | ident '=' ident '(' exps ')'  { Call (Just $1) $3 (reverse $5) }
+
+  -- Storing
+  | store exp as exp              { Store $2 $4 }
+
+  -- Function calls
+  | ident expArgs                 { NoBindCall $1 $2 }
+
+  | ivoryMacro                    {IvoryMacroStmt Nothing $1 }
+  | ident '<-' ivoryMacro         {IvoryMacroStmt (Just $1) $3 }
+
+ivoryMacro :: { (String, [Exp]) }
+ivoryMacro : iMacro ident          { ($2, []) }
+           | iMacro ident expArgs  { ($2, $3) }
 
 blkStmt :: { Stmt }
 blkStmt :
-    loop ident '{' stmts '}'         { Loop $2 (reverse $4) }
+    mapArr ident '{' stmts '}'       { MapArr $2 (reverse $4) }
+  | upTo exp ident '{' stmts '}'     { UpTo   $2 $3 (reverse $5) }
   | forever '{' stmts '}'            { Forever (reverse $3) }
   | if exp '{' stmts '}'
       else '{' stmts '}'             { IfTE $2 (reverse $4) (reverse $8) }
 
--- 1 or more statements.
+-- Zero or more statements.
 stmts :: { [Stmt] }
 stmts : stmts simpleStmt ';'   { $2 : $1 }
       | stmts blkStmt          { $2 : $1 }
-      | simpleStmt ';'         { [$1] }
-      | blkStmt                { [$1] }
+      | {- empty -}            { [] }
 
-----------------------------------------
--- Initializers
+expArgs :: { [Exp] }
+expArgs : '(' exps ')' { reverse $2 }
 
 -- Zero or more expressions, separated by arbitrary many ','s.
 exps :: { [Exp] }
-exps :  exps ',' exp           { $3 : $1 }
-      | exps ','               { $1 }
-      | exp                    { [$1] }
-      | {- empty -}            { [] }
+exps : exps ',' exp           { $3 : $1 }
+     | exps ','               { $1 }
+     | exp                    { [$1] }
+     | {- empty -}            { [] }
+
+fieldAssigns :: { [(FieldNm, Exp)] }
+fieldAssigns :
+    fieldAssigns ',' fieldAssign { $3 : $1 }
+  | fieldAssigns ','             { $1 }
+  | fieldAssign                  { [$1] }
+  | {- empty -}                  { [] }
+
+fieldAssign :: { (FieldNm, Exp) }
+fieldAssign : ident '=' exp { ($1, $3) }
 
 ----------------------------------------
 -- Expressions
 exp :: { Exp }
 exp : integer            { ExpLit (LitInteger $1) }
+
+    -- Works for Haskell values, too!
     | ident              { ExpVar $1 }
-    -- Used only in post-conditions.
+
+    -- Used only in post-conditions (otherwise, it's a statement).
     | return             { ExpRet }
+
     | '(' exp ')'        { $2 }
-    | arrExp             { ExpArrIxRef (fst $1) (snd $1) }
-    | ident '&>' ident   { ExpFieldRef $1 $3 }
-    | '*' exp            { ExpDeref $2 }
-    -- XXX antiExpP
+
+    -- Areas
+    | '*' exp              { ExpDeref $2 }
+    | exp '@' exp          { ExpArray $1 $3 }
+    | exp '[' exp ']'      { ExpDeref (ExpArray $1 $3) }
+    | exp '.' exp          { ExpStruct $1 $3 }
+    | exp '->' exp         { ExpDeref (ExpStruct $1 $3) }
+    | '&' ident            { ExpAddrOf $2 }
+
+    | libFuncExp           { $1 }
+
+    -- Ivory expression macros
+    | ivoryMacro           { IvoryMacroExp $1 }
+
+    -- Function calls
+    | ident expArgs        { ExpCall $1 $2 }
 
     -- Unary operators
-    | '!'          exp { ExpOp NotOp [$2] }
-    | '-'          exp { ExpOp NegateOp [$2] }
-    | '~'          exp { ExpOp BitComplementOp [$2] }
-    | abs          exp { ExpOp AbsOp [$2] }
-    | signum       exp { ExpOp SignumOp [$2] }
-    | expOp        exp { ExpOp FExpOp [$2] }
-    | sqrt         exp { ExpOp FSqrtOp [$2] }
-    | log          exp { ExpOp FLogOp [$2] }
-    | pow          exp { ExpOp FPowOp [$2] }
-    | sin          exp { ExpOp FSinOp [$2] }
-    | cos          exp { ExpOp FCosOp [$2] }
-    | tan          exp { ExpOp FTanOp [$2] }
-    | asin         exp { ExpOp FAsinOp [$2] }
-    | acos         exp { ExpOp FAcosOp [$2] }
-    | atan         exp { ExpOp FAtanOp [$2] }
-    | sinh         exp { ExpOp FSinhOp [$2] }
-    | cosh         exp { ExpOp FCoshOp [$2] }
-    | tanh         exp { ExpOp FTanhOp [$2] }
-    | asinh        exp { ExpOp FAsinhOp [$2] }
-    | acosh        exp { ExpOp FAcoshOp [$2] }
-    | atanh        exp { ExpOp FAtanhOp [$2] }
-    | isnan        exp { ExpOp IsNanOp [$2] }
-    | isinf        exp { ExpOp IsInfOp [$2] }
-    | round        exp { ExpOp RoundFOp [$2] }
-    | ceil         exp { ExpOp CeilFOp [$2] }
-    | floor        exp { ExpOp FloorFOp [$2] }
-    | const        exp { ExpOp ConstRefOp [$2] }
+    | '!'       exp      { ExpOp NotOp [$2] }
+    | '-'       exp      { ExpOp NegateOp [$2] }
+    | '~'       exp      { ExpOp BitComplementOp [$2] }
 
     -- Binary operators
     | exp '||'  exp      { ExpOp OrOp [$1, $3] }
@@ -383,62 +460,92 @@ exp : integer            { ExpLit (LitInteger $1) }
     -- Tertiary operators
     | exp '?' exp ':' exp { ExpOp CondOp [$1, $3, $5] }
 
-arrExp :: { (RefVar, Exp) }
-arrExp : ident '!' exp  { ($1, $3) }
+libFuncExp :: { Exp }
+libFuncExp :
+      abs          expArgs { ExpOp AbsOp        $2 }
+    | signum       expArgs { ExpOp SignumOp     $2 }
+    | expOp        expArgs { ExpOp FExpOp       $2 }
+    | sqrt         expArgs { ExpOp FSqrtOp      $2 }
+    | log          expArgs { ExpOp FLogOp       $2 }
+    | pow          expArgs { ExpOp FPowOp       $2 }
+    | sin          expArgs { ExpOp FSinOp       $2 }
+    | cos          expArgs { ExpOp FCosOp       $2 }
+    | tan          expArgs { ExpOp FTanOp       $2 }
+    | asin         expArgs { ExpOp FAsinOp      $2 }
+    | acos         expArgs { ExpOp FAcosOp      $2 }
+    | atan         expArgs { ExpOp FAtanOp      $2 }
+    | sinh         expArgs { ExpOp FSinhOp      $2 }
+    | cosh         expArgs { ExpOp FCoshOp      $2 }
+    | tanh         expArgs { ExpOp FTanhOp      $2 }
+    | asinh        expArgs { ExpOp FAsinhOp     $2 }
+    | acosh        expArgs { ExpOp FAcoshOp     $2 }
+    | atanh        expArgs { ExpOp FAtanhOp     $2 }
+    | isnan        expArgs { ExpOp IsNanOp      $2 }
+    | isinf        expArgs { ExpOp IsInfOp      $2 }
+    | round        expArgs { ExpOp RoundFOp     $2 }
+    | ceil         expArgs { ExpOp CeilFOp      $2 }
+    | floor        expArgs { ExpOp FloorFOp     $2 }
+    | const        expArgs { ExpOp ConstRefOp   $2 }
 
+    | castWith     expArgs { ExpOp CastWith     $2 }
+    | safeCast     expArgs { ExpOp SafeCast     $2 }
+    | bitCast      expArgs { ExpOp BitCast      $2 }
+    | twosCompCast expArgs { ExpOp TwosCompCast $2 }
+    | twosCompRep  expArgs { ExpOp TwosCompRep  $2 }
+
+    | toIx         expArgs { ExpOp ToIx         $2 }
+    | fromIx       expArgs { ExpOp FromIx       $2 }
+    | ixSize       expArgs { ExpOp IxSize       $2 }
+    | arrayLen     expArgs { ExpOp ArrayLen     $2 }
+    | constRef     expArgs { ExpOp ConstRef     $2 }
+    | sizeOf       expArgs { ExpOp SizeOf       $2 }
+    | nullPtr      expArgs { ExpOp NullPtr      $2 }
+    | refToPtr     expArgs { ExpOp RefToPtr     $2 }
+    | toCArray     expArgs { ExpOp ToCArray     $2 }
 
 ----------------------------------------
 -- Types
 
+typeDef :: { TypeDef }
+typeDef :
+  ty tyident '=' type ';' { TypeDef $2 $4 }
+
 type :: { Type }
 type :
-    cType     { $1 }
-  | hsType    { $1 }
+    simpleCType      { $1 }
+  | cType            { $1 }
+  | tyident          { TySynonym $1 }
+  | '(' type ')'     { $2 }
 
 -- C-style types
 
+simpleCType :: { Type }
+simpleCType :
+    bool                      { TyBool }
+  | char                      { TyChar }
+  | float                     { TyFloat }
+  | double                    { TyDouble }
+  | void                      { TyVoid }
+
+  | int8_t                    { TyInt Int8 }
+  | int16_t                   { TyInt Int16 }
+  | int32_t                   { TyInt Int32 }
+  | int64_t                   { TyInt Int64 }
+
+  | uint8_t                   { TyWord Word8 }
+  | uint16_t                  { TyWord Word16 }
+  | uint32_t                  { TyWord Word32 }
+  | uint64_t                  { TyWord Word64 }
+
+  | ix_t integer              { TyIx $2 }
+
 cType :: { Type }
 cType :
-    baseTypeC     { $1 }
-  | refTypeC      { $1 }
-
-baseTypeC :: { Type }
-baseTypeC :
-    bool     { TyBool }
-  | char     { TyChar }
-  | float    { TyFloat }
-  | double   { TyDouble }
-  | void     { TyVoid }
-
-  | int8_t   { TyInt Int8 }
-  | int16_t  { TyInt Int16 }
-  | int32_t  { TyInt Int32 }
-  | int64_t  { TyInt Int64 }
-
-  | uint8_t  { TyWord Word8 }
-  | uint16_t { TyWord Word16 }
-  | uint32_t { TyWord Word32 }
-  | uint64_t { TyWord Word64 }
-
-refTypeC :: { Type }
-refTypeC :
-    refC baseTypeC { $1 (TyStored $2) }
-  | refC areaC     { $1 $2 }
-
-refC :: { Area -> Type }
-refC :
-          scopeC '*' { TyRef $1 }
-  | const scopeC '*' { TyConstRef $2 }
-
-areaC :: { Area }
-areaC :
-    arrayTypeC        { $1 }
-  | struct structName { TyStruct $2 }
-
-arrayTypeC :: { Area }
-arrayTypeC :
-    baseTypeC '[' integer ']' { TyArray (TyStored $1) $3 }
-  | areaC     '[' integer ']' { TyArray $1            $3 }
+          scopeC '*' type        { TyRef      $1 $3 }
+  | const scopeC '*' type        { TyConstRef $2 $4 }
+  | type  '[' integer ']'        { TyArray    $1 $3 }
+  | struct structName            { TyStruct   $2 }
+  | '&' type                     { TyStored   $2 }
 
 scopeC :: { Scope }
 scopeC :
@@ -447,54 +554,47 @@ scopeC :
   | ident       { PolyMem (Just $1) }
   | {- empty -} { PolyMem Nothing }
 
+typeHS :: { Type }
+typeHS :
+    simpleHSType     { $1 }
+  | hsType           { $1 }
+  | tyident          { TySynonym $1 }
+  | '(' typeHS ')'     { $2 }
+
 -- Haskell-style types
+simpleHSType :: { Type }
+simpleHSType :
+    IBool                   { TyBool }
+  | IChar                   { TyChar }
+  | IFloat                  { TyFloat }
+  | IDouble                 { TyDouble }
+  | '(' ')'                 { TyVoid }
+
+  | Sint8                   { TyInt Int8 }
+  | Sint16                  { TyInt Int16 }
+  | Sint32                  { TyInt Int32 }
+  | Sint64                  { TyInt Int64 }
+
+  | Uint8                   { TyWord Word8 }
+  | Uint16                  { TyWord Word16 }
+  | Uint32                  { TyWord Word32 }
+  | Uint64                  { TyWord Word64 }
+
+  | Ix integer              { TyIx $2 }
 
 hsType :: { Type }
 hsType :
-    baseTypeHS   { $1 }
-  | refTypeHS    { $1 }
-
-baseTypeHS :: { Type }
-baseTypeHS :
-    IBool              { TyBool }
-  | IChar              { TyChar }
-  | IFloat             { TyFloat }
-  | IDouble            { TyDouble }
-  | '(' ')'            { TyVoid }
-
-  | Sint8              { TyInt Int8 }
-  | Sint16             { TyInt Int16 }
-  | Sint32             { TyInt Int32 }
-  | Sint64             { TyInt Int64 }
-
-  | Uint8              { TyWord Word8 }
-  | Uint16             { TyWord Word16 }
-  | Uint32             { TyWord Word32 }
-  | Uint64             { TyWord Word64 }
-
-  | Ix integer         { TyIx $2 }
-
-  | '(' baseTypeHS ')' { $2 }
-  | tyident            { TySynonym $1 }
-
-areaHS :: { Area }
-areaHS :
-    Stored baseTypeHS          { TyStored $2 }
-  | Struct structName          { TyStruct $2 }
-  | Array integer areaHS       { TyArray $3 $2 }
-  | '(' areaHS ')'             { $2 }
-  | tyident                    { AreaSynonym $1 }
-
-refTypeHS :: { Type }
-refTypeHS :
-    Ref      scopeHS areaHS { TyRef      $2 $3 }
-  | ConstRef scopeHS areaHS { TyConstRef $2 $3 }
+    Stored   typeHS         { TyStored      $2 }
+  | Struct   structName     { TyStruct      $2 }
+  | Array    integer typeHS { TyArray    $3 $2 }
+  | Ref      scopeHS typeHS { TyRef      $2 $3 }
+  | ConstRef scopeHS typeHS { TyConstRef $2 $3 }
 
 scopeHS :: { Scope }
-scopeHS :
-    Stack tyident { Stack (Just $2) }
-  | Global        { Global }
+scopeHS : Stack tyident { Stack (Just $2) }
+        | Global        { Global }
 
+-- Bit types
 bitType :: { BitTy }
 bitType :
     Bit                        { Bit }
@@ -519,7 +619,11 @@ structName :
   | ident   { $1 }
 
 field :: { Field }
-field : ident '::' areaHS { Field $1 $3 }
+field :
+  -- Haskell style
+    ident '::' typeHS  { Field $1 $3 }
+  -- C style
+  | type ident         { Field $2 $1 }
 
 -- 1 or more fields, separated (but optionally ending with) ';'.
 fields :: { [Field] }
@@ -586,6 +690,19 @@ bdItem :
 -- First field is width, second is "b[0,1]+"
 bitLiteral :: { BitLiteral }
 bitLiteral : bitlit { BitLitKnown (fst $1) (snd $1) }
+
+--------------------------------------------------------------------------------
+-- Namespaces
+
+ident :: { String }
+ident :
+    identifier                  { $1 }
+  | tyidentifier '.' identifier { $1 ++ '.':$3 }
+
+tyident :: { String }
+tyident :
+    tyidentifier                  { $1 }
+  | tyidentifier '.' tyidentifier { $1 ++ '.':$3 }
 
 --------------------------------------------------------------------------------
 

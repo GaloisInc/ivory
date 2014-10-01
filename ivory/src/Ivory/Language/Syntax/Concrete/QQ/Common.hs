@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 --
 -- Helpers for QuasiQuoter.
@@ -8,7 +9,31 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.Syntax.Concrete.QQ.Common where
+module Ivory.Language.Syntax.Concrete.QQ.Common
+  ( VarEnv()
+  , Insert()
+  , QStM()
+  , Area(..)
+  , Key()
+  , Call(..)
+  , TStmtM()
+  , getVar
+  , lookupVar
+  , callit
+  , mkVar
+  , lookupDerefVar
+  , expToCall
+  , expToArea
+  , liftQ
+  , insert
+  , runToQ
+  , keyToCall
+  , keyToArea
+  , isCall
+  , isArea
+  , collectBindExps
+  , runToSt
+  ) where
 
 import Prelude hiding (exp)
 
@@ -22,7 +47,6 @@ import           Data.Monoid
 import qualified Data.DList as D
 import           Control.Applicative
 
-import Ivory.Language.Syntax.Concrete.QQ.Types
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
@@ -54,25 +78,113 @@ runToSt m = snd `fmap` runToQ m
 
 --------------------------------------------------------------------------------
 
--- Collect up the variables used in a dereference expression to be used in
--- making a monadic Ivory statement.
-collectRefExps :: Exp -> [DerefExp]
-collectRefExps exp = nub $ case exp of
-  ExpDeref e         -> [toDerefExp e]
-  ExpOp _ args       -> concatMap collectRefExps args
-  ExpArrIxRef _ e    -> collectRefExps e
+-- Expressions that are calls in the language.
+data Call = Call FnSym [Exp]
+  deriving (Show, Read, Eq)
 
-  ExpLit{}           -> []
-  ExpVar{}           -> []
-  ExpRet{}           -> []
-  ExpFieldRef{}      -> []
-  ExpAnti{}          -> []
+-- Should only be called on parsed expressions that are function calls. Error
+-- otherwise.
+expToCall :: FnSym -> [Exp] -> Call
+expToCall sym args = Call sym args
 
--- Unpack a dereference expression
-toDerefExp :: Exp -> DerefExp
-toDerefExp e = case e of
-  ExpVar v           -> RefExp v
-  ExpArrIxRef ref ix -> RefArrIxExp ref ix
-  ExpFieldRef ref fn -> RefFieldExp ref fn
-  _                  -> error $ "Dereference of expression "
-                     ++ show e ++ " is not permitted."
+-- Expression that are areas in the language.
+data Area =
+    AreaVar String
+  | AddrOf Area
+  | ArrayArea Area Exp
+  | StructArea Area Area
+  deriving (Show, Read, Eq)
+
+-- Should only be called on parsed expressions that are areas (arguments to
+-- ExpDeref). Error otherwise.
+expToArea :: Exp -> Area
+expToArea exp = case exp of
+  ExpVar v        -> AreaVar v
+  ExpAddrOf v     -> AddrOf (AreaVar v)
+  -- e1 below can't be an area---it's an index into the array.
+  ExpArray  e0 e1 -> ArrayArea (expToArea e0) e1
+  ExpStruct e0 e1 -> StructArea (expToArea e0) (expToArea e1)
+  _               -> error $ "Expression " ++ show exp ++ " instead of area."
+
+-- Collect up the variables used in an expression that require an Ivory statement.
+collectBindExps :: Exp -> [Key]
+collectBindExps exp = nub $ case exp of
+  ExpLit{}                -> []
+  ExpVar{}                -> []
+  ExpRet{}                -> []
+  ExpOp _ args            -> concatMap collectBindExps args
+  IvoryMacroExp (_, args) -> concatMap collectBindExps args
+  -- expressions used in array indexing are extracted in processing areas.
+  ExpDeref e              -> [areaToKey (expToArea e)]
+  ExpArray e0 e1          -> collectBindExps e0 ++ collectBindExps e1
+  ExpStruct e0 e1         -> collectBindExps e0 ++ collectBindExps e1
+  ExpCall fn args         -> [callToKey (Call fn args)]
+  ExpAddrOf{}             -> []
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+mkVar :: String -> T.Exp
+mkVar = VarE . mkName
+
+callit :: T.Exp -> [T.Exp] -> T.Exp
+callit f args = foldl AppE f args
+
+--------------------------------------------------------------------------------
+
+-- We use a state monad over the Q monad to keep track of expressions in the
+-- parsed language that we'll turn into statements in Ivory.
+type TStmtM a = QStM T.Stmt a
+
+--------------------------------------------------------------------------------
+
+type Key = Either Area Call
+
+-- | Dereference expression environment
+type VarEnv = [(Key, Name)]
+
+areaToKey :: Area -> Key
+areaToKey = Left
+
+callToKey :: Call -> Key
+callToKey = Right
+
+isArea :: Key -> Bool
+isArea (Left _) = True
+isArea _        = False
+
+isCall :: Key -> Bool
+isCall (Right _) = True
+isCall _         = False
+
+keyToArea :: Key -> Area
+keyToArea (Left area) = area
+keyToArea _           = error $ "keyToArea passed a non-area"
+
+keyToCall :: Key -> Call
+keyToCall (Right call) = call
+keyToCall _            = error $ "keyToCall passed a non-area"
+
+-- Returns the fresh variable that is the do-block binding from the dereference
+-- statement.
+lookupDerefVar :: Area -> VarEnv -> Name
+lookupDerefVar area = getVar (areaToKey area)
+
+-- Returns the fresh variable that is the do-block binding from the dereference
+-- statement.
+lookupVar :: Call -> VarEnv -> Name
+lookupVar call = getVar (Right call)
+
+getVar :: Key -> VarEnv -> Name
+getVar a env =
+  case lookup a env of
+    Nothing -> error "Internal error in getVar"
+    Just rv -> rv
+
+--------------------------------------------------------------------------------
+
+-- | How to insert an expression, given its type, the binding variable, and the
+-- TH expression.
+type Insert a = Key -> Name -> T.Exp -> QStM a ()
+
+--------------------------------------------------------------------------------

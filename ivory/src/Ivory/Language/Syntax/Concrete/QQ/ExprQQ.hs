@@ -8,12 +8,16 @@
 -- All rights reserved.
 --
 
-module Ivory.Language.Syntax.Concrete.QQ.ExprQQ where
+module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
+  ( toExp
+  , fromConstDef
+  , toArray
+  , toStruct
+  , toAddrOf
+  ) where
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
-
-import Ivory.Language.Syntax.Concrete.QQ.Types
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -24,123 +28,152 @@ import qualified Ivory.Language.IIntegral as I
 import qualified Ivory.Language.Bits      as I
 import qualified  Ivory.Language.Float    as I
 import qualified  Ivory.Language.Ref      as I
+import qualified  Ivory.Language.MemArea  as I
 import qualified  Ivory.Language.IBool    as I
 import qualified  Ivory.Language.Array    as I
 import qualified  Ivory.Language.Struct   as I
+import qualified  Ivory.Language.CArray   as I
+import qualified  Ivory.Language.Cast     as I
+import qualified  Ivory.Language.Ptr      as I
+import qualified  Ivory.Language.SizeOf   as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 import Ivory.Language.Syntax.Concrete.QQ.Common
+import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 --------------------------------------------------------------------------------
 -- Expressions
+
+-- | Top-level constant definition.
+fromConstDef :: ConstDef -> Q [Dec]
+fromConstDef (ConstDef sym e mtype) = do
+  n <- newName sym
+  let def = ValD (VarP n) (NormalB $ toExp [] e) []
+  case mtype of
+    Nothing -> return [def]
+    Just ty -> do tyQ <- runToQ (fromType ty)
+                  -- Ignore possible type variables---should be any for a
+                  -- top-level constant.
+                  return [SigD n (fst tyQ), def]
 
 fromLit :: Literal -> T.Exp
 fromLit lit = case lit of
   LitInteger int -> LitE (IntegerL int)
 
-fromOpExp :: DerefVarEnv -> ExpOp -> [Exp] -> T.Exp
+fromOpExp :: VarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of
-  EqOp            -> mkInfix '(I.==?)
-  NeqOp           -> mkInfix '(I./=?)
-  CondOp          -> mkTert  '(I.?)
+  EqOp             -> mkInfix '(I.==?)
+  NeqOp            -> mkInfix '(I./=?)
+  CondOp           -> mkTert  '(I.?)
 
-  GtOp g          -> mkInfix $ if g then '(I.>=?) else '(I.>?)
-  LtOp g          -> mkInfix $ if g then '(I.<=?) else '(I.<?)
+  GtOp g           -> mkInfix $ if g then '(I.>=?) else '(I.>?)
+  LtOp g           -> mkInfix $ if g then '(I.<=?) else '(I.<?)
 
-  NotOp           -> mkUn 'I.iNot
-  AndOp           -> mkInfix '(I..&&)
-  OrOp            -> mkInfix '(I..||)
+  NotOp            -> mkUn 'I.iNot
+  AndOp            -> mkInfix '(I..&&)
+  OrOp             -> mkInfix '(I..||)
 
-  MulOp           -> mkInfix '(*)
-  AddOp           -> mkInfix '(+)
-  SubOp           -> mkInfix '(-)
-  NegateOp        -> mkInfix 'negate
-  AbsOp           -> mkUn 'abs
-  SignumOp        -> mkUn 'signum
+  MulOp            -> mkInfix '(*)
+  AddOp            -> mkInfix '(+)
+  SubOp            -> mkInfix '(-)
+  NegateOp         -> mkInfix 'negate
+  AbsOp            -> mkUn 'abs
+  SignumOp         -> mkUn 'signum
 
-  DivOp           -> mkInfix 'I.iDiv -- truncate toward 0 (Haskell's 'quot')
-  ModOp           -> mkInfix '(I..%)
+  DivOp            -> mkInfix 'I.iDiv -- truncate toward 0 (Haskell's 'quot')
+  ModOp            -> mkInfix '(I..%)
 
-  FExpOp          -> mkUn 'P.exp
-  FSqrtOp         -> mkUn 'sqrt
-  FLogOp          -> mkUn 'log
-  FPowOp          -> mkInfix '(**)
-  FSinOp          -> mkUn 'sin
-  FTanOp          -> mkUn 'tan
-  FCosOp          -> mkUn 'cos
-  FAsinOp         -> mkUn 'asin
-  FAtanOp         -> mkUn 'atan
-  FAcosOp         -> mkUn 'acos
-  FSinhOp         -> mkUn 'sinh
-  FTanhOp         -> mkUn 'tanh
-  FCoshOp         -> mkUn 'cosh
-  FAsinhOp        -> mkUn 'asinh
-  FAtanhOp        -> mkUn 'atanh
-  FAcoshOp        -> mkUn 'acosh
+  FExpOp           -> mkUn 'P.exp
+  FSqrtOp          -> mkUn 'sqrt
+  FLogOp           -> mkUn 'log
+  FPowOp           -> mkInfix '(**)
+  FSinOp           -> mkUn 'sin
+  FTanOp           -> mkUn 'tan
+  FCosOp           -> mkUn 'cos
+  FAsinOp          -> mkUn 'asin
+  FAtanOp          -> mkUn 'atan
+  FAcosOp          -> mkUn 'acos
+  FSinhOp          -> mkUn 'sinh
+  FTanhOp          -> mkUn 'tanh
+  FCoshOp          -> mkUn 'cosh
+  FAsinhOp         -> mkUn 'asinh
+  FAtanhOp         -> mkUn 'atanh
+  FAcoshOp         -> mkUn 'acosh
 
-  IsNanOp         -> mkUn 'I.isnan
-  IsInfOp         -> mkUn 'I.isinf
-  RoundFOp        -> mkUn 'I.roundF
-  CeilFOp         -> mkUn 'I.ceilF
-  FloorFOp        -> mkUn 'I.floorF
+  IsNanOp          -> mkUn 'I.isnan
+  IsInfOp          -> mkUn 'I.isinf
+  RoundFOp         -> mkUn 'I.roundF
+  CeilFOp          -> mkUn 'I.ceilF
+  FloorFOp         -> mkUn 'I.floorF
 
-  BitAndOp        -> mkInfix '(I..&)
-  BitOrOp         -> mkInfix '(I..|)
-  BitXorOp        -> mkInfix '(I..^)
-  BitComplementOp -> mkUn 'I.iComplement
-  BitShiftLOp     -> mkUn 'I.iShiftL
-  BitShiftROp     -> mkUn 'I.iShiftR
+  BitAndOp         -> mkInfix '(I..&)
+  BitOrOp          -> mkInfix '(I..|)
+  BitXorOp         -> mkInfix '(I..^)
+  BitComplementOp  -> mkUn  'I.iComplement
+  BitShiftLOp      -> mkBin 'I.iShiftL
+  BitShiftROp      -> mkBin 'I.iShiftR
 
-  ConstRefOp      -> mkUn 'I.constRef
+  ConstRefOp       -> mkUn 'I.constRef
+
+  SafeCast         -> mkUn  'I.safeCast
+  BitCast          -> mkUn  'I.bitCast
+  CastWith         -> mkBin 'I.castWith
+  TwosCompCast     -> mkUn  'I.twosComplementCast
+  TwosCompRep      -> mkUn  'I.twosComplementRep
+
+  ToIx             -> mkUn  'I.toIx
+  FromIx           -> mkUn  'I.fromIx
+  ToCArray         -> mkUn  'I.toCArray
+  ArrayLen         -> mkUn  'I.arrayLen
+  ConstRef         -> mkUn  'I.constRef
+  SizeOf           -> mkUn  'I.sizeOf
+  NullPtr          -> mkUn  'I.nullPtr
+  RefToPtr         -> mkUn  'I.refToPtr
+  IxSize           -> mkUn  'I.ixSize
 
   where
-  getArg i = toExp env (args !! i)
-  mkArg    = Just . getArg
+  getArg i    = toExp env (args !! i)
+  mkArg       = Just . getArg
   mkInfix op' = InfixE (mkArg 0) (VarE op') (mkArg 1)
-  mkTert  op' =
-    InfixE (mkArg 0) (VarE op') (Just $ TupE [getArg 1, getArg 2])
-  mkUn op' = AppE (VarE op') (getArg 0)
+  mkTert  op' = InfixE (mkArg 0) (VarE op') (Just $ TupE [getArg 1, getArg 2])
+  mkUn    op' = AppE (VarE op') (getArg 0)
+  mkBin   op' = AppE (AppE (VarE op') (getArg 0)) (getArg 1)
 
-toExp :: DerefVarEnv -> Exp -> T.Exp
+toExp :: VarEnv -> Exp -> T.Exp
 toExp env exp = case exp of
   ExpLit lit
     -> fromLit lit
   ExpVar v
     -> VarE (mkName v)
-  ExpDeref e
-    -> VarE (lookupDerefVar e env)
-  ExpOp op args
-    -> fromOpExp env op args
-  ExpArrIxRef ref ixExp
-    -> toArrIxExp env ref ixExp
-  ExpFieldRef ref fieldNm
-    -> toFieldExp ref fieldNm
-  ExpAnti str
-    -> VarE (mkName str)
   ExpRet
     -> VarE (mkName "return")
+  ExpOp op args
+    -> fromOpExp env op args
+  IvoryMacroExp (v,args)
+    -> callit (mkVar v) (map (toExp env) args)
+  ExpDeref e
+    -> VarE $ lookupDerefVar (expToArea e) env
+  ExpArray e0 e1
+    -> toArray (toExp env e0) (toExp env e1)
+  ExpStruct e0 e1
+    -> toStruct (toExp env e0) (toExp env e1)
+  -- Must be a call that returns a value
+  ExpCall sym args
+    -> VarE $ lookupVar (expToCall sym args) env
+  ExpAddrOf v
+    -> toAddrOf $ VarE $ mkName v
 
 --------------------------------------------------------------------------------
+-- These are shared by toExp above and fromArea in BindExp.
 
--- Returns the fresh variable that is the do-block binding from the dereference
--- statement.
-lookupDerefVar :: Exp -> DerefVarEnv -> Name
-lookupDerefVar exp env =
-  case lookup (toDerefExp exp) env of
-    Nothing -> error "Internal error in lookupDerefVar"
-    Just rv -> rv
+toArray :: T.Exp -> T.Exp -> T.Exp
+toArray e0 e1 = InfixE (Just e0) (VarE '(I.!)) (Just e1)
+
+toStruct :: T.Exp -> T.Exp -> T.Exp
+toStruct e0 e1 = InfixE (Just e0) (VarE '(I.~>)) (Just e1)
+
+toAddrOf :: T.Exp -> T.Exp
+toAddrOf = AppE (VarE 'I.addrOf)
 
 --------------------------------------------------------------------------------
--- Helpers
-
-toArrIxExp :: DerefVarEnv -> RefVar -> Exp -> T.Exp
-toArrIxExp env ref ixExp =
-  let tExp = toExp env ixExp in
-  InfixE (Just (VarE (mkName ref))) (VarE '(I.!)) (Just tExp)
-
-toFieldExp :: RefVar -> FieldNm -> T.Exp
-toFieldExp ref fieldNm =
-  InfixE (nm ref) (VarE '(I.~>)) (nm fieldNm)
-  where
-  nm = Just . VarE . mkName

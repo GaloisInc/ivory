@@ -9,6 +9,8 @@ import Ivory.Language.Syntax.Type
 import Data.Monoid (Monoid(..))
 import Language.Haskell.TH.Lift (deriveLiftMany)
 import Language.Haskell.TH.Syntax (Lift(..))
+
+import Data.Ratio (denominator, numerator)
 import qualified Data.Set as Set
 
 
@@ -365,7 +367,7 @@ instance Bounded Expr where
 instance Fractional Expr where
   l / r        = ExpOp ExpDiv [l,r]
   recip a      = ExpOp ExpRecip [a]
-  fromRational = error "fromRational not implemented for Expr"
+  fromRational a = fromInteger (numerator a) / fromInteger (denominator a)
 
 instance Floating Expr where
   pi          = error "pi not implemented for Expr"

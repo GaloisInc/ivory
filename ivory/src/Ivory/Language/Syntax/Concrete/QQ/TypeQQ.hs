@@ -36,6 +36,15 @@ import qualified Ivory.Language.Array     as I
 import Ivory.Language.Syntax.Concrete.ParseAST
 
 --------------------------------------------------------------------------------
+-- Haskell type synonyms
+
+fromTypeDef :: TypeDef -> Q Dec
+fromTypeDef (TypeDef syn ty) = do
+  n      <- newName syn
+  (t, _) <- runToQ (fromType ty)
+  return (TySynD n [] t)
+
+--------------------------------------------------------------------------------
 
 -- Data type to keep track of class constraints
 data Class = Int -- SingI type constraint
@@ -50,7 +59,7 @@ data TyVar = TyVar
 -- need to quantify later.
 type TTyVar a = QStM TyVar a
 
---------------------------------------------------------------------------------
+-- --------------------------------------------------------------------------------
 
 fromIntSz :: IntSize -> Name
 fromIntSz sz = case sz of
@@ -97,21 +106,45 @@ mkTyVar v classes = do
 
 --------------------------------------------------------------------------------
 
+-- Syntactic check for base types
+isBaseType :: Type -> Bool
+isBaseType ty = case ty of
+  TyVoid       -> True
+  TyInt{}      -> True
+  TyWord{}     -> True
+  TyBool       -> True
+  TyChar       -> True
+  TyFloat      -> True
+  TyDouble     -> True
+  TyIx{}       -> True
+  TyStored{}   -> False
+  TyStruct{}   -> False
+  TyArray{}    -> False
+  TyRef{}      -> False
+  TyConstRef{} -> False
+  TySynonym{}  -> False
+
+maybeAddStored :: Type -> Type
+maybeAddStored ty =
+  if isBaseType ty
+    then TyStored ty
+    else ty
+
 fromStoredTy :: Type -> TTyVar T.Type
 fromStoredTy ty = do
   ty' <- fromType ty
   s   <- liftPromote 'I.Stored
   return (AppT s ty')
 
-fromRef :: Name -> Scope -> Area -> TTyVar T.Type
+fromRef :: Name -> Scope -> Type -> TTyVar T.Type
 fromRef constr mem area = do
-  a      <- fromArea area
+  a      <- fromType (maybeAddStored area)
   ma     <- fromScope mem
   return $ AppT (AppT (ConT constr) ma) a
 
-fromArrayTy :: Area -> Integer -> TTyVar T.Type
+fromArrayTy :: Type -> Integer -> TTyVar T.Type
 fromArrayTy area sz = do
-  a      <- fromArea area
+  a      <- fromType (maybeAddStored area)
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr (szTy sz)) a
 
@@ -130,19 +163,12 @@ fromType ty = case ty of
   TyFloat           -> liftCon ''I.IFloat
   TyDouble          -> liftCon ''I.IDouble
   TyIx ix           -> return (AppT (ConT ''I.Ix) (szTy ix))
+  TyStored area     -> fromStoredTy area
+  TyStruct nm       -> fromStructTy nm
+  TyArray a sz      -> fromArrayTy a sz
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
-  TyArea area       -> fromArea area
   TySynonym str     -> liftCon (mkName str)
-  where
-
-
-fromArea :: Area -> TTyVar T.Type
-fromArea area = case area of
-  TyArray a sz      -> fromArrayTy a sz
-  TyStruct nm       -> fromStructTy nm
-  TyStored ty       -> fromStoredTy ty
-  AreaSynonym str   -> liftCon (mkName str)
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
@@ -179,7 +205,6 @@ fromProcType (ProcDef retTy procName args _ _) = do
   allTyVars = nub . (map (PlainTV . tyVar))
   allCtxs   = nub . (concatMap mkCxt)
 
-
 --------------------------------------------------------------------------------
 -- Helpers
 
@@ -197,3 +222,5 @@ szTy = LitT . NumTyLit
 
 liftCon :: Name -> TTyVar T.Type
 liftCon = liftQ . conT
+
+
