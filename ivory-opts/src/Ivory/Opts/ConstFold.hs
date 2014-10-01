@@ -228,9 +228,25 @@ cfOp' ty op args = case op of
     -> if rb then I.ExpLit (I.LitBool True) else toExpr $ arg0 args
     | otherwise -> noop
 
-  I.ExpMul      -> goNum
-  I.ExpAdd      -> goNum
-  I.ExpSub      -> goNum
+  I.ExpMul
+    | isLitValue 0 $ arg0 args -> toExpr $ arg0 args
+    | isLitValue 1 $ arg0 args -> toExpr $ arg1 args
+    | isLitValue (-1) $ arg0 args -> cfOp' ty I.ExpNegate [arg1 args]
+    | isLitValue 0 $ arg1 args -> toExpr $ arg1 args
+    | isLitValue 1 $ arg1 args -> toExpr $ arg0 args
+    | isLitValue (-1) $ arg1 args -> cfOp' ty I.ExpNegate [arg0 args]
+    | otherwise -> goNum
+
+  I.ExpAdd
+    | isLitValue 0 $ arg0 args -> toExpr $ arg1 args
+    | isLitValue 0 $ arg1 args -> toExpr $ arg0 args
+    | otherwise -> goNum
+
+  I.ExpSub
+    | isLitValue 0 $ arg0 args -> cfOp' ty I.ExpNegate [arg1 args]
+    | isLitValue 0 $ arg1 args -> toExpr $ arg0 args
+    | otherwise -> goNum
+
   I.ExpNegate   -> goNum
   I.ExpAbs      -> goNum
   I.ExpSignum   -> goNum

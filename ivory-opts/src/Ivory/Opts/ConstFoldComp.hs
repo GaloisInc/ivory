@@ -14,6 +14,7 @@ module Ivory.Opts.ConstFoldComp
   , destLit
   , destBoolLit
   , destIntegerLit
+  , isLitValue
   , mkCfArgs
   , cfNum
   , cfBitAnd
@@ -193,6 +194,12 @@ destDoubleLit :: I.Expr -> Maybe Double
 destDoubleLit ex = do
   I.LitDouble i <- destLit ex
   return i
+
+isLitValue :: Integer -> CfVal -> Bool
+isLitValue v (CfInteger _ v') = v == v'
+isLitValue v (CfFloat v') = fromInteger v == v'
+isLitValue v (CfDouble v') = fromInteger v == v'
+isLitValue _ _ = False
 ----------------------------------------
 
 
