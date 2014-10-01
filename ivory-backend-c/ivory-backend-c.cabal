@@ -33,13 +33,7 @@ library
   other-modules:        Paths_ivory_backend_c
 
   build-depends:        base >= 4.6,
-                        -- NOTE: DEPENDS ON OUR FORK OF language-c-quote.
-                        -- At this time Geoff has not released 0.8.1, we are
-                        -- using that version to refer to the master branch
-                        -- at https://github.com/pchickey/language-c-quote
-                        -- We have a promise from Geoff that language-c-quote
-                        -- will get the comment support we need within a month.
-                        language-c-quote >= 0.8.1,
+                        language-c-quote >= 0.10.0,
                         srcloc,
                         mainland-pretty >= 0.2.5,
                         monadLib >= 3.7,
