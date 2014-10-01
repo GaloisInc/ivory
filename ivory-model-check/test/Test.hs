@@ -34,6 +34,7 @@ shouldPass = testGroup "shouldPass"
              , mkSuccess "foo11" m11
              , mkSuccess "foo12" m12
              , mkSuccess "foo13" m13
+             , mkSuccess "foo15" m15
              ]
 
 shouldFail :: TestTree
@@ -257,3 +258,15 @@ foo14 = L.proc "foo14" $ \x y ->
 
 m14 :: Module
 m14 = package "foo14" (incl foo14)
+
+-----------------------
+
+foo15 :: Def ('[Ix 10] :-> Uint8)
+foo15 = L.proc "foo15" $ \n -> 
+  ensures (\r -> r <=? 5) $
+  body $ do
+    n `times` \i -> do
+      ifte_ (i >? 5) (ret 5) (ret $ safeCast i)
+
+m15 :: Module
+m15 = package "foo15" (incl foo15)

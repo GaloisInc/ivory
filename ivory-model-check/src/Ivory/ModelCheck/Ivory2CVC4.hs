@@ -96,7 +96,7 @@ toBody ens stmt =
 
     I.AllocRef t ref name  -> toAlloc t ref name
 
-    I.Loop v exp inc blk   -> toLoop v exp inc blk
+    I.Loop v exp inc blk   -> toLoop ens v exp inc blk
     I.Comment _            -> return ()
     _                      -> error $ "XXX Unimplemented: " ++ show stmt
 
@@ -149,7 +149,7 @@ toCall _ retV nm args = do
   checkRequires $ I.procRequires pc
 
   case retV of
-    Nothing -> return () -- TODO: can we have an ensures clause for a void func?
+    Nothing -> return ()
     Just v  -> do
       r <- addEnvVar (I.procRetTy pc) (toVar v)
       assumeEnsures [(I.retval, I.ExpVar $ I.VarName r)]
@@ -165,15 +165,15 @@ toCall _ retV nm args = do
 
 -- XXX Abstraction (to implement): If there is load/stores in the block, the we
 -- don't care how many times it iterates.  It's pure.
-toLoop :: I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
-toLoop v start end blk =
+toLoop :: [Expr] -> I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
+toLoop ens v start end blk =
   mapM_ go ixs
   where
   go :: Integer -> ModelCheck ()
   go ix = do
     v' <- addEnvVar t (toVar v)
     addInvariant (var v' .== intLit ix)
-    mapM_ (toBody undefined) blk
+    mapM_ (toBody ens) blk
 
   t = I.TyInt I.Int32
 
