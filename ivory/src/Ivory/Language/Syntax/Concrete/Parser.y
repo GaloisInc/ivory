@@ -9,8 +9,7 @@
 -- Parser.hs file is generated!
 
 -- TODO
--- explicit types for lets
--- remove constRef (const covers it)
+-- types for allocs
 
 module Ivory.Language.Syntax.Concrete.Parser where
 
