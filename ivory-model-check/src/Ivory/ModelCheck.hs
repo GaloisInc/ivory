@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ParallelListComp #-}
 --XXX testing
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
@@ -84,9 +83,7 @@ modelCheck args m = do
      | otherwise -> return (Unsafe bad, file)
      where
        bad = [ B.unpack $ concrete q
-             | q <- reverse $ tail $ allQueries st
-             | r <- results
-             , r == "invalid"
+             | (q, "invalid") <- zip (tail $ allQueries st) results
              ]
    _ -> return (Error (show out), file)
 

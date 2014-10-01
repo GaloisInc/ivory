@@ -97,6 +97,7 @@ toBody ens stmt =
     I.AllocRef t ref name  -> toAlloc t ref name
 
     I.Loop v exp inc blk   -> toLoop v exp inc blk
+    I.Comment _            -> return ()
     _                      -> error $ "XXX Unimplemented: " ++ show stmt
 
 toReturn :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
