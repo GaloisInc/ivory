@@ -40,7 +40,7 @@ fib_loop  = proc "fib_loop" $ \ n -> body $ do
 
   result <- deref a
   ret result
-  comment "after return"
+  -- comment "after return"
 
 -- Loop implementation of fib, using a structure instead
 -- of two discrete variables.

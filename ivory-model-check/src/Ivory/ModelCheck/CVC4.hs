@@ -6,11 +6,13 @@
 
 module Ivory.ModelCheck.CVC4 where
 
-import           Prelude hiding (exp)
-import           Data.List (intersperse)
-import           Data.Word
-import           Data.Int
 import qualified Data.ByteString.Char8 as B
+import           Data.Int
+import           Data.List             (intersperse)
+import           Data.Monoid
+import           Data.String
+import           Data.Word
+import           Prelude               hiding (exp)
 
 --------------------------------------------------------------------------------
 
@@ -38,7 +40,7 @@ clBS = CL
 --------------------------------------------------------------------------------
 -- Statements
 
-data Statement = TypeDecl Type
+data Statement = TypeDecl String [(Var, Type)]
                | VarDecl Var Type
                | Assert Expr
                | Query Expr
@@ -46,7 +48,10 @@ data Statement = TypeDecl Type
                | forall a . Concrete a => Statement a
 
 instance Concrete Statement where
-  concrete (TypeDecl ty)   = statement [CL ty, clBS ":", clBS "TYPE"]
+  concrete (TypeDecl ty [])
+    = statement [CL ty, clBS ":", clBS "TYPE"]
+  concrete (TypeDecl ty fs)
+    = statement $ [CL ty, clBS ":", clBS "TYPE", clBS "= [#", fieldList fs, clBS "#]"]
   concrete (VarDecl v ty)  = statement [CL v, clBS ":", CL ty]
   concrete (Assert exp)    = statement [clBS "ASSERT", CL exp]
   concrete (Query exp)     = statement [clBS "QUERY", CL exp]
@@ -58,7 +63,11 @@ statement as =
   let toks = B.unwords (map unList as) in
   B.snoc toks ';'
 
-typeDecl :: Type -> Statement
+fieldList :: [(Var,Type)] -> ConcreteList
+fieldList fs = clBS $ B.intercalate ", "
+               [concrete v <> " : " <> concrete t | (v,t) <- fs]
+
+typeDecl :: String -> [(Var,Type)] -> Statement
 typeDecl = TypeDecl
 
 varDecl :: Var -> Type -> Statement
@@ -82,12 +91,16 @@ instance Concrete Double where
 instance Concrete Integer where
   concrete = concrete . show
 
+instance Concrete Int where
+  concrete = concrete . show
+
 data Type = Void
           | Integer
           | Real
           | Char
           | Bool
           | Struct String
+          | Array Type
           | Opaque
   deriving (Show, Read, Eq)
 
@@ -95,6 +108,7 @@ instance Concrete Type where
   concrete Bool          = "BOOLEAN"
   concrete Real          = "REAL"
   concrete Integer       = "INT"
+  concrete (Array t)     = "ARRAY INT OF " <> concrete t
   concrete (Struct name) = B.pack name
 
 data Expr = Var Var
@@ -116,6 +130,16 @@ data Expr = Var Var
           | Add      Expr Expr
           | Sub      Expr Expr
           | Call     Func [Expr]
+          | Store    Expr Expr
+          | StoreMany Expr [(Expr,Expr)]
+          | Field    Expr Expr
+          | Index    Expr Expr
+
+-- Store (Index 4 (Field "bFoo" "var0")) 5
+-- var0 WITH .bFoo[4] := 5
+
+-- Index 5 (Index 1) "var0")
+-- var0[1][5]
 
 deriving instance Show Expr
 
@@ -138,6 +162,10 @@ substExpr su = go
   go (Add x y)   = Add (go x) (go y)
   go (Sub x y)   = Sub (go x) (go y)
   go (Call f es) = Call f (map go es)
+  go (Store s e) = Store (go s) (go e)
+  go (StoreMany a ies) = StoreMany (go a) (map (\(i,e) -> (go i, go e)) ies)
+  go (Field f e) = Field (go f) (go e)
+  go (Index i e) = Index (go i) (go e)
   go e           = e
 
 leaf :: Expr -> Bool
@@ -176,6 +204,26 @@ instance Concrete Expr where
                 `B.append` ('(' `B.cons` (args' `B.snoc` ')'))
     where
     args' = B.unwords $ intersperse "," (map concrete args)
+  concrete (Store s e)   = v <> " WITH " <> f <> " := " <> concrete e
+    where
+      (v,f) = B.break (`elem` ['.','[']) (concrete s)
+  -- concrete (Store a i e) = concrete a <> " WITH "
+  --                          <> B.concat (map concrete i)
+  --                          <> " := " <> concrete e
+  concrete (StoreMany a ies)
+    = concrete a <> " WITH " <>
+      (B.intercalate ", " [ f <> " := " <> concrete e
+                          | (i,e) <- ies
+                          , let f = B.dropWhile (not . (`elem` ['.','['])) (concrete i)
+                          ])
+  concrete (Field f e)   = concrete e <> "." <> concrete f
+  concrete (Index i e)   = concrete e <> "[" <> concrete i <> "]"
+  -- concrete (Select e ss) = concrete e <> B.concat (map concrete ss)
+  -- concrete (Load a i)    = concrete a <> "[" <> concrete i <> "]"
+
+-- instance Concrete Selector where
+--   concrete (Field f) = "." <> concrete f
+--   concrete (Index i) = "[" <> concrete i <> "]"
 
 var :: Var -> Expr
 var = Var
@@ -228,11 +276,23 @@ lit = NumLit
 intLit :: Integer -> Expr
 intLit = lit
 
-realLit :: Integer -> Expr
+realLit :: Double -> Expr
 realLit = lit
 
 call :: Func -> [Expr] -> Expr
 call = Call
+
+store :: Expr -> Expr -> Expr
+store = Store
+
+storeMany :: Expr -> [(Expr,Expr)] -> Expr
+storeMany = StoreMany
+
+field :: Expr -> Expr -> Expr
+field = Field
+
+index :: Expr -> Expr -> Expr
+index = Index
 
 --------------------------------------------------------------------------------
 -- CVC4 Lib

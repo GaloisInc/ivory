@@ -56,7 +56,7 @@ data Queries = Queries
 -- | The program state: user-defined types, declarations of variables, and
 -- invariants.
 data ProgramSt = ProgramSt
-  { types  :: [Type]
+  { types  :: M.Map String [(Var,Type)]
   , decls  :: [Statement]
   , invars :: [Expr]
   }
@@ -138,12 +138,12 @@ addDecl decl = do
   let ps' = ps { decls = decl : decls ps }
   set st { symSt = ps' }
 
-addType :: Type -> ModelCheck ()
-addType ty = do
+addType :: String -> [(Var,Type)] -> ModelCheck ()
+addType ty fs = do
   st <- get
   let ps = symSt st
-  unless (ty `elem` types ps) $ do
-    let ps' = ps { types = ty : types ps }
+  unless (ty `M.member` types ps) $ do
+    let ps' = ps { types = M.insert ty fs $ types ps }
     set st { symSt = ps' }
 
 addInvariant :: Expr -> ModelCheck ()
@@ -289,12 +289,12 @@ instance Monoid Queries where
             }
 
 instance Monoid ProgramSt where
-  mempty = ProgramSt { types  = []
+  mempty = ProgramSt { types  = mempty
                      , decls  = []
                      , invars = []
                      }
   (ProgramSt t0 d0 e0) `mappend` (ProgramSt t1 d1 e1) =
-    ProgramSt { types  = t0 ++ t1
+    ProgramSt { types  = t0 <> t1
               , decls  = d0 ++ d1
               , invars = e0 ++ e1
               }

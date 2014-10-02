@@ -1,33 +1,33 @@
+{-# LANGUAGE TupleSections #-}
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
-import           Prelude hiding (exp)
+import           Control.Applicative
+import           Control.Monad
 import           Data.Maybe
 import           Data.Word
-import           Control.Monad
-import qualified Ivory.Language.Cast as I
-import qualified Ivory.Language.Syntax as I
-import           Ivory.Opts.ConstFold (constFold)
-import           Ivory.Opts.Overflow (overflowFold)
+import qualified Ivory.Language.Cast    as I
+import qualified Ivory.Language.Syntax  as I
+import           Ivory.Opts.ConstFold   (constFold)
+import           Ivory.Opts.Overflow    (overflowFold)
+import           Prelude                hiding (exp)
 
 import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
 
 -- XXX testing
-import Debug.Trace
+import           Debug.Trace
 
 --------------------------------------------------------------------------------
 
 modelCheckMod :: I.Module -> ModelCheck ()
 modelCheckMod m = do
-  -- We rely on constant folding having happend in the model-checker.  E.g., in
-  -- computing the number of loop iterations.
-  -- mapM_ (modelCheckProc . overflowFold . constFold) (getProcs $ I.modProcs m)
-  mapM_ addProc (getProcs $ I.modProcs m)
-  mapM_ (modelCheckProc . overflowFold . constFold) (getProcs $ I.modProcs m)
+  mapM_ toStruct (getVisible $ I.modStructs m)
+  mapM_ addProc (getVisible $ I.modProcs m)
+  mapM_ (modelCheckProc . overflowFold . constFold) (getVisible $ I.modProcs m)
   where
-  getProcs ps = I.public ps ++ I.private ps
+  getVisible ps = I.public ps ++ I.private ps
 
 --------------------------------------------------------------------------------
 
@@ -71,6 +71,7 @@ toEnsure (I.Ensure cond) = toAssertion id cond
 toAssertion :: (I.Expr -> I.Expr) -> I.Cond -> ModelCheck Expr
 toAssertion trans cond = case cond of
     I.CondBool exp -> toExpr I.TyBool (trans exp)
+    I.CondDeref t e var c -> err "toAssertion" (show cond)
     -- I.CondDeref t e var c ->
     --   let res = (toBody []) (I.Deref t var (trans e)) in
     --   let c1  = toAssertion trans call c in
@@ -87,7 +88,7 @@ toBody ens stmt =
     I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.CompilerAssert exp   -> addQuery =<< toExpr I.TyBool exp
     I.Return (I.Typed t e) -> toReturn ens t e
-    I.ReturnVoid           -> return () -- queryEnsures ens 
+    I.ReturnVoid           -> return ()
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.Assign t v exp       -> toAssign t v exp
@@ -98,7 +99,7 @@ toBody ens stmt =
 
     I.Loop v exp inc blk   -> toLoop ens v exp inc blk
     I.Comment _            -> return ()
-    _                      -> error $ "XXX Unimplemented: " ++ show stmt
+    _                      -> err "toBody" (show stmt)
 
 toReturn :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
 toReturn ens t exp = do
@@ -108,8 +109,8 @@ toReturn ens t exp = do
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
   v' <- addEnvVar t (toVar v)
-  r  <- toRef ref
-  addInvariant (var v' .== var r)
+  e  <- toExpr t ref
+  addInvariant (var v' .== e)
 
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
 toAlloc t ref name = do
@@ -117,12 +118,23 @@ toAlloc t ref name = do
   addInvariant (var v' .== var (toName name))
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
+toStore t e@(I.ExpIndex{}) exp = toSelectStore t e exp
+toStore t e@(I.ExpLabel{}) exp = toSelectStore t e exp
 toStore t ptr exp = do
   v' <- updateEnvRef t ptr
   e  <- toExpr t exp
   addInvariant (var v' .== e)
 
+toSelectStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
+toSelectStore t f exp = do
+  v    <- toStoreRef t f
+  f'   <- toExpr t f
+  e    <- toExpr t exp
+  addInvariant (var v .== store f' e)
+
 toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
+toLocal t@(I.TyArr{}) v inits = toLocalArr t v inits
+toLocal t@(I.TyStruct{}) v inits = err "toLocal" (show t)
 toLocal t v inits = do
   v' <- addEnvVar t (toVar v)
   is <- toInit inits
@@ -131,8 +143,16 @@ toLocal t v inits = do
 toInit :: I.Init -> ModelCheck Expr
 toInit init =
   case init of
---    I.InitZero       -> lit 0
+    I.InitZero       -> return $ intLit 0
     I.InitExpr t exp -> toExpr t exp
+    _                -> err "toInit" (show init)
+
+toLocalArr :: I.Type -> I.Var -> I.Init -> ModelCheck ()
+toLocalArr t@(I.TyArr n _) v init = do
+  tv <- incReservedVar =<< toType t
+  v' <- addEnvVar t (toVar v)
+  i  <- toInit init
+  addInvariant (var v' .== storeMany (var tv) [(lit x, i) | x <- [0..n-1]])
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
@@ -210,14 +230,21 @@ toExpr t exp = case exp of
   I.ExpLit lit               -> return $
     case lit of
       I.LitInteger i -> intLit i
+      I.LitFloat  r  -> realLit $ realToFrac r
+      I.LitDouble r  -> realLit r
       I.LitBool b    -> if b then T else F
-  I.ExpLabel{}               -> err "toExpr" (show exp) -- Already covered
-  I.ExpToIx e i              -> toExpr t e -- err "toExpr" (show exp)
+      _              -> err "toExpr lit" (show exp)
+  I.ExpLabel t' e f          -> do e' <- toExpr t' e
+                                   return $ field (var f) e'
+  I.ExpIndex ta a ti i       -> do a' <- toExpr ta a
+                                   i' <- toExpr ti i
+                                   return $ index i' a'
+  I.ExpToIx e i              -> toExpr t e
   I.ExpSafeCast t' e         -> do e' <- toExpr t' e
                                    assertBoundedVar t e'
                                    return e'
   I.ExpOp op args            -> toExprOp t op args
-  I.ExpAddrOfGlobal s        -> return (var s)
+  I.ExpAddrOfGlobal s        -> lookupVar s >>= return . var
   I.ExpMaxMin True           -> return $ intLit $ fromJust $ I.toMaxSize t
   I.ExpMaxMin False          -> return $ intLit $ fromJust $ I.toMinSize t
 
@@ -227,9 +254,7 @@ toExprOp :: I.Type -> I.ExpOp -> [I.Expr] -> ModelCheck Expr
 toExprOp t op args = case op of
   I.ExpEq t'      -> go t' (mkEq t')
   I.ExpNeq t'     -> toExpr t (I.ExpOp I.ExpNot [I.ExpOp (I.ExpEq t') args])
-  I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
-  I.ExpAnd        -> go t (.&&)
-  I.ExpOr         -> go t (.||)
+  I.ExpCond       -> toExpCond t arg0 arg1 arg2
   I.ExpLt orEq t' ->
     case orEq of
       True  -> go t' (.<=)
@@ -238,6 +263,9 @@ toExprOp t op args = case op of
     case orEq of
       True  -> go t' (.>=)
       False -> go t' (.>)
+  I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
+  I.ExpAnd        -> go t (.&&)
+  I.ExpOr         -> go t (.||)
   I.ExpMod        -> toMod t arg0 arg1
   I.ExpAdd        -> go t (.+)
   I.ExpSub        -> go t (.-)
@@ -250,6 +278,7 @@ toExprOp t op args = case op of
   where
   arg0 = args !! 0
   arg1 = args !! 1
+  arg2 = args !! 2
 
   mkEq I.TyBool = (.<=>)
   mkEq _        = (.==)
@@ -258,6 +287,16 @@ toExprOp t op args = case op of
     e0 <- toExpr t' arg0
     e1 <- toExpr t' arg1
     return (e0 `op` e1)
+
+toExpCond :: I.Type -> I.Expr -> I.Expr -> I.Expr -> ModelCheck Expr
+toExpCond t b x y = do
+  v  <- incReservedVar =<< toType t
+  b' <- toExpr I.TyBool b
+  x' <- toExpr t x
+  y' <- toExpr t y
+  let v' = var v
+  addInvariant ((b' .=> (v' .== x')) .&& (not' b' .=> (v' .== y')))
+  return v'
 
 -- Abstraction: a % b (C semantics) implies
 --
@@ -324,6 +363,7 @@ toType t = case t of
   I.TyVoid         -> return Void
   (I.TyWord _)     -> return Integer
   (I.TyInt  _)     -> return Integer
+  (I.TyIndex _ _)  -> return Integer
   I.TyBool         -> return Bool
   I.TyChar         -> return Char
   I.TyFloat        -> return Real
@@ -332,34 +372,36 @@ toType t = case t of
   I.TyRef t'       -> toType t'
   I.TyConstRef t'  -> toType t'
   I.TyPtr t'       -> toType t'
-  I.TyArr i t'     -> err "toType" "arr"
+  I.TyArr i t'     -> do t'' <- toType t'
+                         return (Array t'')
   I.TyCArray t'    -> err "toType" "carray"
   I.TyOpaque       -> return Opaque
-  I.TyStruct name  -> do let ty = Struct name
-                         addType ty
-                         return ty
+  I.TyStruct name  -> return $ Struct name
   -- _            -> error $ show t
 
 updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
 updateEnvRef t ref =
   case ref of
-    I.ExpLabel ty (I.ExpVar struct) field
-      -> do struct' <- addEnvVar ty (toVar struct)
-            addEnvVar t (struct' ++ '_' : field)
     I.ExpVar v
       -> addEnvVar t (toVar v)
+    I.ExpAddrOfGlobal v
+      -> addEnvVar t v
     _ -> error $ "Unexpected expression " ++ show ref
       ++ " to updateEnvRef."
 
-toRef :: I.Expr -> ModelCheck Var
-toRef ref =
+toStoreRef :: I.Type -> I.Expr -> ModelCheck Var
+toStoreRef t ref =
   case ref of
-    I.ExpLabel _ty (I.ExpVar struct) field
-      -> lookupVar (toVar struct ++ '_' : field)
+    I.ExpIndex t' e _ _
+      -> toStoreRef t' e
+    I.ExpLabel t' e _
+      -> toStoreRef t' e
     I.ExpVar v
-      -> lookupVar (toVar v)
+      -> addEnvVar t (toVar v)
+    I.ExpAddrOfGlobal v
+      -> addEnvVar t v
     _ -> error $ "Unexpected expression " ++ show ref
-      ++ " to toRef."
+      ++ " to toStoreRef."
 
 data LoopOp = Incr | Decr deriving (Show, Read, Eq)
 data Loop = Loop
@@ -458,6 +500,9 @@ assertBoundedVar t e = getBounds t
       I.Int32 -> c int32
       I.Int64 -> c int64
 
+    -- I.TyIndex n _ -> addInvariant $ (intLit 0 .<= e)
+    --                             .&& (e .<= (intLit n .- intLit 1))
+
     _         -> return ()
 
   c f = addInvariant (call f [e])
@@ -483,6 +528,12 @@ queryEnsures :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
 queryEnsures ens t retE = do
   exp <- toExpr t retE
   mapM_ (addQuery . substExpr [("retval", exp)]) ens
+
+
+toStruct :: I.Struct -> ModelCheck ()
+toStruct (I.Struct name fields) = do
+  fs <- forM fields $ \ (I.Typed t f) -> (f,) <$> toType t
+  addType name fs
 
 err :: String -> String -> a
 err f msg = error $ "in ivory-model-check. Unexpected: " ++ msg

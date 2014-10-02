@@ -21,6 +21,7 @@ import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 import           Data.List
+import qualified Data.Map.Lazy               as M
 
 -- XXX testing
 import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
@@ -117,7 +118,7 @@ mkScript st =
   [ ""
   , "% user-defined types -------------------------"
   , ""
-  ] ++ writeStmts (map typeDecl . types . symSt)
+  ] ++ writeStmts (map (uncurry typeDecl) . M.toList . types . symSt)
   ++
   [ ""
   , "% declarations -------------------------------"

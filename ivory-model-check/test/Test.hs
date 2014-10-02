@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
@@ -181,21 +182,23 @@ m8 = package "foo8" (incl foo8)
 [ivory|
 struct foo
 { aFoo :: Stored Uint8
-; bFoo :: Stored Uint8
+; bFoo :: (Array 4 Uint8)
 }
 |]
 
 foo9 :: Def ('[Ref s (L.Struct "foo")] :-> ())
 foo9 = L.proc "foo9" $ \f -> body $ do
   store (f ~> aFoo) 3
-  store (f ~> bFoo) 1
+  store (f ~> bFoo ! 0) 1
   store (f ~> aFoo) 4
   x <- deref (f ~> aFoo)
-  y <- deref (f ~> bFoo)
+  y <- deref (f ~> bFoo ! 0)
   L.assert (x ==? 4 L..&& y ==? 1)
 
 m9 :: Module
-m9 = package "foo9" (incl foo9)
+m9 = package "foo9" $ do
+  defStruct (Proxy :: Proxy "foo")
+  incl foo9
 
 -----------------------
 
@@ -213,10 +216,7 @@ m10 = package "foo10" (incl foo10)
 -----------------------
 
 foo11 :: Def ('[Ix 10] :-> ())
-foo11 = L.proc "foo11" $ \n -> 
-        requires (0 <=? n)
-      $ requires (n <? 10)
-      $ body $ do
+foo11 = L.proc "foo11" $ \n -> body $ do
           x <- local (ival (0 :: Sint8))
           for n $ \i -> do
             x' <- deref x
@@ -270,3 +270,15 @@ foo15 = L.proc "foo15" $ \n ->
 
 m15 :: Module
 m15 = package "foo15" (incl foo15)
+
+-----------------------
+
+foo16 :: Def ('[]:->())
+foo16 = L.proc "foo16" $ body $ do
+  (stack_array :: Ref (Stack s) (Array 10 (Stored IFloat))) <- local izero
+  store (stack_array ! 0) 5
+  arrayMap $ \ix ->
+    store (stack_array ! ix) 1
+
+m16 :: Module
+m16 = package "foo16" (incl foo16)
