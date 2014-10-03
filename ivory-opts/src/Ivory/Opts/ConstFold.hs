@@ -153,7 +153,7 @@ cf copies ty e =
 
     I.ExpLabel t e0 s     -> I.ExpLabel t (cf copies t e0) s
 
-    I.ExpIndex t e0 t1 e1 -> I.ExpIndex t (cf copies t e0) t1 (cf copies t e1)
+    I.ExpIndex t e0 t1 e1 -> I.ExpIndex t (cf copies t e0) t1 (cf copies t1 e1)
 
     I.ExpSafeCast t e0    ->
       let e0' = cf copies t e0
