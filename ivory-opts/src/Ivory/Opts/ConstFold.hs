@@ -20,7 +20,6 @@ import Ivory.Language.Cast (toMaxSize, toMinSize)
 
 import Control.Arrow (second)
 import Data.Maybe
-import Data.List
 import qualified Data.DList as D
 
 --------------------------------------------------------------------------------
@@ -39,55 +38,54 @@ procFold opt proc =
    in proc { I.procBody = body' }
 
 blockFold :: String -> ExprOpt -> I.Block -> D.DList I.Stmt
-blockFold cxt opt = foldl' (stmtFold cxt opt) D.empty
+blockFold cxt opt = D.concat . map (stmtFold cxt opt)
 
-stmtFold :: String -> ExprOpt -> D.DList I.Stmt -> I.Stmt -> D.DList I.Stmt
-stmtFold cxt opt blk stmt =
+stmtFold :: String -> ExprOpt -> I.Stmt -> D.DList I.Stmt
+stmtFold cxt opt stmt =
   case stmt of
-    I.IfTE _ [] []       -> blk
-    I.IfTE e [] b1       -> stmtFold cxt opt blk $ I.IfTE (I.ExpOp I.ExpNot [e]) b1 []
+    I.IfTE _ [] []       -> D.empty
+    I.IfTE e [] b1       -> stmtFold cxt opt $ I.IfTE (I.ExpOp I.ExpNot [e]) b1 []
     I.IfTE e b0 b1       ->
       let e' = opt I.TyBool e in
       case e' of
-        I.ExpLit (I.LitBool b) -> if b then blk `D.append` (newFold' b0)
-                                    else blk `D.append` (newFold' b1)
-        _                      -> snoc $ I.IfTE e' (newFold b0) (newFold b1)
+        I.ExpLit (I.LitBool b) -> newFold' $ if b then b0 else b1
+        _                      -> D.singleton $ I.IfTE e' (newFold b0) (newFold b1)
     I.Assert e           ->
       let e' = opt I.TyBool e in
       case e' of
         I.ExpLit (I.LitBool b) ->
-          if b then blk
+          if b then D.empty
             else error $ "Constant folding evaluated a False assert()"
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
-        _                      -> snoc (I.Assert e')
+        _                      -> D.singleton (I.Assert e')
     I.CompilerAssert e        ->
       let e' = opt I.TyBool e in
-      let go = snoc (I.CompilerAssert e') in
+      let go = D.singleton (I.CompilerAssert e') in
       case e' of
         I.ExpLit (I.LitBool b) ->
           -- It's OK to have false but unreachable compiler asserts.
-          if b then blk else go
+          if b then D.empty else go
         _                      -> go
     I.Assume e           ->
       let e' = opt I.TyBool e in
       case e' of
         I.ExpLit (I.LitBool b) ->
-          if b then blk
+          if b then D.empty
             else error $ "Constant folding evaluated a False assume()"
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
-        _                      -> snoc (I.Assume e')
+        _                      -> D.singleton (I.Assume e')
 
-    I.Return e           -> snoc $ I.Return (typedFold opt e)
-    I.ReturnVoid         -> snoc I.ReturnVoid
-    I.Deref t var e      -> snoc $ I.Deref t var (opt t e)
-    I.Store t e0 e1      -> snoc $ I.Store t (opt t e0) (opt t e1)
-    I.Assign t v e       -> snoc $ I.Assign t v (opt t e)
-    I.Call t mv c tys    -> snoc $ I.Call t mv c (map (typedFold opt) tys)
-    I.Local t var i      -> snoc $ I.Local t var $ constFoldInits i
-    I.RefCopy t e0 e1    -> snoc $ I.RefCopy t (opt t e0) (opt t e1)
-    I.AllocRef{}         -> snoc stmt
+    I.Return e           -> D.singleton $ I.Return (typedFold opt e)
+    I.ReturnVoid         -> D.singleton stmt
+    I.Deref t var e      -> D.singleton $ I.Deref t var (opt t e)
+    I.Store t e0 e1      -> D.singleton $ I.Store t (opt t e0) (opt t e1)
+    I.Assign t v e       -> D.singleton $ I.Assign t v (opt t e)
+    I.Call t mv c tys    -> D.singleton $ I.Call t mv c (map (typedFold opt) tys)
+    I.Local t var i      -> D.singleton $ I.Local t var $ constFoldInits i
+    I.RefCopy t e0 e1    -> D.singleton $ I.RefCopy t (opt t e0) (opt t e1)
+    I.AllocRef{}         -> D.singleton stmt
     I.Loop v e incr blk' ->
       let ty = I.TyInt I.Int32 in
       case opt ty e of
@@ -97,14 +95,13 @@ stmtFold cxt opt blk stmt =
                else error $ "Constant folding evaluated False expression "
                           ++ "in a loop bound.  The loop will never execute!"
         _                      ->
-          snoc $ I.Loop v (opt ty e) (loopIncrFold (opt ty) incr)
+          D.singleton $ I.Loop v (opt ty e) (loopIncrFold (opt ty) incr)
                         (newFold blk')
-    I.Break              -> snoc I.Break
-    I.Forever b          -> snoc $ I.Forever (newFold b)
-    I.Comment c          -> snoc $ I.Comment c
+    I.Break              -> D.singleton stmt
+    I.Forever b          -> D.singleton $ I.Forever (newFold b)
+    I.Comment{}          -> D.singleton stmt
   where newFold' = blockFold cxt opt
         newFold  = D.toList . newFold'
-        snoc     = (blk `D.snoc`)
 
 constFoldInits :: I.Init -> I.Init
 constFoldInits I.InitZero = I.InitZero
