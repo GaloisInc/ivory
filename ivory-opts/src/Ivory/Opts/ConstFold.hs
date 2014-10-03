@@ -35,8 +35,11 @@ constFold = procFold cf
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
   let cxt   = I.procSym proc
-      body' = D.toList $ foldl' (stmtFold cxt opt) D.empty (I.procBody proc)
+      body' = D.toList $ blockFold cxt opt $ I.procBody proc
    in proc { I.procBody = body' }
+
+blockFold :: String -> ExprOpt -> I.Block -> D.DList I.Stmt
+blockFold cxt opt = foldl' (stmtFold cxt opt) D.empty
 
 stmtFold :: String -> ExprOpt -> D.DList I.Stmt -> I.Stmt -> D.DList I.Stmt
 stmtFold cxt opt blk stmt =
@@ -99,8 +102,7 @@ stmtFold cxt opt blk stmt =
     I.Break              -> snoc I.Break
     I.Forever b          -> snoc $ I.Forever (newFold b)
     I.Comment c          -> snoc $ I.Comment c
-  where sf       = stmtFold cxt opt
-        newFold' = foldl' sf D.empty
+  where newFold' = blockFold cxt opt
         newFold  = D.toList . newFold'
         snoc     = (blk `D.snoc`)
 
