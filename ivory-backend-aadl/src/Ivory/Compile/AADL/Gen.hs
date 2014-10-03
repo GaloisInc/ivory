@@ -2,6 +2,7 @@
 
 module Ivory.Compile.AADL.Gen where
 
+import qualified Ivory.Language.Array  as I
 import qualified Ivory.Language.Syntax as I
 
 import qualified Data.Set as Set
@@ -32,6 +33,7 @@ mkType ty = case ty of
     I.TyChar              -> basetype "Char"
     I.TyInt i             -> intSize i
     I.TyWord w            -> wordSize w
+    I.TyIndex _           -> mkType I.ixRep
     I.TyBool              -> basetype "Boolean"
     I.TyFloat             -> basetype "Float"
     I.TyDouble            -> basetype "Double"

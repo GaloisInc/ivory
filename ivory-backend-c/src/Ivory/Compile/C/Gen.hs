@@ -9,6 +9,7 @@ module Ivory.Compile.C.Gen where
 import qualified "language-c-quote" Language.C.Syntax as C
 import Language.C.Quote.GCC
 
+import qualified Ivory.Language.Array  as I
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Proc as P
 
@@ -163,6 +164,7 @@ toTypeCxt arrCase = convert
     I.TyChar              -> [cty| char |]
     I.TyInt i             -> intSize i
     I.TyWord w            -> wordSize w
+    I.TyIndex _           -> toTypeCxt arrCase I.ixRep
     I.TyBool              -> [cty| typename bool |]
     I.TyFloat             -> [cty| float |]
     I.TyDouble            -> [cty| double |]
@@ -294,7 +296,7 @@ toBody ens stmt =
                               $exp:incExp ) {
                        $items:loopBd } |]]
       where
-      ty = I.TyInt I.Int32
+      ty = I.ixRep
       (test,incExp)  = toIncr incr
       ix = toVar var
       toIncr (I.IncrTo to) =
@@ -353,6 +355,7 @@ toExpr t (I.ExpLit lit)  =
       where fromInt = case t of
                         I.TyWord _  -> show i ++ "U"
                         I.TyInt  _  -> show i
+                        I.TyIndex _ -> show i
                         I.TyFloat   -> show (fromIntegral i :: Float) ++ "F"
                         I.TyDouble  -> show (fromIntegral i :: Double)
                         _           -> error ("Nonint type " ++ (show t) ++
@@ -415,6 +418,7 @@ toExpr ty (I.ExpMaxMin b) = [cexp| $id:macro |]
         I.Word16    -> "UINT16_MAX"
         I.Word32    -> "UINT32_MAX"
         I.Word64    -> "UINT64_MAX"
+      I.TyIndex n -> show n
       _           -> err
     False -> case ty of
       I.TyInt sz -> case sz of
@@ -427,6 +431,7 @@ toExpr ty (I.ExpMaxMin b) = [cexp| $id:macro |]
         I.Word16    -> 0
         I.Word32    -> 0
         I.Word64    -> 0
+      I.TyIndex _ -> "0"
       _           -> err
   err = error $ "unexpected type " ++ show ty ++ " in ExpMaxMin."
 ----------------------------------------

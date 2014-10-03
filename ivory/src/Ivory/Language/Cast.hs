@@ -281,6 +281,7 @@ toMaxSize ty =
                     AST.Word16 -> fromIntegral (maxBound :: Word16)
                     AST.Word32 -> fromIntegral (maxBound :: Word32)
                     AST.Word64 -> fromIntegral (maxBound :: Word64)
+    AST.TyIndex n -> Just n
     _          -> Nothing
 
 toMinSize :: AST.Type -> Maybe Integer
@@ -296,6 +297,7 @@ toMinSize ty =
                     AST.Word16 -> fromIntegral (minBound :: Word16)
                     AST.Word32 -> fromIntegral (minBound :: Word32)
                     AST.Word64 -> fromIntegral (minBound :: Word64)
+    AST.TyIndex _ -> Just 0
     _          -> Nothing
 
 --------------------------------------------------------------------------------
