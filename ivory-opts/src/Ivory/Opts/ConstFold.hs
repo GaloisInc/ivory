@@ -46,36 +46,30 @@ stmtFold cxt opt stmt =
     I.IfTE _ [] []       -> D.empty
     I.IfTE e [] b1       -> stmtFold cxt opt $ I.IfTE (I.ExpOp I.ExpNot [e]) b1 []
     I.IfTE e b0 b1       ->
-      let e' = opt I.TyBool e in
-      case e' of
+      case opt I.TyBool e of
         I.ExpLit (I.LitBool b) -> newFold' $ if b then b0 else b1
-        _                      -> D.singleton $ I.IfTE e' (newFold b0) (newFold b1)
+        e'                     -> D.singleton $ I.IfTE e' (newFold b0) (newFold b1)
     I.Assert e           ->
-      let e' = opt I.TyBool e in
-      case e' of
+      case opt I.TyBool e of
         I.ExpLit (I.LitBool b) ->
           if b then D.empty
             else error $ "Constant folding evaluated a False assert()"
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
-        _                      -> D.singleton (I.Assert e')
+        e'                     -> D.singleton (I.Assert e')
     I.CompilerAssert e        ->
-      let e' = opt I.TyBool e in
-      let go = D.singleton (I.CompilerAssert e') in
-      case e' of
-        I.ExpLit (I.LitBool b) ->
-          -- It's OK to have false but unreachable compiler asserts.
-          if b then D.empty else go
-        _                      -> go
+      case opt I.TyBool e of
+        -- It's OK to have false but unreachable compiler asserts.
+        I.ExpLit (I.LitBool b) | b -> D.empty
+        e'                         -> D.singleton (I.CompilerAssert e')
     I.Assume e           ->
-      let e' = opt I.TyBool e in
-      case e' of
+      case opt I.TyBool e of
         I.ExpLit (I.LitBool b) ->
           if b then D.empty
             else error $ "Constant folding evaluated a False assume()"
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
-        _                      -> D.singleton (I.Assume e')
+        e'                     -> D.singleton (I.Assume e')
 
     I.Return e           -> D.singleton $ I.Return (typedFold opt e)
     I.ReturnVoid         -> D.singleton stmt
