@@ -267,7 +267,7 @@ data Expr
   | ExpLabel Type Expr String
     -- ^ Struct label indexing.
 
-  | ExpIndex Type Expr Type Expr
+  | ExpIndex Type Expr Type Expr -- XXX Do we need the 2nd (index) Type?
     -- ^ Array indexing.  The type is the type of the array being indexed, it's
     -- implied that the expression with the array in it is a reference.
 

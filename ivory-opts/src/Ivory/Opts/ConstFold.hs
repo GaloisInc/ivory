@@ -14,7 +14,8 @@ module Ivory.Opts.ConstFold
 
 import Ivory.Opts.ConstFoldComp
 
-import qualified Ivory.Language.Syntax.AST as I
+import qualified Ivory.Language.Array       as I
+import qualified Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Language.Syntax.Type as I
 import Ivory.Language.Cast (toMaxSize, toMinSize)
 
@@ -86,7 +87,7 @@ stmtFold cxt opt blk stmt =
     I.RefCopy t e0 e1    -> snoc $ I.RefCopy t (opt t e0) (opt t e1)
     I.AllocRef{}         -> snoc stmt
     I.Loop v e incr blk' ->
-      let ty = I.TyInt I.Int32 in
+      let ty = I.ixRep in
       case opt ty e of
         I.ExpLit (I.LitBool b) ->
           if b then error $ "Constant folding evaluated True expression "
@@ -134,7 +135,7 @@ cf ty e =
             return e0'
 
     I.ExpToIx e0 maxSz    ->
-      let ty' = I.TyInt I.Int32 in
+      let ty' = I.ixRep in
       let e0' = cf ty' e0 in
       case destIntegerLit e0' of
         Just i  -> I.ExpLit $ I.LitInteger $ i `rem` maxSz

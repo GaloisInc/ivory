@@ -12,6 +12,7 @@ data Type
   = TyVoid             -- ^ Unit type
   | TyInt IntSize      -- ^ Signed ints
   | TyWord WordSize    -- ^ Unsigned ints
+  | TyIndex Integer    -- ^ Indices with an upper bound
   | TyBool             -- ^ Booleans
   | TyChar             -- ^ Characters
   | TyFloat            -- ^ Floats
@@ -25,7 +26,6 @@ data Type
   | TyCArray Type      -- ^ C Arrays
   | TyOpaque           -- ^ Opaque type---not implementable.
     deriving (Show, Eq, Ord)
-
 
 data IntSize
   = Int8
