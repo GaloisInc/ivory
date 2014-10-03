@@ -260,22 +260,30 @@ cfOp' ty op args = case op of
     | isLitValue 0 $ arg0 args -> toExpr $ arg0 args
     | isLitValue 1 $ arg0 args -> toExpr $ arg1 args
     | isLitValue (-1) $ arg0 args -> cfOp' ty I.ExpNegate [arg1 args]
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg0 args -> cfOp' ty I.ExpNegate $ mkCfArgs ty [cfOp' ty I.ExpMul $ mkCfArgs ty [e'] ++ [arg1 args]]
     | isLitValue 0 $ arg1 args -> toExpr $ arg1 args
     | isLitValue 1 $ arg1 args -> toExpr $ arg0 args
     | isLitValue (-1) $ arg1 args -> cfOp' ty I.ExpNegate [arg0 args]
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg1 args -> cfOp' ty I.ExpNegate $ mkCfArgs ty [cfOp' ty I.ExpMul $ arg0 args : mkCfArgs ty [e']]
     | otherwise -> goNum
 
   I.ExpAdd
     | isLitValue 0 $ arg0 args -> toExpr $ arg1 args
     | isLitValue 0 $ arg1 args -> toExpr $ arg0 args
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg1 args -> cfOp' ty I.ExpSub $ arg0 args : mkCfArgs ty [e']
     | otherwise -> goNum
 
   I.ExpSub
     | isLitValue 0 $ arg0 args -> cfOp' ty I.ExpNegate [arg1 args]
     | isLitValue 0 $ arg1 args -> toExpr $ arg0 args
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg1 args -> cfOp' ty I.ExpAdd $ arg0 args : mkCfArgs ty [e']
     | otherwise -> goNum
 
-  I.ExpNegate   -> goNum
+  I.ExpNegate   -> case arg0 args of
+    CfExpr (I.ExpOp I.ExpNegate [e']) -> e'
+    CfExpr (I.ExpOp I.ExpSub [e1, e2]) -> cfOp' ty I.ExpSub $ mkCfArgs ty [e2, e1]
+    _ -> goNum
+
   I.ExpAbs      -> goNum
   I.ExpSignum   -> goNum
 
