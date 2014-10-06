@@ -363,7 +363,7 @@ toType t = case t of
   I.TyVoid         -> return Void
   (I.TyWord _)     -> return Integer
   (I.TyInt  _)     -> return Integer
-  (I.TyIndex _ _)  -> return Integer
+  (I.TyIndex _)    -> return Integer
   I.TyBool         -> return Bool
   I.TyChar         -> return Char
   I.TyFloat        -> return Real
