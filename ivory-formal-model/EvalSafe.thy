@@ -32,12 +32,49 @@ lemma Expr_safeE:
   shows R
   using wfe wfg by (auto dest!: Expr_safe intro: rl)
 
+
+lemma heap_frees_nil [simp]:
+  "heap_frees [] = {}"
+  unfolding heap_frees_def afrees_set_def by simp
+
+lemma heap_frees_take:
+  "heap_frees (take n \<Theta>) \<subseteq> heap_frees \<Theta>"
+  unfolding heap_frees_def afrees_set_def 
+  by (intro image_mono Union_mono set_take_subset)
+
+lemma heap_frees_singleton [simp]:
+  "heap_frees [\<Sigma>] = afrees_set (ran \<Sigma>)" unfolding heap_frees_def by simp
+
+lemma afrees_set_mono:
+  assumes ss: "S \<subseteq> S'"
+  shows   "afrees_set S \<subseteq> afrees_set S'"
+  using ss unfolding afrees_set_def
+  by auto
+
+lemma afrees_set_insert [simp]:
+  "afrees_set (insert \<rho> S) = afrees \<rho> \<union> afrees_set S"
+  unfolding afrees_set_def by simp
+
+lemma afrees_set_empty [simp]:
+  "afrees_set {} = {}"
+  unfolding afrees_set_def by simp
+
+lemma afrees_set_Un [simp]:
+  "afrees_set (S \<union> S') = afrees_set S \<union> afrees_set S'"
+  unfolding afrees_set_def by simp
+  
+lemma afrees_set_heap_frees_nth:
+  assumes nl: "n < length \<Theta>"
+  shows "afrees_set (ran (\<Theta> ! n)) \<subseteq> heap_frees \<Theta>"
+  using nl unfolding heap_frees_def afrees_set_def
+  by fastforce
+
 lemma ImpureExpr_safeE:
   notes subheap_refl [intro]
   fixes \<tau> :: "'r wtype"
   assumes wfe: "\<Gamma>, \<rho> \<turnstile>I e : \<tau>"
-  and   wfs: "WfStore \<Delta> \<Theta> st \<Gamma>" "WfHeap \<Delta> H \<Theta>" "H \<noteq> []" "WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1)"
-  obtains H' \<Theta>' v where "st \<Turnstile> H, e \<Down> H', v" "WfHeap \<Delta> H' \<Theta>'" "WfWValue \<Delta> \<Theta>' v \<tau>" "subheap \<Theta> \<Theta>'" 
+  and   wfs: "WfStore \<Delta> \<Theta> st \<Gamma>" "WfHeap \<Delta> H \<Theta>" "H \<noteq> []" "WfFrees \<Delta> \<Gamma> \<rho> \<Theta>"
+  obtains H' \<Theta>' v where "st \<Turnstile> H, e \<Down> H', v" "WfHeap \<Delta> H' \<Theta>'" "WfWValue \<Delta> \<Theta>' v \<tau>" "subheap \<Theta> \<Theta>'" "heap_frees \<Theta>' \<subseteq> heap_frees \<Theta> \<union> tfrees \<tau>" (* or \<subseteq> dom \<Delta>? *)
   using wfe wfs
 proof (induction)
   case (wfPure \<Gamma> e \<tau> \<rho>)
@@ -97,9 +134,27 @@ next
       show "lookup_heap ?\<Theta>' ?region ?off = Some (Stored \<tau>)"
         by (auto simp: lookup_heap_Some_iff nth_append min_absorb2 )
           
-      from `WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1)` `length \<Theta> = length H` 
+      from `WfFrees \<Delta> \<Gamma> \<rho> \<Theta>` `length \<Theta> = length H` 
       show "\<Delta> \<rho> = Some ?region" by (clarsimp elim!: WfFreesE)
     qed
+    
+    from `length \<Theta> = length H` `H \<noteq> []` 
+    show "heap_frees ?\<Theta>' \<subseteq> heap_frees \<Theta> \<union> tfrees (RefT \<rho> (Stored \<tau>))"
+      apply (simp add: heap_frees_append heap_frees_take heap_frees_singleton del: Un_insert_left)
+      apply rule
+       apply (rule order_trans)
+       apply (rule heap_frees_take)
+       apply clarsimp
+      apply (rule order_trans)
+      apply (rule afrees_set_mono)
+      apply (rule ran_map_upd_subset)
+      apply (clarsimp simp del: Un_insert_right Un_insert_left)
+      apply rule 
+       apply (rule order_trans [OF afrees_set_heap_frees_nth ])
+        apply simp
+       apply clarsimp
+      apply clarsimp
+     done
   qed
 next
   case (wfReadRef \<Gamma> e \<gamma> \<tau> \<rho>)
@@ -126,6 +181,8 @@ next
     have "WfWValue \<Delta> (take (Suc region) \<Theta> @ drop (Suc region) \<Theta>) v' \<tau>"
       by (rule WfWValue_heap_monotone)
     thus "WfWValue \<Delta> \<Theta> v' \<tau>" by simp
+
+    show "heap_frees \<Theta> \<subseteq> heap_frees \<Theta> \<union> tfrees \<tau>" by simp
   qed fact+
 next
   case (wfWriteRef \<Gamma> e\<^sub>2 \<tau> e\<^sub>1 \<gamma> \<rho>)
@@ -163,6 +220,8 @@ next
       `lookup_heap \<Theta> region off = Some (Stored \<tau>)`
     show "WfHeap \<Delta> H' \<Theta>"
       by (rule WfHeap_upd_same_type [OF _ wfStoredV])
+
+    show "heap_frees \<Theta> \<subseteq> heap_frees \<Theta> \<union> tfrees UNIT" by simp
   qed rule
 qed
 
@@ -174,20 +233,20 @@ lemma ImpureExpr_safe_stateE:
   and     wfs: "WfState S \<Gamma> \<Psi> \<tau>' b \<rho>"
   obtains H' \<Theta>' \<Delta> v where "store S \<Turnstile> heap S, e \<Down> H', v" "WfHeap \<Delta> H' \<Theta>'" 
   "WfStore \<Delta> \<Theta>' (store S) \<Gamma>" "WfWValue \<Delta> \<Theta>' v \<tau>" "WfStack \<Psi> \<Delta> \<Theta>' (stack S) \<tau>' b \<rho>" 
-  "WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta>' - 1)"
+  "WfFrees \<Delta> \<Gamma> \<rho> \<Theta>'" "heap_frees \<Theta>' \<subseteq> heap_frees \<Theta> \<union> tfrees \<tau>"
 proof -
   from wfs obtain \<Theta> \<Delta> where
     "WfStore \<Delta> \<Theta> (store S) \<Gamma>"
     "WfHeap \<Delta> (heap S) \<Theta>" 
     "WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau>' b \<rho>"
-    "WfFrees \<Delta> \<Gamma> \<rho> (length \<Theta> - 1)"
+    "WfFrees \<Delta> \<Gamma> \<rho> \<Theta>"
     ..
   moreover
   from `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau>' b \<rho>` `WfHeap \<Delta> (heap S) \<Theta>` have "heap S \<noteq> []"
     by (rule WfStack_heap_not_empty)
 
   ultimately obtain H' \<Theta>' v where "store S \<Turnstile> heap S, e \<Down> H', v" "WfHeap \<Delta> H' \<Theta>'" 
-    "WfWValue \<Delta> \<Theta>' v \<tau>" "subheap \<Theta> \<Theta>'" 
+    "WfWValue \<Delta> \<Theta>' v \<tau>" "subheap \<Theta> \<Theta>'" "heap_frees \<Theta>' \<subseteq> heap_frees \<Theta> \<union> tfrees \<tau>"
     using wfe
     by (auto elim!: ImpureExpr_safeE dest: WfHeap_length)
 

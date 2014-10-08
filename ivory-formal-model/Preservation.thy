@@ -43,6 +43,8 @@ proof induction
   qed
 qed rule+
 
+lemma subseteq_negate:
+  "(X \<subseteq> - {y}) = (y \<notin> X)" by auto
 
 (* We need an infinite set of fresh names here *)
 lemma Preservation: 
@@ -130,14 +132,35 @@ next
 
         from `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>` `WfHeap \<Delta> (heap S) \<Theta>`
         have "heap S \<noteq> []" by (rule WfStack_heap_not_empty)
-        with `WfHeap \<Delta> (heap S) \<Theta>` delta'
-        show "WfHeap \<Delta>' (pop_heap (heap S)) (butlast \<Theta>)"
+        with `WfHeap \<Delta> (heap S) \<Theta>` delta' `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>`
+        show "WfHeap \<Delta>' (pop_heap (heap S)) (butlast \<Theta>)" (* This answers: Why can we remove the region and retain safety? *)
           apply -
+          apply (clarsimp simp: pop_heap_def)
           apply (erule WfHeap.cases)
           apply simp
           apply (clarsimp simp: pop_heap_def)
+          apply (erule WfStack.cases)
+          apply clarsimp
+          apply (erule WfHeap.cases, simp_all)[1]
+          apply rule
+
+          apply clarsimp
+          apply (drule WfHeap_renv_restrict)
+          apply (erule WfHeap_renv_mono)
+          apply (rule restrict_mono)
+          apply (simp add: subseteq_negate)
+          
+
+          defer
+          apply clarsimp
+          
+ 
           
           apply (erule WfHeap_renv_mono)
+          apply (erule WfStack.cases)
+          apply clarsimp
+          apply (erule WfHeap_renv_mono)
+          
           apply (auto simp: pop_heap_def elim!: WfHeap.cases)
 
       qed fact+
