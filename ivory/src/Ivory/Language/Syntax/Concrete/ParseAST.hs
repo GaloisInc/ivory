@@ -7,6 +7,10 @@
 
 module Ivory.Language.Syntax.Concrete.ParseAST where
 
+import Data.Monoid
+
+import Ivory.Language.Syntax.Concrete.Location
+
 --------------------------------------------------------------------------------
 
 type FnSym     = String
@@ -33,23 +37,26 @@ data GlobalSym = GlobalProc ProcDef
 
 data IncludeDef = IncludeDef
   { inclModule :: String
+  , inclDefLoc :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Constant definition
 
 data ConstDef = ConstDef
-  { constSym  :: String
-  , constExp  :: Exp
-  , constType :: Maybe Type
+  { constSym    :: String
+  , constExp    :: Exp
+  , constType   :: Maybe Type
+  , constDefLoc :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Type definition
 
 data TypeDef = TypeDef
-  { tySym :: String
-  , tyDef :: Type
+  { tySym    :: String
+  , tyDef    :: Type
+  , tyDefLoc :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -61,6 +68,7 @@ data ProcDef = ProcDef
   , procArgs    :: [(Type,Var)] -- ^ Argument types
   , procStmt    :: [Stmt]       -- ^ Body
   , procPrePost :: [PrePost]
+  , procLoc     :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 -- Pre and post conditions
@@ -88,6 +96,7 @@ data Type
   | TyRef      Scope Type      -- ^ References
   | TyConstRef Scope Type      -- ^ Constant References
   | TySynonym String           -- ^ Type synonym
+  | LocTy (Located Type)
   deriving (Show, Read, Eq, Ord)
 
 data Scope =
@@ -133,6 +142,7 @@ data Exp
   | ExpStruct Exp Exp
   | ExpCall FnSym [Exp]
   | ExpAddrOf Var
+  | LocExp (Located Exp)
   deriving (Show, Read, Eq, Ord)
 
 data ExpOp
@@ -233,6 +243,7 @@ data Stmt
   | Forever [Stmt]
   | IvoryMacroStmt (Maybe Var) (String, [Exp])
 -- Break XXX Too dangerous (and difficult) for non-macro use?
+  | LocStmt (Located Stmt)
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -256,6 +267,7 @@ ivoryStringStructName = ("ivory_string_" ++)
 data Field = Field
   { fieldName :: FieldNm
   , fieldType :: Type
+  , fieldLoc  :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -266,6 +278,7 @@ data BitDataDef = BitDataDef
   { defName    :: String
   , defType    :: BitTy
   , defConstrs :: [Constr]
+  , bdLoc      :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 -- | Basic type representation allowed in bit definitions.
@@ -273,6 +286,7 @@ data BitTy = Bit
            | Bits Integer
            | BitArray Integer BitTy
            | BitTySynonym String
+           | LocBitTy (Located BitTy)
   deriving (Show, Read, Eq, Ord)
 
 -- | A constructor definition within a "bitdata".
@@ -280,6 +294,7 @@ data Constr = Constr
   { constrName   :: String
   , constrFields :: [BitField]
   , constrLayout :: [LayoutItem]
+  , constrLoc    :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 -- | One element of a bit data constructor layout.
@@ -298,7 +313,142 @@ data BitLiteral =
 data BitField = BitField
   { bitFieldName :: Maybe String
   , bitFieldType :: BitTy
+  , bitFieldLoc  :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
+-- Instances
+
+instance HasLocation GlobalSym where
+  getLoc = mempty
+  stripLoc g = case g of
+    GlobalProc p     -> GlobalProc (stripLoc p)
+    GlobalStruct s   -> GlobalStruct (stripLoc s)
+    GlobalBitData b  -> GlobalBitData (stripLoc b)
+    GlobalTypeDef t  -> GlobalTypeDef (stripLoc t)
+    GlobalConstDef c -> GlobalConstDef (stripLoc c)
+    GlobalInclude i  -> GlobalInclude (stripLoc i)
+
+instance HasLocation IncludeDef where
+  getLoc = inclDefLoc
+  stripLoc incl = incl { inclDefLoc = mempty }
+
+instance HasLocation ConstDef where
+  getLoc = constDefLoc
+  stripLoc c = c { constDefLoc = mempty }
+
+instance HasLocation TypeDef where
+  getLoc = tyDefLoc
+  stripLoc td = td { tyDefLoc = mempty }
+
+instance HasLocation ProcDef where
+  getLoc = procLoc
+  stripLoc p = p { procLoc = mempty }
+
+instance HasLocation PrePost where
+  getLoc _ = mempty
+  stripLoc pp = case pp of
+    PreCond e  -> PreCond (stripLoc e)
+    PostCond e -> PostCond (stripLoc e)
+
+instance HasLocation Type where
+  getLoc ty = case ty of
+                LocTy t -> getLoc t
+                _       -> mempty
+  stripLoc ty = case ty of
+    TyVoid{}         -> ty
+    TyInt{}          -> ty
+    TyWord{}         -> ty
+    TyBool{}         -> ty
+    TyChar{}         -> ty
+    TyFloat{}        -> ty
+    TyDouble{}       -> ty
+    TyIx{}           -> ty
+    TyStored ty0     -> TyStored (stripLoc ty0)
+    TyStruct{}       -> ty
+    TyArray ty0 i    -> TyArray (stripLoc ty0) i
+    TyRef s ty0      -> TyRef s (stripLoc ty0)
+    TyConstRef s ty0 -> TyConstRef s (stripLoc ty0)
+    TySynonym{}      -> ty
+    LocTy ty0        -> unLoc ty0
+
+instance HasLocation Exp where
+  getLoc e = case e of
+               LocExp le -> getLoc le
+               _         -> mempty
+
+  stripLoc e = case e of
+    ExpLit{}               -> e
+    ExpVar{}               -> e
+    ExpRet{}               -> e
+    ExpOp op args          -> ExpOp op (stripLoc args)
+    IvoryMacroExp (s,args) -> IvoryMacroExp (s, stripLoc args)
+    ExpDeref e0            -> ExpDeref (stripLoc e0)
+    ExpArray e0 e1         -> ExpArray (stripLoc e0) (stripLoc e1)
+    ExpStruct e0 e1        -> ExpStruct (stripLoc e0) (stripLoc e1)
+    ExpCall fn args        -> ExpCall fn (stripLoc args)
+    ExpAddrOf{}            -> e
+    LocExp le              -> unLoc le
+
+instance HasLocation AllocRef where
+  getLoc _ = mempty
+  stripLoc a = case a of
+    AllocBase v e    -> AllocBase v (stripLoc e)
+    AllocArr v es    -> AllocArr v (stripLoc es)
+    AllocStruct v fs -> AllocStruct v (map (\(n,e) -> (n, stripLoc e)) fs)
+
+instance HasLocation Stmt where
+  getLoc s = case s of
+               LocStmt s0 -> getLoc s0
+               _          -> mempty
+  stripLoc s = case s of
+    IfTE e s0 s1    -> IfTE (stripLoc e) (stripLoc s0) (stripLoc s1)
+    Assert e        -> Assert (stripLoc e)
+    Assume e        -> Assume (stripLoc e)
+    Return e        -> Return (stripLoc e)
+    ReturnVoid      -> ReturnVoid
+    Store e0 e1     -> Store (stripLoc e0) (stripLoc e1)
+    Assign v e t    -> Assign v (stripLoc e) (stripLoc t)
+    NoBindCall v es -> NoBindCall v (stripLoc es)
+    RefCopy e0 e1   -> RefCopy (stripLoc e0) (stripLoc e1)
+    AllocRef ar     -> AllocRef (stripLoc ar)
+    MapArr v ss     -> MapArr v (stripLoc ss)
+    UpTo e v ss     -> UpTo (stripLoc e) v (stripLoc ss)
+    Forever ss      -> Forever (stripLoc ss)
+    IvoryMacroStmt v (s0,es) -> IvoryMacroStmt v (s0, stripLoc es)
+    LocStmt s0      -> unLoc s0
+
+instance HasLocation StructDef where
+  getLoc _ = mempty
+  stripLoc s = case s of
+    StructDef s0 fs  -> StructDef s0 (stripLoc fs)
+    AbstractDef{}    -> s
+    StringDef{}      -> s
+
+instance HasLocation Field where
+  getLoc = fieldLoc
+  stripLoc (Field n t _) = Field n (stripLoc t) mempty
+
+instance HasLocation BitDataDef where
+  getLoc = bdLoc
+  stripLoc (BitDataDef s t cs _) = BitDataDef s (stripLoc t) (stripLoc cs) mempty
+
+instance HasLocation BitTy where
+  getLoc bt = case bt of
+                LocBitTy bt' -> getLoc bt'
+                _            -> mempty
+  stripLoc bt = case bt of
+    Bit            -> bt
+    Bits{}         -> bt
+    BitArray i bt0 -> BitArray i (stripLoc bt0)
+    BitTySynonym{} -> bt
+    LocBitTy bt0   -> unLoc bt0
+
+instance HasLocation Constr where
+  getLoc = constrLoc
+  stripLoc (Constr n fs l _) = Constr n (stripLoc fs) l mempty
+
+instance HasLocation BitField where
+  getLoc = bitFieldLoc
+  stripLoc (BitField n t _) = BitField n (stripLoc t) mempty
 

@@ -27,7 +27,7 @@ import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 -- | Turn our proc AST value into a Haskell type declaration and definition.
 fromProc :: ProcDef -> Q [Dec]
-fromProc pd@(ProcDef _ procName args body prePosts) = do
+fromProc pd@(ProcDef _ procName args body prePosts _) = do
   ty <- fromProcType pd
   pb <- procBody
   let imp = ValD (VarP $ mkName procName)

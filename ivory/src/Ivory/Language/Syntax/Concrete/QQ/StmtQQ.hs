@@ -32,6 +32,7 @@ import           Control.Monad (forM_)
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.QQ.BindExp
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 
@@ -67,7 +68,7 @@ fromStmt stmt = case stmt of
     -> insert $ NoBindS (VarE 'I.retVoid)
   Store exp0 exp1
     -> do
-    a <- fromAreaStmt (storeExp exp0)
+    a <- fromAreaStmt (expToArea exp0)
     e <- fromExpStmt exp1
     let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'I.store) p) e)
     storeIt a
@@ -113,6 +114,8 @@ fromStmt stmt = case stmt of
           insert $ case mv of
                      Nothing -> NoBindS c
                      Just v  -> BindS (VarP $ mkName v) c
+  LocStmt s
+    -> fromStmt (unLoc s)
 
 --------------------------------------------------------------------------------
 -- Initializers
@@ -146,8 +149,3 @@ fromAlloc alloc = case alloc of
 
 fromArgs :: [Exp] -> QStM T.Stmt [T.Exp]
 fromArgs = mapM fromExpStmt
-
-storeExp :: Exp -> Area
-storeExp exp = case exp of
-  ExpDeref e -> expToArea e
-  _          -> error $ "Expected a dereference expression in a store statement: " ++ show exp

@@ -41,13 +41,14 @@ import Ivory.Language.Syntax.Concrete.ParseAST
 
 import Ivory.Language.Syntax.Concrete.QQ.Common
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 -- Expressions
 
 -- | Top-level constant definition.
 fromConstDef :: ConstDef -> Q [Dec]
-fromConstDef (ConstDef sym e mtype) = do
+fromConstDef (ConstDef sym e mtype _) = do
   n <- newName sym
   let def = ValD (VarP n) (NormalB $ toExp [] e) []
   case mtype of
@@ -162,6 +163,8 @@ toExp env exp = case exp of
     -> VarE $ lookupVar (expToCall sym args) env
   ExpAddrOf v
     -> toAddrOf $ VarE $ mkName v
+  LocExp e
+    -> toExp env (unLoc e)
 
 --------------------------------------------------------------------------------
 -- These are shared by toExp above and fromArea in BindExp.

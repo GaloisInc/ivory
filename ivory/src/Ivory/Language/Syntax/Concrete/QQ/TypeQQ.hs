@@ -34,12 +34,13 @@ import qualified Ivory.Language.Proxy     as I
 import qualified Ivory.Language.Array     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
+import Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 -- Haskell type synonyms
 
 fromTypeDef :: TypeDef -> Q Dec
-fromTypeDef (TypeDef syn ty) = do
+fromTypeDef (TypeDef syn ty _) = do
   n      <- newName syn
   (t, _) <- runToQ (fromType ty)
   return (TySynD n [] t)
@@ -123,6 +124,7 @@ isBaseType ty = case ty of
   TyRef{}      -> False
   TyConstRef{} -> False
   TySynonym{}  -> False
+  LocTy ty'    -> isBaseType (unLoc ty')
 
 maybeAddStored :: Type -> Type
 maybeAddStored ty =
@@ -169,10 +171,11 @@ fromType ty = case ty of
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
   TySynonym str     -> liftCon (mkName str)
+  LocTy ty'         -> fromType (unLoc ty')
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
-fromProcType (ProcDef retTy procName args _ _) = do
+fromProcType (ProcDef retTy procName args _ _ _) = do
   arr                 <- promotedT '(I.:->)
   (ret,retTyVars)     <- runToQ (fromType retTy)
   (argVars,argTyVars) <- fromArgs
