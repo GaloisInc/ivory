@@ -12,11 +12,10 @@
 module Ivory.Language.Syntax.Concrete.Location where
 
 import Control.Monad (mplus)
-import Data.Foldable (Foldable, foldMap)
 import Data.Function (on)
 import Data.List (foldl')
+import Data.Maybe (maybeToList)
 import Data.Monoid
-import Data.Traversable (Traversable)
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Pretty
@@ -128,6 +127,14 @@ instance Monoid SrcLoc where
   mappend (SrcLoc lr ls) (SrcLoc rr rs) = SrcLoc (mappend lr rr) (mplus ls rs)
   mappend NoLoc          r              = r
   mappend l              NoLoc          = l
+
+-- | Get info to build a line pragma from a 'SrcLoc'. Returns a value only if
+-- there is a valid range. Returns the starting line number.
+srcLoclinePragma :: SrcLoc -> Maybe (Int, String)
+srcLoclinePragma srcloc = case srcloc of
+  NoLoc        -> Nothing
+  SrcLoc _ src -> Just ( posLine (srcStart srcloc)
+                       , concat (maybeToList src))
 
 srcRange :: SrcLoc -> Range
 srcRange loc = case loc of

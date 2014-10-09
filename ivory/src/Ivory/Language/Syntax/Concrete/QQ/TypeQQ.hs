@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Ivory types QuasiQuoter.
@@ -35,15 +36,21 @@ import qualified Ivory.Language.Array     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Location
+import Ivory.Language.Syntax.Concrete.QQ.Common
 
 --------------------------------------------------------------------------------
 -- Haskell type synonyms
 
-fromTypeDef :: TypeDef -> Q Dec
-fromTypeDef (TypeDef syn ty _) = do
+fromTypeDef :: TypeDef -> Q [Dec]
+fromTypeDef (TypeDef syn ty srcloc) = do
   n      <- newName syn
   (t, _) <- runToQ (fromType ty)
-  return (TySynD n [] t)
+#if __GLASGOW_HASKELL__ >= 709
+  ln <- lnPragma srcloc
+  return (ln ++ [TySynD n [] t])
+#else
+  return [TySynD n [] t]
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -203,7 +210,12 @@ fromProcType (ProcDef retTy procName args _ _ _) = do
   -- Construct the class constraints per type variable
   mkCxt :: TyVar -> [T.Pred]
   mkCxt (TyVar nm classes) =
+#if __GLASGOW_HASKELL__ >= 709
+    map (\cl -> T.AppT (T.ConT $ toClass cl) (T.VarT nm)) classes
+#else
     map (\cl -> T.ClassP (toClass cl) [T.VarT nm]) classes
+#endif
+
 
   allTyVars = nub . (map (PlainTV . tyVar))
   allCtxs   = nub . (concatMap mkCxt)

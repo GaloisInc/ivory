@@ -24,12 +24,12 @@ type MacroVar  = String
 --------------------------------------------------------------------------------
 
 -- Top level symbols.
-data GlobalSym = GlobalProc ProcDef
-               | GlobalStruct StructDef
-               | GlobalBitData BitDataDef
-               | GlobalTypeDef TypeDef
+data GlobalSym = GlobalProc     ProcDef
+               | GlobalStruct   StructDef
+               | GlobalBitData  BitDataDef
+               | GlobalTypeDef  TypeDef
                | GlobalConstDef ConstDef
-               | GlobalInclude IncludeDef
+               | GlobalInclude  IncludeDef
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -250,16 +250,16 @@ data Stmt
 -- Structs
 
 data StructDef
-  = StructDef String [Field]
-  | AbstractDef String FilePath
-  | StringDef String Integer
+  = StructDef   String [Field]  SrcLoc
+  | AbstractDef String FilePath SrcLoc
+  | StringDef   String Integer  SrcLoc
     deriving (Show, Read, Eq, Ord)
 
 structSym :: StructDef -> String
 structSym s = case s of
-  StructDef   sym _ -> sym
-  AbstractDef sym _ -> sym
-  StringDef   sym _ -> ivoryStringStructName sym
+  StructDef   sym _ _ -> sym
+  AbstractDef sym _ _ -> sym
+  StringDef   sym _ _ -> ivoryStringStructName sym
 
 ivoryStringStructName :: String -> String
 ivoryStringStructName = ("ivory_string_" ++)
@@ -419,11 +419,14 @@ instance HasLocation Stmt where
     LocStmt s0      -> unLoc s0
 
 instance HasLocation StructDef where
-  getLoc _ = mempty
+  getLoc s = case s of
+               StructDef _ _   srcloc -> srcloc
+               AbstractDef _ _ srcloc -> srcloc
+               StringDef _ _   srcloc -> srcloc
   stripLoc s = case s of
-    StructDef s0 fs  -> StructDef s0 (stripLoc fs)
-    AbstractDef{}    -> s
-    StringDef{}      -> s
+    StructDef s0 fs _   -> StructDef s0 (stripLoc fs) mempty
+    AbstractDef s0 fp _ -> AbstractDef s0 fp mempty
+    StringDef s0 i _    -> StringDef s0 i mempty
 
 instance HasLocation Field where
   getLoc = fieldLoc

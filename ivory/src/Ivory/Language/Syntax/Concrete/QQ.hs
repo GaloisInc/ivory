@@ -118,12 +118,10 @@ mkDef def = case def of
   GlobalProc    d       -> fromProc d
   GlobalStruct  d       -> fromStruct d
   GlobalBitData d       -> fromBitData d
-  GlobalTypeDef tyDef   -> singList (fromTypeDef tyDef)
+  GlobalTypeDef tyDef   -> fromTypeDef tyDef
   GlobalConstDef const  -> fromConstDef const
   -- No definition to make for includes.
   GlobalInclude{}       -> return []
-  where
-  singList x = (:[]) `fmap` x
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: String -> [ModuleData] -> Q [Dec]

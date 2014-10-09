@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Ivory procedure quasiquoter.
@@ -19,6 +20,7 @@ import qualified Ivory.Language.Proc as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
+import Ivory.Language.Syntax.Concrete.QQ.Common
 import Ivory.Language.Syntax.Concrete.QQ.CondQQ
 import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
@@ -27,14 +29,18 @@ import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 -- | Turn our proc AST value into a Haskell type declaration and definition.
 fromProc :: ProcDef -> Q [Dec]
-fromProc pd@(ProcDef _ procName args body prePosts _) = do
+fromProc pd@(ProcDef _ procName args body prePosts srcloc) = do
   ty <- fromProcType pd
   pb <- procBody
   let imp = ValD (VarP $ mkName procName)
                  (NormalB pb)
                  []
+#if __GLASGOW_HASKELL__ >= 709
+  lnPrag <- lnPragma srcloc
+  return (lnPrag ++ [ty, imp])
+#else
   return [ty, imp]
-
+#endif
   where
   args' = snd (unzip args)
   procBody = do

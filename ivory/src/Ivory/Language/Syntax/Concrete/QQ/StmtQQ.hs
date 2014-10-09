@@ -14,8 +14,6 @@ module Ivory.Language.Syntax.Concrete.QQ.StmtQQ
 
 import           Prelude hiding (exp, init)
 
-import Ivory.Language.Syntax.Concrete.QQ.Common
-
 import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH   as T
 
@@ -29,10 +27,11 @@ import qualified Ivory.Language.Monad  as I
 
 import           Control.Monad (forM_)
 
+import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.QQ.BindExp
+import Ivory.Language.Syntax.Concrete.QQ.Common
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
-import Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 
