@@ -9,7 +9,7 @@ import Ivory.Language.MemArea (MemArea(..),ConstMemArea(..))
 import Ivory.Language.Proc (Def(..))
 import Ivory.Language.Proxy (Proxy(..), ASymbol)
 import Ivory.Language.String (IvoryString(..))
-import Ivory.Language.Struct (IvoryStruct(..),StructDef(..))
+import Ivory.Language.Struct (IvoryStruct(..),StructDef(..),StructName)
 import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)

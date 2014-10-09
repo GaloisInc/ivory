@@ -646,12 +646,12 @@ bitType :
 
 structDef :: { StructDef }
 structDef :
-    struct structName '{' fields '}' { StructDef (unLoc $2) (reverse $4) }
+    struct structName '{' fields '}' { StructDef (unLoc $2) (reverse $4) (getLoc $2) }
   -- Remove parsed quotes first
   | abstract struct structName fp    { let TokFilePath f = unLoc $4 in
-                                       AbstractDef (unLoc $3) (filter (/= '\"') f) }
+                                       AbstractDef (unLoc $3) (filter (/= '\"') f) (getLoc $3) }
   | string struct structName integer { let TokInteger i = unLoc $4 in
-                                       StringDef (unLoc $3) i }
+                                       StringDef (unLoc $3) i (getLoc $3) }
 
 structName :: { Located String }
 structName :
