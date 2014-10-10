@@ -16,6 +16,8 @@ import Data.Function (on)
 import Data.List (foldl')
 import Data.Maybe (maybeToList)
 import Data.Monoid
+import Data.Foldable (Foldable, foldMap)
+import Data.Traversable
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Pretty
