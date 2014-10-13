@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds   #-}
+{-# OPTIONS_GHC -fno-warn-unused-matches #-}
 {-# LANGUAGE TupleSections #-}
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
@@ -6,7 +9,6 @@ module Ivory.ModelCheck.Ivory2CVC4
 import           Control.Applicative
 import           Control.Monad
 import           Data.Maybe
-import           Data.Word
 import qualified Ivory.Language.Array   as I
 import qualified Ivory.Language.Cast    as I
 import qualified Ivory.Language.Syntax  as I
@@ -18,7 +20,7 @@ import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
 
 -- XXX testing
-import           Debug.Trace
+-- import           Debug.Trace
 
 --------------------------------------------------------------------------------
 
@@ -145,7 +147,11 @@ toLocal t v inits = do
 toInit :: I.Type -> I.Init -> ModelCheck Expr
 toInit ty init =
   case init of
-    I.InitZero       -> return $ intLit 0
+    I.InitZero       ->
+      case ty of
+       I.TyArr _ _ -> fmap var $ incReservedVar =<< toType ty
+       I.TyStruct _-> fmap var $ incReservedVar =<< toType ty
+       _           -> return $ intLit 0
     I.InitExpr t exp -> toExpr t exp
     I.InitArray is   -> do
       let (I.TyArr k t) = ty
@@ -234,13 +240,15 @@ toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
   I.ExpSym s                 -> return (var s)
   I.ExpVar v                 -> lookupVar (toVar v) >>= return . var
-  I.ExpLit lit               -> return $
+  I.ExpLit lit               -> 
     case lit of
-      I.LitInteger i -> intLit i
-      I.LitFloat  r  -> realLit $ realToFrac r
-      I.LitDouble r  -> realLit r
-      I.LitBool b    -> if b then T else F
-      -- _              -> err "toExpr lit" (show exp)
+      I.LitInteger i -> return $ intLit i
+      I.LitFloat  r  -> return $ realLit $ realToFrac r
+      I.LitDouble r  -> return $ realLit r
+      I.LitBool b    -> return $ if b then T else F
+      I.LitChar _    -> fmap var $ incReservedVar =<< toType t
+      I.LitNull      -> fmap var $ incReservedVar =<< toType t
+      I.LitString _  -> fmap var $ incReservedVar =<< toType t
   I.ExpLabel t' e f          -> do e' <- toExpr t' e
                                    return $ field (var f) e'
   I.ExpIndex ta a ti i       -> do a' <- toExpr ta a
@@ -281,7 +289,11 @@ toExprOp t op args = case op of
   I.ExpNegate     ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg
-  -- _               -> error $ "toExprOp error: no op " ++ show op
+  I.ExpAbs        -> do
+    v <- fmap var $ incReservedVar =<< toType t
+    addInvariant (v .>= intLit 0)
+    return v
+  _               -> fmap var $ incReservedVar =<< toType t
   where
   arg0 = args !! 0
   arg1 = args !! 1
@@ -479,7 +491,7 @@ litOp t n = I.ExpLit e
         I.TyInt  _ -> I.LitInteger n
         I.TyFloat  -> I.LitFloat   (fromIntegral n)
         I.TyDouble -> I.LitDouble  (fromIntegral n)
-        _          -> error $ "impossible lit in litOp: " ++ show t
+        _          -> err "litOp" (show t)
 
 varOp :: Var -> I.Expr
 varOp = I.ExpVar . I.VarName
