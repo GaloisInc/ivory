@@ -6,10 +6,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
--- XXX
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module Ivory.Language (
     -- * Kinds
     Area(..)
@@ -243,18 +239,3 @@ import Ivory.Language.BitData.BitData
 import Ivory.Language.BitData.Bits
 import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
-
-
-
-foo = runQ $ pragSpecD (mkName "foo") (conT (mkName "Int")) AllPhases
-
-[ivory|
-
-uint8_t bar = 3;
-bar2 = 3;
-
-uint8_t pro() {
-  let uint8_t xx = 3;
-  return xx;
-}
-|]

@@ -38,6 +38,13 @@ macroStmtsRet x y = do
 macroExp x y = do
   x <? y
 
+printf :: Def ('[IString] :-> Sint32)
+printf  = importProc "printf" "stdio.h"
+
+printf2 :: Def ('[IString,Sint32] :-> Sint32)
+printf2  = importProc "printf" "stdio.h"
+
+
 [ivoryFile|examples/file.ivory|]
 
 runFile :: IO ()

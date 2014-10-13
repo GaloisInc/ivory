@@ -25,6 +25,7 @@ import           Language.Haskell.TH.Quote()
 import qualified Ivory.Language.Float     as I
 import qualified Ivory.Language.IBool     as I
 import qualified Ivory.Language.IChar     as I
+import qualified Ivory.Language.IString   as I
 import qualified Ivory.Language.Sint      as I
 import qualified Ivory.Language.Uint      as I
 import qualified Ivory.Language.Scope     as I
@@ -125,6 +126,7 @@ isBaseType ty = case ty of
   TyFloat      -> True
   TyDouble     -> True
   TyIx{}       -> True
+  TyString     -> False
   TyStored{}   -> False
   TyStruct{}   -> False
   TyArray{}    -> False
@@ -176,6 +178,7 @@ fromType ty = case ty of
   TyStruct nm       -> fromStructTy nm
   TyArray a sz      -> fromArrayTy a sz
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
+  TyString          -> liftCon ''I.IString
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
   TySynonym str     -> liftCon (mkName str)
   LocTy ty'         -> fromType (unLoc ty')

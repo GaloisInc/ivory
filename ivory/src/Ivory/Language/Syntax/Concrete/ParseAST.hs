@@ -90,6 +90,7 @@ data Type
   -- XXX
   -- | TyPtr Type              -- ^ Pointers
   | TyIx Integer               -- ^ Index type
+  | TyString                   -- ^ Static strings
   | TyStored Type              -- ^ References
   | TyStruct String            -- ^ Structures
   | TyArray Type Integer       -- ^ Arrays of fixed lignth
@@ -129,6 +130,8 @@ data WordSize
 
 data Literal
   = LitInteger Integer
+  | LitFloat Rational -- represents floats, too
+  | LitString String
   deriving (Show, Read, Eq, Ord)
 
 data Exp
@@ -363,6 +366,7 @@ instance HasLocation Type where
     TyChar{}         -> ty
     TyFloat{}        -> ty
     TyDouble{}       -> ty
+    TyString{}       -> ty
     TyIx{}           -> ty
     TyStored ty0     -> TyStored (stripLoc ty0)
     TyStruct{}       -> ty

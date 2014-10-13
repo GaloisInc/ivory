@@ -20,6 +20,8 @@ module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
+import           Data.String (IsString(..))
+
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
@@ -67,6 +69,8 @@ fromConstDef (ConstDef sym e mtype srcloc) = do
 fromLit :: Literal -> T.Exp
 fromLit lit = case lit of
   LitInteger int -> LitE (IntegerL int)
+  LitFloat   f   -> LitE (RationalL f)
+  LitString  str -> AppE (VarE 'fromString) (LitE (StringL str))
 
 fromOpExp :: VarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of

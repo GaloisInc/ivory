@@ -41,9 +41,11 @@ $capletter   = [A-Z]
 @ident       = $lowerletter [$alpha $digit [_ \']]*
 @brack       = [\( \) \[ \] \{ \}]
 @sep         = [\, \;]
-@filepath    = \" [$printable # \" # $white]+ \"
+-- @filepath    = \" [$printable # \" # $white]+ \"
+@string      = \" [$printable # \"]* \"
 @bitlit      = $digit+ b [0 1]+
 @hexlit      = 0x $hexdig+
+@float       = $digit+ . $digit+
 
 --------------------------------------------------------------------------------
 
@@ -54,6 +56,7 @@ tokens :-
   $digit+      { emitS (TokInteger . read) }
   @hexlit      { emitS (TokInteger . read) }
   @bitlit      { emitS readBitLit }
+  @float       { emitS (TokFloat . read) }
 
 -- Reserved words: statements
   if       { keyword }
@@ -158,6 +161,8 @@ tokens :-
   IFloat   { keyword }
   IDouble  { keyword }
 
+  IString  { keyword }
+
   Sint8    { keyword }
   Sint16   { keyword }
   Sint32   { keyword }
@@ -192,8 +197,8 @@ tokens :-
   @brack    { emitS TokBrack }
 -- Separators
   @sep      { emitS TokSep }
--- Filepath
-  @filepath { emitS TokFilePath }
+-- Strings
+  @string { emitS TokString }
 
 --------------------------------------------------------------------------------
 

@@ -30,10 +30,11 @@ import Ivory.Language.Syntax.Concrete.Location
 %token
 
   integer      { $$@Located { locValue = TokInteger _ } }
+  floatlit     { $$@Located { locValue = TokFloat   _ } }
   bitlit       { $$@Located { locValue = TokBitLit _  } }
   identifier   { $$@Located { locValue = TokIdent _   } }
   tyidentifier { $$@Located { locValue = TokTyIdent _ } }
-  fp           { $$@Located { locValue = TokFilePath _} }
+  str          { $$@Located { locValue = TokString _  } }
 
   -- Statements
   if       { Located $$ (TokReserved "if") }
@@ -182,6 +183,7 @@ import Ivory.Language.Syntax.Concrete.Location
   IChar     { Located $$ (TokReserved "IChar") }
   IFloat    { Located $$ (TokReserved "IFloat") }
   IDouble   { Located $$ (TokReserved "IDouble") }
+  IString   { Located $$ (TokReserved "IString") }
 
   Sint8     { Located $$ (TokReserved "Sint8") }
   Sint16    { Located $$ (TokReserved "Sint16") }
@@ -428,6 +430,12 @@ exp :: { Exp }
 exp : integer            { let TokInteger i = unLoc $1 in
                            LocExp (ExpLit (LitInteger i) `at` $1) }
 
+    | str                { let TokString s = unLoc $1 in
+                           LocExp (ExpLit (LitString s) `at` $1) }
+
+    | floatlit           { let TokFloat f = unLoc $1 in
+                           LocExp (ExpLit (LitFloat f) `at` $1) }
+
     -- Works for Haskell values, too!
     | ident              { LocExp ((ExpVar (unLoc $1)) `at` $1) }
 
@@ -548,6 +556,7 @@ simpleCType :
   | char                      { LocTy (TyChar `at` getLoc $1) }
   | float                     { LocTy (TyFloat `at` getLoc $1) }
   | double                    { LocTy (TyDouble `at` getLoc $1) }
+  | string                    { LocTy (TyString `at` getLoc $1) }
   | void                      { LocTy (TyVoid `at` getLoc $1) }
 
   | int8_t                    { LocTy ((TyInt Int8) `at` getLoc $1) }
@@ -594,6 +603,7 @@ simpleHSType :
   | IChar                   { LocTy (TyChar `at` getLoc $1) }
   | IFloat                  { LocTy (TyFloat `at` getLoc $1) }
   | IDouble                 { LocTy (TyDouble `at` getLoc $1) }
+  | IString                 { LocTy (TyString `at` getLoc $1) }
   | '(' ')'                 { LocTy (TyVoid `at` getLoc $1) }
 
   | Sint8                   { LocTy ((TyInt Int8) `at` getLoc $1) }
@@ -648,7 +658,7 @@ structDef :: { StructDef }
 structDef :
     struct structName '{' fields '}' { StructDef (unLoc $2) (reverse $4) (getLoc $2) }
   -- Remove parsed quotes first
-  | abstract struct structName fp    { let TokFilePath f = unLoc $4 in
+  | abstract struct structName str   { let TokString f = unLoc $4 in
                                        AbstractDef (unLoc $3) (filter (/= '\"') f) (getLoc $3) }
   | string struct structName integer { let TokInteger i = unLoc $4 in
                                        StringDef (unLoc $3) i (getLoc $3) }
