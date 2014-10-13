@@ -18,6 +18,7 @@ import           Control.Applicative
 import           Data.Monoid
 import qualified Data.DList as D
 import           Ivory.Opts.Utils
+import qualified Ivory.Language.Array        as I
 import qualified Ivory.Language.Syntax.AST   as I
 import qualified Ivory.Language.Syntax.Type  as I
 
@@ -130,7 +131,7 @@ stmtFold ef stmt = case stmt of
                                         insert stmt
   I.Call _ty _mv _nm args         -> do mapM_ efTyped args
                                         insert stmt
-  I.Loop v e incr blk             -> do ef (I.TyInt I.Int32) e
+  I.Loop v e incr blk             -> do ef (I.ixRep) e
                                         efIncr incr
                                         blk' <- runFreshStmts ef blk
                                         insert (I.Loop v e incr blk')
@@ -149,7 +150,7 @@ stmtFold ef stmt = case stmt of
   efIncr incr = case incr of
     I.IncrTo e -> ef ty e
     I.DecrTo e -> ef ty e
-    where ty = I.TyInt I.Int32
+    where ty = I.ixRep
   efInit init' = case init' of
     I.InitZero          -> return ()
     I.InitExpr ty e     -> ef ty e

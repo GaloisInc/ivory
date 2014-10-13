@@ -3,11 +3,10 @@ MAIN="int main(void) { return 0; }"
 
 # Where to put all our generated files
 TESTDIR=test_dir
-IDIR=../runtime
+IDIR=runtime
 CFLAGS=-I$(IDIR) -O2
 
-EXECPATH=../../../cabal-dev/bin
-EXEC=ivory-c-clang-test
+EXEC=cabal run ivory-c-clang-test
 
 # Our tests
 TESTS=PID.out FibLoop.out FunPtr.out String.out Factorial.out \
@@ -21,9 +20,9 @@ all : clean $(TESTS)
 	clang -Wall -Wno-missing-braces $(CFLAGS) -lm -DIVORY_TEST -o $(TESTDIR)/$@ $<
 
 .PRECIOUS : $(TESTDIR)/%.c
-$(TESTDIR)/%.c : %.hs | $(TESTDIR)
+$(TESTDIR)/%.c : examples/%.hs | $(TESTDIR)
 	# Will generate all the files on the first run
-	$(EXECPATH)/$(EXEC) $(TESTDIR)
+	$(EXEC) $(TESTDIR)
 
 $(TESTDIR):
 	mkdir -p $@
@@ -42,3 +41,4 @@ cbmc2 :
 .PHONY : clean
 clean :
 	rm -rf $(TESTDIR)
+	cabal clean

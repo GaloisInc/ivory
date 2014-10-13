@@ -20,7 +20,8 @@ module Ivory.Opts.CFG
   )
     where
 
-import qualified Ivory.Language.Syntax.AST as I
+import qualified Ivory.Language.Array       as I
+import qualified Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Language.Syntax.Type as I
 import qualified Data.Graph.Inductive as G
 
@@ -130,6 +131,7 @@ toStackType ty =
     I.TyVoid       -> TyVoid
     I.TyInt i      -> TyInt (toIntType i)
     I.TyWord w     -> TyWord (toWordType w)
+    I.TyIndex n    -> toStackType I.ixRep
     I.TyBool       -> TyBool
     I.TyChar       -> TyChar
     I.TyFloat      -> TyFloat
@@ -171,7 +173,7 @@ toAlloc stmt =
                                                     (concatMap toAlloc blk1) ]
                                            -- For the loop variable.
     I.Loop _ e _ blk                    ->
-      let ty = I.TyInt I.Int32 in
+      let ty = I.ixRep in
       [Stmt (toStackType ty), Loop (getIdx e) (concatMap toAlloc blk)]
     I.Forever blk                       ->
       [Loop Nothing (concatMap toAlloc blk)]

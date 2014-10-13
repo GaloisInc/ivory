@@ -37,6 +37,7 @@ divAssert ty e0 = case e0 of
   zeroExp = case ty of
               I.TyInt  _ -> I.ExpLit (I.LitInteger 0)
               I.TyWord _ -> I.ExpLit (I.LitInteger 0)
+              I.TyIndex _-> I.ExpLit (I.LitInteger 0)
               I.TyFloat  -> I.ExpLit (I.LitFloat 0)
               I.TyDouble -> I.ExpLit (I.LitDouble 0)
               _          -> error $

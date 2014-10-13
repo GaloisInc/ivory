@@ -121,7 +121,7 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
   where
   tyChk' :: (SubBlk, Ret) -> [I.Stmt] -> TCResults Ret
   -- Ret and no other statemnts
-  tyChk' (_, True) []
+  tyChk' (_, True) ss | all isComment ss
     = return True
   -- Ret and other statements
   tyChk' (sb, True) ss
@@ -151,6 +151,9 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
          tyChk' (sb, False) ss
   tyChk' b (_:ss)
     = tyChk' b ss
+
+  isComment (I.Comment _) = True
+  isComment _             = False
 
 xor :: Bool -> Bool -> Bool
 xor a b = (not a && b) || (a && not b)

@@ -29,11 +29,16 @@ import GHC.TypeLits (Nat)
 -- modifying the other packages.
 type IxRep = Sint32
 
+-- | The representation type of a @TyIndex@, this is fixed to @Int32@ for the
+-- time being.
+ixRep :: I.Type
+ixRep = ivoryType (Proxy :: Proxy IxRep)
+
 -- | Values in the range @0 .. n-1@.
 newtype Ix (n :: Nat) = Ix { getIx :: I.Expr }
 
 instance (ANat n) => IvoryType (Ix n) where
-     ivoryType _ = ivoryType (Proxy :: Proxy IxRep)
+  ivoryType _ = I.TyIndex (fromTypeNat (Proxy :: Proxy n))
 
 instance (ANat n) => IvoryVar (Ix n) where
   wrapVar    = wrapVarExpr
@@ -123,4 +128,3 @@ arrayLen _ = fromInteger (fromTypeNat (aNat :: NatType len))
 arr ! ix = wrapExpr (I.ExpIndex ty (unwrapExpr arr) ixRep (getIx ix))
   where
   ty    = ivoryArea (Proxy :: Proxy (Array len area))
-  ixRep = ivoryType (Proxy :: Proxy IxRep)

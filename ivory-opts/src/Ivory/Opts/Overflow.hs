@@ -12,6 +12,7 @@ module Ivory.Opts.Overflow
 
 import Ivory.Opts.AssertFold
 
+import qualified Ivory.Language.Array        as I
 import qualified Ivory.Language.Syntax.AST   as I
 import qualified Ivory.Language.Syntax.Type  as I
 import qualified Ivory.Language.Syntax.Names as I
@@ -50,6 +51,7 @@ litAssert ty lit = case lit of
       I.TyInt I.Int16   -> boundLit (minMax :: Bounds Int16)
       I.TyInt I.Int32   -> boundLit (minMax :: Bounds Int32)
       I.TyInt I.Int64   -> boundLit (minMax :: Bounds Int64)
+      I.TyIndex n       -> boundLit (0 :: Integer, n)
       _                 -> return ()
       where
       boundLit (min,max) = insert ca
@@ -76,6 +78,7 @@ arithAssert' ty op args =
       I.TyInt I.Int16   -> mkCall addBase ty args
       I.TyInt I.Int32   -> mkCall addBase ty args
       I.TyInt I.Int64   -> mkCall addBase ty args
+      I.TyIndex _       -> mkCall addBase ty args
       _                 -> return ()
 
     I.ExpSub -> case ty of
@@ -87,6 +90,7 @@ arithAssert' ty op args =
       I.TyInt I.Int16   -> mkCall subBase ty args
       I.TyInt I.Int32   -> mkCall subBase ty args
       I.TyInt I.Int64   -> mkCall subBase ty args
+      I.TyIndex _       -> mkCall subBase ty args
       _                 -> return ()
 
     I.ExpMul -> case ty of
@@ -98,6 +102,7 @@ arithAssert' ty op args =
       I.TyInt I.Int16   -> mkCall mulBase ty args
       I.TyInt I.Int32   -> mkCall mulBase ty args
       I.TyInt I.Int64   -> mkCall mulBase ty args
+      I.TyIndex _       -> mkCall mulBase ty args
       _                 -> return ()
 
     I.ExpDiv -> case ty of
@@ -109,6 +114,7 @@ arithAssert' ty op args =
       I.TyInt I.Int16   -> mkCall divBase ty args
       I.TyInt I.Int32   -> mkCall divBase ty args
       I.TyInt I.Int64   -> mkCall divBase ty args
+      I.TyIndex _       -> mkCall divBase ty args
       _                 -> return ()
 
     I.ExpMod -> case ty of
@@ -120,6 +126,7 @@ arithAssert' ty op args =
       I.TyInt I.Int16   -> mkCall divBase ty args
       I.TyInt I.Int32   -> mkCall divBase ty args
       I.TyInt I.Int64   -> mkCall divBase ty args
+      I.TyIndex _       -> mkCall divBase ty args
       _                 -> return ()
 
     _ -> return ()
@@ -172,4 +179,5 @@ ext ty = case ty of
          I.Word16 ->  "u16"
          I.Word32  -> "u32"
          I.Word64  -> "u64"
+  I.TyIndex _ -> ext I.ixRep
   _ -> error $ "Unexpected type " ++ show ty ++ " in ext."
