@@ -36,6 +36,9 @@ shouldPass = testGroup "shouldPass"
              , mkSuccess "foo12" m12
              , mkSuccess "foo13" m13
              , mkSuccess "foo15" m15
+             , mkSuccess "foo16" m16
+             , mkSuccess "foo17" m17
+             , mkSuccess "foo18" m18
              ]
 
 shouldFail :: TestTree
@@ -297,3 +300,22 @@ foo17 = L.proc "foo17" $ \a -> body $ do
 
 m17 :: Module
 m17 = package "foo17" (incl foo17)
+
+-----------------------
+
+foo18 :: Def ('[Ref s (L.Struct "foo")] :-> Ref s (L.Struct "foo"))
+foo18 = L.proc "foo18" $ \f -> 
+    requires (checkStored (f ~> aFoo) (\a -> a >? 0))
+  $ requires (checkStored (f ~> aFoo) (\a -> a <? 10))
+  $ ensures (\r -> checkStored (r ~> aFoo) (\a -> a >? 1))
+  $ body $ do
+    a <- deref (f ~> aFoo)
+    L.assert (a >? 0)
+
+    store (f ~> aFoo) (a + 1)
+    ret f
+
+m18 :: Module
+m18 = package "foo18" $ do
+  defStruct (Proxy :: Proxy "foo")
+  incl foo18

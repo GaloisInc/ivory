@@ -74,11 +74,9 @@ toEnsure (I.Ensure cond) = toAssertion id cond
 toAssertion :: (I.Expr -> I.Expr) -> I.Cond -> ModelCheck Expr
 toAssertion trans cond = case cond of
     I.CondBool exp -> toExpr I.TyBool (trans exp)
-    I.CondDeref t e var c -> err "toAssertion" (show cond)
-    -- I.CondDeref t e var c ->
-    --   let res = (toBody []) (I.Deref t var (trans e)) in
-    --   let c1  = toAssertion trans call c in
-    --   [cstm| { $items:res $item:c1 } |]
+    I.CondDeref t exp var c -> do
+      e <- toExpr t exp
+      toAssertion (subst [(var, exp)] . trans) c
 
 --------------------------------------------------------------------------------
 
@@ -176,21 +174,19 @@ toAssign t v exp = do
 toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
 toCall _ retV nm args = do
   pc <- lookupProc $ toName nm
-
-  forM_ (zip (I.procArgs pc) args) $ \ (I.Typed _ v, I.Typed t e) -> do
-    toAssign t v e
-  checkRequires $ I.procRequires pc
+  let su = [ (v, e) | (I.Typed _ v, I.Typed _ e) <- zip (I.procArgs pc) args]
+  checkRequires su $ I.procRequires pc
 
   case retV of
     Nothing -> return ()
     Just v  -> do
       r <- addEnvVar (I.procRetTy pc) (toVar v)
-      assumeEnsures [(I.retval, I.ExpVar $ I.VarName r)]
+      assumeEnsures ((I.retval, I.ExpVar $ I.VarName r) : su)
                     (I.procEnsures pc)
       return ()
   where
-  checkRequires reqs = forM_ reqs $ \ (I.Require c) -> do
-    addQuery =<< toAssertion id c
+  checkRequires su reqs = forM_ reqs $ \ (I.Require c) -> do
+    addQuery =<< toAssertion (subst su) c
     
   assumeEnsures su ens = forM_ ens $ \ (I.Ensure c) -> do
     addInvariant =<< toAssertion (subst su) c
