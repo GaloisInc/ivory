@@ -7,6 +7,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Data.Maybe
 import           Data.Word
+import qualified Ivory.Language.Array   as I
 import qualified Ivory.Language.Cast    as I
 import qualified Ivory.Language.Syntax  as I
 import           Ivory.Opts.ConstFold   (constFold)
@@ -85,12 +86,14 @@ toBody :: [Expr] -> I.Stmt -> ModelCheck ()
 toBody ens stmt =
   case stmt of
     I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
+    I.Assume exp           -> addInvariant =<< toExpr I.TyBool exp
     I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.CompilerAssert exp   -> addQuery =<< toExpr I.TyBool exp
     I.Return (I.Typed t e) -> toReturn ens t e
     I.ReturnVoid           -> return ()
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
+    I.RefCopy t ptr exp    -> toStore t ptr exp -- XXX is this correct?
     I.Assign t v exp       -> toAssign t v exp
     I.Call t retV nm args  -> toCall t retV nm args
     I.Local t v inits      -> toLocal t v inits
@@ -99,7 +102,8 @@ toBody ens stmt =
 
     I.Loop v exp inc blk   -> toLoop ens v exp inc blk
     I.Comment _            -> return ()
-    _                      -> err "toBody" (show stmt)
+    I.Break                -> err "toBody" (show stmt)
+    I.Forever _            -> err "toBody" (show stmt)
 
 toReturn :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
 toReturn ens t exp = do
@@ -133,26 +137,29 @@ toSelectStore t f exp = do
   addInvariant (var v .== store f' e)
 
 toLocal :: I.Type -> I.Var -> I.Init -> ModelCheck ()
-toLocal t@(I.TyArr{}) v inits = toLocalArr t v inits
-toLocal t@(I.TyStruct{}) v inits = err "toLocal" (show t)
 toLocal t v inits = do
   v' <- addEnvVar t (toVar v)
-  is <- toInit inits
+  is <- toInit t inits
   addInvariant (var v' .== is)
 
-toInit :: I.Init -> ModelCheck Expr
-toInit init =
+toInit :: I.Type -> I.Init -> ModelCheck Expr
+toInit ty init =
   case init of
     I.InitZero       -> return $ intLit 0
     I.InitExpr t exp -> toExpr t exp
-    _                -> err "toInit" (show init)
-
-toLocalArr :: I.Type -> I.Var -> I.Init -> ModelCheck ()
-toLocalArr t@(I.TyArr n _) v init = do
-  tv <- incReservedVar =<< toType t
-  v' <- addEnvVar t (toVar v)
-  i  <- toInit init
-  addInvariant (var v' .== storeMany (var tv) [(lit x, i) | x <- [0..n-1]])
+    I.InitArray is   -> do
+      let (I.TyArr k t) = ty
+      tv <- fmap var $ incReservedVar =<< toType ty
+      forM_ (zip [0..] is) $ \ (ix,i) -> do
+        e <- toInit (err "toInit" "nested array") i
+        addInvariant (index (intLit ix) tv .== e)
+      return tv
+    I.InitStruct fs  -> do
+      tv <- fmap var $ incReservedVar =<< toType ty
+      forM_ fs $ \ (f, i) -> do
+        e <- toInit (err "toInit" "nested struct") i
+        addInvariant (field (var f) tv .== e)
+      return tv
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
@@ -195,14 +202,14 @@ toLoop ens v start end blk =
     addInvariant (var v' .== intLit ix)
     mapM_ (toBody ens) blk
 
-  t = I.TyInt I.Int32
+  t = I.ixRep
 
   loopData = loopIterations start end
 
   ixs | loopOp loopData == Incr
       = takeWhile (<= endVal loopData) $
           iterate (+ 1) (startVal loopData)
-      | loopOp loopData == Decr
+      | otherwise -- loopOp loopData == Decr
       = takeWhile (>= endVal loopData) $
           iterate (flip (-) 1) (startVal loopData)
 
@@ -233,7 +240,7 @@ toExpr t exp = case exp of
       I.LitFloat  r  -> realLit $ realToFrac r
       I.LitDouble r  -> realLit r
       I.LitBool b    -> if b then T else F
-      _              -> err "toExpr lit" (show exp)
+      -- _              -> err "toExpr lit" (show exp)
   I.ExpLabel t' e f          -> do e' <- toExpr t' e
                                    return $ field (var f) e'
   I.ExpIndex ta a ti i       -> do a' <- toExpr ta a
@@ -274,7 +281,7 @@ toExprOp t op args = case op of
   I.ExpNegate     ->
     let neg = I.ExpOp I.ExpSub [litOp t 0, arg0] in
     toExpr t neg
-  _               -> error $ "toExprOp error: no op " ++ show op
+  -- _               -> error $ "toExprOp error: no op " ++ show op
   where
   arg0 = args !! 0
   arg1 = args !! 1
@@ -368,16 +375,15 @@ toType t = case t of
   I.TyChar         -> return Char
   I.TyFloat        -> return Real
   I.TyDouble       -> return Real
-  I.TyProc t' [ts] -> err "toType" "proc"
+  I.TyProc t' ts   -> err "toType" "<< proc >>"
   I.TyRef t'       -> toType t'
   I.TyConstRef t'  -> toType t'
   I.TyPtr t'       -> toType t'
   I.TyArr i t'     -> do t'' <- toType t'
                          return (Array t'')
-  I.TyCArray t'    -> err "toType" "carray"
+  I.TyCArray t'    -> err "toType" "<< carray >>"
   I.TyOpaque       -> return Opaque
   I.TyStruct name  -> return $ Struct name
-  -- _            -> error $ show t
 
 updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
 updateEnvRef t ref =
@@ -386,8 +392,9 @@ updateEnvRef t ref =
       -> addEnvVar t (toVar v)
     I.ExpAddrOfGlobal v
       -> addEnvVar t v
-    _ -> error $ "Unexpected expression " ++ show ref
-      ++ " to updateEnvRef."
+
+    _ -> err "updateEnvRef" (show ref)
+
 
 toStoreRef :: I.Type -> I.Expr -> ModelCheck Var
 toStoreRef t ref =
@@ -400,8 +407,9 @@ toStoreRef t ref =
       -> addEnvVar t (toVar v)
     I.ExpAddrOfGlobal v
       -> addEnvVar t v
-    _ -> error $ "Unexpected expression " ++ show ref
-      ++ " to toStoreRef."
+
+    _ -> err "toStoreRef" (show ref)
+
 
 data LoopOp = Incr | Decr deriving (Show, Read, Eq)
 data Loop = Loop
@@ -531,6 +539,7 @@ queryEnsures ens t retE = do
 
 
 toStruct :: I.Struct -> ModelCheck ()
+toStruct (I.Abstract name _) = addType name []
 toStruct (I.Struct name fields) = do
   fs <- forM fields $ \ (I.Typed t f) -> (f,) <$> toType t
   addType name fs

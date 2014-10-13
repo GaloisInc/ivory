@@ -188,6 +188,9 @@ struct foo
 
 foo9 :: Def ('[Ref s (L.Struct "foo")] :-> ())
 foo9 = L.proc "foo9" $ \f -> body $ do
+  st <- local (istruct [aFoo .= ival 0])
+  a  <- deref (st ~> aFoo)
+  L.assert (a ==? 0)
   store (f ~> aFoo) 3
   store (f ~> bFoo ! 0) 1
   store (f ~> aFoo) 4
@@ -275,10 +278,22 @@ m15 = package "foo15" (incl foo15)
 
 foo16 :: Def ('[]:->())
 foo16 = L.proc "foo16" $ body $ do
-  (stack_array :: Ref (Stack s) (Array 10 (Stored IFloat))) <- local izero
+  (stack_array :: Ref (Stack s) (Array 10 (Stored IFloat))) <- local (iarray [])
   store (stack_array ! 0) 5
   arrayMap $ \ix ->
     store (stack_array ! ix) 1
 
 m16 :: Module
 m16 = package "foo16" (incl foo16)
+
+-----------------------
+
+foo17 :: Def ('[ Ref Global (Array 10 (Stored Uint32))] :-> ())
+foo17 = L.proc "foo17" $ \a -> body $ do
+  b <- local (iarray [ival 0, ival 1])
+  refCopy b a
+  arrayMap (\ix -> store (a ! (ix :: Ix 10)) 1)
+  retVoid
+
+m17 :: Module
+m17 = package "foo17" (incl foo17)
