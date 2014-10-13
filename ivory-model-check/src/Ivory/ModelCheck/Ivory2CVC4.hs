@@ -127,8 +127,8 @@ toStore t ptr exp = do
 
 toSelectStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toSelectStore t f exp = do
-  v    <- toStoreRef t f
   f'   <- toExpr t f
+  v    <- toStoreRef t f
   e    <- toExpr t exp
   addInvariant (var v .== store f' e)
 
@@ -363,7 +363,7 @@ toType t = case t of
   I.TyVoid         -> return Void
   (I.TyWord _)     -> return Integer
   (I.TyInt  _)     -> return Integer
-  (I.TyIndex _)    -> return Integer
+  (I.TyIndex n)    -> return Integer
   I.TyBool         -> return Bool
   I.TyChar         -> return Char
   I.TyFloat        -> return Real
@@ -500,8 +500,8 @@ assertBoundedVar t e = getBounds t
       I.Int32 -> c int32
       I.Int64 -> c int64
 
-    -- I.TyIndex n _ -> addInvariant $ (intLit 0 .<= e)
-    --                             .&& (e .<= (intLit n .- intLit 1))
+    I.TyIndex n -> addInvariant $ (intLit 0 .<= e)
+                              .&& (e .<= (intLit n .- intLit 1))
 
     _         -> return ()
 
