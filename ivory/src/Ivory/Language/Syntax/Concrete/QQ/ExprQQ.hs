@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Ivory expression QuasiQuoter.
@@ -18,6 +19,8 @@ module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
+
+import           Data.String (IsString(..))
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -41,13 +44,14 @@ import Ivory.Language.Syntax.Concrete.ParseAST
 
 import Ivory.Language.Syntax.Concrete.QQ.Common
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 -- Expressions
 
 -- | Top-level constant definition.
 fromConstDef :: ConstDef -> Q [Dec]
-fromConstDef (ConstDef sym e mtype) = do
+fromConstDef (ConstDef sym e mtype srcloc) = do
   n <- newName sym
   let def = ValD (VarP n) (NormalB $ toExp [] e) []
   case mtype of
@@ -55,11 +59,18 @@ fromConstDef (ConstDef sym e mtype) = do
     Just ty -> do tyQ <- runToQ (fromType ty)
                   -- Ignore possible type variables---should be any for a
                   -- top-level constant.
+#if __GLASGOW_HASKELL__ >= 709
+                  ln <- lnPragma srcloc
+                  return (ln ++ [SigD n (fst tyQ), def])
+#else
                   return [SigD n (fst tyQ), def]
+#endif
 
 fromLit :: Literal -> T.Exp
 fromLit lit = case lit of
   LitInteger int -> LitE (IntegerL int)
+  LitFloat   f   -> LitE (RationalL f)
+  LitString  str -> AppE (VarE 'fromString) (LitE (StringL str))
 
 fromOpExp :: VarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of
@@ -126,7 +137,6 @@ fromOpExp env op args = case op of
   FromIx           -> mkUn  'I.fromIx
   ToCArray         -> mkUn  'I.toCArray
   ArrayLen         -> mkUn  'I.arrayLen
-  ConstRef         -> mkUn  'I.constRef
   SizeOf           -> mkUn  'I.sizeOf
   NullPtr          -> mkUn  'I.nullPtr
   RefToPtr         -> mkUn  'I.refToPtr
@@ -163,6 +173,8 @@ toExp env exp = case exp of
     -> VarE $ lookupVar (expToCall sym args) env
   ExpAddrOf v
     -> toAddrOf $ VarE $ mkName v
+  LocExp e
+    -> toExp env (unLoc e)
 
 --------------------------------------------------------------------------------
 -- These are shared by toExp above and fromArea in BindExp.

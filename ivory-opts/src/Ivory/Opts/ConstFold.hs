@@ -14,21 +14,24 @@ module Ivory.Opts.ConstFold
 
 import Ivory.Opts.ConstFoldComp
 
-import qualified Ivory.Language.Array       as I
-import qualified Ivory.Language.Syntax.AST  as I
-import qualified Ivory.Language.Syntax.Type as I
+import qualified Ivory.Language.Array  as I
+import qualified Ivory.Language.Syntax as I
 import Ivory.Language.Cast (toMaxSize, toMinSize)
 
 import Control.Arrow (second)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
-import Data.List
 import qualified Data.DList as D
+import MonadLib
 
 --------------------------------------------------------------------------------
 -- Constant folding
 
+type CopyMap = Map I.Var I.Expr
+
 -- | Expression to expression optimization.
-type ExprOpt = I.Type -> I.Expr -> I.Expr
+type ExprOpt = CopyMap -> I.Type -> I.Expr -> I.Expr
 
 constFold :: I.Proc -> I.Proc
 constFold = procFold cf
@@ -36,107 +39,132 @@ constFold = procFold cf
 procFold :: ExprOpt -> I.Proc -> I.Proc
 procFold opt proc =
   let cxt   = I.procSym proc
-      body' = D.toList $ foldl' (stmtFold cxt opt) D.empty (I.procBody proc)
+      body' = D.toList $ blockFold cxt opt Map.empty $ I.procBody proc
    in proc { I.procBody = body' }
 
-stmtFold :: String -> ExprOpt -> D.DList I.Stmt -> I.Stmt -> D.DList I.Stmt
-stmtFold cxt opt blk stmt =
+blockFold :: String -> ExprOpt -> CopyMap -> I.Block -> D.DList I.Stmt
+blockFold cxt opt copies = D.concat . fst . runId . runStateT copies . mapM (stmtFold cxt opt)
+
+stmtFold :: String -> ExprOpt -> I.Stmt -> StateT CopyMap Id (D.DList I.Stmt)
+stmtFold cxt opt stmt =
   case stmt of
-    I.IfTE _ [] []       -> blk
-    I.IfTE e [] b1       -> stmtFold cxt opt blk $ I.IfTE (I.ExpOp I.ExpNot [e]) b1 []
-    I.IfTE e b0 b1       ->
-      let e' = opt I.TyBool e in
-      case e' of
-        I.ExpLit (I.LitBool b) -> if b then blk `D.append` (newFold' b0)
-                                    else blk `D.append` (newFold' b1)
-        _                      -> snoc $ I.IfTE e' (newFold b0) (newFold b1)
-    I.Assert e           ->
-      let e' = opt I.TyBool e in
-      case e' of
+    I.IfTE _ [] []       -> return D.empty
+    I.IfTE e [] b1       -> stmtFold cxt opt $ I.IfTE (I.ExpOp I.ExpNot [e]) b1 []
+    I.IfTE e b0 b1       -> do
+      copies <- get
+      case opt copies I.TyBool e of
+        I.ExpLit (I.LitBool b) -> fmap D.concat $ mapM (stmtFold cxt opt) $ if b then b0 else b1
+        e'                     -> return $ D.singleton $ I.IfTE e' (newFold copies b0) (newFold copies b1)
+    I.Assert e           -> do
+      copies <- get
+      case opt copies I.TyBool e of
         I.ExpLit (I.LitBool b) ->
-          if b then blk
+          if b then return D.empty
             else error $ "Constant folding evaluated a False assert()"
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
-        _                      -> snoc (I.Assert e')
-    I.CompilerAssert e        ->
-      let e' = opt I.TyBool e in
-      let go = snoc (I.CompilerAssert e') in
-      case e' of
+        e'                     -> return $ D.singleton (I.Assert e')
+    I.CompilerAssert e        -> do
+      copies <- get
+      case opt copies I.TyBool e of
+        -- It's OK to have false but unreachable compiler asserts.
+        I.ExpLit (I.LitBool b) | b -> return D.empty
+        e'                         -> return $ D.singleton (I.CompilerAssert e')
+    I.Assume e           -> do
+      copies <- get
+      case opt copies I.TyBool e of
         I.ExpLit (I.LitBool b) ->
-          -- It's OK to have false but unreachable compiler asserts.
-          if b then blk else go
-        _                      -> go
-    I.Assume e           ->
-      let e' = opt I.TyBool e in
-      case e' of
-        I.ExpLit (I.LitBool b) ->
-          if b then blk
+          if b then return D.empty
             else error $ "Constant folding evaluated a False assume()"
                        ++ " in evaluating expression " ++ show e
                        ++ " of function " ++ cxt
-        _                      -> snoc (I.Assume e')
+        e'                     -> return $ D.singleton (I.Assume e')
 
-    I.Return e           -> snoc $ I.Return (typedFold opt e)
-    I.ReturnVoid         -> snoc I.ReturnVoid
-    I.Deref t var e      -> snoc $ I.Deref t var (opt t e)
-    I.Store t e0 e1      -> snoc $ I.Store t (opt t e0) (opt t e1)
-    I.Assign t v e       -> snoc $ I.Assign t v (opt t e)
-    I.Call t mv c tys    -> snoc $ I.Call t mv c (map (typedFold opt) tys)
-    I.Local t var i      -> snoc $ I.Local t var $ constFoldInits i
-    I.RefCopy t e0 e1    -> snoc $ I.RefCopy t (opt t e0) (opt t e1)
-    I.AllocRef{}         -> snoc stmt
-    I.Loop v e incr blk' ->
-      let ty = I.ixRep in
-      case opt ty e of
+    I.Return e           -> do
+      copies <- get
+      return $ D.singleton $ I.Return (typedFold opt copies e)
+    I.ReturnVoid         -> return $ D.singleton stmt
+    I.Deref t var e      -> do
+      copies <- get
+      return $ D.singleton $ I.Deref t var (opt copies t e)
+    I.Store t e0 e1      -> do
+      copies <- get
+      return $ D.singleton $ I.Store t (opt copies t e0) (opt copies t e1)
+
+    I.Assign t v e       -> do
+      copies <- get
+      let e' = opt copies t e
+      let copyProp = set (Map.insert v e' copies) >> return D.empty
+      case e' of
+        I.ExpSym{}          -> copyProp
+        I.ExpVar{}          -> copyProp
+        I.ExpLit{}          -> copyProp
+        I.ExpAddrOfGlobal{} -> copyProp
+        I.ExpMaxMin{}       -> copyProp
+        _                   -> return $ D.singleton $ I.Assign t v e'
+
+    I.Call t mv c tys    -> do
+      copies <- get
+      return $ D.singleton $ I.Call t mv c (map (typedFold opt copies) tys)
+    I.Local t var i      -> do
+      copies <- get
+      return $ D.singleton $ I.Local t var $ constFoldInits copies i
+    I.RefCopy t e0 e1    -> do
+      copies <- get
+      return $ D.singleton $ I.RefCopy t (opt copies t e0) (opt copies t e1)
+    I.AllocRef{}         -> return $ D.singleton stmt
+    I.Loop v e incr blk' -> do
+      copies <- get
+      let ty = I.ixRep
+      case opt copies ty e of
         I.ExpLit (I.LitBool b) ->
           if b then error $ "Constant folding evaluated True expression "
                           ++ "in a loop bound.  The loop will never terminate!"
                else error $ "Constant folding evaluated False expression "
                           ++ "in a loop bound.  The loop will never execute!"
         _                      ->
-          snoc $ I.Loop v (opt ty e) (loopIncrFold (opt ty) incr)
-                        (newFold blk')
-    I.Break              -> snoc I.Break
-    I.Forever b          -> snoc $ I.Forever (newFold b)
-    I.Comment c          -> snoc $ I.Comment c
-  where sf       = stmtFold cxt opt
-        newFold' = foldl' sf D.empty
-        newFold  = D.toList . newFold'
-        snoc     = (blk `D.snoc`)
+          return $ D.singleton $ I.Loop v (opt copies ty e) (loopIncrFold (opt copies ty) incr)
+                        (newFold copies blk')
+    I.Break              -> return $ D.singleton stmt
+    I.Forever b          -> do
+      copies <- get
+      return $ D.singleton $ I.Forever (newFold copies b)
+    I.Comment{}          -> return $ D.singleton stmt
+  where
+  newFold copies = D.toList . blockFold cxt opt copies
 
-constFoldInits :: I.Init -> I.Init
-constFoldInits I.InitZero = I.InitZero
-constFoldInits (I.InitExpr ty expr) = I.InitExpr ty $ cf ty expr
-constFoldInits (I.InitStruct i) = I.InitStruct $ map (second constFoldInits) i
-constFoldInits (I.InitArray i) = I.InitArray $ map constFoldInits i
+constFoldInits :: CopyMap -> I.Init -> I.Init
+constFoldInits _ I.InitZero = I.InitZero
+constFoldInits copies (I.InitExpr ty expr) = I.InitExpr ty $ cf copies ty expr
+constFoldInits copies (I.InitStruct i) = I.InitStruct $ map (second (constFoldInits copies)) i
+constFoldInits copies (I.InitArray i) = I.InitArray $ map (constFoldInits copies) i
 
 --------------------------------------------------------------------------------
 -- Expressions
 
 -- | Constant folding over expressions.
 cf :: ExprOpt
-cf ty e =
+cf copies ty e =
   case e of
     I.ExpSym{} -> e
-    I.ExpVar{} -> e
+    I.ExpVar v -> Map.findWithDefault e v copies
     I.ExpLit{} -> e
 
-    I.ExpOp op args       -> liftChoice ty op args
+    I.ExpOp op args       -> liftChoice copies ty op args
 
-    I.ExpLabel t e0 s     -> I.ExpLabel t (cf t e0) s
+    I.ExpLabel t e0 s     -> I.ExpLabel t (cf copies t e0) s
 
-    I.ExpIndex t e0 t1 e1 -> I.ExpIndex t (cf t e0) t1 (cf t e1)
+    I.ExpIndex t e0 t1 e1 -> I.ExpIndex t (cf copies t e0) t1 (cf copies t1 e1)
 
     I.ExpSafeCast t e0    ->
-      let e0' = cf t e0
+      let e0' = cf copies t e0
        in fromMaybe (I.ExpSafeCast t e0') $ do
             _ <- destLit e0'
             return e0'
 
     I.ExpToIx e0 maxSz    ->
       let ty' = I.ixRep in
-      let e0' = cf ty' e0 in
+      let e0' = cf copies ty' e0 in
       case destIntegerLit e0' of
         Just i  -> I.ExpLit $ I.LitInteger $ i `rem` maxSz
         Nothing -> I.ExpToIx e0' maxSz
@@ -152,8 +180,8 @@ loopIncrFold opt incr =
 
 --------------------------------------------------------------------------------
 
-typedFold :: ExprOpt -> I.Typed I.Expr -> I.Typed I.Expr
-typedFold opt tval@(I.Typed ty val) = tval { I.tValue = opt ty val }
+typedFold :: ExprOpt -> CopyMap -> I.Typed I.Expr -> I.Typed I.Expr
+typedFold opt copies tval@(I.Typed ty val) = tval { I.tValue = opt copies ty val }
 
 arg0 :: [a] -> a
 arg0 = flip (!!) 0
@@ -165,8 +193,8 @@ arg2 :: [a] -> a
 arg2 = flip (!!) 2
 
 -- | Reconstruct an operator, folding away operations when possible.
-cfOp :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-cfOp ty op args = cfOp' ty op $ case op of
+cfOp :: CopyMap -> I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
+cfOp copies ty op args = cfOp' ty op $ case op of
   I.ExpEq t -> cfargs t args
   I.ExpNeq t -> cfargs t args
   I.ExpCond -> let (cond, rest) = splitAt 1 args in cfargs I.TyBool cond ++ cfargs ty rest
@@ -176,7 +204,7 @@ cfOp ty op args = cfOp' ty op $ case op of
   I.ExpIsInf t  -> cfargs t args
   _ -> cfargs ty args
   where
-  cfargs ty' = mkCfArgs ty' . map (cf ty')
+  cfargs ty' = mkCfArgs ty' . map (cf copies ty')
 
 cfOp' :: I.Type -> I.ExpOp -> [CfVal] -> I.Expr
 cfOp' ty op args = case op of
@@ -233,22 +261,30 @@ cfOp' ty op args = case op of
     | isLitValue 0 $ arg0 args -> toExpr $ arg0 args
     | isLitValue 1 $ arg0 args -> toExpr $ arg1 args
     | isLitValue (-1) $ arg0 args -> cfOp' ty I.ExpNegate [arg1 args]
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg0 args -> cfOp' ty I.ExpNegate $ mkCfArgs ty [cfOp' ty I.ExpMul $ mkCfArgs ty [e'] ++ [arg1 args]]
     | isLitValue 0 $ arg1 args -> toExpr $ arg1 args
     | isLitValue 1 $ arg1 args -> toExpr $ arg0 args
     | isLitValue (-1) $ arg1 args -> cfOp' ty I.ExpNegate [arg0 args]
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg1 args -> cfOp' ty I.ExpNegate $ mkCfArgs ty [cfOp' ty I.ExpMul $ arg0 args : mkCfArgs ty [e']]
     | otherwise -> goNum
 
   I.ExpAdd
     | isLitValue 0 $ arg0 args -> toExpr $ arg1 args
     | isLitValue 0 $ arg1 args -> toExpr $ arg0 args
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg1 args -> cfOp' ty I.ExpSub $ arg0 args : mkCfArgs ty [e']
     | otherwise -> goNum
 
   I.ExpSub
     | isLitValue 0 $ arg0 args -> cfOp' ty I.ExpNegate [arg1 args]
     | isLitValue 0 $ arg1 args -> toExpr $ arg0 args
+    | CfExpr (I.ExpOp I.ExpNegate [e']) <- arg1 args -> cfOp' ty I.ExpAdd $ arg0 args : mkCfArgs ty [e']
     | otherwise -> goNum
 
-  I.ExpNegate   -> goNum
+  I.ExpNegate   -> case arg0 args of
+    CfExpr (I.ExpOp I.ExpNegate [e']) -> e'
+    CfExpr (I.ExpOp I.ExpSub [e1, e2]) -> cfOp' ty I.ExpSub $ mkCfArgs ty [e2, e1]
+    _ -> goNum
+
   I.ExpAbs      -> goNum
   I.ExpSignum   -> goNum
 
@@ -301,8 +337,8 @@ cfOp' ty op args = case op of
 --------------------------------------------------------------------------------
 
 -- | Lift nondeterministic choice up see see if we can further optimize.
-liftChoice :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-liftChoice ty op args = case op of
+liftChoice :: CopyMap -> I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
+liftChoice copies ty op args = case op of
   I.ExpEq{}   -> go2
   I.ExpNeq{}  -> go2
   -- I.ExpCond --unnecessary
@@ -355,28 +391,28 @@ liftChoice ty op args = case op of
   -- I.ExpBitComplement ->
   -- I.ExpBitShiftL     ->
   -- I.ExpBitShiftR     ->
-  _ -> cfOp ty op args
+  _ -> cfOp copies ty op args
   where
-  go1 = unOpLift  ty op args
-  go2 = binOpLift ty op args
+  go1 = unOpLift  copies ty op args
+  go2 = binOpLift copies ty op args
 
 
 --XXX the equality comparisons below can be expensive.  Hashmap?  Also, awkward
 -- style, but I want sharing of (liftChoice ...) expression in branch condition
 -- and result.
-unOpLift :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-unOpLift ty op args = case a0 of
+unOpLift :: CopyMap -> I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
+unOpLift copies ty op args = case a0 of
   I.ExpOp I.ExpCond [_,x1,x2]
     -> let a = lt x1 in
        if a == lt x2 then a else c
   _ -> c
   where
   a0     = arg0 args
-  lt x   = liftChoice ty op [x]
-  c      = cfOp ty op args
+  lt x   = liftChoice copies ty op [x]
+  c      = cfOp copies ty op args
 
-binOpLift :: I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
-binOpLift ty op args = case a0 of
+binOpLift :: CopyMap -> I.Type -> I.ExpOp -> [I.Expr] -> I.Expr
+binOpLift copies ty op args = case a0 of
   I.ExpOp I.ExpCond [_,x1,x2]
     -> let a = lt0 x1 in
        if a == lt0 x2 then a else c
@@ -390,8 +426,8 @@ binOpLift ty op args = case a0 of
   a1     = arg1 args
   lt0 x  = lt x a1
   lt1 x  = lt a0 x
-  lt a b = liftChoice ty op [a, b]
-  c      = cfOp ty op args
+  lt a b = liftChoice copies ty op [a, b]
+  c      = cfOp copies ty op args
 
 --------------------------------------------------------------------------------
 -- Constant-folded values

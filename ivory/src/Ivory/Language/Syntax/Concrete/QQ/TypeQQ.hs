@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Ivory types QuasiQuoter.
@@ -24,6 +25,7 @@ import           Language.Haskell.TH.Quote()
 import qualified Ivory.Language.Float     as I
 import qualified Ivory.Language.IBool     as I
 import qualified Ivory.Language.IChar     as I
+import qualified Ivory.Language.IString   as I
 import qualified Ivory.Language.Sint      as I
 import qualified Ivory.Language.Uint      as I
 import qualified Ivory.Language.Scope     as I
@@ -34,15 +36,22 @@ import qualified Ivory.Language.Proxy     as I
 import qualified Ivory.Language.Array     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
+import Ivory.Language.Syntax.Concrete.Location
+import Ivory.Language.Syntax.Concrete.QQ.Common
 
 --------------------------------------------------------------------------------
 -- Haskell type synonyms
 
-fromTypeDef :: TypeDef -> Q Dec
-fromTypeDef (TypeDef syn ty) = do
+fromTypeDef :: TypeDef -> Q [Dec]
+fromTypeDef (TypeDef syn ty srcloc) = do
   n      <- newName syn
   (t, _) <- runToQ (fromType ty)
-  return (TySynD n [] t)
+#if __GLASGOW_HASKELL__ >= 709
+  ln <- lnPragma srcloc
+  return (ln ++ [TySynD n [] t])
+#else
+  return [TySynD n [] t]
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -117,12 +126,14 @@ isBaseType ty = case ty of
   TyFloat      -> True
   TyDouble     -> True
   TyIx{}       -> True
+  TyString     -> False
   TyStored{}   -> False
   TyStruct{}   -> False
   TyArray{}    -> False
   TyRef{}      -> False
   TyConstRef{} -> False
   TySynonym{}  -> False
+  LocTy ty'    -> isBaseType (unLoc ty')
 
 maybeAddStored :: Type -> Type
 maybeAddStored ty =
@@ -167,12 +178,14 @@ fromType ty = case ty of
   TyStruct nm       -> fromStructTy nm
   TyArray a sz      -> fromArrayTy a sz
   TyRef qma qt      -> fromRef ''I.Ref      qma qt
+  TyString          -> liftCon ''I.IString
   TyConstRef qma qt -> fromRef ''I.ConstRef qma qt
   TySynonym str     -> liftCon (mkName str)
+  LocTy ty'         -> fromType (unLoc ty')
 
 -- | Create a procedure type.
 fromProcType :: ProcDef -> Q Dec
-fromProcType (ProcDef retTy procName args _ _) = do
+fromProcType (ProcDef retTy procName args _ _ _) = do
   arr                 <- promotedT '(I.:->)
   (ret,retTyVars)     <- runToQ (fromType retTy)
   (argVars,argTyVars) <- fromArgs
@@ -200,7 +213,12 @@ fromProcType (ProcDef retTy procName args _ _) = do
   -- Construct the class constraints per type variable
   mkCxt :: TyVar -> [T.Pred]
   mkCxt (TyVar nm classes) =
+#if __GLASGOW_HASKELL__ >= 709
+    map (\cl -> T.AppT (T.ConT $ toClass cl) (T.VarT nm)) classes
+#else
     map (\cl -> T.ClassP (toClass cl) [T.VarT nm]) classes
+#endif
+
 
   allTyVars = nub . (map (PlainTV . tyVar))
   allCtxs   = nub . (concatMap mkCxt)

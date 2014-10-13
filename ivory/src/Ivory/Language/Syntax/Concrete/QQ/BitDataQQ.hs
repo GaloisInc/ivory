@@ -33,7 +33,9 @@ import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
 import qualified Ivory.Language.BitData.Bits    as B
 import qualified Ivory.Language.BitData.BitData as B
 import qualified Ivory.Language.BitData.Array   as B
+import           Ivory.Language.Syntax.Concrete.QQ.Common
 import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import           Ivory.Language.Syntax.Concrete.Location
 
 ----------------------------------------------------------------------
 
@@ -54,6 +56,7 @@ convertType (Bits n) =
 convertType (BitArray n t) = do
   appT (appT (getType "BitArray") (return $ szTy n)) (convertType t)
 convertType (BitTySynonym s) = getType s
+convertType (LocBitTy b) = convertType (unLoc b)
 
 getType :: String -> Q TH.Type
 getType s = do
@@ -106,7 +109,7 @@ data THField = THField
 
 -- | Annotate a field definition.
 annotateField :: BitField -> Q THField
-annotateField (BitField mn t) = do
+annotateField (BitField mn t _) = do
   ty <- convertType t
   len <- tyBits ty
   return $ THField (fmap mkName mn) ty len
@@ -244,7 +247,7 @@ constrFieldNames c = catMaybes $ map thFieldName (thConstrFields c)
 
 -- | Annotate a constructor definition.
 annotateConstr :: Integer -> Constr -> Q THConstr
-annotateConstr len (Constr n fs ls) = do
+annotateConstr len (Constr n fs ls _) = do
   fs' <- mapM annotateField fs
   ls' <- updateLiterals len fs' ls
   return $ THConstr (mkName n) fs' (annotateLayout len ls' fs')
@@ -259,11 +262,11 @@ data THDef = THDef
 
 -- | Annotate a bitdata definition.
 annotateDef :: BitDataDef -> Q THDef
-annotateDef (BitDataDef n t cs) = do
+annotateDef (BitDataDef n t cs _) = do
   ty  <- convertType t
   len <- tyBits ty
   cs' <- mapM (annotateConstr len) cs
-  return $ THDef (mkName n) ty cs' len
+  return (THDef (mkName n) ty cs' len)
 
 ----------------------------------------------------------------------
 -- Annotated AST Validation
@@ -310,12 +313,18 @@ fromBitData :: BitDataDef -> Q [Dec]
 fromBitData d = do
   def <- annotateDef d
   checkDef def
-  sequence $ concat
+  defs <- sequence $ concat
     [ mkDefNewtype def
     , mkDefInstance def
     , concatMap (mkConstr def) (thDefConstrs def)
     , mkArraySizeTypeInsts def
     ]
+#if __GLASGOW_HASKELL__ >= 709
+  ln <- lnPragma (bdLoc d)
+  return (ln ++ defs)
+#else
+  return defs
+#endif
 
 -- | Generate a newtype definition for a bit data definition.
 mkDefNewtype :: THDef -> [DecQ]

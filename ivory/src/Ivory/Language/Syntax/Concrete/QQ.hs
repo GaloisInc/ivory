@@ -21,6 +21,8 @@ import           Prelude hiding (exp, init, const)
 import           Data.Char
 import           Data.Maybe
 import           System.FilePath
+import qualified Data.Text.Lazy    as L
+import qualified Data.Text.Lazy.IO as L
 
 import qualified Language.Haskell.TH        as Q
 import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
@@ -38,7 +40,12 @@ import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 
 import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
-import Ivory.Language.Syntax.Concrete.Parser
+import Ivory.Language.Syntax.Concrete.Lexer (scan)
+import Ivory.Language.Syntax.Concrete.Parser (ivoryParser)
+import qualified Ivory.Language.Syntax.Concrete.ParseCore as P
+
+runParser :: FilePath -> L.Text -> [GlobalSym]
+runParser fp txt = P.runParser (scan fp txt) ivoryParser
 
 --------------------------------------------------------------------------------
 -- QuasiQuoters
@@ -49,7 +56,8 @@ ivory :: QuasiQuoter
 ivory = justDecQQ decP
   where
   decP str = do
-    let defs = reverse (runParser str)
+    loc <- location
+    let defs = reverse (runParser (loc_filename loc) (L.pack str))
     decs    <- mapM mkDef defs
     return (concat decs)
 
@@ -71,9 +79,9 @@ ivoryFile :: QuasiQuoter
 ivoryFile = justDecQQ decP
   where
   decP filePath = do
-    str <- runIO (readFile filePath)
+    str <- runIO (L.readFile filePath)
     addDependentFile filePath
-    let defs      = reverse (runParser str)
+    let defs      = reverse (runParser filePath str)
     decs         <- mapM mkDef defs
     let fileName  = concat
                   $ filter (not . (any isPathSeparator))
@@ -110,12 +118,10 @@ mkDef def = case def of
   GlobalProc    d       -> fromProc d
   GlobalStruct  d       -> fromStruct d
   GlobalBitData d       -> fromBitData d
-  GlobalTypeDef tyDef   -> singList (fromTypeDef tyDef)
+  GlobalTypeDef tyDef   -> fromTypeDef tyDef
   GlobalConstDef const  -> fromConstDef const
   -- No definition to make for includes.
   GlobalInclude{}       -> return []
-  where
-  singList x = (:[]) `fmap` x
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: String -> [ModuleData] -> Q [Dec]

@@ -14,8 +14,6 @@ module Ivory.Language.Syntax.Concrete.QQ.StmtQQ
 
 import           Prelude hiding (exp, init)
 
-import Ivory.Language.Syntax.Concrete.QQ.Common
-
 import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH   as T
 
@@ -29,8 +27,10 @@ import qualified Ivory.Language.Monad  as I
 
 import           Control.Monad (forM_)
 
+import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.QQ.BindExp
+import Ivory.Language.Syntax.Concrete.QQ.Common
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 --------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ fromStmt stmt = case stmt of
     -> insert $ NoBindS (VarE 'I.retVoid)
   Store exp0 exp1
     -> do
-    a <- fromAreaStmt (storeExp exp0)
+    a <- fromAreaStmt (expToArea exp0)
     e <- fromExpStmt exp1
     let storeIt p = insert $ NoBindS (AppE (AppE (VarE 'I.store) p) e)
     storeIt a
@@ -113,6 +113,8 @@ fromStmt stmt = case stmt of
           insert $ case mv of
                      Nothing -> NoBindS c
                      Just v  -> BindS (VarP $ mkName v) c
+  LocStmt s
+    -> fromStmt (unLoc s)
 
 --------------------------------------------------------------------------------
 -- Initializers
@@ -146,8 +148,3 @@ fromAlloc alloc = case alloc of
 
 fromArgs :: [Exp] -> QStM T.Stmt [T.Exp]
 fromArgs = mapM fromExpStmt
-
-storeExp :: Exp -> Area
-storeExp exp = case exp of
-  ExpDeref e -> expToArea e
-  _          -> error $ "Expected a dereference expression in a store statement: " ++ show exp
