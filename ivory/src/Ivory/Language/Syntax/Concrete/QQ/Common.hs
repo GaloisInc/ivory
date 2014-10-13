@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Helpers for QuasiQuoter.
@@ -33,6 +34,9 @@ module Ivory.Language.Syntax.Concrete.QQ.Common
   , isArea
   , collectBindExps
   , runToSt
+#if __GLASGOW_HASKELL__ >= 709
+  , lnPragma
+#endif
   ) where
 
 import Prelude hiding (exp)
@@ -48,6 +52,7 @@ import qualified Data.DList as D
 import           Control.Applicative
 
 import Ivory.Language.Syntax.Concrete.ParseAST
+import Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 -- Monad for inserting values over the Q monad.
@@ -104,6 +109,7 @@ expToArea exp = case exp of
   -- e1 below can't be an area---it's an index into the array.
   ExpArray  e0 e1 -> ArrayArea (expToArea e0) e1
   ExpStruct e0 e1 -> StructArea (expToArea e0) (expToArea e1)
+  LocExp e        -> expToArea (unLoc e)
   _               -> error $ "Expression " ++ show exp ++ " instead of area."
 
 -- Collect up the variables used in an expression that require an Ivory statement.
@@ -120,6 +126,7 @@ collectBindExps exp = nub $ case exp of
   ExpStruct e0 e1         -> collectBindExps e0 ++ collectBindExps e1
   ExpCall fn args         -> [callToKey (Call fn args)]
   ExpAddrOf{}             -> []
+  LocExp le               -> collectBindExps (unLoc le)
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -188,3 +195,11 @@ getVar a env =
 type Insert a = Key -> Name -> T.Exp -> QStM a ()
 
 --------------------------------------------------------------------------------
+
+#if __GLASGOW_HASKELL__ >= 709
+lnPragma :: SrcLoc -> Q [Dec]
+lnPragma srcloc =
+  case srcLoclinePragma srcloc of
+    Nothing         -> return []
+    Just (ln, file) -> (:[]) `fmap` pragLineD ln file
+#endif

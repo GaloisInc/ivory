@@ -9,6 +9,8 @@ module Ivory.Language.Syntax.Concrete.QQ.StructQQ
   ( fromStruct
   ) where
 
+import Data.Monoid
+
 import qualified Ivory.Language.Area  as A
 import           Ivory.Language.Proxy
 import           Ivory.Language.SizeOf
@@ -30,12 +32,18 @@ import qualified Language.Haskell.TH as T
 
 fromStruct :: StructDef -> Q [Dec]
 fromStruct def = case def of
-  StructDef n fs -> do
+  StructDef n fs srcloc -> do
     let sym = mkSym n
     sizeOfDef <- mkIvorySizeOf n fs
-    sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
-  AbstractDef n _hdr -> sequence (mkIvoryStruct (mkSym n) def)
-  StringDef name len -> mkStringDef name len
+    defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
+#if __GLASGOW_HASKELL__ >= 709
+    ln <- lnPragma srcloc
+    return (ln ++ defs)
+#else
+    return defs
+#endif
+  AbstractDef n _hdr srcloc -> sequence (mkIvoryStruct (mkSym n) def)
+  StringDef name len srcloc -> mkStringDef name len
   where
   mkSym = litT . strTyLit
 
@@ -53,9 +61,9 @@ mkStructDef def = funD 'S.structDef
   ]
   where
   astStruct = case def of
-    StructDef n fs    -> [| AST.Struct $(stringE n) $(listE (map mkField fs)) |]
-    AbstractDef n hdr -> [| AST.Abstract $(stringE n) $(stringE hdr) |]
-    StringDef _ _     -> error "unexpected string definition"
+    StructDef n fs _    -> [| AST.Struct $(stringE n) $(listE (map mkField fs)) |]
+    AbstractDef n hdr _ -> [| AST.Abstract $(stringE n) $(stringE hdr) |]
+    StringDef _ _ _     -> error "unexpected string definition"
 
   mkField f =
     [| AST.Typed
@@ -140,9 +148,9 @@ mkStringDef ty_s len = do
   let data_n     = mkName data_s
   let len_s      = struct_s ++ "_len"
   let len_n      = mkName len_s
-  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) len)
-  let len_f      = Field len_s (TyStored (TyInt Int32))
-  let struct_def = StructDef struct_s [data_f, len_f]
+  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) len) mempty
+  let len_f      = Field len_s (TyStored (TyInt Int32)) mempty
+  let struct_def = StructDef struct_s [data_f, len_f] mempty
 
   d1 <- fromStruct struct_def
 --  sizeofDef <- mkIvorySizeOf struct_s

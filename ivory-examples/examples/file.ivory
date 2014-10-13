@@ -52,7 +52,7 @@ Boo foo(Boo x) {
 
 -- Calling builtin functions
 void foo67(* float a)
-{ store *a as sin(*a);
+{ store a as sin(*a);
 }
 
 -- if-the-else blocks.  Braces are mandatory.
@@ -77,14 +77,14 @@ void foo30(Boo x) {
 -- Allocation on the stack (dereference is an expression)
 int32_t foo0() {
   alloc *x = 3;
-  store *x as 4;
+  store x as 4;
   return *x + 4;
 }
 
 
 -- Global allocation (G), stack allocation (S), and undetermined scope (var c)
 uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
-  store *b as *a;
+  store b as *a;
   return *b + *c + *d;
 }
 
@@ -100,7 +100,7 @@ xx* uint32_t foo14(xx* struct Foo f) {
 uint32_t foo6(v *uint32_t[3] arr0) {
   alloc arr1[] = {1,2,3};
   map ix {
-    store *arr0 @ ix as *arr1 @ ix;
+    store arr0 @ ix as *arr1 @ ix;
   }
   -- Same as *arr0 @ 1 ;
   return arr0[1] ;
@@ -111,13 +111,13 @@ uint32_t foo6(v *uint32_t[3] arr0) {
 -- Use a struct. Polymorphic region reference.
 void foo00(* int32_t[5] arr, * struct Bar00 str) {
   -- The following two are equivalent
-  store * arr @ 2 as 3;
-  store arr[2]   as 4;
+  store arr @ 2 as 3;
+  store arr @ 2 as 4;
   -- As well as the next two
-  store *str.aBar00 as 1;
-  store str->aBar00 as 2;
+  store str.aBar00 as 1;
+  store str.aBar00 as 2;
 
-  store arr[2]      as arr[3];
+  store arr@2      as arr[3];
 }
 
 -- Boolean operators
@@ -185,16 +185,16 @@ void foo92() {
 void mapProc(*uint8_t[4] arr, uint8_t x) {
   map ix {
     let v = arr @ ix;
-    store *v as *v + x;
+    store v as *v + x;
   }
 }
 
 -- Casting
 void foo57(* uint8_t a, * uint16_t b, * int8_t c, * int32_t d)
 {
-  store *b as safeCast(*a);     -- can always safely cast
-  store *b as castWith(3, *d);  -- cast with a default value if out of range
-  store *c as twosCompCast(*a); -- interpret under 2s compliment
+  store b as safeCast(*a);     -- can always safely cast
+  store b as castWith(3, *d);  -- cast with a default value if out of range
+  store c as twosCompCast(*a); -- interpret under 2s compliment
 }
 
 -- Statements and expression macros
@@ -218,13 +218,32 @@ int32_t bar82() {
   return foo100(foo100(y));
 }
 
+void fizzbuzz() {
+  upTo 100 ix {
+    -- for typechecking
+    let (ix_t 101) ix' = ix;
+    let i = fromIx(ix);
+    if (i % 15 == 0) {
+      printf("Fizzbuzz");
+    } else {
+      if (i % 5 == 0) {
+        printf("Fizz");
+      } else {
+        if (i % 3 == 0) {
+          printf("Buzz");
+        } else { printf2("",i); }
+      }
+    }
+  }
+}
+
 ------------------------------------------------------------
 -- Larger example (hypothetical pack and unpack functions). In practice, use
 -- ivory-serialize.
 int32_t unpackSint32(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
 {
   alloc *x = 0;
-  store *x as safeCast(a) | safeCast(b) << 0x8 | safeCast(c) << 0x10 | safeCast(d) << 0x18;
+  store x as safeCast(a) | safeCast(b) << 0x8 | safeCast(c) << 0x10 | safeCast(d) << 0x18;
   return twosCompCast(*x);
 }
 
@@ -243,10 +262,10 @@ void pack(*uint8_t[10] msg, int32_t x, int32_t ixx)
 {
   let ix = toIx(ixx);
   let ux = twosCompRep(x);
-  store * msg @ ix     as bitCast(ux);
-  store * msg @ (ix+1) as bitCast(ux >> 0x08);
-  store * msg @ (ix+2) as bitCast(ux >> 0x10);
-  store * msg @ (ix+3) as bitCast(ux >> 0x18);
+  store msg @ ix     as bitCast(ux);
+  store msg @ (ix+1) as bitCast(ux >> 0x08);
+  store msg @ (ix+2) as bitCast(ux >> 0x10);
+  store msg @ (ix+3) as bitCast(ux >> 0x18);
 }
 
 struct Foo7 { struct ivory_string_FooStr aFoo7; }
@@ -256,14 +275,13 @@ struct Bar2 { int32_t aBar7; }
 struct Boo { struct Bar2 aBoo; }
 
 void foobar (* struct Foo7 s) {
-  store (s . aFoo7 . stringDataL[0]) as 3;
+  store (s . aFoo7 . stringDataL@0) as 3;
   return;
 }
 
 int32_t bar72(int32_t x, * struct Boo a, * int32_t y, * int32_t[10] arr) {
-  store (a . aBoo) -> aBar7 as *y;
-  store (a . aBoo) -> aBar7 as *y;
-  store arr[toIx(*y + *y)]  as *y + *y;
+  store (a . aBoo) . aBar7 as *y;
+  store (a . aBoo) . aBar7 as *y;
+  store arr@toIx(*y + *y)   as *y + *y;
   return a.aBoo->aBar7;
 }
-

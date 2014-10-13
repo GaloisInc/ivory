@@ -1,224 +1,228 @@
 -- # -*- mode: haskell -*-
 {
 --
--- Ivory lexer.
+-- Ivory parser.
 --
 -- Copyright (C) 2014, Galois, Inc.
 -- All rights reserved.
 --
--- Parser.hs file is generated!
 
 -- TODO
--- Fix types to allow type syns at all levels
--- explicit types for allocs, lets, top-level defs
+-- types for allocs
 
 module Ivory.Language.Syntax.Concrete.Parser where
 
+import Data.Monoid
+
+import Ivory.Language.Syntax.Concrete.ParseCore
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Lexer
+import Ivory.Language.Syntax.Concrete.Lexeme ( Token(..), Lexeme )
+import Ivory.Language.Syntax.Concrete.Location
 
 }
 
 %name      ivoryParser
-%tokentype { Token }
-%monad     { Alex }
-%lexer     { lexwrap } { TokEOF }
+%tokentype { Lexeme }
+%monad     { Parser } { (>>=) } { return }
+%lexer     { lexer } { Located mempty TokEOF }
 %error     { parseError }
-
 %token
-  integer      { TokInteger $$ }
-  bitlit       { TokBitLit $$ }
-  identifier   { TokIdent $$ }
-  tyidentifier { TokTyIdent $$ }
-  fp           { TokFilePath $$ }
+
+  integer      { $$@Located { locValue = TokInteger _ } }
+  floatlit     { $$@Located { locValue = TokFloat   _ } }
+  bitlit       { $$@Located { locValue = TokBitLit _  } }
+  identifier   { $$@Located { locValue = TokIdent _   } }
+  tyidentifier { $$@Located { locValue = TokTyIdent _ } }
+  str          { $$@Located { locValue = TokString _  } }
 
   -- Statements
-  if       { TokReserved "if" }
-  else     { TokReserved "else" }
-  assert   { TokReserved "assert" }
-  assume   { TokReserved "assume" }
-  pre      { TokReserved "pre" }
-  post     { TokReserved "post" }
-  assign   { TokReserved "let" }
-  return   { TokReserved "return" }
-  alloc    { TokReserved "alloc" }
-  store    { TokReserved "store" }
-  refCopy  { TokReserved "memcpy" }
-  mapArr   { TokReserved "map" }
-  upTo     { TokReserved "upTo" }
-  forever  { TokReserved "forever" }
+  if       { Located $$ (TokReserved "if") }
+  else     { Located $$ (TokReserved "else") }
+  assert   { Located $$ (TokReserved "assert") }
+  assume   { Located $$ (TokReserved "assume") }
+  pre      { Located $$ (TokReserved "pre") }
+  post     { Located $$ (TokReserved "post") }
+  assign   { Located $$ (TokReserved "let") }
+  return   { Located $$ (TokReserved "return") }
+  alloc    { Located $$ (TokReserved "alloc") }
+  store    { Located $$ (TokReserved "store") }
+  refCopy  { Located $$ (TokReserved "memcpy") }
+  mapArr   { Located $$ (TokReserved "map") }
+  upTo     { Located $$ (TokReserved "upTo") }
+  forever  { Located $$ (TokReserved "forever") }
 
   -- Start of Ivory macros
-  iMacro   { TokSym "$" }
+  iMacro   { Located $$ (TokSym "$") }
 
- -- Expressions
-  abs          { TokReserved "abs" }
-  signum       { TokReserved "signum" }
-  expOp        { TokReserved "exp" }
-  sqrt         { TokReserved "sqrt" }
-  log          { TokReserved "log" }
-  pow          { TokReserved "pow" }
+  -- Expressions
+  abs          { Located $$ (TokReserved "abs") }
+  signum       { Located $$ (TokReserved "signum") }
+  expOp        { Located $$ (TokReserved "exp") }
+  sqrt         { Located $$ (TokReserved "sqrt") }
+  log          { Located $$ (TokReserved "log") }
+  pow          { Located $$ (TokReserved "pow") }
 
-  sin          { TokReserved "sin" }
-  cos          { TokReserved "cos" }
-  tan          { TokReserved "tan" }
+  sin          { Located $$ (TokReserved "sin") }
+  cos          { Located $$ (TokReserved "cos") }
+  tan          { Located $$ (TokReserved "tan") }
 
-  asin         { TokReserved "asin" }
-  acos         { TokReserved "acos" }
-  atan         { TokReserved "atan" }
+  asin         { Located $$ (TokReserved "asin") }
+  acos         { Located $$ (TokReserved "acos") }
+  atan         { Located $$ (TokReserved "atan") }
 
-  sinh         { TokReserved "sinh" }
-  cosh         { TokReserved "cosh" }
-  tanh         { TokReserved "tanh" }
+  sinh         { Located $$ (TokReserved "sinh") }
+  cosh         { Located $$ (TokReserved "cosh") }
+  tanh         { Located $$ (TokReserved "tanh") }
 
-  asinh        { TokReserved "asinh" }
-  acosh        { TokReserved "acosh" }
-  atanh        { TokReserved "atanh" }
+  asinh        { Located $$ (TokReserved "asinh") }
+  acosh        { Located $$ (TokReserved "acosh") }
+  atanh        { Located $$ (TokReserved "atanh") }
 
-  isnan        { TokReserved "isnan" }
-  isinf        { TokReserved "isinf" }
-  round        { TokReserved "round" }
-  ceil         { TokReserved "ceil" }
-  floor        { TokReserved "floor" }
-  const        { TokReserved "const" }
+  isnan        { Located $$ (TokReserved "isnan") }
+  isinf        { Located $$ (TokReserved "isinf") }
+  round        { Located $$ (TokReserved "round") }
+  ceil         { Located $$ (TokReserved "ceil") }
+  floor        { Located $$ (TokReserved "floor") }
+  const        { Located $$ (TokReserved "const") }
 
   -- Casting
-  safeCast         { TokReserved "safeCast" }
-  bitCast          { TokReserved "bitCast" }
-  castWith         { TokReserved "castWith" }
-  twosCompCast     { TokReserved "twosCompCast" }
-  twosCompRep      { TokReserved "twosCompRep" }
+  safeCast         { Located $$ (TokReserved "safeCast") }
+  bitCast          { Located $$ (TokReserved "bitCast") }
+  castWith         { Located $$ (TokReserved "castWith") }
+  twosCompCast     { Located $$ (TokReserved "twosCompCast") }
+  twosCompRep      { Located $$ (TokReserved "twosCompRep") }
 
   -- Other internals
 
-  fromIx           { TokReserved "fromIx" }
-  ixSize           { TokReserved "ixSize" }
-  toIx             { TokReserved "toIx" }
-  toCArray         { TokReserved "toCArray" }
-  arrayLen         { TokReserved "arrayLen" }
+  fromIx           { Located $$ (TokReserved "fromIx") }
+  ixSize           { Located $$ (TokReserved "ixSize") }
+  toIx             { Located $$ (TokReserved "toIx") }
+  toCArray         { Located $$ (TokReserved "toCArray") }
+  arrayLen         { Located $$ (TokReserved "arrayLen") }
 
-  constRef         {  TokReserved "constRef" }
-  sizeOf           { TokReserved "sizeOf" }
-  nullPtr          { TokReserved "nullPtr" }
-  refToPtr         { TokReserved "refToPtr" }
+  sizeOf           { Located $$ (TokReserved "sizeOf") }
+  nullPtr          { Located $$ (TokReserved "nullPtr") }
+  refToPtr         { Located $$ (TokReserved "refToPtr") }
 
   -- Type
-  '::'      { TokSym "::" }
+  '::'      { Located $$ (TokSym "::") }
 
-  '?'       { TokSym "?" }
-  ':'       { TokSym ":" }
+  '?'       { Located $$ (TokSym "?") }
+  ':'       { Located $$ (TokSym ":") }
 
   -- Struct field dereference
-  '.'       { TokSym "." }
-  '->'      { TokSym "->" }
+  '.'       { Located $$ (TokSym ".") }
+  '->'      { Located $$ (TokSym "->") }
 
-  '=='      { TokSym "==" }
-  '!='      { TokSym "!=" }
+  '=='      { Located $$ (TokSym "==") }
+  '!='      { Located $$ (TokSym "!=") }
 
   -- Used for deref and mult
-  '*'       { TokSym "*" }
+  '*'       { Located $$ (TokSym "*") }
 
-  '/'       { TokSym "/" }
+  '/'       { Located $$ (TokSym "/") }
 
-  '+'       { TokSym "+" }
-  '-'       { TokSym "-" }
-  '%'       { TokSym "%" }
+  '+'       { Located $$ (TokSym "+") }
+  '-'       { Located $$ (TokSym "-") }
+  '%'       { Located $$ (TokSym "%") }
 
-  '='       { TokSym "=" }
+  '='       { Located $$ (TokSym "=") }
 
-  '<'       { TokSym "<" }
-  '<='      { TokSym "<=" }
-  '>='      { TokSym ">=" }
-  '>'       { TokSym ">" }
+  '<'       { Located $$ (TokSym "<") }
+  '<='      { Located $$ (TokSym "<=") }
+  '>='      { Located $$ (TokSym ">=") }
+  '>'       { Located $$ (TokSym ">") }
 
-  '|'       { TokSym "|" }
-  '&'       { TokSym "&" }
-  '^'       { TokSym "^" }
-  '~'       { TokSym "~" }
+  '|'       { Located $$ (TokSym "|") }
+  '&'       { Located $$ (TokSym "&") }
+  '^'       { Located $$ (TokSym "^") }
+  '~'       { Located $$ (TokSym "~") }
 
-  '!'       { TokSym "!" }
-  '&&'      { TokSym "&&" }
-  '||'      { TokSym "||" }
-  '<<'      { TokSym "<<" }
-  '>>'      { TokSym ">>" }
+  '!'       { Located $$ (TokSym "!") }
+  '&&'      { Located $$ (TokSym "&&") }
+  '||'      { Located $$ (TokSym "||") }
+  '<<'      { Located $$ (TokSym "<<") }
+  '>>'      { Located $$ (TokSym ">>") }
 
 -- Other symbols
-  '('       { TokBrack "(" }
-  ')'       { TokBrack ")" }
-  '{'       { TokBrack "{" }
-  '}'       { TokBrack "}" }
-  '['       { TokBrack "[" }
-  ']'       { TokBrack "]" }
+  '('       { Located $$ (TokBrack "(") }
+  ')'       { Located $$ (TokBrack ")") }
+  '{'       { Located $$ (TokBrack "{") }
+  '}'       { Located $$ (TokBrack "}") }
+  '['       { Located $$ (TokBrack "[") }
+  ']'       { Located $$ (TokBrack "]") }
 
-  ';'       { TokSep ";" }
-  ','       { TokSep "," }
+  ';'       { Located $$ (TokSep ";") }
+  ','       { Located $$ (TokSep ",") }
 
-  '@'       { TokSym "@" }
-  '<-'      { TokSym "<-" }
+  '@'       { Located $$ (TokSym "@") }
+  '<-'      { Located $$ (TokSym "<-") }
 
   -- Types
-  bool     { TokReserved "bool" }
-  char     { TokReserved "char" }
-  float    { TokReserved "float" }
-  double   { TokReserved "double" }
-  void     { TokReserved "void" }
+  bool     { Located $$ (TokReserved "bool") }
+  char     { Located $$ (TokReserved "char") }
+  float    { Located $$ (TokReserved "float") }
+  double   { Located $$ (TokReserved "double") }
+  void     { Located $$ (TokReserved "void") }
 
-  int8_t   { TokReserved "int8_t" }
-  int16_t  { TokReserved "int16_t" }
-  int32_t  { TokReserved "int32_t" }
-  int64_t  { TokReserved "int64_t" }
+  int8_t   { Located $$ (TokReserved "int8_t") }
+  int16_t  { Located $$ (TokReserved "int16_t") }
+  int32_t  { Located $$ (TokReserved "int32_t") }
+  int64_t  { Located $$ (TokReserved "int64_t") }
 
-  uint8_t  { TokReserved "uint8_t" }
-  uint16_t { TokReserved "uint16_t" }
-  uint32_t { TokReserved "uint32_t" }
-  uint64_t { TokReserved "uint64_t" }
+  uint8_t  { Located $$ (TokReserved "uint8_t") }
+  uint16_t { Located $$ (TokReserved "uint16_t") }
+  uint32_t { Located $$ (TokReserved "uint32_t") }
+  uint64_t { Located $$ (TokReserved "uint64_t") }
 
-  S        { TokReserved "S" }
-  G        { TokReserved "G" }
+  S        { Located $$ (TokReserved "S") }
+  G        { Located $$ (TokReserved "G") }
 
-  IBool     { TokReserved "IBool" }
-  IChar     { TokReserved "IChar" }
-  IFloat    { TokReserved "IFloat" }
-  IDouble   { TokReserved "IDouble" }
+  IBool     { Located $$ (TokReserved "IBool") }
+  IChar     { Located $$ (TokReserved "IChar") }
+  IFloat    { Located $$ (TokReserved "IFloat") }
+  IDouble   { Located $$ (TokReserved "IDouble") }
+  IString   { Located $$ (TokReserved "IString") }
 
-  Sint8     { TokReserved "Sint8" }
-  Sint16    { TokReserved "Sint16" }
-  Sint32    { TokReserved "Sint32" }
-  Sint64    { TokReserved "Sint64" }
+  Sint8     { Located $$ (TokReserved "Sint8") }
+  Sint16    { Located $$ (TokReserved "Sint16") }
+  Sint32    { Located $$ (TokReserved "Sint32") }
+  Sint64    { Located $$ (TokReserved "Sint64") }
 
-  Uint8    { TokReserved "Uint8" }
-  Uint16   { TokReserved "Uint16" }
-  Uint32   { TokReserved "Uint32" }
-  Uint64   { TokReserved "Uint64" }
+  Uint8    { Located $$ (TokReserved "Uint8") }
+  Uint16   { Located $$ (TokReserved "Uint16") }
+  Uint32   { Located $$ (TokReserved "Uint32") }
+  Uint64   { Located $$ (TokReserved "Uint64") }
 
-  Ix       { TokReserved "Ix" }
-  ix_t     { TokReserved "ix_t" }
+  Ix       { Located $$ (TokReserved "Ix") }
+  ix_t     { Located $$ (TokReserved "ix_t") }
 
-  Ref      { TokReserved "Ref" }
-  ConstRef { TokReserved "ConstRef" }
-  Array    { TokReserved "Array" }
-  Struct   { TokReserved "Struct" }
-  Stored   { TokReserved "Stored" }
+  Ref      { Located $$ (TokReserved "Ref") }
+  ConstRef { Located $$ (TokReserved "ConstRef") }
+  Array    { Located $$ (TokReserved "Array") }
+  Struct   { Located $$ (TokReserved "Struct") }
+  Stored   { Located $$ (TokReserved "Stored") }
 
-  Stack    { TokReserved "Stack" }
-  Global   { TokReserved "Global" }
+  Stack    { Located $$ (TokReserved "Stack") }
+  Global   { Located $$ (TokReserved "Global") }
 
   -- Keywords
-  struct   { TokReserved "struct" }
-  abstract { TokReserved "abstract" }
-  string   { TokReserved "string" }
+  struct   { Located $$ (TokReserved "struct") }
+  abstract { Located $$ (TokReserved "abstract") }
+  string   { Located $$ (TokReserved "string") }
 
-  ty       { TokReserved "type" }
-  include  { TokReserved "include" }
+  ty       { Located $$ (TokReserved "type") }
+  include  { Located $$ (TokReserved "include") }
 
   -- Bit data
-  bitdata  { TokReserved "bitdata" }
-  Bit      { TokReserved "Bit" }
-  Bits     { TokReserved "Bits" }
-  BitArray { TokReserved "BitArray" }
-  as       { TokReserved "as" }
-  '_'      { TokSym "_" }
-  '#'      { TokSym "#" }
+  bitdata  { Located $$ (TokReserved "bitdata") }
+  Bit      { Located $$ (TokReserved "Bit") }
+  Bits     { Located $$ (TokReserved "Bits") }
+  BitArray { Located $$ (TokReserved "BitArray") }
+  as       { Located $$ (TokReserved "as") }
+  '_'      { Located $$ (TokSym "_") }
+  '#'      { Located $$ (TokSym "#") }
 
 --------------------------------------------------------------------------------
 -- Precedence
@@ -282,26 +286,32 @@ defs : defs procDef       { GlobalProc     $2 : $1 }
 -- Include other modules (Ivory's "depend")
 
 includeDef :: { IncludeDef }
-includeDef : include ident { IncludeDef $2 }
+includeDef : include ident { IncludeDef (unLoc $2) ($1 <> getLoc $2)  }
 
 ----------------------------------------
 -- Constant definitions
 
 constDef :: { ConstDef }
 constDef :
-         ident '=' exp ';' { ConstDef $1 $3 Nothing   }
-  | type ident '=' exp ';' { ConstDef $2 $4 (Just $1) }
+         ident '=' exp ';' { ConstDef (unLoc $1) $3 Nothing   (getLoc $1 <> getLoc $3) }
+  | type ident '=' exp ';' { ConstDef (unLoc $2) $4 (Just $1) (mconcat [ getLoc $1
+                                                                       , getLoc $2
+                                                                       , getLoc $4]) }
 
 ----------------------------------------
 -- Procs
 
 procDef :: { ProcDef }
 procDef :
-  type ident '(' args ')'
-    '{' stmts '}' prePostBlk { ProcDef $1 $2 (reverse $4) (reverse $7) $9 }
+  type ident '(' args ')' '{' stmts '}' prePostBlk
+    { ProcDef $1 (unLoc $2) (reverse $4) (reverse $7) $9 (mconcat [ getLoc $1
+                                                                  , getLoc $2
+                                                                  , getLoc $7
+                                                                  , getLoc $9
+                                                                  ]) }
 
 tyArg :: { (Type, Var) }
-tyArg : type ident { ($1, $2) }
+tyArg : type ident { ($1, unLoc $2) }
 
 -- Zero or more typed arguments, separated by arbitrary many ','s.
 args :: { [(Type, Var)] }
@@ -331,47 +341,62 @@ prePost :
 
 simpleStmt :: { Stmt }
 simpleStmt :
-    assert exp                    { Assert $2 }
-  | assume exp                    { Assume $2 }
-  | assign      ident '=' exp     { Assign $2 $4 Nothing   }
-  | assign type ident '=' exp     { Assign $3 $5 (Just $2) }
-  | return                        { ReturnVoid }
-  | return exp                    { Return $2 }
+    assert exp                    { LocStmt (atBin (Assert $2) $1 $2) }
+  | assume exp                    { LocStmt (atBin (Assume $2) $1 $2) }
+  | assign      ident '=' exp     { LocStmt (atList (Assign (unLoc $2) $4 Nothing)
+                                      [ $1, getLoc $2, getLoc $4 ]) }
+  | assign type ident '=' exp     { LocStmt (atList (Assign (unLoc $3) $5 (Just $2))
+                                                    [ $1, getLoc $2, getLoc $3, getLoc $5]) }
+
+  | return                        { LocStmt (ReturnVoid `at` $1) }
+  | return exp                    { LocStmt (atBin (Return $2) $1 $2) }
 
   -- Allocation
-  | alloc '*' ident               { AllocRef (AllocBase $3 Nothing) }
-  | alloc '*' ident '=' exp       { AllocRef (AllocBase $3 (Just $5)) }
+  | alloc '*' ident               { LocStmt (atBin (AllocRef (AllocBase (unLoc $3) Nothing))
+                                               $1 $3) }
+  | alloc '*' ident '=' exp       { LocStmt (atList (AllocRef (AllocBase (unLoc $3) (Just $5)))
+                                               [$1, getLoc $3, getLoc $5]) }
 
-  | alloc ident '[' ']'           { AllocRef (AllocArr $2 []) }
+  | alloc ident '[' ']'           { LocStmt (atBin (AllocRef (AllocArr (unLoc $2) []))
+                                               $1 $2) }
   | alloc ident '[' ']' '='
-      '{' exps '}'                { AllocRef (AllocArr $2 (reverse $7)) }
+      '{' exps '}'                { LocStmt (atList (AllocRef (AllocArr (unLoc $2) (reverse $7)))
+                                               [ $1, getLoc $2, getLoc $7]) }
 
-  | alloc ident                   { AllocRef (AllocStruct $2 []) }
+  | alloc ident                   { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) []))
+                                               $1 $2) }
   | alloc ident '='
-      '{' fieldAssigns '}'        { AllocRef (AllocStruct $2 (reverse $5)) }
+      '{' fieldAssigns '}'        { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) (reverse $5)))
+                                               $1 $2) }
 
-  | refCopy ident ident           { RefCopy (ExpVar $2) (ExpVar $3) }
+  | refCopy ident ident           { LocStmt (atList (RefCopy (ExpVar (unLoc $2)) (ExpVar (unLoc $3)))
+                                               [$1, getLoc $2, getLoc $3]) }
 
   -- Storing
-  | store exp as exp              { Store $2 $4 }
+  | store exp as exp              { LocStmt (atList (Store $2 $4) [$1, getLoc $2, getLoc $4]) }
 
   -- Function calls
-  | ident expArgs                 { NoBindCall $1 $2 }
+  | ident expArgs                 { LocStmt (atBin (NoBindCall (unLoc $1) $2) $1 $2) }
 
-  | ivoryMacro                    {IvoryMacroStmt Nothing $1 }
-  | ident '<-' ivoryMacro         {IvoryMacroStmt (Just $1) $3 }
+  | ivoryMacro                    { LocStmt ((IvoryMacroStmt Nothing (unLoc $1)) `at` getLoc $1) }
+  | ident '<-' ivoryMacro         { LocStmt (atBin (IvoryMacroStmt (Just (unLoc $1)) (unLoc $3))
+                                               $1 $3) }
 
-ivoryMacro :: { (String, [Exp]) }
-ivoryMacro : iMacro ident          { ($2, []) }
-           | iMacro ident expArgs  { ($2, $3) }
+ivoryMacro :: { Located (String, [Exp]) }
+ivoryMacro : iMacro ident          { atBin (unLoc $2, []) $1 (getLoc $2) }
+           | iMacro ident expArgs  { atList (unLoc $2, $3) [$1, getLoc $2, getLoc $3] }
 
 blkStmt :: { Stmt }
 blkStmt :
-    mapArr ident '{' stmts '}'       { MapArr $2 (reverse $4) }
-  | upTo exp ident '{' stmts '}'     { UpTo   $2 $3 (reverse $5) }
-  | forever '{' stmts '}'            { Forever (reverse $3) }
+    mapArr ident '{' stmts '}'       { LocStmt (atList (MapArr (unLoc $2) (reverse $4))
+                                                  [ $1, getLoc $2, getLoc $4 ]) }
+  | upTo exp ident '{' stmts '}'     { LocStmt (atList (UpTo $2 (unLoc $3) (reverse $5))
+                                                  [$1, getLoc $2, getLoc $3, getLoc $5]) }
+  | forever '{' stmts '}'            { LocStmt (atBin (Forever (reverse $3)) $1 $2) }
+
   | if exp '{' stmts '}'
-      else '{' stmts '}'             { IfTE $2 (reverse $4) (reverse $8) }
+      else '{' stmts '}'             { LocStmt (atList (IfTE $2 (reverse $4) (reverse $8))
+                                                  [ getLoc $2, getLoc $4, getLoc $8 ]) }
 
 -- Zero or more statements.
 stmts :: { [Stmt] }
@@ -397,223 +422,248 @@ fieldAssigns :
   | {- empty -}                  { [] }
 
 fieldAssign :: { (FieldNm, Exp) }
-fieldAssign : ident '=' exp { ($1, $3) }
+fieldAssign : ident '=' exp { (unLoc $1, $3) }
 
 ----------------------------------------
 -- Expressions
 exp :: { Exp }
-exp : integer            { ExpLit (LitInteger $1) }
+exp : integer            { let TokInteger i = unLoc $1 in
+                           LocExp (ExpLit (LitInteger i) `at` $1) }
+
+    | str                { let TokString s = unLoc $1 in
+                           LocExp (ExpLit (LitString s) `at` $1) }
+
+    | floatlit           { let TokFloat f = unLoc $1 in
+                           LocExp (ExpLit (LitFloat f) `at` $1) }
 
     -- Works for Haskell values, too!
-    | ident              { ExpVar $1 }
+    | ident              { LocExp ((ExpVar (unLoc $1)) `at` $1) }
 
     -- Used only in post-conditions (otherwise, it's a statement).
-    | return             { ExpRet }
+    | return             { LocExp (ExpRet `at` $1) }
 
     | '(' exp ')'        { $2 }
 
     -- Areas
-    | '*' exp              { ExpDeref $2 }
-    | exp '@' exp          { ExpArray $1 $3 }
-    | exp '[' exp ']'      { ExpDeref (ExpArray $1 $3) }
-    | exp '.' exp          { ExpStruct $1 $3 }
-    | exp '->' exp         { ExpDeref (ExpStruct $1 $3) }
-    | '&' ident            { ExpAddrOf $2 }
+    | '*' exp              { LocExp (atBin (ExpDeref $2) $1 $2) }
+    | exp '@' exp          { LocExp (atBin (ExpArray $1 $3) $1 $3) }
+    | exp '[' exp ']'      { LocExp (atBin (ExpDeref (ExpArray $1 $3)) $1 $3) }
+     | exp '.' exp         { LocExp (atBin (ExpStruct $1 $3) $1 $3) }
+    | exp '->' exp         { LocExp (atBin (ExpDeref (ExpStruct $1 $3)) $1 $3) }
+    | '&' ident            { LocExp (atBin (ExpAddrOf (unLoc $2)) $1 $2) }
 
     | libFuncExp           { $1 }
 
     -- Ivory expression macros
-    | ivoryMacro           { IvoryMacroExp $1 }
+    | ivoryMacro           { LocExp (IvoryMacroExp `fmap` $1) }
 
     -- Function calls
-    | ident expArgs        { ExpCall $1 $2 }
+    | ident expArgs        { LocExp (atBin (ExpCall (unLoc $1) $2) $1 $2) }
 
     -- Unary operators
-    | '!'       exp      { ExpOp NotOp [$2] }
-    | '-'       exp      { ExpOp NegateOp [$2] }
-    | '~'       exp      { ExpOp BitComplementOp [$2] }
+    | '!'       exp      { LocExp (atBin (ExpOp NotOp [$2]) $1 $2) }
+    | '-'       exp      { LocExp (atBin (ExpOp NegateOp [$2]) $1 $2) }
+    | '~'       exp      { LocExp (atBin (ExpOp BitComplementOp [$2]) $1 $2) }
 
     -- Binary operators
-    | exp '||'  exp      { ExpOp OrOp [$1, $3] }
-    | exp '&&'  exp      { ExpOp AndOp [$1, $3] }
-    | exp '|'   exp      { ExpOp BitOrOp [$1, $3] }
-    | exp '^'   exp      { ExpOp BitXorOp [$1, $3] }
-    | exp '&'   exp      { ExpOp BitAndOp [$1, $3] }
-    | exp '<<'  exp      { ExpOp BitShiftLOp [$1, $3] }
-    | exp '>>'  exp      { ExpOp BitShiftROp [$1, $3] }
+    | exp '||'  exp      { LocExp (atBin (ExpOp OrOp [$1, $3]) $1 $3) }
+    | exp '&&'  exp      { LocExp (atBin (ExpOp AndOp [$1, $3]) $1 $3) }
+    | exp '|'   exp      { LocExp (atBin (ExpOp BitOrOp [$1, $3]) $1 $3) }
+    | exp '^'   exp      { LocExp (atBin (ExpOp BitXorOp [$1, $3]) $1 $3) }
+    | exp '&'   exp      { LocExp (atBin (ExpOp BitAndOp [$1, $3]) $1 $3) }
+    | exp '<<'  exp      { LocExp (atBin (ExpOp BitShiftLOp [$1, $3]) $1 $3) }
+    | exp '>>'  exp      { LocExp (atBin (ExpOp BitShiftROp [$1, $3]) $1 $3) }
 
-    | exp '=='  exp      { ExpOp EqOp [$1, $3] }
-    | exp '!='  exp      { ExpOp NeqOp [$1, $3] }
+    | exp '=='  exp      { LocExp (atBin (ExpOp EqOp [$1, $3]) $1 $3) }
+    | exp '!='  exp      { LocExp (atBin (ExpOp NeqOp [$1, $3]) $1 $3) }
 
-    | exp '<'   exp      { ExpOp (LtOp False) [$1, $3] }
-    | exp '<='  exp      { ExpOp (LtOp True) [$1, $3] }
-    | exp '>'   exp      { ExpOp (GtOp False) [$1, $3] }
-    | exp '>='  exp      { ExpOp (GtOp True) [$1, $3] }
+    | exp '<'   exp      { LocExp (atBin (ExpOp (LtOp False) [$1, $3]) $1 $3) }
+    | exp '<='  exp      { LocExp (atBin (ExpOp (LtOp True) [$1, $3] ) $1 $3)}
+    | exp '>'   exp      { LocExp (atBin (ExpOp (GtOp False) [$1, $3]) $1 $3) }
+    | exp '>='  exp      { LocExp (atBin (ExpOp (GtOp True) [$1, $3] ) $1 $3)}
 
-    | exp '+'   exp      { ExpOp AddOp [$1, $3] }
-    | exp '-'   exp      { ExpOp AddOp [$1, $3] }
+    | exp '+'   exp      { LocExp (atBin (ExpOp AddOp [$1, $3]) $1 $3) }
+    | exp '-'   exp      { LocExp (atBin (ExpOp AddOp [$1, $3]) $1 $3) }
 
-    | exp '*'   exp      { ExpOp MulOp [$1, $3] }
-    | exp '/'   exp      { ExpOp DivOp [$1, $3] }
-    | exp '%'   exp      { ExpOp ModOp [$1, $3] }
+    | exp '*'   exp      { LocExp (atBin (ExpOp MulOp [$1, $3]) $1 $3) }
+    | exp '/'   exp      { LocExp (atBin (ExpOp DivOp [$1, $3]) $1 $3) }
+    | exp '%'   exp      { LocExp (atBin (ExpOp ModOp [$1, $3]) $1 $3) }
 
     -- Tertiary operators
-    | exp '?' exp ':' exp { ExpOp CondOp [$1, $3, $5] }
+    | exp '?' exp ':' exp { LocExp ((ExpOp CondOp [$1, $3, $5]) `at` (getLoc [$1, $3, $5]))  }
 
 libFuncExp :: { Exp }
 libFuncExp :
-      abs          expArgs { ExpOp AbsOp        $2 }
-    | signum       expArgs { ExpOp SignumOp     $2 }
-    | expOp        expArgs { ExpOp FExpOp       $2 }
-    | sqrt         expArgs { ExpOp FSqrtOp      $2 }
-    | log          expArgs { ExpOp FLogOp       $2 }
-    | pow          expArgs { ExpOp FPowOp       $2 }
-    | sin          expArgs { ExpOp FSinOp       $2 }
-    | cos          expArgs { ExpOp FCosOp       $2 }
-    | tan          expArgs { ExpOp FTanOp       $2 }
-    | asin         expArgs { ExpOp FAsinOp      $2 }
-    | acos         expArgs { ExpOp FAcosOp      $2 }
-    | atan         expArgs { ExpOp FAtanOp      $2 }
-    | sinh         expArgs { ExpOp FSinhOp      $2 }
-    | cosh         expArgs { ExpOp FCoshOp      $2 }
-    | tanh         expArgs { ExpOp FTanhOp      $2 }
-    | asinh        expArgs { ExpOp FAsinhOp     $2 }
-    | acosh        expArgs { ExpOp FAcoshOp     $2 }
-    | atanh        expArgs { ExpOp FAtanhOp     $2 }
-    | isnan        expArgs { ExpOp IsNanOp      $2 }
-    | isinf        expArgs { ExpOp IsInfOp      $2 }
-    | round        expArgs { ExpOp RoundFOp     $2 }
-    | ceil         expArgs { ExpOp CeilFOp      $2 }
-    | floor        expArgs { ExpOp FloorFOp     $2 }
-    | const        expArgs { ExpOp ConstRefOp   $2 }
+      abs          expArgs { LocExp (atBin (ExpOp AbsOp $2) $1 $2) }
+    | signum       expArgs { LocExp (atBin (ExpOp SignumOp $2) $1 $2) }
+    | expOp        expArgs { LocExp (atBin (ExpOp FExpOp $2) $1 $2) }
+    | sqrt         expArgs { LocExp (atBin (ExpOp FSqrtOp $2) $1 $2) }
+    | log          expArgs { LocExp (atBin (ExpOp FLogOp $2) $1 $2) }
+    | pow          expArgs { LocExp (atBin (ExpOp FPowOp $2) $1 $2) }
+    | sin          expArgs { LocExp (atBin (ExpOp FSinOp $2) $1 $2) }
+    | cos          expArgs { LocExp (atBin (ExpOp FCosOp $2) $1 $2) }
+    | tan          expArgs { LocExp (atBin (ExpOp FTanOp $2) $1 $2) }
+    | asin         expArgs { LocExp (atBin (ExpOp FAsinOp $2) $1 $2) }
+    | acos         expArgs { LocExp (atBin (ExpOp FAcosOp $2) $1 $2) }
+    | atan         expArgs { LocExp (atBin (ExpOp FAtanOp $2) $1 $2) }
+    | sinh         expArgs { LocExp (atBin (ExpOp FSinhOp $2) $1 $2) }
+    | cosh         expArgs { LocExp (atBin (ExpOp FCoshOp $2) $1 $2) }
+    | tanh         expArgs { LocExp (atBin (ExpOp FTanhOp $2) $1 $2) }
+    | asinh        expArgs { LocExp (atBin (ExpOp FAsinhOp $2) $1 $2) }
+    | acosh        expArgs { LocExp (atBin (ExpOp FAcoshOp $2) $1 $2) }
+    | atanh        expArgs { LocExp (atBin (ExpOp FAtanhOp $2) $1 $2) }
+    | isnan        expArgs { LocExp (atBin (ExpOp IsNanOp $2) $1 $2) }
+    | isinf        expArgs { LocExp (atBin (ExpOp IsInfOp $2) $1 $2) }
+    | round        expArgs { LocExp (atBin (ExpOp RoundFOp $2) $1 $2) }
+    | ceil         expArgs { LocExp (atBin (ExpOp CeilFOp $2) $1 $2) }
+    | floor        expArgs { LocExp (atBin (ExpOp FloorFOp $2) $1 $2) }
+    | const        expArgs { LocExp (atBin (ExpOp ConstRefOp $2) $1 $2) }
 
-    | castWith     expArgs { ExpOp CastWith     $2 }
-    | safeCast     expArgs { ExpOp SafeCast     $2 }
-    | bitCast      expArgs { ExpOp BitCast      $2 }
-    | twosCompCast expArgs { ExpOp TwosCompCast $2 }
-    | twosCompRep  expArgs { ExpOp TwosCompRep  $2 }
+    | castWith     expArgs { LocExp (atBin (ExpOp CastWith $2) $1 $2) }
+    | safeCast     expArgs { LocExp (atBin (ExpOp SafeCast $2) $1 $2) }
+    | bitCast      expArgs { LocExp (atBin (ExpOp BitCast $2) $1 $2) }
+    | twosCompCast expArgs { LocExp (atBin (ExpOp TwosCompCast $2) $1 $2) }
+    | twosCompRep  expArgs { LocExp (atBin (ExpOp TwosCompRep $2) $1 $2) }
 
-    | toIx         expArgs { ExpOp ToIx         $2 }
-    | fromIx       expArgs { ExpOp FromIx       $2 }
-    | ixSize       expArgs { ExpOp IxSize       $2 }
-    | arrayLen     expArgs { ExpOp ArrayLen     $2 }
-    | constRef     expArgs { ExpOp ConstRef     $2 }
-    | sizeOf       expArgs { ExpOp SizeOf       $2 }
-    | nullPtr      expArgs { ExpOp NullPtr      $2 }
-    | refToPtr     expArgs { ExpOp RefToPtr     $2 }
-    | toCArray     expArgs { ExpOp ToCArray     $2 }
+    | toIx         expArgs { LocExp (atBin (ExpOp ToIx $2) $1 $2) }
+    | fromIx       expArgs { LocExp (atBin (ExpOp FromIx $2) $1 $2) }
+    | ixSize       expArgs { LocExp (atBin (ExpOp IxSize $2) $1 $2) }
+    | arrayLen     expArgs { LocExp (atBin (ExpOp ArrayLen $2) $1 $2) }
+    | sizeOf       expArgs { LocExp (atBin (ExpOp SizeOf $2) $1 $2) }
+    | nullPtr      expArgs { LocExp (atBin (ExpOp NullPtr $2) $1 $2) }
+    | refToPtr     expArgs { LocExp (atBin (ExpOp RefToPtr $2) $1 $2) }
+    | toCArray     expArgs { LocExp (atBin (ExpOp ToCArray $2) $1 $2) }
 
 ----------------------------------------
 -- Types
 
 typeDef :: { TypeDef }
 typeDef :
-  ty tyident '=' type ';' { TypeDef $2 $4 }
+  ty tyident '=' type ';' { TypeDef (unLoc $2) $4 (mconcat [$1, getLoc $2, getLoc $4]) }
 
 type :: { Type }
 type :
     simpleCType      { $1 }
   | cType            { $1 }
-  | tyident          { TySynonym $1 }
+  | tyident          { LocTy (TySynonym (unLoc $1) `at` $1) }
   | '(' type ')'     { $2 }
 
 -- C-style types
 
 simpleCType :: { Type }
 simpleCType :
-    bool                      { TyBool }
-  | char                      { TyChar }
-  | float                     { TyFloat }
-  | double                    { TyDouble }
-  | void                      { TyVoid }
+    bool                      { LocTy (TyBool `at` getLoc $1) }
+  | char                      { LocTy (TyChar `at` getLoc $1) }
+  | float                     { LocTy (TyFloat `at` getLoc $1) }
+  | double                    { LocTy (TyDouble `at` getLoc $1) }
+  | string                    { LocTy (TyString `at` getLoc $1) }
+  | void                      { LocTy (TyVoid `at` getLoc $1) }
 
-  | int8_t                    { TyInt Int8 }
-  | int16_t                   { TyInt Int16 }
-  | int32_t                   { TyInt Int32 }
-  | int64_t                   { TyInt Int64 }
+  | int8_t                    { LocTy ((TyInt Int8) `at` getLoc $1) }
+  | int16_t                   { LocTy ((TyInt Int16) `at` getLoc $1) }
+  | int32_t                   { LocTy ((TyInt Int32) `at` getLoc $1) }
+  | int64_t                   { LocTy ((TyInt Int64) `at` getLoc $1) }
 
-  | uint8_t                   { TyWord Word8 }
-  | uint16_t                  { TyWord Word16 }
-  | uint32_t                  { TyWord Word32 }
-  | uint64_t                  { TyWord Word64 }
+  | uint8_t                   { LocTy ((TyWord Word8) `at` getLoc $1) }
+  | uint16_t                  { LocTy ((TyWord Word16) `at` getLoc $1) }
+  | uint32_t                  { LocTy ((TyWord Word32) `at` getLoc $1) }
+  | uint64_t                  { LocTy ((TyWord Word64) `at` getLoc $1) }
 
-  | ix_t integer              { TyIx $2 }
+  | ix_t integer              { let TokInteger i = unLoc $2 in
+                                LocTy (atBin (TyIx i) $1 $2) }
 
 cType :: { Type }
 cType :
-          scopeC '*' type        { TyRef      $1 $3 }
-  | const scopeC '*' type        { TyConstRef $2 $4 }
-  | type  '[' integer ']'        { TyArray    $1 $3 }
-  | struct structName            { TyStruct   $2 }
-  | '&' type                     { TyStored   $2 }
+          scopeC '*' type        { LocTy (atBin (TyRef (unLoc $1) $3) $1 $3)  }
+  | const scopeC '*' type        { LocTy (atList (TyConstRef (unLoc $2) $4)
+                                                 [$1, getLoc $2, getLoc $4]) }
+  | type '[' integer ']'         { let TokInteger i = unLoc $3 in
+                                   LocTy (atBin (TyArray $1 i) $1 $3) }
+  | struct structName            { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
+  | '&' type                     { LocTy (atBin (TyStored $2) $1 $2) }
 
-scopeC :: { Scope }
+scopeC :: { Located Scope }
 scopeC :
-    S           { Stack Nothing }
-  | G           { Global }
-  | ident       { PolyMem (Just $1) }
-  | {- empty -} { PolyMem Nothing }
+    S           { Stack Nothing `at` $1 }
+  | G           { Global `at` $1 }
+  | ident       { PolyMem (Just (unLoc $1)) `at` (getLoc $1) }
+  | {- empty -} { PolyMem Nothing `at` NoLoc }
 
 typeHS :: { Type }
 typeHS :
     simpleHSType     { $1 }
   | hsType           { $1 }
-  | tyident          { TySynonym $1 }
-  | '(' typeHS ')'     { $2 }
+  | tyident          { LocTy (TySynonym (unLoc $1) `at` $1) }
+  | '(' typeHS ')'   { $2 }
 
 -- Haskell-style types
 simpleHSType :: { Type }
 simpleHSType :
-    IBool                   { TyBool }
-  | IChar                   { TyChar }
-  | IFloat                  { TyFloat }
-  | IDouble                 { TyDouble }
-  | '(' ')'                 { TyVoid }
+    IBool                   { LocTy (TyBool `at` getLoc $1) }
+  | IChar                   { LocTy (TyChar `at` getLoc $1) }
+  | IFloat                  { LocTy (TyFloat `at` getLoc $1) }
+  | IDouble                 { LocTy (TyDouble `at` getLoc $1) }
+  | IString                 { LocTy (TyString `at` getLoc $1) }
+  | '(' ')'                 { LocTy (TyVoid `at` getLoc $1) }
 
-  | Sint8                   { TyInt Int8 }
-  | Sint16                  { TyInt Int16 }
-  | Sint32                  { TyInt Int32 }
-  | Sint64                  { TyInt Int64 }
+  | Sint8                   { LocTy ((TyInt Int8) `at` getLoc $1) }
+  | Sint16                  { LocTy ((TyInt Int16) `at` getLoc $1) }
+  | Sint32                  { LocTy ((TyInt Int32)`at` getLoc $1) }
+  | Sint64                  { LocTy ((TyInt Int64) `at` getLoc $1) }
 
-  | Uint8                   { TyWord Word8 }
-  | Uint16                  { TyWord Word16 }
-  | Uint32                  { TyWord Word32 }
-  | Uint64                  { TyWord Word64 }
+  | Uint8                   { LocTy ((TyWord Word8) `at` getLoc $1) }
+  | Uint16                  { LocTy ((TyWord Word16) `at` getLoc $1) }
+  | Uint32                  { LocTy ((TyWord Word32) `at` getLoc $1) }
+  | Uint64                  { LocTy ((TyWord Word64) `at` getLoc $1) }
 
-  | Ix integer              { TyIx $2 }
+  | Ix integer              { let TokInteger i = unLoc $2 in
+                              LocTy (atBin (TyIx i) $1 $2) }
 
 hsType :: { Type }
 hsType :
-    Stored   typeHS         { TyStored      $2 }
-  | Struct   structName     { TyStruct      $2 }
-  | Array    integer typeHS { TyArray    $3 $2 }
-  | Ref      scopeHS typeHS { TyRef      $2 $3 }
-  | ConstRef scopeHS typeHS { TyConstRef $2 $3 }
+    Ref      scopeHS typeHS { LocTy (atList (TyRef (unLoc $2) $3) [ getLoc $1
+                                                                  , getLoc $2
+                                                                  , getLoc $3 ]) }
+  | ConstRef scopeHS typeHS { LocTy (atList (TyConstRef (unLoc $2) $3) [ getLoc $1
+                                                                       , getLoc $2
+                                                                       , getLoc $3 ]) }
+  | Array    integer typeHS { let TokInteger i = unLoc $2 in
+                              LocTy (atList (TyArray $3 i) [ getLoc $1
+                                                           , getLoc $2
+                                                           , getLoc $3]) }
+  | Struct   structName     { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
+  | Stored   typeHS         { LocTy (atBin (TyStored $2) $1 $2) }
 
-scopeHS :: { Scope }
-scopeHS : Stack tyident { Stack (Just $2) }
-        | Global        { Global }
+scopeHS :: { Located Scope }
+scopeHS : Stack tyident { atBin (Stack (Just (unLoc $2))) $1 $2 }
+        | Global        { Global `at` $1 }
 
 -- Bit types
 bitType :: { BitTy }
 bitType :
-    Bit                        { Bit }
-  | Bits integer               { Bits $2 }
-  | BitArray integer bitType   { BitArray $2 $3 }
+    Bit                        { LocBitTy (Bit `at` $1) }
+  | Bits integer               { let TokInteger i = unLoc $2 in
+                                 LocBitTy (atBin (Bits i) $1 $2) }
+  | BitArray integer bitType   { let TokInteger i = unLoc $2 in
+                                 LocBitTy (atList (BitArray i $3) [ getLoc $1
+                                                                  , getLoc $2
+                                                                  , getLoc $3 ]) }
   | '(' bitType ')'            { $2 }
-  | tyident                    { BitTySynonym $1 }
+  | tyident                    { LocBitTy (BitTySynonym `fmap` $1) }
 
 ----------------------------------------
 -- Struct definitions
 
 structDef :: { StructDef }
 structDef :
-    struct structName '{' fields '}' { StructDef $2 (reverse $4) }
+    struct structName '{' fields '}' { StructDef (unLoc $2) (reverse $4) (getLoc $2) }
   -- Remove parsed quotes first
-  | abstract struct structName fp    { AbstractDef $3 (filter (/= '\"') $4) }
-  | string struct structName integer { StringDef $3 $4 }
+  | abstract struct structName str   { let TokString f = unLoc $4 in
+                                       AbstractDef (unLoc $3) (filter (/= '\"') f) (getLoc $3) }
+  | string struct structName integer { let TokInteger i = unLoc $4 in
+                                       StringDef (unLoc $3) i (getLoc $3) }
 
-structName :: { String }
+structName :: { Located String }
 structName :
     tyident { $1 }
   | ident   { $1 }
@@ -621,9 +671,9 @@ structName :
 field :: { Field }
 field :
   -- Haskell style
-    ident '::' typeHS  { Field $1 $3 }
+    ident '::' typeHS  { Field (unLoc $1) $3 (getLoc $1 <> getLoc $3) }
   -- C style
-  | type ident         { Field $2 $1 }
+  | type ident         { Field (unLoc $2) $1 (getLoc $1 <> getLoc $2)}
 
 -- 1 or more fields, separated (but optionally ending with) ';'.
 fields :: { [Field] }
@@ -638,7 +688,8 @@ fields :
 -- Bitdata definition
 bdDef :: { BitDataDef }
 bdDef : bitdata tyident '::' bitType
-    '=' bdConstrs                    { BitDataDef $2 $4 (reverse $6) }
+    '=' bdConstrs         { BitDataDef (unLoc $2) $4 (reverse $6)
+                            (mconcat [ getLoc $1, getLoc $2, getLoc $3, getLoc $6 ]) }
 
 -- One or more bitdata constructors, separated by '|'
 bdConstrs :: { [Constr] }
@@ -647,7 +698,8 @@ bdConstrs :
   | bdConstr               { [$1] }
 
 bdConstr :: { Constr }
-bdConstr : ident bdRecord bdLayout { Constr $1 $2 $3 }
+bdConstr : ident bdRecord bdLayout { Constr (unLoc $1) $2 $3
+                                       (mconcat [ getLoc $1, getLoc $2 ]) }
 
 -- Zero or more fields.
 bdRecord :: { [BitField] }
@@ -662,8 +714,8 @@ bdFields :
 
 bdField :: { BitField }
 bdField :
-    ident '::' bitType { BitField (Just $1) $3 }
-  | '_'   '::' bitType { BitField Nothing   $3 }
+    ident '::' bitType { BitField (Just (unLoc $1)) $3 (getLoc $1 <> getLoc $3) }
+  | '_'   '::' bitType { BitField Nothing   $3 ($1 <> getLoc $3) }
 
 bdLayout :: { [LayoutItem] }
 bdLayout :
@@ -678,8 +730,9 @@ bdItems :
 
 bdItem :: { LayoutItem }
 bdItem :
-    ident      { LayoutField $1 }
-  | integer    { LayoutConst (BitLitUnknown $1) }
+    ident      { LayoutField (unLoc $1) }
+  | integer    { let TokInteger i = unLoc $1 in
+                 LayoutConst (BitLitUnknown i) }
   | bitLiteral { LayoutConst $1 }
 
 -- Parse n-bit natural, e.g.,
@@ -689,69 +742,26 @@ bdItem :
 -- 2b01 -- 01
 -- First field is width, second is "b[0,1]+"
 bitLiteral :: { BitLiteral }
-bitLiteral : bitlit { BitLitKnown (fst $1) (snd $1) }
+bitLiteral : bitlit { let TokBitLit bl = unLoc $1 in
+                      BitLitKnown (fst bl) (snd bl) }
 
 --------------------------------------------------------------------------------
 -- Namespaces
 
-ident :: { String }
+ident :: { Located String }
 ident :
-    identifier                  { $1 }
-  | tyidentifier '.' identifier { $1 ++ '.':$3 }
+    identifier                  { let TokIdent i = unLoc $1 in
+                                  i `at` $1 }
+  | tyidentifier '.' identifier { let TokTyIdent t = unLoc $1 in
+                                  let TokIdent i   = unLoc $3 in
+                                  atBin (t ++ '.':i) $1 $3 }
 
-tyident :: { String }
+tyident :: { Located String }
 tyident :
-    tyidentifier                  { $1 }
-  | tyidentifier '.' tyidentifier { $1 ++ '.':$3 }
+    tyidentifier                  { let TokTyIdent t = unLoc $1 in
+                                    t `at` $1 }
+  | tyidentifier '.' tyidentifier { let TokTyIdent t0 = unLoc $1 in
+                                    let TokTyIdent t1 = unLoc $3 in
+                                    atBin (t0 ++ '.':t1) $1 $3 }
 
 --------------------------------------------------------------------------------
-
-{
-
-lexwrap :: (Token -> Alex a) -> Alex a
-lexwrap cont = cont =<< alexMonadScan'
-
--- We rewrite alexMonadScan' to return the position when lexing fails (the
--- default implementation just returns an error message).
-alexMonadScan' :: Alex Token
-alexMonadScan' = do
-  inp <- alexGetInput
-  sc <- alexGetStartCode
-  case alexScan inp sc of
-    AlexEOF -> alexEOF
-    AlexError (AlexPn addr l c, _, _, _) ->
-      alexError $ "Lexer error at line " ++ show l ++ " col. " ++ show c
-               ++ " and chars preceding token " ++ show addr
-    AlexSkip  inp' len -> do
-        alexSetInput inp'
-        alexMonadScan'
-    AlexToken inp' len action -> do
-        alexSetInput inp'
-        action (ignorePendingBytes inp) len
-
-getPosn :: Alex (Int,Int)
-getPosn = do
-  (AlexPn _ l c,_,_,_) <- alexGetInput
-  return (l,c)
-
-parseError :: Token -> Alex a
-parseError t = do
-  (l,c) <- getPosn
-  fail (show l ++ ":" ++ show c ++ ": Parse error on Token: " ++ show t ++ "\n")
-
-runParser :: String -> [GlobalSym]
-runParser s = case runAlex s ivoryParser of
-  Left err    -> error err
-  Right procs -> procs
-
--- XXX testing
-
-parseFileTest :: FilePath -> IO (Either String [GlobalSym])
-parseFileTest fp = do
-  cs <- readFile fp
-  return (parseTest cs)
-  where
---  parseTest :: String -> Either String Type
-  parseTest s = runAlex s ivoryParser
-
-}
