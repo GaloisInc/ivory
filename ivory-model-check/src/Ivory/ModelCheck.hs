@@ -118,7 +118,7 @@ mkScript st =
   [ ""
   , "% user-defined types -------------------------"
   , ""
-  ] ++ writeStmts (map (uncurry typeDecl) . M.toList . types . symSt)
+  ] ++ writeStmts (map (uncurry typeDecl) . types . symSt)
   ++
   [ ""
   , "% declarations -------------------------------"

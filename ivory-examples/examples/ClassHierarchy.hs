@@ -82,8 +82,9 @@ makeCCode :: IO ()
 makeCCode = void $ runCompiler [cmodule] opts
   where
   opts = initialOpts { stdOut = True, constFold = True }
-  cmodule = package "Module" $ do
-    defStruct (Proxy :: Proxy "StanagBase")
-    defStruct (Proxy :: Proxy "StanagBaseMsg1")
-    defStruct (Proxy :: Proxy "StanagBaseMsg2")
-    incl bar
+
+cmodule = package "Module" $ do
+  defStruct (Proxy :: Proxy "StanagBase")
+  defStruct (Proxy :: Proxy "StanagBaseMsg1")
+  defStruct (Proxy :: Proxy "StanagBaseMsg2")
+  incl bar

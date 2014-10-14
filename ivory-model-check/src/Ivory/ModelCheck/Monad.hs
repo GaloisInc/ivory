@@ -56,7 +56,7 @@ data Queries = Queries
 -- | The program state: user-defined types, declarations of variables, and
 -- invariants.
 data ProgramSt = ProgramSt
-  { types  :: M.Map String [(Var,Type)]
+  { types  :: [(String, [(Var,Type)])]
   , decls  :: [Statement]
   , invars :: [Expr]
   }
@@ -142,8 +142,8 @@ addType :: String -> [(Var,Type)] -> ModelCheck ()
 addType ty fs = do
   st <- get
   let ps = symSt st
-  unless (ty `M.member` types ps) $ do
-    let ps' = ps { types = M.insert ty fs $ types ps }
+  unless (isJust $ lookup ty $ types ps) $ do
+    let ps' = ps { types = (ty, fs) : types ps }
     set st { symSt = ps' }
 
 addInvariant :: Expr -> ModelCheck ()

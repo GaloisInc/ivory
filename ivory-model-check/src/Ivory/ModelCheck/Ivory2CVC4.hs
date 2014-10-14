@@ -27,10 +27,29 @@ import           Ivory.ModelCheck.Monad
 modelCheckMod :: I.Module -> ModelCheck ()
 modelCheckMod m = do
   mapM_ toStruct (getVisible $ I.modStructs m)
+  mapM_ addExtern (I.modExterns m)
   mapM_ addProc (getVisible $ I.modProcs m)
+  mapM_ toArea (getVisible $ I.modAreas m)
   mapM_ (modelCheckProc . overflowFold . constFold) (getVisible $ I.modProcs m)
   where
   getVisible ps = I.public ps ++ I.private ps
+  addExtern e = addProc $ I.Proc { I.procSym = I.externSym e
+                                 , I.procRetTy = I.externRetType e
+                                 , I.procArgs = zipWith I.Typed
+                                                (I.externArgs e)
+                                                (repeat $ I.VarName "dummy")
+                                 , I.procBody = []
+                                 , I.procRequires = []
+                                 , I.procEnsures = []
+                                 }
+
+--------------------------------------------------------------------------------
+
+toArea :: I.Area -> ModelCheck ()
+toArea I.Area { I.areaSym  = sym
+              , I.areaType = ty
+              }
+  = void $ addEnvVar ty sym
 
 --------------------------------------------------------------------------------
 
@@ -119,7 +138,8 @@ toDeref t v ref = do
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
 toAlloc t ref name = do
   v' <- addEnvVar t (toVar ref)
-  addInvariant (var v' .== var (toName name))
+  n' <- addEnvVar t (toName name)
+  addInvariant (var v' .== var n')
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
 toStore t e@(I.ExpIndex{}) exp = toSelectStore t e exp
@@ -389,7 +409,9 @@ toType t = case t of
   I.TyPtr t'       -> toType t'
   I.TyArr i t'     -> do t'' <- toType t'
                          return (Array t'')
-  I.TyCArray t'    -> err "toType" "<< carray >>"
+  I.TyCArray t'    -> do t'' <- toType t'
+                         return (Array t'')
+  -- I.TyCArray t'    -> err "toType" "<< carray >>"
   I.TyOpaque       -> return Opaque
   I.TyStruct name  -> return $ Struct name
 

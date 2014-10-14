@@ -110,6 +110,7 @@ instance Concrete Type where
   concrete Integer       = "INT"
   concrete (Array t)     = "ARRAY INT OF " <> concrete t
   concrete (Struct name) = B.pack name
+  concrete t             = "INT" -- error $ "unexpected type: " ++ show t
 
 data Expr = Var Var
           -- Boolean expressions
