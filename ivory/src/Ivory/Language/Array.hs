@@ -38,7 +38,7 @@ ixRep = ivoryType (Proxy :: Proxy IxRep)
 newtype Ix (n :: Nat) = Ix { getIx :: I.Expr }
 
 instance (ANat n) => IvoryType (Ix n) where
-  ivoryType _ = I.TyIndex (fromTypeNat (Proxy :: Proxy n))
+  ivoryType _ = I.TyIndex (fromTypeNat (aNat :: NatType n))
 
 instance (ANat n) => IvoryVar (Ix n) where
   wrapVar    = wrapVarExpr
