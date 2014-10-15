@@ -9,6 +9,7 @@
 
 -- TODO
 -- types for allocs
+-- neg numbers in expressions
 
 module Ivory.Language.Syntax.Concrete.Parser where
 
@@ -483,7 +484,7 @@ exp : integer            { let TokInteger i = unLoc $1 in
     | exp '>='  exp      { LocExp (atBin (ExpOp (GtOp True) [$1, $3] ) $1 $3)}
 
     | exp '+'   exp      { LocExp (atBin (ExpOp AddOp [$1, $3]) $1 $3) }
-    | exp '-'   exp      { LocExp (atBin (ExpOp AddOp [$1, $3]) $1 $3) }
+    | exp '-'   exp      { LocExp (atBin (ExpOp SubOp [$1, $3]) $1 $3) }
 
     | exp '*'   exp      { LocExp (atBin (ExpOp MulOp [$1, $3]) $1 $3) }
     | exp '/'   exp      { LocExp (atBin (ExpOp DivOp [$1, $3]) $1 $3) }
