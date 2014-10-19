@@ -240,7 +240,7 @@ cfNum ty op args = case args of
         I.Word16      -> appI1 op1 (fromInteger l :: Word16)
         I.Word32      -> appI1 op1 (fromInteger l :: Word32)
         I.Word64      -> appI1 op1 (fromInteger l :: Word64)
-      I.TyIndex n  -> appI1 op1 (fromInteger l :: Int32)
+      I.TyIndex _n    -> appI1 op1 (fromInteger l :: Int32)
       _ -> err $ "bad type to cfNum loc 1 "
     CfFloat   l -> CfFloat   (op1 l)
     CfDouble  l -> CfDouble  (op1 l)
@@ -266,8 +266,8 @@ cfNum ty op args = case args of
                                    (fromInteger r :: Word32)
         I.Word64      -> appI2 op2 (fromInteger l :: Word64)
                                    (fromInteger r :: Word64)
-      I.TyIndex n -> appI2 op2 (fromInteger l :: Int32)
-                               (fromInteger r :: Int32)
+      I.TyIndex _n    -> appI2 op2 (fromInteger l :: Int32)
+                                   (fromInteger r :: Int32)
       _ -> err "bad type to cfNum loc 2"
     (CfFloat   l, CfFloat r)   -> CfFloat   (op2 l r)
     (CfDouble l,  CfDouble r)  -> CfDouble  (op2 l r)
@@ -308,8 +308,8 @@ cfIntOp2 ty iOp [CfInteger _ l, CfInteger _ r] = case ty of
                                (fromInteger r :: Word32)
     I.Word64      -> appI2 op2 (fromInteger l :: Word64)
                                (fromInteger r :: Word64)
-  I.TyIndex n  -> appI2 op2 (fromInteger l :: Int32)
-                            (fromInteger r :: Int32)
+  I.TyIndex n     -> appI2 op2 (fromInteger l :: Int32)
+                               (fromInteger r :: Int32)
   _ -> err "bad type to cfIntOp2 loc 1"
 
   where
