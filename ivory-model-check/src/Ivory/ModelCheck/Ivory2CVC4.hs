@@ -28,6 +28,7 @@ modelCheckMod :: I.Module -> ModelCheck ()
 modelCheckMod m = do
   mapM_ toStruct (getVisible $ I.modStructs m)
   mapM_ addExtern (I.modExterns m)
+  mapM_ addImport (I.modImports m)
   mapM_ addProc (getVisible $ I.modProcs m)
   mapM_ toArea (getVisible $ I.modAreas m)
   mapM_ (modelCheckProc . overflowFold . constFold) (getVisible $ I.modProcs m)
@@ -38,6 +39,13 @@ modelCheckMod m = do
                                  , I.procArgs = zipWith I.Typed
                                                 (I.externArgs e)
                                                 (repeat $ I.VarName "dummy")
+                                 , I.procBody = []
+                                 , I.procRequires = []
+                                 , I.procEnsures = []
+                                 }
+  addImport e = addProc $ I.Proc { I.procSym = I.importSym e
+                                 , I.procRetTy = err "addImport" "tried to use return type"
+                                 , I.procArgs = []
                                  , I.procBody = []
                                  , I.procRequires = []
                                  , I.procEnsures = []
