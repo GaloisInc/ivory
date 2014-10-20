@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -10,6 +12,8 @@ import Data.Monoid (Monoid(..))
 import Language.Haskell.TH.Lift (deriveLiftMany)
 import Language.Haskell.TH.Syntax (Lift(..))
 
+import GHC.Generics (Generic)
+import qualified Data.Hashable as H
 import Data.Ratio (denominator, numerator)
 import qualified Data.Set as Set
 
@@ -292,8 +296,10 @@ data Expr
   | ExpMaxMin Bool
     -- ^ True is max value, False is min value for the type.
 
-    deriving (Show, Eq, Ord)
+  | ExpHash Expr
+    -- ^ Hashed expression
 
+    deriving (Show, Eq, Ord, Generic)
 
 -- Expression Operators --------------------------------------------------------
 
@@ -353,7 +359,7 @@ data ExpOp
   | ExpBitShiftL
   | ExpBitShiftR
 
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, Generic)
 
 instance Num Expr where
   l * r         = ExpOp ExpMul [l,r]
@@ -404,7 +410,7 @@ data Literal
   | LitBool Bool
   | LitNull
   | LitString String
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, Generic)
 
 
 -- Initializers ----------------------------------------------------------------
@@ -439,3 +445,14 @@ instance Lift Double where
 
 instance Lift Float where
   lift = lift . toRational
+
+-- Hashable --------------------------------------------------------------------
+
+-- Used in ivory-opts
+instance H.Hashable Expr
+instance H.Hashable ExpOp
+instance H.Hashable Literal
+instance H.Hashable Type
+instance H.Hashable Var
+instance H.Hashable IntSize
+instance H.Hashable WordSize

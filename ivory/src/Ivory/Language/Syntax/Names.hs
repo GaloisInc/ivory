@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Ivory.Language.Syntax.Names where
 
+import GHC.Generics (Generic)
 import Language.Haskell.TH.Lift (deriveLiftMany)
 
 
@@ -21,7 +23,7 @@ data Var
     -- ^ Internal names
   | VarLitName String
     -- ^ A literal name that should not be mangled
-    deriving (Show,Eq,Ord)
+    deriving (Show,Eq,Ord,Generic)
 
 
 -- Special Names ---------------------------------------------------------------

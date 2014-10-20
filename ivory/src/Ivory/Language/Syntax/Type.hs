@@ -1,8 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Ivory.Language.Syntax.Type where
 
+import GHC.Generics (Generic)
 import Language.Haskell.TH.Lift (deriveLiftMany)
 
 
@@ -25,14 +27,14 @@ data Type
   | TyStruct String    -- ^ Structures
   | TyCArray Type      -- ^ C Arrays
   | TyOpaque           -- ^ Opaque type---not implementable.
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, Generic)
 
 data IntSize
   = Int8
   | Int16
   | Int32
   | Int64
-  deriving (Show,Eq,Ord)
+  deriving (Show,Eq,Ord,Generic)
 
 
 data WordSize
@@ -40,7 +42,7 @@ data WordSize
   | Word16
   | Word32
   | Word64
-  deriving (Show,Eq,Ord)
+  deriving (Show,Eq,Ord,Generic)
 
 
 data Typed a = Typed

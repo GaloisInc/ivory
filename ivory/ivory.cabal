@@ -81,6 +81,7 @@ library
   build-depends:        base >= 4.6,
                         pretty >= 1.1,
                         containers >= 0.5,
+                        hashable,
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
                         filepath,
