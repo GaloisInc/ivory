@@ -19,6 +19,7 @@ module Ivory.Opts.TypeCheck
   ) where
 
 
+import Prelude hiding (init)
 import MonadLib.Monads
 import Control.Applicative
 import Data.List hiding (init)

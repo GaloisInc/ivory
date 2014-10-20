@@ -308,7 +308,7 @@ cfIntOp2 ty iOp [CfInteger _ l, CfInteger _ r] = case ty of
                                (fromInteger r :: Word32)
     I.Word64      -> appI2 op2 (fromInteger l :: Word64)
                                (fromInteger r :: Word64)
-  I.TyIndex n     -> appI2 op2 (fromInteger l :: Int32)
+  I.TyIndex _n    -> appI2 op2 (fromInteger l :: Int32)
                                (fromInteger r :: Int32)
   _ -> err "bad type to cfIntOp2 loc 1"
 
