@@ -8,6 +8,7 @@ module Main where
 
 import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
 import qualified Ivory.Language as L
+import qualified Ivory.Language.Syntax as I
 import Ivory.ModelCheck
 
 import Text.Printf
@@ -15,11 +16,13 @@ import Text.Printf
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import qualified Examples
+
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [ shouldPass, shouldFail ]
+tests = testGroup "Tests" [ shouldPass, shouldFail, examples ]
 
 shouldPass :: TestTree
 shouldPass = testGroup "shouldPass"
@@ -46,6 +49,10 @@ shouldFail = testGroup "shouldFail"
              [ mkFailure "foo1" m1
              , mkFailure "foo14" m14
              ]
+
+examples :: TestTree
+examples = testGroup "examples"
+           [ mkSuccess (I.modName m) m | m <- Examples.modules ]
 
 testArgs = initArgs { printQuery = False, printEnv = False }
 
@@ -183,13 +190,13 @@ m8 = package "foo8" (incl foo8)
 -----------------------
 
 [ivory|
-struct foo
+struct foo2
 { aFoo :: Stored Uint8
 ; bFoo :: (Array 4 Uint8)
 }
 |]
 
-foo9 :: Def ('[Ref s (L.Struct "foo")] :-> ())
+foo9 :: Def ('[Ref s (L.Struct "foo2")] :-> ())
 foo9 = L.proc "foo9" $ \f -> body $ do
   st <- local (istruct [aFoo .= ival 0])
   a  <- deref (st ~> aFoo)
@@ -203,7 +210,7 @@ foo9 = L.proc "foo9" $ \f -> body $ do
 
 m9 :: Module
 m9 = package "foo9" $ do
-  defStruct (Proxy :: Proxy "foo")
+  defStruct (Proxy :: Proxy "foo2")
   incl foo9
 
 -----------------------
@@ -303,7 +310,7 @@ m17 = package "foo17" (incl foo17)
 
 -----------------------
 
-foo18 :: Def ('[Ref s (L.Struct "foo")] :-> Ref s (L.Struct "foo"))
+foo18 :: Def ('[Ref s (L.Struct "foo2")] :-> Ref s (L.Struct "foo2"))
 foo18 = L.proc "foo18" $ \f -> 
     requires (checkStored (f ~> aFoo) (\a -> a >? 0))
   $ requires (checkStored (f ~> aFoo) (\a -> a <? 10))
@@ -317,5 +324,5 @@ foo18 = L.proc "foo18" $ \f ->
 
 m18 :: Module
 m18 = package "foo18" $ do
-  defStruct (Proxy :: Proxy "foo")
+  defStruct (Proxy :: Proxy "foo2")
   incl foo18

@@ -67,7 +67,7 @@ runTests = do
                                       , srcDir     = "test"
                                       , constFold  = True
                                       }
-  where
-  cmodule d = package "qc" $ do
-    incl d
-    incl func
+    
+cmodule d = package "qc" $ do
+  incl d
+  incl func

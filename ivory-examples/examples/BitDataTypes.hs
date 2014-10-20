@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module ExampleTypes where
+module BitDataTypes where
 
 import Ivory.Language
 

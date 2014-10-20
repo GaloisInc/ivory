@@ -14,7 +14,7 @@
 -- All rights reserved.
 --
 
-module Concrete where
+module ConcreteFile where
 
 import Control.Monad (void)
 import Ivory.Language
