@@ -25,6 +25,7 @@ library
                         Ivory.Opts.ConstFold,
                         Ivory.Opts.ConstFoldComp,
                         Ivory.Opts.DivZero,
+                        Ivory.Opts.HashCons,
                         Ivory.Opts.Index,
                         Ivory.Opts.FP,
                         Ivory.Opts.Overflow,
@@ -36,6 +37,7 @@ library
                         ivory,
                         monadLib >= 3.7,
                         filepath,
+                        hashable,
                         dlist >= 0.5,
                         fgl >= 5.4.2.4,
                         containers
