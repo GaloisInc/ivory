@@ -138,7 +138,7 @@ toDeref t v ref = do
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
 toAlloc t ref name = do
   v' <- addEnvVar t (toVar ref)
-  n' <- addEnvVar t (toName name)
+  n' <- lookupVar (toName name)
   addInvariant (var v' .== var n')
 
 toStore :: I.Type -> I.Expr -> I.Expr -> ModelCheck ()
