@@ -140,7 +140,7 @@ mkCall :: String -> I.Type -> [I.Expr] -> FolderStmt ()
 mkCall f ty args = do
   var <- freshVar
   let v = I.VarInternal var
-  insert $ I.Call ty (Just v) (I.NameSym $ f <+> ext ty)
+  insert $ I.Call I.TyBool (Just v) (I.NameSym $ f <+> ext ty)
              (map (I.Typed ty) args)
   insert $ I.CompilerAssert (I.ExpVar v)
 
