@@ -6,12 +6,16 @@ module Ivory.ModelCheck.Monad
   , assertQueries
   , ModelCheck()
   , SymExecSt(..)
+  , SymOpts(..)
   , ProgramSt(..)
   , getState
   , setState
   , joinState
   , addProc
   , lookupProc
+  , getRefs
+  , withLocalRefs
+  , updateStRef
   , addType
   , declUpdateEnv
   , lookupVar
@@ -21,6 +25,7 @@ module Ivory.ModelCheck.Monad
   , addInvariant
   , resetSt
   , branchSt
+  , askInline
   )
  where
 
@@ -39,7 +44,7 @@ import           Ivory.ModelCheck.CVC4 hiding (query, var)
 import qualified Ivory.Opts.Overflow   as I
 
 -- XXX
---import Debug.Trace
+import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- Types
@@ -68,9 +73,14 @@ data SymExecSt = SymExecSt
   , symSt    :: ProgramSt
   , symQuery :: Queries
   , symProcs :: M.Map I.Sym I.Proc
+  , symRefs  :: M.Map (I.Type, Var) Var -- ^ To track assignment to Refs during inlined calls
   }
 
-newtype ModelCheck a = ModelCheck (StateT SymExecSt Id a)
+data SymOpts = SymOpts
+  { inlineCalls :: Bool
+  }
+
+newtype ModelCheck a = ModelCheck (StateT SymExecSt (ReaderT SymOpts Id) a)
   -- { unModelCheck ::
   -- }
     deriving (Functor, Applicative, Monad)
@@ -86,6 +96,7 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symSt    = mempty
                       , symQuery = mempty
                       , symProcs = overflowProcs
+                      , symRefs  = mempty
                       }
 
 mcVar :: String
@@ -156,6 +167,24 @@ addInvariant exp = do
 -- getProgramSt :: ModelCheck ProgramSt
 -- getProgramSt = return . symSt =<< get
 
+getRefs :: ModelCheck (M.Map (I.Type, Var) Var)
+getRefs = do
+  st <- get
+  return (symRefs st)
+
+updateStRef :: I.Type -> Var -> Var -> ModelCheck ()
+updateStRef t v v' = do
+  sets_ (\st -> st { symRefs = M.insert (t,v) v' (symRefs st) })
+
+withLocalRefs :: ModelCheck a -> ModelCheck a
+withLocalRefs m = do
+  st <- get
+  let refs = symRefs st
+  sets_ (\st -> st { symRefs = mempty })
+  a <- m
+  sets_ (\st -> st { symRefs = refs })
+  return a
+
 getQueries :: ModelCheck Queries
 getQueries = do
   st <- get
@@ -190,6 +219,9 @@ lookupProc nm = do
 
 nullProc :: I.Sym -> I.Proc
 nullProc nm = I.Proc nm (error "tried to use ret ty") [] [] [] []
+
+askInline :: ModelCheck Bool
+askInline = asks inlineCalls
 
 -- | Lookup a variable in the environment.  If it's not in there return a fresh
 -- variable (and update the environment) and declare it (which is why we need
@@ -253,6 +285,7 @@ branchSt exp = do
                       , symSt    = ps'
                       , symQuery = queries'
                       , symProcs = symProcs st
+                      , symRefs  = symRefs st
                       }
   set st'
   where
@@ -266,8 +299,8 @@ joinState st0 = do
   set st
   return st
 
-runMC :: ModelCheck a -> (a, SymExecSt)
-runMC (ModelCheck m) = runId (runStateT initSymSt m)
+runMC :: SymOpts -> ModelCheck a -> (a, SymExecSt)
+runMC opts (ModelCheck m) = runId (runReaderT opts (runStateT initSymSt m))
 
 --------------------------------------------------------------------------------
 -- Instances
@@ -281,6 +314,12 @@ getState = get
 
 setState :: SymExecSt -> ModelCheck ()
 setState = set
+
+instance ReaderM ModelCheck SymOpts where
+  ask = ModelCheck ask
+
+askOpts :: ModelCheck SymOpts
+askOpts = ask
 
 instance Monoid Queries where
   mempty = Queries { assertQueries = []
@@ -308,16 +347,20 @@ instance Monoid SymExecSt where
                      , symSt    = mempty
                      , symQuery = mempty
                      , symProcs = mempty
+                     , symRefs  = mempty
                      }
-  (SymExecSt f0 e0 s0 q0 p0) `mappend` (SymExecSt f1 e1 s1 q1 p1)
+  (SymExecSt f0 e0 s0 q0 p0 r0) `mappend` (SymExecSt f1 e1 s1 q1 p1 r1)
     | f0 /= f1 = error "Sym states have different function symbols."
     | p0 /= p1 = error "Sym states have different proc environments."
+      -- XXX: TODO: join the ref environments
+    | r0 /= r1 = error "Sym states have different ref environments."
     | otherwise =
       SymExecSt { funcSym  = f0
                 , symEnv   = e0 `M.union` e1
                 , symSt    = s0 `mappend` s1
                 , symQuery = q0 `mappend` q1
                 , symProcs = p0
+                , symRefs  = r0
                 }
 
 --------------------------------------------------------------------------------

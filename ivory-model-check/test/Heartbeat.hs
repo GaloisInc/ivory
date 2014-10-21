@@ -88,13 +88,24 @@ packUnpack = proc "pack_unpack" $ \ msg -> body $ do
   call_ heartbeatUnpack msg' (constRef buf)
   cm1 <- deref (msg ~> custom_mode)
   cm2 <- deref (msg' ~> custom_mode)
-  assert (cm1 ==? cm2)
+  mt1 <- deref (msg ~> mavtype)
+  mt2 <- deref (msg' ~> mavtype)
+  ap1 <- deref (msg ~> autopilot)
+  ap2 <- deref (msg' ~> autopilot)
+  bm1 <- deref (msg ~> base_mode)
+  bm2 <- deref (msg' ~> base_mode)
+  ss1 <- deref (msg ~> system_status)
+  ss2 <- deref (msg' ~> system_status)
+  mv1 <- deref (msg ~> mavlink_version)
+  mv2 <- deref (msg' ~> mavlink_version)
+  assert (cm1 ==? cm2 .&& mt1 ==? mt2 .&& ap1 ==? ap2 .&&
+          bm1 ==? bm2 .&& ss1 ==? ss2 .&& mv1 ==? mv2)
   retVoid
 
 heartbeatUnpack :: Def ('[ Ref s1 (Struct "heartbeat_msg")
                          , ConstRef s2 (Array 9 (Stored Uint8))
                          ] :-> () )
-heartbeatUnpack = proc "mavlink_heartbeat_unpack" $ \ msg buf -> body $ do
+heartbeatUnpack = proc "heartbeat_unpack" $ \ msg buf -> body $ do
   store (msg ~> custom_mode)     =<< deref (buf ! 0)
   store (msg ~> mavtype)         =<< deref (buf ! 4)
   store (msg ~> autopilot)       =<< deref (buf ! 5)
@@ -109,7 +120,7 @@ heartbeatPack ::
         -- , Ref s1 (Struct "mavlinkPacket") -- tx buffer/length
         ] :-> ())
 heartbeatPack =
-  proc "mavlink_heartbeat_msg_send"
+  proc "heartbeat_pack"
   $ \msg buf -> body
   $ do
   -- arr <- local (iarray [] :: Init (Array 9 (Stored Uint8)))

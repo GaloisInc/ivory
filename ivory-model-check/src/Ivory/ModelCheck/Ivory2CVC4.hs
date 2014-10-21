@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
@@ -8,7 +9,9 @@ module Ivory.ModelCheck.Ivory2CVC4
 
 import           Control.Applicative
 import           Control.Monad
+import qualified Data.Map               as M
 import           Data.Maybe
+import           MonadLib
 import qualified Ivory.Language.Array   as I
 import qualified Ivory.Language.Cast    as I
 import qualified Ivory.Language.Syntax  as I
@@ -20,7 +23,7 @@ import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
 
 -- XXX testing
--- import           Debug.Trace
+import           Debug.Trace
 
 --------------------------------------------------------------------------------
 
@@ -201,6 +204,42 @@ toAssign t v exp = do
 
 toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
 toCall t retV nm args = do
+  inline <- askInline
+  if inline
+    then toCallInline t retV nm args
+    else toCallContract t retV nm args
+
+toCallInline :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
+toCallInline t retV nm args = do
+  I.Proc {..} <- lookupProc $ toName nm
+
+  argEnv <- forM (zip procArgs args) $ \ (formal, actual) -> do
+    e <- toExpr (I.tType actual) (I.tValue actual)
+    v <- addEnvVar (I.tType formal) (toVar $ I.tValue formal)
+    addInvariant (var v .== e)
+    return (toVar (I.tValue formal), e)
+
+  withLocalRefs $ do
+    mapM_ (toBody []) procBody
+
+    rs <- getRefs
+    forM_ (M.toList rs) $ \ ((t, r), v) -> do
+      -- XXX: can we rely on Refs always being passed as a Var?
+      let Just (Var x) = lookup r argEnv
+      -- traceShowM (r, x)
+      r' <- addEnvVar t x
+      addInvariant (var r' .== var v)
+
+  case retV of
+   Nothing -> return ()
+   Just v  -> do
+     r  <- addEnvVar t (toVar v)
+     rv <- addEnvVar t (toVar I.retval)
+     addInvariant (var r .== var rv)
+
+  
+toCallContract :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
+toCallContract t retV nm args = do
   pc <- lookupProc $ toName nm
   let su = [ (v, e) | (I.Typed _ v, I.Typed _ e) <- zip (I.procArgs pc) args]
   checkRequires su $ I.procRequires pc
@@ -427,9 +466,13 @@ updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
 updateEnvRef t ref =
   case ref of
     I.ExpVar v
-      -> addEnvVar t (toVar v)
+      -> do v' <- addEnvVar t (toVar v)
+            updateStRef t (toVar v) v'
+            return v'
     I.ExpAddrOfGlobal v
-      -> addEnvVar t v
+      -> do v' <- addEnvVar t v
+            updateStRef t v v'
+            return v'
 
     _ -> err "updateEnvRef" (show ref)
 
@@ -442,9 +485,9 @@ toStoreRef t ref =
     I.ExpLabel t' e _
       -> toStoreRef t' e
     I.ExpVar v
-      -> addEnvVar t (toVar v)
+      -> updateEnvRef t ref
     I.ExpAddrOfGlobal v
-      -> addEnvVar t v
+      -> updateEnvRef t ref
 
     _ -> err "toStoreRef" (show ref)
 

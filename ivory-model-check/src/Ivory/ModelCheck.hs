@@ -33,6 +33,7 @@ import Ivory.Compile.C.CmdlineFrontend
 data Args = Args
   { printQuery  :: Bool
   , printEnv    :: Bool
+  , inlineCall  :: Bool -- ^ Should we inline `call`s or just assume the `ensures`?
   , callCVC4    :: Bool
   , cvc4Path    :: FilePath
   , cvc4Args    :: [String]
@@ -42,6 +43,7 @@ initArgs :: Args
 initArgs = Args
   { printQuery = True
   , printEnv   = True
+  , inlineCall = False
   , callCVC4   = True
   , cvc4Path   =  ""
   , cvc4Args   = ["--incremental"]
@@ -72,7 +74,7 @@ modelCheck' mod = do
 
 modelCheck :: Args -> I.Module -> IO (Result, FilePath)
 modelCheck args m = do
-  let (_, st) = runMC (modelCheckMod m)
+  let (_, st) = runMC (SymOpts $ inlineCall args) (modelCheckMod m)
   let bs = B.unlines (mkScript st)
   debugging args st bs
   file <- writeInput bs

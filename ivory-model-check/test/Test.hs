@@ -17,6 +17,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import qualified Examples
+import qualified Heartbeat
 
 main :: IO ()
 main = defaultMain tests
@@ -42,6 +43,7 @@ shouldPass = testGroup "shouldPass"
              , mkSuccess "foo16" m16
              , mkSuccess "foo17" m17
              , mkSuccess "foo18" m18
+             , mkSuccessInline "heartbeat" Heartbeat.heartbeatModule
              ]
 
 shouldFail :: TestTree
@@ -58,6 +60,12 @@ testArgs = initArgs { printQuery = False, printEnv = False }
 
 mkSuccess nm m = testCase nm $ do
   (r, f) <- modelCheck testArgs m
+  let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
+            (showResult r) f
+  assertBool msg (isSafe r)
+
+mkSuccessInline nm m = testCase nm $ do
+  (r, f) <- modelCheck (testArgs { inlineCall = True }) m
   let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (isSafe r)
