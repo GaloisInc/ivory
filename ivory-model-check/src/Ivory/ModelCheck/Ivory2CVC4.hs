@@ -200,7 +200,7 @@ toAssign t v exp = do
   addInvariant $ (var v' .== e)
 
 toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
-toCall _ retV nm args = do
+toCall t retV nm args = do
   pc <- lookupProc $ toName nm
   let su = [ (v, e) | (I.Typed _ v, I.Typed _ e) <- zip (I.procArgs pc) args]
   checkRequires su $ I.procRequires pc
@@ -208,7 +208,7 @@ toCall _ retV nm args = do
   case retV of
     Nothing -> return ()
     Just v  -> do
-      r <- addEnvVar (I.procRetTy pc) (toVar v)
+      r <- addEnvVar t (toVar v)
       assumeEnsures ((I.retval, I.ExpVar $ I.VarName r) : su)
                     (I.procEnsures pc)
       return ()
