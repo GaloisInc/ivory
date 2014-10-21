@@ -185,8 +185,11 @@ lookupProc :: I.Sym -> ModelCheck I.Proc
 lookupProc nm = do
   st <- get
   case M.lookup nm (symProcs st) of
-    Nothing -> error $ "couldn't find proc: " ++ show nm
+    Nothing -> return $ nullProc nm -- error $ "couldn't find proc: " ++ show nm
     Just p  -> return p
+
+nullProc :: I.Sym -> I.Proc
+nullProc nm = I.Proc nm (error "tried to use ret ty") [] [] [] []
 
 -- | Lookup a variable in the environment.  If it's not in there return a fresh
 -- variable (and update the environment) and declare it (which is why we need
