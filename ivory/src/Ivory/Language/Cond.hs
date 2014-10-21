@@ -88,6 +88,7 @@ instance Requires Cond where
 -- provided, for which the conjunction must hold.
 class Ensures c where
   ensures :: IvoryVar r => (r -> c) -> Body r -> Body r
+  ensures_ :: c -> Body () -> Body ()
 
 -- XXX Do not export
 ensures' :: (Ensures c, IvoryVar r)
@@ -97,8 +98,19 @@ ensures' chk prop b = Body $ do
   emitPostCond (I.Ensure c)
   runBody b
 
+-- XXX Do not export
+ensures_' :: (Ensures c)
+  => (c -> Cond) -> c -> Body () -> Body ()
+ensures_' chk prop b = Body $ do
+  c <- runCond $ chk $ prop
+  emitPostCond (I.Ensure c)
+  runBody b
+
 instance Ensures IBool where
   ensures = ensures' check
+  ensures_ = ensures_' check
 
 instance Ensures Cond where
   ensures = ensures' id
+  ensures_ = ensures_' id
+
