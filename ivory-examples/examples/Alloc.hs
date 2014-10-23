@@ -100,8 +100,8 @@ assign_test  = proc "assign_test" $ body $ do
   retVoid
 
 bar :: Def ('[] :-> ())
-bar = proc "var" $ body $ do
-  pid <- local $ istruct [i .= ival 3, i .= ival 7]
+bar = proc "bar" $ body $ do
+  pid <- local $ istruct [i .= ival 3]
   arr <- local $ iarray [ ival c | c <- replicate 10 (char 'a') ]
   call_ mystrcpy arr "hello"
   store (pid~>i) 4

@@ -21,6 +21,7 @@ module Ivory.Opts.TypeCheck
 
 import MonadLib.Monads
 import Control.Applicative
+import Data.List
 import Data.Monoid
 
 import qualified Ivory.Language.Syntax.AST  as I
@@ -40,6 +41,7 @@ data Warning = IfTEWarn
 data Error = EmptyBody
            | NoRet
            | DeadCode
+           | DoubleInit
   deriving (Show, Read, Eq)
 
 data Results = Results
@@ -57,9 +59,10 @@ existErrors = not . null . errs
 
 showError :: Error -> String
 showError err = case err of
-  EmptyBody -> "Procedure contains no statements!"
-  NoRet     -> "No return statment and procedure has a non-void type."
-  DeadCode  -> "Unreachable statements after a return."
+  EmptyBody  -> "Procedure contains no statements!"
+  NoRet      -> "No return statment and procedure has a non-void type."
+  DeadCode   -> "Unreachable statements after a return."
+  DoubleInit -> "Repeated initialization of a struct field."
 
 showWarning :: Warning -> String
 showWarning w = case w of
@@ -149,11 +152,25 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
     = do b <- tyChk' (True, False) ss0
          when b (putWarn LoopWarn)
          tyChk' (sb, False) ss
+  tyChk' b (I.Local t v init : ss)
+    = do checkInit init
+         tyChk' b ss
   tyChk' b (_:ss)
     = tyChk' b ss
 
   isComment (I.Comment _) = True
   isComment _             = False
+
+  checkInit (I.InitStruct fis)
+    = do mapM_ (checkInit . snd) fis
+         let fs = map fst fis
+         when (fs /= nub fs) $
+           putError DoubleInit
+         return ()
+  checkInit (I.InitArray is)
+    = mapM_ checkInit is
+  checkInit _
+    = return ()
 
 xor :: Bool -> Bool -> Bool
 xor a b = (not a && b) || (a && not b)

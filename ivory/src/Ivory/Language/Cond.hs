@@ -67,14 +67,15 @@ instance CheckStored Cond where
 -- | Proc bodies that have pre-conditions.  Multiple pre-conditions may be
 -- provided, for which the conjunction must hold.
 class Requires c where
-  requires :: IvoryType r => c -> Body r -> Body r
+  requires :: (WrapIvory m, IvoryType r) => c -> m r -> m r
 
 -- XXX Do not export
-requires' :: (Requires c, IvoryType r) => (c -> Cond) -> c -> Body r -> Body r
-requires' chk prop b = Body $ do
+requires' :: (WrapIvory m, Requires c, IvoryType r)
+  => (c -> Cond) -> c -> m r -> m r
+requires' chk prop b = wrap $ do
   req <- runCond $ chk $ prop
   emitPreCond (I.Require req)
-  runBody b
+  unwrap b
 
 instance Requires IBool where
   requires = requires' check
@@ -87,16 +88,24 @@ instance Requires Cond where
 -- | Proc bodies that have post-conditions.  Multiple post-conditions may be
 -- provided, for which the conjunction must hold.
 class Ensures c where
-  ensures :: IvoryVar r => (r -> c) -> Body r -> Body r
-  ensures_ :: c -> Body () -> Body ()
+  ensures  :: (WrapIvory m, IvoryVar r) => (r -> c) -> m r -> m r
+  ensures_ :: (WrapIvory m) => c -> m () -> m ()
 
 -- XXX Do not export
-ensures' :: (Ensures c, IvoryVar r)
-  => (c -> Cond) -> (r -> c) -> Body r -> Body r
-ensures' chk prop b = Body $ do
+ensures' :: (WrapIvory m, Ensures c, IvoryVar r)
+  => (c -> Cond) -> (r -> c) -> m r -> m r
+ensures' chk prop b = wrap $ do
   c <- runCond $ chk $ prop $ wrapVar I.retval
   emitPostCond (I.Ensure c)
-  runBody b
+  unwrap b
+
+-- XXX Do not export
+ensures_' :: (WrapIvory m, Ensures c)
+  => (c -> Cond) -> c -> m () -> m ()
+ensures_' chk prop b = wrap $ do
+  c <- runCond $ chk $ prop
+  emitPostCond (I.Ensure c)
+  unwrap b
 
 -- XXX Do not export
 ensures_' :: (Ensures c)

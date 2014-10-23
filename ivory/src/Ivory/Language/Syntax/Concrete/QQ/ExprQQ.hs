@@ -88,7 +88,7 @@ fromOpExp env op args = case op of
   MulOp            -> mkInfix '(*)
   AddOp            -> mkInfix '(+)
   SubOp            -> mkInfix '(-)
-  NegateOp         -> mkInfix 'negate
+  NegateOp         -> mkUn 'negate
   AbsOp            -> mkUn 'abs
   SignumOp         -> mkUn 'signum
 
