@@ -90,8 +90,12 @@ data Extern = Extern
 
 -- | Functions that are defined in a c header.
 data Import = Import
-  { importSym  :: Sym
-  , importFile :: ModulePath
+  { importSym      :: Sym
+  , importFile     :: ModulePath
+  , importRetTy    :: Type
+  , importArgs     :: [Typed Var]
+  , importRequires :: [Require]
+  , importEnsures  :: [Ensure]
   } deriving (Show, Eq, Ord)
 
 

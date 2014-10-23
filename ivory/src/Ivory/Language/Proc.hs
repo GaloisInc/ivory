@@ -85,33 +85,58 @@ instance ProcType proc => IvoryType (Def proc) where
 
 -- | Procedure definition.
 proc :: forall proc impl. IvoryProcDef proc impl => AST.Sym -> impl -> Def proc
-proc name impl = DefProc AST.Proc
-  { AST.procSym      = name
-  , AST.procRetTy    = r
-  , AST.procArgs     = zipWith AST.Typed args vars
-  , AST.procBody     = blockStmts block
-  , AST.procRequires = blockRequires block
-  , AST.procEnsures  = blockEnsures block
-  }
+proc name impl = defproc
   where
-  (r,args)     = procType (Proxy :: Proxy proc)
-  (vars,block) = procDef initialClosure Proxy impl
+  (r,args)   = procType (Proxy :: Proxy proc)
+  (vars,def) = procDef initialClosure Proxy impl
+
+  defproc = case def of
+        Defined block -> DefProc $
+          AST.Proc { AST.procSym      = name
+                   , AST.procRetTy    = r
+                   , AST.procArgs     = zipWith AST.Typed args vars
+                   , AST.procBody     = blockStmts block
+                   , AST.procRequires = blockRequires block
+                   , AST.procEnsures  = blockEnsures block
+                   }
+        Imported header reqs ens -> DefImport $
+          AST.Import { AST.importSym      = name
+                     , AST.importFile     = header
+                     , AST.importRetTy    = r
+                     , AST.importArgs     = zipWith AST.Typed args vars
+                     , AST.importRequires = reqs
+                     , AST.importEnsures  = ens
+                     }
 
 
 newtype Body r = Body
   { runBody :: forall s . Ivory (E.ProcEffects s r) ()
   }
 
+class WrapIvory m where
+  type Return m
+  wrap   :: (forall s . Ivory (E.ProcEffects s r) (Return m)) -> m r
+  unwrap :: m r -> (forall s . Ivory (E.ProcEffects s r) (Return m))
+
+instance WrapIvory Body where
+  type Return Body = ()
+  wrap   = Body
+  unwrap = runBody
+
 body :: IvoryType r
      => (forall s . Ivory (E.ProcEffects s r) ())
      -> Body r
 body m = Body m
 
+
+data Definition = Defined CodeBlock
+                | Imported FilePath [AST.Require] [AST.Ensure]
+
 class ProcType proc => IvoryProcDef (proc :: Proc *) impl | impl -> proc where
-  procDef :: Closure -> Proxy proc -> impl -> ([AST.Var],CodeBlock)
+  procDef :: Closure -> Proxy proc -> impl -> ([AST.Var], Definition)
 
 instance IvoryType ret => IvoryProcDef ('[] :-> ret) (Body ret) where
-  procDef env _ b = (getEnv env, snd (primRunIvory (runBody b)))
+  procDef env _ b = (getEnv env, Defined (snd (primRunIvory (runBody b))))
 
 instance (IvoryVar a, IvoryProcDef (args :-> ret) k)
       => IvoryProcDef ((a ': args) :-> ret) (a -> k) where
@@ -168,10 +193,35 @@ externProc sym = DefExtern AST.Extern
 -- | Import a function from a C header.
 importProc :: forall proc. ProcType proc => AST.Sym -> String -> Def proc
 importProc sym file = DefImport AST.Import
-  { AST.importSym  = sym
-  , AST.importFile = file
+  { AST.importSym      = sym
+  , AST.importFile     = file
+  , AST.importRetTy    = retTy
+  , AST.importArgs     = args
+  , AST.importRequires = []
+  , AST.importEnsures  = []
+  }
+  where
+  (retTy, argTys) = procType (Proxy :: Proxy proc)
+  args = zipWith AST.Typed argTys (closSupply initialClosure)
+  
+newtype ImportFrom r = ImportFrom
+  { runImportFrom :: forall s . Ivory (E.ProcEffects s r) FilePath
   }
 
+instance WrapIvory ImportFrom where
+  type Return ImportFrom = FilePath
+  wrap   = ImportFrom
+  unwrap = runImportFrom
+
+importFrom :: String -> ImportFrom a
+importFrom h = ImportFrom (return h)
+
+instance IvoryType ret => IvoryProcDef ('[] :-> ret) (ImportFrom ret) where
+  procDef env _ b = (getEnv env, Imported header reqs ens)
+    where
+    (header, block) = primRunIvory (runImportFrom b)
+    reqs            = blockRequires block
+    ens             = blockEnsures block
 
 -- Call ------------------------------------------------------------------------
 
