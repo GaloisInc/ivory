@@ -5,16 +5,16 @@
 
 module Ivory.Language.Syntax.AST where
 
-import Ivory.Language.Syntax.Names
-import Ivory.Language.Syntax.Type
+import           Ivory.Language.Syntax.Names
+import           Ivory.Language.Syntax.Type
 
-import Data.Monoid (Monoid(..))
-import Language.Haskell.TH.Lift (deriveLiftMany)
-import Language.Haskell.TH.Syntax (Lift(..))
+import           Data.Monoid (Monoid(..))
+import           Language.Haskell.TH.Lift (deriveLiftMany)
+import           Language.Haskell.TH.Syntax (Lift(..))
 
-import GHC.Generics (Generic)
+import           GHC.Generics (Generic)
 import qualified Data.Hashable as H
-import Data.Ratio (denominator, numerator)
+import           Data.Ratio (denominator, numerator)
 import qualified Data.Set as Set
 
 
@@ -275,9 +275,11 @@ data Expr
   | ExpLabel Type Expr String
     -- ^ Struct label indexing.
 
-  | ExpIndex Type Expr Type Expr -- XXX Do we need the 2nd (index) Type?
-    -- ^ Array indexing.  The type is the type of the array being indexed, it's
-    -- implied that the expression with the array in it is a reference.
+    -- XXX Do we need the 2nd (index) Type?
+  | ExpIndex Type Expr Type Expr
+    -- ^ Array indexing.  The first type is the type of the array being indexed;
+    -- it's implied that the expression with the array in it is an area. The
+    -- second expression is the index, and the second type is the indexe's type.
 
   | ExpToIx Expr Integer
     -- ^ Cast from an expression to an index (Ix) used in loops and array
@@ -296,7 +298,7 @@ data Expr
   | ExpMaxMin Bool
     -- ^ True is max value, False is min value for the type.
 
-  | ExpHash Expr
+  | ExpHash Int
     -- ^ Hashed expression
 
     deriving (Show, Eq, Ord, Generic)
@@ -456,3 +458,4 @@ instance H.Hashable Type
 instance H.Hashable Var
 instance H.Hashable IntSize
 instance H.Hashable WordSize
+instance H.Hashable a => H.Hashable (Typed a)

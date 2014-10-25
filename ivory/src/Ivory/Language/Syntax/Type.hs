@@ -48,7 +48,7 @@ data WordSize
 data Typed a = Typed
   { tType  :: Type
   , tValue :: a
-  } deriving (Show,Functor,Eq,Ord)
+  } deriving (Show,Functor,Eq,Ord, Generic)
 
 
 -- TH Lifting ------------------------------------------------------------------
