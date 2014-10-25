@@ -47,7 +47,7 @@ data CfVal
   | CfExpr I.Expr
     deriving (Show, Eq)
 
--- | Convert back to an expression.
+-- | Convert back to an expression if optimized, nothing otherwise.
 toExpr :: CfVal -> I.Expr
 toExpr val = case val of
   CfBool b      -> I.ExpLit (I.LitBool b)
@@ -82,10 +82,12 @@ toMaxMin r | r == maxBound = Max
 
 --------------------------------------------------------------------------------
 
+-- | Turn Ivory literals into Haskell `CfVal` values.
 mkCfArgs :: I.Type -> [I.Expr] -> [CfVal]
 mkCfArgs ty exps = map toCfVal exps
   where
-  -- | Convert to a constant-folded value.  Picks the one successful lit, if any.
+  -- | Convert to a constant-folded value.  Picks the one successful lit, if
+  -- any.
   toCfVal :: I.Expr -> CfVal
   toCfVal ex = fromMaybe (CfExpr ex) $ msum
     [ CfBool    `fmap` destBoolLit       ex
@@ -148,13 +150,22 @@ applied bottom-up, and avoid re-doing any work in subtrees that haven't
 changed.
 -}
 
-abc :: (I.ExpOp -> CfVal -> CfVal -> CfVal) -> I.Type -> I.ExpOp -> CfVal -> CfVal -> CfVal
+abc :: (I.ExpOp -> CfVal -> CfVal -> CfVal)
+    -> I.Type -> I.ExpOp -> CfVal -> CfVal -> CfVal
 abc combine ty op (CfExpr lhs) rhs = case (lhs, rhs) of
-  (_, CfExpr (I.ExpOp op' (mkCfArgs ty -> [b, c]))) | op == op' -> abc combine ty op (abc combine ty op (CfExpr lhs) b) c
-  (I.ExpOp _ (_ : (mkCfArgs ty -> [CfExpr _])), _) -> noop
-  (I.ExpOp op' [a, b], CfExpr c) | op == op' -> CfExpr (I.ExpOp op [I.ExpOp op [a, c], b])
-  (I.ExpOp op' (a : (mkCfArgs ty -> [b])), c) | op == op' -> CfExpr (I.ExpOp op [a, toExpr $ combine op b c])
-  _ -> noop
+  (_, CfExpr (I.ExpOp op' (mkCfArgs ty -> [b, c])))
+    | op == op'
+   -> abc combine ty op (abc combine ty op (CfExpr lhs) b) c
+  (I.ExpOp _ (_ : (mkCfArgs ty -> [CfExpr _])), _)
+   -> noop
+  (I.ExpOp op' [a, b], CfExpr c)
+    | op == op'
+   -> CfExpr (I.ExpOp op [I.ExpOp op [a, c], b])
+  (I.ExpOp op' (a : (mkCfArgs ty -> [b])), c)
+    | op == op'
+   -> CfExpr (I.ExpOp op [a, toExpr $ combine op b c])
+  _
+   -> noop
   where
   noop = CfExpr (I.ExpOp op [lhs, toExpr rhs])
 abc combine ty op lhs rhs@(CfExpr _) = abc combine ty op rhs lhs
