@@ -122,7 +122,7 @@ stmtFold ef stmt = case stmt of
   I.Return (I.Typed ty e)         -> do ef ty e
                                         insert stmt
   I.ReturnVoid                    -> insert stmt
-  I.Deref ty _v e                 -> do ef ty e
+  I.Deref ty _v e                 -> do ef (I.TyRef ty) e
                                         insert stmt
   I.Store ty ptrExp e             -> do ef (I.TyRef ty) ptrExp
                                         ef ty e
@@ -138,8 +138,8 @@ stmtFold ef stmt = case stmt of
   I.Break                         -> insert stmt
   I.Local _ty _v init'            -> do efInit init'
                                         insert stmt
-  I.RefCopy ty e0 e1              -> do ef ty e0
-                                        ef ty e1
+  I.RefCopy ty e0 e1              -> do ef (I.TyRef ty) e0
+                                        ef (I.TyRef ty) e1
                                         insert stmt
   I.AllocRef{}                    -> insert stmt
   I.Forever blk                   -> do blk' <- runFreshStmts ef blk
