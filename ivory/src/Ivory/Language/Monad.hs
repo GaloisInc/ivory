@@ -71,7 +71,7 @@ instance Monoid CodeBlock where
     , blockRequires = []
     , blockEnsures  = []
     }
-  mappend l r = CodeBlock
+  mappend l r = l `seq` r `seq` CodeBlock
     { blockStmts    = blockStmts l    `mappend` blockStmts r
     , blockRequires = blockRequires l `mappend` blockRequires r
     , blockEnsures  = blockEnsures l  `mappend` blockEnsures r
