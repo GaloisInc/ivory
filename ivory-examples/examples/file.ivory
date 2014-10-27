@@ -285,3 +285,4 @@ int32_t bar72(int32_t x, * struct Boo a, * int32_t y, * int32_t[10] arr) {
   store arr@toIx(*y + *y)   as *y + *y;
   return a.aBoo->aBar7;
 }
+
