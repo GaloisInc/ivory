@@ -138,23 +138,23 @@ findAssign key = I.lookup key <$> getAssignMap
 -- variable references.
 unHash :: I.Expr -> StmtM I.Expr
 unHash (I.ExpHash key) = do
-  b <- trace "g" $ lift (H.lookupSeen key)
+  b <- lift (H.lookupSeen key)
   if b -- Is the exp used twice/recursive?
-    then trace "m" $ go
-    else trace "l" $ lift (H.flattenExp key) -- Reconstruct the original exp
+    then go
+    else lift (H.flattenExp key) -- Reconstruct the original exp
   where
   mkVar = I.VarName . mkHashVar
-  go = trace "n" $ do
+  go = do
     mVar <- findAssign key -- Is there a var binding fo the exp?
     case mVar of
       Nothing
-        -> do n <- trace "p" $ freshVar key -- Make a new var and put it in the map.
+        -> do n <- freshVar key -- Make a new var and put it in the map.
               -- Extract the expression, recurisvely replacing assignments for
               -- hash references.
-              keys <- trace "j" $ lift (H.subKeys key)
-              trace "i" $ mapM_ unHash (map I.ExpHash keys)
-              tye <- trace "c" $ lift (H.unHash key)
-              trace "d" $ addStmt (I.Assign (I.tType tye) (mkVar n) (I.tValue tye))
+              keys <- lift (H.subKeys key)
+              mapM_ unHash (map I.ExpHash keys)
+              tye <- lift (H.unHash key)
+              addStmt (I.Assign (I.tType tye) (mkVar n) (I.tValue tye))
               return $ I.ExpVar $ mkVar n
       Just n
         -> return $ I.ExpVar $ mkVar n
@@ -195,68 +195,67 @@ runFreshStmts cxt blk = do
 -- | Each statement may be turned into zero or more statements after constant
 -- folding. Expressions are assumed to be hash-consed and constant-folded.
 stmtFold :: String -> I.Stmt -> StmtM ()
-stmtFold cxt stmt = trace "r" $
-  case stmt of
-    I.IfTE _ [] []
-      -> return ()
-    I.IfTE e [] b1
-      -> stmtFold cxt (I.IfTE (I.ExpOp I.ExpNot [e]) b1 [])
-    I.IfTE b b0 b1
-      -> case b of
-           I.ExpLit (I.LitBool b')
-              -> mapM_ (stmtFold cxt) (if b' then b0 else b1)
-           _  -> do b'  <- unHash b
-                    b0' <- runFreshStmts cxt b0
-                    b1' <- runFreshStmts cxt b1
-                    addStmt (I.IfTE b' b0' b1')
-    I.CompilerAssert e
-      -> case e of
-           -- It's OK to have false but unreachable compiler asserts.
-           I.ExpLit (I.LitBool b)
-             | b -> return ()
-           _     -> do e' <- unHash e
-                       addStmt (I.CompilerAssert e')
-    I.Assert e
-      -> assertErr I.Assert e
-    I.Assume e
-      -> assertErr I.Assume e
-    I.Return (I.Typed ty e)
-      -> do e' <- trace (show e) $ unHash e
-            addStmt (I.Return (I.Typed ty e'))
-    I.ReturnVoid
-      -> addStmt I.ReturnVoid
-    I.Deref t var e
-      -> do e' <- unHash e
-            addStmt (I.Deref t var e')
-    I.Store t e0 e1
-      -> do e0' <- unHash e0
-            e1' <- unHash e1
-            addStmt $ I.Store t e0' e1'
-    I.Assign t v e
-      -> addStmt =<< (I.Assign t v <$> unHash e)
-    I.Call t mv c tyes
-      -> do let tys = map I.tType tyes
-            es <- mapM (unHash . I.tValue) tyes
-            let go (_,e) = I.Typed t e
-            addStmt $ I.Call t mv c (map go (zip tys es))
-    I.Local t var i
-      -> do i' <- constFoldInits i
-            addStmt (I.Local t var i')
-    I.RefCopy t e0 e1
-      -> do e0' <- unHash e0
-            e1' <- unHash e1
-            addStmt (I.RefCopy t e0' e1')
-    I.AllocRef{}
-      -> addStmt stmt
-    I.Loop v e incr blk
-      -> mkLoop cxt v e incr blk
-    I.Break
-      -> addStmt stmt
-    I.Forever blk
-      -> do blk' <- runFreshStmts cxt blk
-            addStmt (I.Forever blk')
-    I.Comment{}
-      -> addStmt stmt
+stmtFold cxt stmt = case stmt of
+  I.IfTE _ [] []
+    -> return ()
+  I.IfTE e [] b1
+    -> stmtFold cxt (I.IfTE (I.ExpOp I.ExpNot [e]) b1 [])
+  I.IfTE b b0 b1
+    -> case b of
+         I.ExpLit (I.LitBool b')
+            -> mapM_ (stmtFold cxt) (if b' then b0 else b1)
+         _  -> do b'  <- unHash b
+                  b0' <- runFreshStmts cxt b0
+                  b1' <- runFreshStmts cxt b1
+                  addStmt (I.IfTE b' b0' b1')
+  I.CompilerAssert e
+    -> case e of
+         -- It's OK to have false but unreachable compiler asserts.
+         I.ExpLit (I.LitBool b)
+           | b -> return ()
+         _     -> do e' <- unHash e
+                     addStmt (I.CompilerAssert e')
+  I.Assert e
+    -> assertErr I.Assert e
+  I.Assume e
+    -> assertErr I.Assume e
+  I.Return (I.Typed ty e)
+    -> do e' <- unHash e
+          addStmt (I.Return (I.Typed ty e'))
+  I.ReturnVoid
+    -> addStmt I.ReturnVoid
+  I.Deref t var e
+    -> do e' <- unHash e
+          addStmt (I.Deref t var e')
+  I.Store t e0 e1
+    -> do e0' <- unHash e0
+          e1' <- unHash e1
+          addStmt $ I.Store t e0' e1'
+  I.Assign t v e
+    -> addStmt =<< (I.Assign t v <$> unHash e)
+  I.Call t mv c tyes
+    -> do let tys = map I.tType tyes
+          es <- mapM (unHash . I.tValue) tyes
+          let go (_,e) = I.Typed t e
+          addStmt $ I.Call t mv c (map go (zip tys es))
+  I.Local t var i
+    -> do i' <- constFoldInits i
+          addStmt (I.Local t var i')
+  I.RefCopy t e0 e1
+    -> do e0' <- unHash e0
+          e1' <- unHash e1
+          addStmt (I.RefCopy t e0' e1')
+  I.AllocRef{}
+    -> addStmt stmt
+  I.Loop v e incr blk
+    -> mkLoop cxt v e incr blk
+  I.Break
+    -> addStmt stmt
+  I.Forever blk
+    -> do blk' <- runFreshStmts cxt blk
+          addStmt (I.Forever blk')
+  I.Comment{}
+    -> addStmt stmt
   where
   assertErr constr e =
     case e of
@@ -349,7 +348,7 @@ optKey k = do
   if k `S.member` optkeys
     then return e
     else do e' <- runCf k tye
-            trace ("new exp: " ++ show e') seenKey k -- mark as seen
+            seenKey k -- mark as seen
             lift (H.forceHashKey k (I.Typed (I.tType tye) e'))
             return e'
 
@@ -560,7 +559,7 @@ cfOp' ty op args = case op of
   goFB          = toExpr (cfFloatingB op args)
   cfOrd         = toExpr (cfOrd2 op args)
   goOrd ty' chk args' = fromOrdChecks cfOrd (chk ty' args')
-  goNum         = trace ("go num: " ++ show op ++ show args) toExpr (cfNum ty op args)
+  goNum         = toExpr (cfNum ty op args)
 
 --------------------------------------------------------------------------------
 
