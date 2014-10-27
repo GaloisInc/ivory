@@ -32,14 +32,18 @@ import qualified Language.Haskell.TH as T
 
 fromStruct :: StructDef -> Q [Dec]
 fromStruct def = case def of
+#if __GLASGOW_HASKELL__ >= 709
   StructDef n fs srcloc -> do
     let sym = mkSym n
     sizeOfDef <- mkIvorySizeOf n fs
     defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
-#if __GLASGOW_HASKELL__ >= 709
     ln <- lnPragma srcloc
     return (ln ++ defs)
 #else
+  StructDef n fs _srcloc -> do
+    let sym = mkSym n
+    sizeOfDef <- mkIvorySizeOf n fs
+    defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
     return defs
 #endif
   AbstractDef n _hdr srcloc -> sequence (mkIvoryStruct (mkSym n) def)

@@ -51,19 +51,28 @@ import Ivory.Language.Syntax.Concrete.Location
 
 -- | Top-level constant definition.
 fromConstDef :: ConstDef -> Q [Dec]
-fromConstDef (ConstDef sym e mtype srcloc) = do
-  n <- newName sym
-  let def = ValD (VarP n) (NormalB $ toExp [] e) []
-  case mtype of
-    Nothing -> return [def]
-    Just ty -> do tyQ <- runToQ (fromType ty)
-                  -- Ignore possible type variables---should be any for a
-                  -- top-level constant.
+fromConstDef def = case def of
 #if __GLASGOW_HASKELL__ >= 709
-                  ln <- lnPragma srcloc
-                  return (ln ++ [SigD n (fst tyQ), def])
+  ConstDef sym e mtype srcloc -> do
+    n <- newName sym
+    let def = ValD (VarP n) (NormalB $ toExp [] e) []
+    case mtype of
+      Nothing -> return [def]
+      Just ty -> do tyQ <- runToQ (fromType ty)
+                    -- Ignore possible type variables---should be any for a
+                    -- top-level constant.
+                    ln <- lnPragma srcloc
+                    return (ln ++ [SigD n (fst tyQ), def])
 #else
-                  return [SigD n (fst tyQ), def]
+  ConstDef sym e mtype _srcloc -> do
+    n <- newName sym
+    let def = ValD (VarP n) (NormalB $ toExp [] e) []
+    case mtype of
+      Nothing -> return [def]
+      Just ty -> do tyQ <- runToQ (fromType ty)
+                    -- Ignore possible type variables---should be any for a
+                    -- top-level constant.
+                    return [SigD n (fst tyQ), def]
 #endif
 
 fromLit :: Literal -> T.Exp
