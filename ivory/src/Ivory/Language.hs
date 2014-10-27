@@ -199,9 +199,6 @@ module Ivory.Language (
 
   ) where
 
--- XXX
-import Language.Haskell.TH hiding (Body)
-
 import Ivory.Language.Area
 import Ivory.Language.Array
 import Ivory.Language.Assert
