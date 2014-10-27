@@ -36,22 +36,22 @@ import           Control.Applicative (Applicative())
 --------------------------------------------------------------------------------
 -- XXX testing
 
-import Debug.Trace
+-- import Debug.Trace
 
-import Ivory.Language
-import Ivory.Language.Proc
+-- import Ivory.Language
+-- import Ivory.Language.Proc
 
-foo :: Def ('[IBool, Uint8] :-> Uint8)
-foo = proc "foo" $ \bb x -> body $ do
-  v <- assign 3
-  v0 <- assign 4
-  b <- assign true
-  ifte_ bb (ret 2) (ret 8)
-  ret (b ? (v,v0))
+-- foo :: Def ('[IBool, Uint8] :-> Uint8)
+-- foo = proc "foo" $ \bb x -> body $ do
+--   v <- assign 3
+--   v0 <- assign 4
+--   b <- assign true
+--   ifte_ bb (ret 2) (ret 8)
+--   ret (b ? (v,v0))
 
-run =
-  case foo of
-    DefProc p -> constFold p
+-- run =
+--   case foo of
+--     DefProc p -> constFold p
 
 --------------------------------------------------------------------------------
 -- Monad
