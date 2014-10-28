@@ -30,6 +30,7 @@ import qualified Ivory.Opts.TypeCheck       as T
 
 import qualified Data.ByteString.Char8      as B
 
+import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Control.Monad (when)
 import Data.List (foldl')
@@ -169,6 +170,8 @@ rc sm userSearchPath modules opts
   ixPass = mkPass ixCheck O.ixFold
   bsPass = mkPass bitShiftCheck O.bitShiftFold
 
+  locPass = mkPass (not . srcLocs) dropSrcLocs
+
   mkPass passOpt pass = if passOpt opts then pass else id
 
   -- Constant folding before and after all other passes.
@@ -176,7 +179,8 @@ rc sm userSearchPath modules opts
   -- XXX This should be made more efficient at some point, since each pass
   --traverses the AST.  It's not obvious how to do that cleanly, though.
   passes e = foldl' (flip ($)) e
-    [ cfPass
+    [ locPass
+    , cfPass
     , ofPass, dzPass, fpPass, ixPass, bsPass
     , cfPass
     ]
@@ -271,3 +275,14 @@ mkSearchPath opts userSearchPaths = do
     Just path -> return path
     Nothing   -> Paths_ivory_backend_c.getDataDir
 
+dropSrcLocs :: I.Proc -> I.Proc
+dropSrcLocs p = p { I.procBody = dropSrcLocsBlock (I.procBody p) }
+  where
+  dropSrcLocsBlock = mapMaybe go
+  go stmt = case stmt of
+    I.IfTE b t f              -> Just $ I.IfTE b (dropSrcLocsBlock t)
+                                                 (dropSrcLocsBlock f)
+    I.Loop v e i b            -> Just $ I.Loop v e i (dropSrcLocsBlock b)
+    I.Forever b               -> Just $ I.Forever (dropSrcLocsBlock b)
+    I.Comment (I.SourcePos _) -> Nothing
+    _                         -> Just stmt

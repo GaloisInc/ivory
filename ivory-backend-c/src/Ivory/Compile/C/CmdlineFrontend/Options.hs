@@ -73,6 +73,7 @@ data Opts = Opts
   , cfgProc     :: [String]
   -- debugging
   , verbose     :: Bool
+  , srcLocs     :: Bool
   -- Typechecking
   , tcWarnings  :: Bool
   , tcErrors    :: Bool
@@ -106,6 +107,7 @@ initialOpts  = Opts
   , cfgProc      = []
   -- debugging
   , verbose      = False
+  , srcLocs      = False
   , tcWarnings   = False
   , tcErrors     = True
   , help         = False
@@ -162,6 +164,9 @@ addCfgProc str = success (\opts -> opts { cfgProc = cfgProc opts ++ [str] })
 setVerbose :: OptParser Opts
 setVerbose  = success (\opts -> opts { verbose = True })
 
+setSrcLocs :: OptParser Opts
+setSrcLocs  = success (\opts -> opts { srcLocs = True })
+
 setWarnings :: OptParser Opts
 setWarnings = success (\opts -> opts { verbose = True })
 
@@ -213,6 +218,9 @@ options  =
 
   , Option "" ["verbose"] (NoArg setVerbose)
     "verbose debugging output"
+
+  , Option "" ["srclocs"] (NoArg setSrcLocs)
+    "output source locations from the Ivory code"
 
   , Option "" ["tc-warnings"] (NoArg setWarnings)
     "show type-check warnings"
