@@ -107,14 +107,6 @@ ensures_' chk prop b = wrap $ do
   emitPostCond (I.Ensure c)
   unwrap b
 
--- XXX Do not export
-ensures_' :: (Ensures c)
-  => (c -> Cond) -> c -> Body () -> Body ()
-ensures_' chk prop b = Body $ do
-  c <- runCond $ chk $ prop
-  emitPostCond (I.Ensure c)
-  runBody b
-
 instance Ensures IBool where
   ensures = ensures' check
   ensures_ = ensures_' check
