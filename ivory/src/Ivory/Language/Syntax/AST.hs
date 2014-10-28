@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Language.Syntax.AST where
@@ -360,13 +361,67 @@ data ExpOp
 
     deriving (Show, Eq, Ord)
 
+isLiteralValue :: Integer -> Literal -> Bool
+isLiteralValue v (LitInteger i) = v == i
+isLiteralValue v (LitFloat f) = fromInteger v == f
+isLiteralValue v (LitDouble f) = fromInteger v == f
+isLiteralValue _ _ = False
+
+getInteger :: Literal -> Maybe Integer
+getInteger (LitInteger i) = Just i
+getInteger _ = Nothing
+
+getDouble :: Literal -> Maybe Double
+getDouble (LitInteger i) = Just $ fromInteger i
+getDouble (LitFloat f) = Just $ realToFrac f
+getDouble (LitDouble d) = Just d
+getDouble _ = Nothing
+
+unOpFloat :: ExpOp -> (Double -> Double) -> Expr -> Expr
+unOpFloat _ f (ExpLit (getDouble -> Just v)) = ExpLit $ LitDouble $ f v
+unOpFloat o _ v = ExpOp o [v]
+
+unOpNum :: ExpOp -> (Integer -> Integer) -> (Double -> Double) -> Expr -> Expr
+unOpNum _ f _ (ExpLit (getInteger -> Just v)) = ExpLit $ LitInteger $ f v
+unOpNum o _ d v = unOpFloat o d v
+
+binOpFloat :: ExpOp -> (Double -> Double -> Double) -> Expr -> Expr -> Expr
+binOpFloat _ f (ExpLit (getDouble -> Just l)) (ExpLit (getDouble -> Just r)) = ExpLit $ LitDouble $ f l r
+binOpFloat o _ l r = ExpOp o [l,r]
+
+binOpNum :: ExpOp -> (Integer -> Integer -> Integer) -> (Double -> Double -> Double) -> Expr -> Expr -> Expr
+binOpNum _ f _ (ExpLit (getInteger -> Just l)) (ExpLit (getInteger -> Just r)) = ExpLit $ LitInteger $ f l r
+binOpNum o _ d l r = binOpFloat o d l r
+
 instance Num Expr where
-  l * r         = ExpOp ExpMul [l,r]
-  l + r         = ExpOp ExpAdd [l,r]
-  l - r         = ExpOp ExpSub [l,r]
-  abs e         = ExpOp ExpAbs [e]
-  signum e      = ExpOp ExpSignum [e]
-  negate e      = ExpOp ExpNegate [e]
+  l * (ExpLit r)
+    | isLiteralValue 0 r = ExpLit r
+    | isLiteralValue 1 r = l
+    | isLiteralValue (-1) r = negate l
+  l * (ExpOp ExpRecip [r]) = l / r
+  (ExpLit l) * r
+    | isLiteralValue 0 l = ExpLit l
+    | isLiteralValue 1 l = r
+    | isLiteralValue (-1) l = negate r
+  (ExpOp ExpRecip [l]) * r = r / l
+  l * r         = binOpNum ExpMul (*) (*) l r
+
+  l + (ExpLit r) | isLiteralValue 0 r = l
+  l + (ExpOp ExpNegate [r]) = l - r
+  (ExpLit l) + r | isLiteralValue 0 l = r
+  (ExpOp ExpNegate [l]) + r = r - l
+  l + r         = binOpNum ExpAdd (+) (+) l r
+
+  l - (ExpLit r) | isLiteralValue 0 r = l
+  l - (ExpOp ExpNegate [r]) = l + r
+  (ExpLit l) - r | isLiteralValue 0 l = negate r
+  (ExpOp ExpNegate [l]) - r = negate $ l + r
+  l - r         = binOpNum ExpSub (-) (-) l r
+
+  abs e         = unOpNum ExpAbs abs abs e
+  signum e      = unOpNum ExpSignum signum signum e
+  negate (ExpOp ExpNegate [e]) = e
+  negate e      = unOpNum ExpNegate negate negate e
   fromInteger i = ExpLit (LitInteger i)
 
 instance Bounded Expr where
@@ -374,29 +429,31 @@ instance Bounded Expr where
   maxBound = ExpMaxMin True
 
 instance Fractional Expr where
-  l / r        = ExpOp ExpDiv [l,r]
-  recip a      = ExpOp ExpRecip [a]
+  l / (ExpLit r) | isLiteralValue 1 r = l
+  (ExpLit l) / r | isLiteralValue 1 l = recip r
+  l / r        = binOpFloat ExpDiv (/) l r
+  recip a      = unOpFloat ExpRecip recip a
   fromRational a = fromInteger (numerator a) / fromInteger (denominator a)
 
 instance Floating Expr where
   pi          = error "pi not implemented for Expr"
-  exp e       = ExpOp ExpFExp [e]
-  sqrt e      = ExpOp ExpFSqrt [e]
-  log e       = ExpOp ExpFLog [e]
-  a ** b      = ExpOp ExpFPow [a,b]
-  logBase a b = ExpOp ExpFLogBase [a,b]
-  sin e       = ExpOp ExpFSin [e]
-  tan e       = ExpOp ExpFTan [e]
-  cos e       = ExpOp ExpFCos [e]
-  asin e      = ExpOp ExpFAsin [e]
-  atan e      = ExpOp ExpFAtan [e]
-  acos e      = ExpOp ExpFAcos [e]
-  sinh e      = ExpOp ExpFSinh [e]
-  tanh e      = ExpOp ExpFTanh [e]
-  cosh e      = ExpOp ExpFCosh [e]
-  asinh e     = ExpOp ExpFAsinh [e]
-  atanh e     = ExpOp ExpFAtanh [e]
-  acosh e     = ExpOp ExpFAcosh [e]
+  exp e       = unOpFloat ExpFExp exp e
+  sqrt e      = unOpFloat ExpFSqrt sqrt e
+  log e       = unOpFloat ExpFLog log e
+  a ** b      = binOpFloat ExpFPow (**) a b
+  logBase a b = binOpFloat ExpFLogBase logBase a b
+  sin e       = unOpFloat ExpFSin sin e
+  tan e       = unOpFloat ExpFTan tan e
+  cos e       = unOpFloat ExpFCos cos e
+  asin e      = unOpFloat ExpFAsin asin e
+  atan e      = unOpFloat ExpFAtan atan e
+  acos e      = unOpFloat ExpFAcos acos e
+  sinh e      = unOpFloat ExpFSinh sinh e
+  tanh e      = unOpFloat ExpFTanh tanh e
+  cosh e      = unOpFloat ExpFCosh cosh e
+  asinh e     = unOpFloat ExpFAsinh asinh e
+  atanh e     = unOpFloat ExpFAtanh atanh e
+  acosh e     = unOpFloat ExpFAcosh acosh e
 
 
 -- Literals --------------------------------------------------------------------
