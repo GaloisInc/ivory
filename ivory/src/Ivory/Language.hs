@@ -143,6 +143,7 @@ module Ivory.Language (
   , requires
   , checkStored
   , ensures
+  , ensures_
 
     -- ** Assumption/Assertion statements
   , assert
