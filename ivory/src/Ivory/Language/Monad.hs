@@ -155,7 +155,7 @@ mkLocation file l1 c1 l2 c2
   = SrcLoc (Range (Position 0 l1 c1) (Position 0 l2 c2)) (Just file)
 
 setLocation :: SrcLoc -> Ivory eff ()
-setLocation src = emit (AST.Comment $ AST.SourceNote src)
+setLocation src = emit (AST.Comment $ AST.SourcePos src)
 
 withLocation :: SrcLoc -> Ivory eff a -> Ivory eff a
 withLocation src act = setLocation src >> act

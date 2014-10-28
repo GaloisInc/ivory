@@ -228,7 +228,7 @@ data Name
     deriving (Show, Eq, Ord)
 
 data Comment = UserComment String
-             | SourceNote SrcLoc
+             | SourcePos   SrcLoc
                deriving (Show, Eq, Ord)
 
 

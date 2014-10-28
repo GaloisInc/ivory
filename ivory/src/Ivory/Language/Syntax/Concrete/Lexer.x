@@ -30,7 +30,7 @@ import Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 
-$digit       = 0-9
+$digit       = [0-9]
 $hexdig      = [0-9A-Fa-f]
 $alpha       = [a-zA-Z]
 $lowerletter = [a-z]
@@ -45,7 +45,7 @@ $capletter   = [A-Z]
 @string      = \" [$printable # \"]* \"
 @bitlit      = $digit+ b [0 1]+
 @hexlit      = 0x $hexdig+
-@float       = $digit+ . $digit+
+@float       = $digit+ \. $digit+
 
 --------------------------------------------------------------------------------
 
@@ -53,10 +53,10 @@ tokens :-
   $white+ ;
   "--".*  ;
 
-  $digit+      { emitS (TokInteger . read) }
-  @hexlit      { emitS (TokInteger . read) }
+  $digit+      { emitS readInteger }
+  @hexlit      { emitS readInteger }
   @bitlit      { emitS readBitLit }
-  @float       { emitS (TokFloat . read) }
+  @float       { emitS readFloat }
 
 -- Reserved words: statements
   if       { keyword }

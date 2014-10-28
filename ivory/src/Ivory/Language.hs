@@ -143,6 +143,7 @@ module Ivory.Language (
   , requires
   , checkStored
   , ensures
+  , ensures_
 
     -- ** Assumption/Assertion statements
   , assert
@@ -198,9 +199,6 @@ module Ivory.Language (
   , Proxy(..), comment
 
   ) where
-
--- XXX
-import Language.Haskell.TH hiding (Body)
 
 import Ivory.Language.Area
 import Ivory.Language.Array
