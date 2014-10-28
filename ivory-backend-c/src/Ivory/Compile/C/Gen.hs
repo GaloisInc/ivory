@@ -321,9 +321,9 @@ toBody ens stmt =
     I.Store t ptr exp             -> [C.BlockStm
       [cstm| * $exp:(toExpr (I.TyRef t) ptr) = $exp:(toExpr t exp); |]]
 
-    I.Comment (I.UserComment c)                   -> [C.BlockStm
+    I.Comment (I.UserComment c)   -> [C.BlockStm
       [cstm| $comment:("/* " ++ c ++ " */"); |]]
-    I.Comment (I.SourceNote src)                   -> [C.BlockStm
+    I.Comment (I.SourcePos src)   -> [C.BlockStm
       [cstm| $comment:("/* " ++ prettyPrint (pretty src) ++ " */"); |]]
 -- | Return statement.
 typedRet :: I.Typed I.Expr -> C.Exp
