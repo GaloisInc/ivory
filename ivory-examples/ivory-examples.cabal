@@ -70,4 +70,4 @@ executable ivory-c-clang-test
                         ivory-stdlib,
                         QuickCheck
   default-language:     Haskell2010
-  ghc-options:          -Wall
+  ghc-options:          -Wall -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opts=Ivory.Language.Plugin:kill-foreign-stubs

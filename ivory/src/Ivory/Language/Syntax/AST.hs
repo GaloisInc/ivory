@@ -3,6 +3,7 @@
 
 module Ivory.Language.Syntax.AST where
 
+import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Names
 import Ivory.Language.Syntax.Type
 
@@ -212,7 +213,7 @@ data Stmt
   | Break
     -- ^ Break out of a loop
 
-  | Comment String
+  | Comment Comment
     -- ^ User comment, can be used to output a comment in the backend.
     deriving (Show, Eq, Ord)
 
@@ -225,6 +226,10 @@ data Name
   = NameSym Sym
   | NameVar Var
     deriving (Show, Eq, Ord)
+
+data Comment = UserComment String
+             | SourceNote SrcLoc
+               deriving (Show, Eq, Ord)
 
 
 -- Conditions ------------------------------------------------------------------
@@ -430,7 +435,7 @@ deriveLiftMany
   , ''Extern, ''Set.Set
 
   , ''Name
-  , ''Stmt, ''LoopIncr
+  , ''Stmt, ''LoopIncr, ''Comment, ''SrcLoc, ''Range, ''Position
   , ''Expr, ''ExpOp, ''Literal, ''Init
   ]
 
