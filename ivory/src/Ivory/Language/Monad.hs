@@ -33,12 +33,19 @@ module Ivory.Language.Monad (
   , freshVar
   , result
   , assign
+
+    -- ** Source Locations
+  , SrcLoc
+  , mkLocation
+  , setLocation
+  , withLocation
   ) where
 
 import qualified Ivory.Language.Effects as E
 import Ivory.Language.Proxy
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as AST
+import Ivory.Language.Syntax.Concrete.Location
 
 import Control.Applicative (Applicative(..))
 import Data.Monoid (Monoid(..))
@@ -143,3 +150,12 @@ assign e = do
   emit (AST.Assign (ivoryType (Proxy :: Proxy a)) r (unwrapExpr e))
   return (wrapExpr (AST.ExpVar r))
 
+mkLocation :: FilePath -> Int -> Int -> Int -> Int -> SrcLoc
+mkLocation file l1 c1 l2 c2
+  = SrcLoc (Range (Position 0 l1 c1) (Position 0 l2 c2)) (Just file)
+
+setLocation :: SrcLoc -> Ivory eff ()
+setLocation src = emit (AST.Comment $ AST.SourceNote src)
+
+withLocation :: SrcLoc -> Ivory eff a -> Ivory eff a
+withLocation src act = setLocation src >> act
