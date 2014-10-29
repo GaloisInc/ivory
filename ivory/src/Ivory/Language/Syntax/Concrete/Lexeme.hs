@@ -58,3 +58,8 @@ readFloat :: String -> Token
 readFloat s = case reads s of
   [(f,"")] -> TokFloat f
   _        -> error $ "Lex error on float " ++ s
+
+readStringLit :: String -> Token
+readStringLit s = case reads s of
+  [(s',"")] -> TokString s'
+  _         -> error $ "Lex error on string " ++ s
