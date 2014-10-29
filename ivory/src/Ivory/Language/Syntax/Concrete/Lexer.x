@@ -42,7 +42,7 @@ $capletter   = [A-Z]
 @brack       = [\( \) \[ \] \{ \}]
 @sep         = [\, \;]
 -- @filepath    = \" [$printable # \" # $white]+ \"
-@string      = \" [$printable # \"]* \"
+@string      = \" [$printable]* \"
 @bitlit      = $digit+ b [0 1]+
 @hexlit      = 0x $hexdig+
 @float       = $digit+ \. $digit+
@@ -198,7 +198,7 @@ tokens :-
 -- Separators
   @sep      { emitS TokSep }
 -- Strings
-  @string { emitS TokString }
+  @string { emitS readStringLit }
 
 --------------------------------------------------------------------------------
 

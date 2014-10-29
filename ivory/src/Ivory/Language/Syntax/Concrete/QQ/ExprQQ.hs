@@ -20,8 +20,6 @@ module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 import           Prelude hiding (exp, init)
 import qualified Prelude as P
 
-import           Data.String (IsString(..))
-
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
@@ -66,20 +64,20 @@ fromConstDef def = case def of
 #else
   ConstDef sym e mtype _srcloc -> do
     n <- newName sym
-    let def = ValD (VarP n) (NormalB $ toExp [] e) []
+    let d = ValD (VarP n) (NormalB $ toExp [] e) []
     case mtype of
-      Nothing -> return [def]
+      Nothing -> return [d]
       Just ty -> do tyQ <- runToQ (fromType ty)
                     -- Ignore possible type variables---should be any for a
                     -- top-level constant.
-                    return [SigD n (fst tyQ), def]
+                    return [SigD n (fst tyQ), d]
 #endif
 
 fromLit :: Literal -> T.Exp
 fromLit lit = case lit of
   LitInteger int -> LitE (IntegerL int)
   LitFloat   f   -> LitE (RationalL f)
-  LitString  str -> AppE (VarE 'fromString) (LitE (StringL str))
+  LitString  str -> LitE (StringL str)
 
 fromOpExp :: VarEnv -> ExpOp -> [Exp] -> T.Exp
 fromOpExp env op args = case op of

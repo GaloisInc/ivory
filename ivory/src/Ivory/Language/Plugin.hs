@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 module Ivory.Language.Plugin (plugin) where
@@ -25,13 +26,13 @@ pass killForeignStubs guts@(ModGuts {..}) = do
   df  <- getDynFlags
   EPS {..} <- liftIO $ hscEPS hsc_env
 
-  Just withLocName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD wITH_LOC
+  Just withLocName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD wITH_LOC
   withLocVar <- lookupId withLocName
 
-  Just mkLocName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD mK_LOC
+  Just mkLocName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD mK_LOC
   mkLocVar <- lookupId mkLocName
 
-  Just ivoryName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD iVORY
+  Just ivoryName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD iVORY
   ivoryCon <- lookupTyCon ivoryName
 
   let modName = moduleNameString $ moduleName mg_module
@@ -110,8 +111,8 @@ mkWithLocExpr withLocVar loc expr
 mkLocExpr :: Var -> DynFlags -> CoreExpr -> HpcPos -> CoreExpr
 mkLocExpr mkLocVar df file (fromHpcPos -> (l1,c1,l2,c2))
   = mkCoreApps (Var mkLocVar) [ file
-                              , mkIntExprInt df l1, mkIntExprInt df c1
-                              , mkIntExprInt df l2, mkIntExprInt df c2
+                              , mkInt df l1, mkInt df c1
+                              , mkInt df l2, mkInt df c2
                               ]
 
 iVORY_MONAD :: ModuleName
@@ -121,3 +122,19 @@ wITH_LOC, mK_LOC, iVORY :: RdrName
 wITH_LOC    = mkVarUnqual $ fsLit "withLocation"
 mK_LOC      = mkVarUnqual $ fsLit "mkLocation"
 iVORY       = mkRdrQual iVORY_MONAD $ mkTcOcc "Ivory"
+
+
+--------------------------------------------------------------------------------
+-- Let's maintain a bit of backwards compatibility..
+--------------------------------------------------------------------------------
+
+lookupRdrName :: HscEnv -> ModuleName -> RdrName -> IO (Maybe Name)
+mkInt :: DynFlags -> Int -> CoreExpr
+
+#if __GLASGOW_HASKELL__ >= 708
+lookupRdrName = lookupRdrNameInModuleForPlugins
+mkInt = mkIntExprInt
+#else
+lookupRdrName = lookupRdrNameInModule
+mkInt _ = mkIntExprInt
+#endif

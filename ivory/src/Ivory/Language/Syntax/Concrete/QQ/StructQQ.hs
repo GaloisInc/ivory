@@ -39,15 +39,17 @@ fromStruct def = case def of
     defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
     ln <- lnPragma srcloc
     return (ln ++ defs)
+  StringDef name len srcloc -> mkStringDef name len
+  AbstractDef n _hdr srcloc -> sequence (mkIvoryStruct (mkSym n) def)
 #else
   StructDef n fs _srcloc -> do
     let sym = mkSym n
     sizeOfDef <- mkIvorySizeOf n fs
     defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
     return defs
+  StringDef name len _srcloc -> mkStringDef name len
+  AbstractDef n _hdr _srcloc -> sequence (mkIvoryStruct (mkSym n) def)
 #endif
-  AbstractDef n _hdr srcloc -> sequence (mkIvoryStruct (mkSym n) def)
-  StringDef name len srcloc -> mkStringDef name len
   where
   mkSym = litT . strTyLit
 
