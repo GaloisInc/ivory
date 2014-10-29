@@ -66,13 +66,13 @@ fromConstDef def = case def of
 #else
   ConstDef sym e mtype _srcloc -> do
     n <- newName sym
-    let def = ValD (VarP n) (NormalB $ toExp [] e) []
+    let d = ValD (VarP n) (NormalB $ toExp [] e) []
     case mtype of
-      Nothing -> return [def]
+      Nothing -> return [d]
       Just ty -> do tyQ <- runToQ (fromType ty)
                     -- Ignore possible type variables---should be any for a
                     -- top-level constant.
-                    return [SigD n (fst tyQ), def]
+                    return [SigD n (fst tyQ), d]
 #endif
 
 fromLit :: Literal -> T.Exp

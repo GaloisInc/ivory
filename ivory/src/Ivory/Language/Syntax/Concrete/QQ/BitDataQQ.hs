@@ -33,7 +33,9 @@ import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
 import qualified Ivory.Language.BitData.Bits    as B
 import qualified Ivory.Language.BitData.BitData as B
 import qualified Ivory.Language.BitData.Array   as B
+#if __GLASGOW_HASKELL__ >= 709
 import           Ivory.Language.Syntax.Concrete.QQ.Common
+#endif
 import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 import           Ivory.Language.Syntax.Concrete.Location
 

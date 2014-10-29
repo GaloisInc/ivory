@@ -37,20 +37,26 @@ import qualified Ivory.Language.Array     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Location
+#if __GLASGOW_HASKELL__ >= 709
 import Ivory.Language.Syntax.Concrete.QQ.Common
+#endif
 
 --------------------------------------------------------------------------------
 -- Haskell type synonyms
 
 fromTypeDef :: TypeDef -> Q [Dec]
-fromTypeDef (TypeDef syn ty srcloc) = do
-  n      <- newName syn
-  (t, _) <- runToQ (fromType ty)
+fromTypeDef td = case td of
 #if __GLASGOW_HASKELL__ >= 709
-  ln <- lnPragma srcloc
-  return (ln ++ [TySynD n [] t])
+  TypeDef syn ty srcloc -> do
+    n      <- newName syn
+    (t, _) <- runToQ (fromType ty)
+    ln <- lnPragma srcloc
+    return (ln ++ [TySynD n [] t])
 #else
-  return [TySynD n [] t]
+  TypeDef syn ty _srcloc -> do
+    n      <- newName syn
+    (t, _) <- runToQ (fromType ty)
+    return [TySynD n [] t]
 #endif
 
 --------------------------------------------------------------------------------
