@@ -24,6 +24,8 @@ import Control.Applicative
 import Data.List
 import Data.Monoid
 
+import Ivory.Language.Syntax.Concrete.Location
+import Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Language.Syntax.Type as I
 
@@ -45,8 +47,8 @@ data Error = EmptyBody
   deriving (Show, Read, Eq)
 
 data Results = Results
-  { errs     :: [Error]
-  , warnings :: [Warning]
+  { errs     :: [Located Error]
+  , warnings :: [Located Warning]
   } deriving (Show, Read, Eq)
 
 instance Monoid Results where
@@ -73,13 +75,18 @@ showWarning w = case w of
   VoidEmptyBody
     -> "Procedure with void return type has no statements."
 
+showWithLoc :: (a -> String) -> Located a -> String
+showWithLoc sh (Located loc a) = prettyPrint (pretty loc) ++ ": " ++ sh a
+
 -- | Given a procedure name, show all the typechecking results for that procedure.
 showErrors :: String -> Results -> [String]
-showErrors procName res = mkOut procName "ERROR" showError (errs res)
+showErrors procName res
+  = mkOut procName "ERROR" (showWithLoc showError) (errs res)
 
 -- | Given a procedure name, show all the typechecking results for that procedure.
 showWarnings :: String -> Results -> [String]
-showWarnings procName res = mkOut procName "WARNING" showWarning (warnings res)
+showWarnings procName res
+  = mkOut procName "WARNING" (showWithLoc showWarning) (warnings res)
 
 mkOut :: String -> String -> (a -> String) -> [a] -> [String]
 mkOut _   _    _  [] = []
@@ -91,20 +98,28 @@ mkOut sym kind sh ls = nm : map go ls
 --------------------------------------------------------------------------------
 -- Writer Monad
 
-newtype TCResults a = TCResults { unTC :: Writer Results a }
+newtype TCResults a = TCResults { unTC :: WriterT Results (State SrcLoc) a }
   deriving (Functor, Applicative, Monad)
 
 instance WriterM TCResults Results where
   put e = TCResults (put e)
 
+instance StateM TCResults SrcLoc where
+  get = TCResults get
+  set = TCResults . set
+
 putError :: Error -> TCResults ()
-putError err = put (Results [err] [])
+putError err = do
+  loc <- get
+  put (Results [err `at` loc] [])
 
 putWarn :: Warning -> TCResults ()
-putWarn warn = put (Results [] [warn])
+putWarn warn = do
+  loc <- get
+  put (Results [] [warn `at` loc])
 
 runTCResults :: TCResults a -> (a, Results)
-runTCResults tc = runWriter (unTC tc)
+runTCResults tc = fst $ runState NoLoc $ runWriterT (unTC tc)
 
 --------------------------------------------------------------------------------
 
@@ -154,6 +169,9 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
          tyChk' (sb, False) ss
   tyChk' b (I.Local t v init : ss)
     = do checkInit init
+         tyChk' b ss
+  tyChk' b (I.Comment (I.SourcePos src):ss)
+    = do set src
          tyChk' b ss
   tyChk' b (_:ss)
     = tyChk' b ss
