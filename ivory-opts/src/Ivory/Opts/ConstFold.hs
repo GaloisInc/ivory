@@ -188,9 +188,9 @@ runFreshStmts cxt blk = do
   st <- get
   set st { stmts = D.empty }
   mapM_ (stmtFold cxt) blk
-  ss <- getStmts
-  set st { stmts = stmts st }
-  return (D.toList ss)
+  st' <- get
+  set st { freshIx = freshIx st' }
+  return (D.toList (stmts st'))
 
 -- | Each statement may be turned into zero or more statements after constant
 -- folding. Expressions are assumed to be hash-consed and constant-folded.
