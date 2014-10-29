@@ -111,8 +111,8 @@ mkWithLocExpr withLocVar loc expr
 mkLocExpr :: Var -> DynFlags -> CoreExpr -> HpcPos -> CoreExpr
 mkLocExpr mkLocVar df file (fromHpcPos -> (l1,c1,l2,c2))
   = mkCoreApps (Var mkLocVar) [ file
-                              , mkIntExprInt df l1, mkIntExprInt df c1
-                              , mkIntExprInt df l2, mkIntExprInt df c2
+                              , mkInt df l1, mkInt df c1
+                              , mkInt df l2, mkInt df c2
                               ]
 
 iVORY_MONAD :: ModuleName
@@ -123,10 +123,18 @@ wITH_LOC    = mkVarUnqual $ fsLit "withLocation"
 mK_LOC      = mkVarUnqual $ fsLit "mkLocation"
 iVORY       = mkRdrQual iVORY_MONAD $ mkTcOcc "Ivory"
 
+
+--------------------------------------------------------------------------------
+-- Let's maintain a bit of backwards compatibility..
+--------------------------------------------------------------------------------
+
 lookupRdrName :: HscEnv -> ModuleName -> RdrName -> IO (Maybe Name)
+mkInt :: DynFlags -> Int -> CoreExpr
+
 #if __GLASGOW_HASKELL__ >= 708
 lookupRdrName = lookupRdrNameInModuleForPlugins
+mkInt = mkIntExprInt
 #else
 lookupRdrName = lookupRdrNameInModule
+mkInt _ = mkIntExprInt
 #endif
-
