@@ -8,6 +8,7 @@
 module Ivory.ModelCheck where
 
 import qualified Ivory.Language.Syntax       as I
+import           Ivory.Language.Syntax.Concrete.Location
 import           Text.Printf
 import           Ivory.ModelCheck.Ivory2CVC4
 import           Ivory.ModelCheck.Monad
@@ -33,6 +34,7 @@ import Ivory.Compile.C.CmdlineFrontend
 data Args = Args
   { printQuery  :: Bool
   , printEnv    :: Bool
+  , printLocs   :: Bool
   , inlineCall  :: Bool -- ^ Should we inline `call`s or just assume the `ensures`?
   , callCVC4    :: Bool
   , cvc4Path    :: FilePath
@@ -43,6 +45,7 @@ initArgs :: Args
 initArgs = Args
   { printQuery = True
   , printEnv   = True
+  , printLocs  = True
   , inlineCall = False
   , callCVC4   = True
   , cvc4Path   =  ""
@@ -74,7 +77,7 @@ modelCheck' mod = do
 
 modelCheck :: Args -> I.Module -> IO (Result, FilePath)
 modelCheck args m = do
-  let (_, st) = runMC (SymOpts $ inlineCall args) (modelCheckMod m)
+  let (_, st) = runMC (SymOpts (inlineCall args)) (modelCheckMod m)
   let bs = B.unlines (mkScript st)
   debugging args st bs
   file <- writeInput bs
@@ -145,7 +148,7 @@ mkScript st =
 -- | Are the assertions consistent?  If not, there's a bug in the
 -- model-checking.
 consistencyQuery :: Statement
-consistencyQuery = query false
+consistencyQuery = query $ noLoc false
 
 allQueries :: SymExecSt -> [Statement]
 allQueries st =

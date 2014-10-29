@@ -14,6 +14,9 @@ import           Data.String
 import           Data.Word
 import           Prelude               hiding (exp)
 
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.Pretty
+
 --------------------------------------------------------------------------------
 
 type Var  = String
@@ -31,6 +34,9 @@ instance Concrete B.ByteString where
 instance Concrete String where
   concrete = B.pack
 
+instance Concrete SrcLoc where
+  concrete = concrete . prettyPrint . pretty
+
 data ConcreteList = forall a. Concrete a => CL a
 
 -- Specialization
@@ -42,8 +48,8 @@ clBS = CL
 
 data Statement = TypeDecl String [(Var, Type)]
                | VarDecl Var Type
-               | Assert Expr
-               | Query Expr
+               | Assert (Located Expr)
+               | Query (Located Expr)
                -- Arbitrary statement constructed by-hand.
                | forall a . Concrete a => Statement a
 
@@ -53,8 +59,10 @@ instance Concrete Statement where
   concrete (TypeDecl ty fs)
     = statement $ [CL ty, clBS ":", clBS "TYPE", clBS "= [#", fieldList fs, clBS "#]"]
   concrete (VarDecl v ty)  = statement [CL v, clBS ":", CL ty]
-  concrete (Assert exp)    = statement [clBS "ASSERT", CL exp]
-  concrete (Query exp)     = statement [clBS "QUERY", CL exp]
+  concrete (Assert (Located loc exp))
+    = statement [clBS "ASSERT", CL exp, clBS ";\t %", CL loc]
+  concrete (Query (Located loc exp))
+    = statement [clBS "QUERY", CL exp, clBS ";\t %", CL loc]
   concrete (Statement a)   = statement [CL a]
 
 statement :: [ConcreteList] -> B.ByteString
@@ -73,10 +81,10 @@ typeDecl = TypeDecl
 varDecl :: Var -> Type -> Statement
 varDecl = VarDecl
 
-assert :: Expr -> Statement
+assert :: Located Expr -> Statement
 assert = Assert
 
-query :: Expr -> Statement
+query :: Located Expr -> Statement
 query = Query
 
 --------------------------------------------------------------------------------
@@ -423,4 +431,4 @@ cvc4Lib =
 -- Testing
 
 foo :: Statement
-foo = assert $ (intLit 3 .== var "x") .&& (var "x" .< intLit 4)
+foo = assert . noLoc $ (intLit 3 .== var "x") .&& (var "x" .< intLit 4)

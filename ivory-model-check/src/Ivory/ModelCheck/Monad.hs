@@ -39,6 +39,7 @@ import           Control.Applicative
 import           MonadLib
 import qualified Data.Map.Lazy         as M
 
+import Ivory.Language.Syntax.Concrete.Location
 import qualified Ivory.Language.Syntax as I
 import           Ivory.ModelCheck.CVC4 hiding (query, var)
 import qualified Ivory.Opts.Overflow   as I
@@ -54,8 +55,8 @@ type Env = M.Map Var Int
 
 -- | Simple assertions and assertions on return values.
 data Queries = Queries
-  { assertQueries :: [Expr]
-  , ensureQueries :: [Expr]
+  { assertQueries :: [Located Expr]
+  , ensureQueries :: [Located Expr]
   } deriving Show
 
 -- | The program state: user-defined types, declarations of variables, and
@@ -63,7 +64,8 @@ data Queries = Queries
 data ProgramSt = ProgramSt
   { types  :: [(String, [(Var,Type)])]
   , decls  :: [Statement]
-  , invars :: [Expr]
+  , invars :: [Located Expr]
+  , srcloc :: SrcLoc
   }
 
 -- | The full simulation state.
@@ -159,9 +161,10 @@ addType ty fs = do
 
 addInvariant :: Expr -> ModelCheck ()
 addInvariant exp = do
-  st <- get
+  st  <- get
+  loc <- getSrcLoc
   let ps = symSt st
-  let ps' = ps { invars = exp : invars ps }
+  let ps' = ps { invars = exp `at` loc : invars ps }
   set st { symSt = ps' }
 
 -- getProgramSt :: ModelCheck ProgramSt
@@ -185,6 +188,17 @@ withLocalRefs m = do
   sets_ (\st -> st { symRefs = refs })
   return a
 
+getSrcLoc :: ModelCheck SrcLoc
+getSrcLoc = do
+  st <- get
+  return (srcloc $ symSt st)
+
+setSrcLoc :: SrcLoc -> ModelCheck ()
+setSrcLoc loc = do
+  st <- get
+  let symSt' = (symSt st) { srcloc = loc }
+  set st { symSt = symSt' }
+
 getQueries :: ModelCheck Queries
 getQueries = do
   st <- get
@@ -197,13 +211,15 @@ setQueries q = do
 
 addQuery :: Expr -> ModelCheck ()
 addQuery exp = do
-  q  <- getQueries
-  setQueries q { assertQueries = exp : assertQueries q }
+  loc <- getSrcLoc
+  q   <- getQueries
+  setQueries q { assertQueries = exp `at` loc : assertQueries q }
 
 addEnsure :: Expr -> ModelCheck ()
 addEnsure exp = do
-  q  <- getQueries
-  setQueries q { ensureQueries = exp : ensureQueries q }
+  loc <- getSrcLoc
+  q   <- getQueries
+  setQueries q { ensureQueries = exp `at` loc : ensureQueries q }
 
 addProc :: I.Proc -> ModelCheck ()
 addProc p = do
@@ -289,7 +305,7 @@ branchSt exp = do
                       }
   set st'
   where
-  implies = map (exp .=>)
+  implies = map (fmap (exp .=>))
 
 joinState :: SymExecSt -> ModelCheck SymExecSt
 joinState st0 = do
@@ -334,11 +350,13 @@ instance Monoid ProgramSt where
   mempty = ProgramSt { types  = mempty
                      , decls  = []
                      , invars = []
+                     , srcloc = NoLoc
                      }
-  (ProgramSt t0 d0 e0) `mappend` (ProgramSt t1 d1 e1) =
+  (ProgramSt t0 d0 e0 _) `mappend` (ProgramSt t1 d1 e1 _) =
     ProgramSt { types  = t0 <> t1
               , decls  = d0 ++ d1
               , invars = e0 ++ e1
+              , srcloc = NoLoc    -- XXX: should be able to do better than this..
               }
 
 instance Monoid SymExecSt where
@@ -379,7 +397,7 @@ overflowProcs = M.fromList $ concat
 mkAdd :: I.Type -> (I.Sym, I.Proc)
 mkAdd t = (nm, pc)
   where
-  nm = "add_ovf_" ++ I.ext t
+  nm = I.addBase I.<+> I.ext t
   pc = I.Proc { I.procSym = nm
               , I.procRetTy = I.TyBool
               , I.procArgs = [I.Typed t v0, I.Typed t v1]
@@ -402,7 +420,7 @@ mkAdd t = (nm, pc)
 mkSub :: I.Type -> (I.Sym, I.Proc)
 mkSub t = (nm, pc)
   where
-  nm = "sub_ovf_" ++ I.ext t
+  nm = I.subBase I.<+> I.ext t
   pc = I.Proc { I.procSym = nm
               , I.procRetTy = I.TyBool
               , I.procArgs = [I.Typed t v0, I.Typed t v1]
@@ -426,7 +444,7 @@ mkSub t = (nm, pc)
 mkMul :: I.Type -> (I.Sym, I.Proc)
 mkMul t = (nm, pc)
   where
-  nm = "mul_ovf_" ++ I.ext t
+  nm = I.mulBase I.<+> I.ext t
   pc = I.Proc { I.procSym = nm
               , I.procRetTy = I.TyBool
               , I.procArgs = [I.Typed t v0, I.Typed t v1]
@@ -481,7 +499,7 @@ mkMul t = (nm, pc)
 mkDiv :: I.Type -> (I.Sym, I.Proc)
 mkDiv t = (nm, pc)
   where
-  nm = "div_ovf_" ++ I.ext t
+  nm = I.divBase I.<+> I.ext t
   pc = I.Proc { I.procSym = nm
               , I.procRetTy = I.TyBool
               , I.procArgs = [I.Typed t v0, I.Typed t v1]
