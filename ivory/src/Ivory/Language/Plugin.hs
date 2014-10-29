@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 module Ivory.Language.Plugin (plugin) where
@@ -25,13 +26,13 @@ pass killForeignStubs guts@(ModGuts {..}) = do
   df  <- getDynFlags
   EPS {..} <- liftIO $ hscEPS hsc_env
 
-  Just withLocName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD wITH_LOC
+  Just withLocName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD wITH_LOC
   withLocVar <- lookupId withLocName
 
-  Just mkLocName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD mK_LOC
+  Just mkLocName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD mK_LOC
   mkLocVar <- lookupId mkLocName
 
-  Just ivoryName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD iVORY
+  Just ivoryName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD iVORY
   ivoryCon <- lookupTyCon ivoryName
 
   let modName = moduleNameString $ moduleName mg_module
@@ -121,3 +122,11 @@ wITH_LOC, mK_LOC, iVORY :: RdrName
 wITH_LOC    = mkVarUnqual $ fsLit "withLocation"
 mK_LOC      = mkVarUnqual $ fsLit "mkLocation"
 iVORY       = mkRdrQual iVORY_MONAD $ mkTcOcc "Ivory"
+
+lookupRdrName :: HscEnv -> ModuleName -> RdrName -> IO (Maybe Name)
+#if __GLASGOW_HASKELL__ >= 708
+lookupRdrName = lookupRdrNameInModuleForPlugins
+#else
+lookupRdrName = lookupRdrNameInModule
+#endif
+
