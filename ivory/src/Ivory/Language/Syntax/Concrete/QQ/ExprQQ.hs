@@ -99,8 +99,8 @@ fromOpExp env op args = case op of
   AbsOp            -> mkUn 'abs
   SignumOp         -> mkUn 'signum
 
-  DivOp            -> mkInfix 'I.iDiv -- truncate toward 0 (Haskell's 'quot')
-  ModOp            -> mkInfix '(I..%)
+  DivOp            -> mkInfix 'I.iDiv -- Euclidean division
+  ModOp            -> mkInfix '(I..%) -- Euclidean modulo
 
   FExpOp           -> mkUn 'P.exp
   FSqrtOp          -> mkUn 'sqrt

@@ -36,6 +36,9 @@ class (IvoryExpr a, IvoryOrd a , Num a) => IvoryIntegral a where
     where
     r = iRem d0 d1
 
+(./) :: IvoryIntegral a => a -> a -> a
+(./) = iDiv
+
 -- XXX Dont' export
 iRem :: IvoryIntegral a => a -> a -> a
 iRem d0 d1 = wrapExpr (I.ExpOp I.ExpMod [unwrapExpr d0, unwrapExpr d1])
