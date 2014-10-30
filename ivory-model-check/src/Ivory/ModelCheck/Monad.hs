@@ -11,6 +11,7 @@ module Ivory.ModelCheck.Monad
   , getState
   , setState
   , joinState
+  , askOpts
   , setSrcLoc
   , addProc
   , lookupProc
@@ -46,7 +47,7 @@ import           Ivory.ModelCheck.CVC4 hiding (query, var)
 import qualified Ivory.Opts.Overflow   as I
 
 -- XXX
-import Debug.Trace
+-- import Debug.Trace
 
 --------------------------------------------------------------------------------
 -- Types
@@ -133,7 +134,7 @@ getEnvVar var env =
     Nothing -> (v, env')
     Just i  -> (constructVar v (newIx i), env')
   where
-  f _ _ old = newIx old
+  f _ _ = newIx
   newIx i = i+1
 
 -- | Lookup a variable in the store.
@@ -177,16 +178,16 @@ getRefs = do
   return (symRefs st)
 
 updateStRef :: I.Type -> Var -> Var -> ModelCheck ()
-updateStRef t v v' = do
+updateStRef t v v' =
   sets_ (\st -> st { symRefs = M.insert (t,v) v' (symRefs st) })
 
 withLocalRefs :: ModelCheck a -> ModelCheck a
 withLocalRefs m = do
   st <- get
   let refs = symRefs st
-  sets_ (\st -> st { symRefs = mempty })
+  sets_ (\s -> s { symRefs = mempty })
   a <- m
-  sets_ (\st -> st { symRefs = refs })
+  sets_ (\s -> s { symRefs = refs })
   return a
 
 getSrcLoc :: ModelCheck SrcLoc
@@ -385,6 +386,7 @@ instance Monoid SymExecSt where
 --------------------------------------------------------------------------------
 -- Contracts for overflow assertions
 
+overflowProcs :: M.Map I.Sym I.Proc
 overflowProcs = M.fromList $ concat
   [ map mkAdd is, map mkAdd ws
   , map mkSub is, map mkSub ws
@@ -456,12 +458,12 @@ mkMul t = (nm, pc)
                                   , I.ExpOp I.ExpAnd
                                     [ I.ExpOp I.ExpOr
                                       [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v0, minBound ]
-                                      , I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, (-1) ]
+                                      , I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, -1 ]
                                       ]
                                     , I.ExpOp I.ExpAnd
                                       [ I.ExpOp I.ExpOr
                                         [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, minBound ]
-                                        , I.ExpOp (I.ExpNeq t) [ I.ExpVar v0, (-1) ]
+                                        , I.ExpOp (I.ExpNeq t) [ I.ExpVar v0, -1 ]
                                         ]
                                       , I.ExpOp I.ExpOr
                                         [ I.ExpOp (I.ExpEq t) [ I.ExpVar v0, 0 ]
@@ -484,17 +486,17 @@ mkMul t = (nm, pc)
   v1 = I.VarName "var1"
 
   sqrtMax :: I.Expr
-  sqrtMax = fromInteger . floor . sqrt . fromInteger $ max
-  max :: Integer
-  max = case t of 
-          I.TyInt (I.Int8)    -> toInteger (maxBound :: Int8)
-          I.TyInt (I.Int16)   -> toInteger (maxBound :: Int16)
-          I.TyInt (I.Int32)   -> toInteger (maxBound :: Int32)
-          I.TyInt (I.Int64)   -> toInteger (maxBound :: Int64)
-          I.TyWord (I.Word8)  -> toInteger (maxBound :: Word8)
-          I.TyWord (I.Word16) -> toInteger (maxBound :: Word16)
-          I.TyWord (I.Word32) -> toInteger (maxBound :: Word32)
-          I.TyWord (I.Word64) -> toInteger (maxBound :: Word64)
+  sqrtMax = fromInteger . floor . (sqrt :: Double -> Double) . fromInteger 
+          $ case t of 
+              I.TyInt I.Int8    -> toInteger (maxBound :: Int8)
+              I.TyInt I.Int16   -> toInteger (maxBound :: Int16)
+              I.TyInt I.Int32   -> toInteger (maxBound :: Int32)
+              I.TyInt I.Int64   -> toInteger (maxBound :: Int64)
+              I.TyWord I.Word8  -> toInteger (maxBound :: Word8)
+              I.TyWord I.Word16 -> toInteger (maxBound :: Word16)
+              I.TyWord I.Word32 -> toInteger (maxBound :: Word32)
+              I.TyWord I.Word64 -> toInteger (maxBound :: Word64)
+              _                 -> error $ "Unexpected type for mkMul: " ++ show t
 
 
 mkDiv :: I.Type -> (I.Sym, I.Proc)
@@ -509,11 +511,11 @@ mkDiv t = (nm, pc)
               , I.procEnsures = [I.Ensure $ I.CondBool $ I.ExpOp (I.ExpEq I.TyBool)
                                  [ I.ExpVar I.retval
                                  , I.ExpOp I.ExpAnd
-                                   [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, 0]
+                                   [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, 0 ]
                                    --NOTE: this could be omitted in the unsigned case
                                    , I.ExpOp I.ExpOr
                                      [ I.ExpOp (I.ExpNeq t) [ I.ExpVar v0, minBound ]
-                                     , I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, (-1)]
+                                     , I.ExpOp (I.ExpNeq t) [ I.ExpVar v1, -1 ]
                                      ]
                                    ]
                                  ]

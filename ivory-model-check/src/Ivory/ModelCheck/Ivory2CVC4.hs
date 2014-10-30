@@ -11,7 +11,6 @@ import           Control.Applicative
 import           Control.Monad
 import qualified Data.Map               as M
 import           Data.Maybe
-import           MonadLib
 import qualified Ivory.Language.Array   as I
 import qualified Ivory.Language.Cast    as I
 import qualified Ivory.Language.Syntax  as I
@@ -23,7 +22,7 @@ import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
 
 -- XXX testing
-import           Debug.Trace
+-- import           Debug.Trace
 
 --------------------------------------------------------------------------------
 

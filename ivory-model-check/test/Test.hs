@@ -4,6 +4,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Main where
 
 import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
@@ -56,20 +57,24 @@ examples :: TestTree
 examples = testGroup "examples"
            [ mkSuccess (I.modName m) m | m <- Examples.modules ]
 
+testArgs :: Args
 testArgs = initArgs { printQuery = False, printEnv = False }
 
+mkSuccess :: TestName -> Module -> TestTree
 mkSuccess nm m = testCase nm $ do
   (r, f) <- modelCheck testArgs m
   let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (isSafe r)
 
+mkSuccessInline :: TestName -> Module -> TestTree
 mkSuccessInline nm m = testCase nm $ do
   (r, f) <- modelCheck (testArgs { inlineCall = True }) m
   let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (isSafe r)
 
+mkFailure :: TestName -> Module -> TestTree
 mkFailure nm m = testCase nm $ do
   (r, f) <- modelCheck testArgs m
   let msg = printf "Expected: Unsafe\nActual: %s\n(check %s for details)"

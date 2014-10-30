@@ -1,12 +1,14 @@
 module Examples where
 
+import qualified Ivory.Language.Syntax as I
+
 import qualified AddrOfRegression
 import qualified Alloc
 import qualified Area
 import qualified Array
 -- import qualified BitData
 import qualified Bits
-import qualified ClassHierarchy
+-- import qualified ClassHierarchy
 -- import qualified ConcreteFile
 import qualified Cond
 -- import qualified ConstRef
@@ -15,7 +17,7 @@ import qualified Factorial
 import qualified FibLoop
 -- import qualified FibTutorial
 import qualified Float
-import qualified Forever
+-- import qualified Forever
 import qualified FunPtr
 import qualified Overflow
 import qualified PID
@@ -26,6 +28,7 @@ import qualified String
 -- import qualified TestClang
 
 
+modules :: [I.Module]
 modules = [ AddrOfRegression.cmodule
           , Alloc.cmodule
           , Area.cmodule

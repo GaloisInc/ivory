@@ -2,7 +2,6 @@
 --XXX testing
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module Ivory.ModelCheck where
@@ -22,12 +21,6 @@ import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 import           Data.List
-import qualified Data.Map.Lazy               as M
-
--- XXX testing
-import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
-import qualified Ivory.Language as L
-import Ivory.Compile.C.CmdlineFrontend
 
 --------------------------------------------------------------------------------
 
@@ -57,9 +50,11 @@ initArgs = Args
 data Result = Safe | Unsafe [String] | Inconsistent | Error String
             deriving (Show, Eq)
 
+isSafe :: Result -> Bool
 isSafe Safe = True
 isSafe _    = False
 
+isUnsafe :: Result -> Bool
 isUnsafe (Unsafe _) = True
 isUnsafe _          = False
 
@@ -70,8 +65,8 @@ showResult (Unsafe qs)  = "Unsafe: " ++ intercalate ", " qs
 showResult (Error e)    = "Error: " ++ e
 
 modelCheck' :: I.Module -> IO ()
-modelCheck' mod = do
-  (res, file) <- modelCheck initArgs mod
+modelCheck' m = do
+  (res, file) <- modelCheck initArgs m
   print file
   print res
 
@@ -118,7 +113,7 @@ mkScript st =
   , ""
   , "% CVC4 Lib -----------------------------------"
   , ""
-  ] ++ (map concrete cvc4Lib)
+  ] ++ map concrete cvc4Lib
   ++
   [ ""
   , "% user-defined types -------------------------"

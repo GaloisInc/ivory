@@ -57,7 +57,7 @@ instance Concrete Statement where
   concrete (TypeDecl ty [])
     = statement [CL ty, clBS ":", clBS "TYPE"]
   concrete (TypeDecl ty fs)
-    = statement $ [CL ty, clBS ":", clBS "TYPE", clBS "= [#", fieldList fs, clBS "#]"]
+    = statement [CL ty, clBS ":", clBS "TYPE", clBS "= [#", fieldList fs, clBS "#]"]
   concrete (VarDecl v ty)  = statement [CL v, clBS ":", CL ty]
   concrete (Assert (Located loc exp))
     = statement [clBS "ASSERT", CL exp, clBS ";\t %", CL loc]
@@ -118,7 +118,7 @@ instance Concrete Type where
   concrete Integer       = "INT"
   concrete (Array t)     = "ARRAY INT OF " <> concrete t
   concrete (Struct name) = B.pack name
-  concrete t             = "INT" -- error $ "unexpected type: " ++ show t
+  concrete _             = "INT" -- error $ "unexpected type: " ++ show t
 
 data Expr = Var Var
           -- Boolean expressions
@@ -215,16 +215,16 @@ instance Concrete Expr where
     args' = B.unwords $ intersperse "," (map concrete args)
   concrete (Store s e)   = v <> " WITH " <> f <> " := " <> concrete e
     where
-      (v,f) = B.break (`elem` ['.','[']) (concrete s)
+      (v,f) = B.break (`elem` ".[") (concrete s)
   -- concrete (Store a i e) = concrete a <> " WITH "
   --                          <> B.concat (map concrete i)
   --                          <> " := " <> concrete e
   concrete (StoreMany a ies)
     = concrete a <> " WITH " <>
-      (B.intercalate ", " [ f <> " := " <> concrete e
-                          | (i,e) <- ies
-                          , let f = B.dropWhile (not . (`elem` ['.','['])) (concrete i)
-                          ])
+      B.intercalate ", " [ f <> " := " <> concrete e
+                         | (i,e) <- ies
+                         , let f = B.dropWhile (not . (`elem` ".[")) (concrete i)
+                         ]
   concrete (Field f e)   = concrete e <> "." <> concrete f
   concrete (Index i e)   = concrete e <> "[" <> concrete i <> "]"
   -- concrete (Select e ss) = concrete e <> B.concat (map concrete ss)
