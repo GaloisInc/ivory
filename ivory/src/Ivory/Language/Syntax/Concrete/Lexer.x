@@ -129,6 +129,7 @@ tokens :-
   string   { keyword }
   type     { keyword }
   include  { keyword }
+  addfile  { keyword }
 
   -- C style
   bool     { keyword }
