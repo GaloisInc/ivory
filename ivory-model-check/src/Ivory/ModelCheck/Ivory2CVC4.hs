@@ -37,22 +37,21 @@ modelCheckMod m = do
   mapM_ (modelCheckProc . overflowFold . constFold) (getVisible $ I.modProcs m)
   where
   getVisible ps = I.public ps ++ I.private ps
-  addExtern e = addProc $ I.Proc { I.procSym = I.externSym e
-                                 , I.procRetTy = I.externRetType e
-                                 , I.procArgs = zipWith I.Typed
-                                                (I.externArgs e)
-                                                (repeat $ I.VarName "dummy")
-                                 , I.procBody = []
-                                 , I.procRequires = []
-                                 , I.procEnsures = []
-                                 }
-  addImport e = addProc $ I.Proc { I.procSym = I.importSym e
-                                 , I.procRetTy = err "addImport" "tried to use return type"
-                                 , I.procArgs = []
-                                 , I.procBody = []
-                                 , I.procRequires = []
-                                 , I.procEnsures = []
-                                 }
+  addExtern e = addProc I.Proc { I.procSym = I.externSym e
+                               , I.procRetTy = I.externRetType e
+                               , I.procArgs = map (\arg -> I.Typed arg (I.VarName "dummy"))
+                                                  (I.externArgs e)
+                               , I.procBody = []
+                               , I.procRequires = []
+                               , I.procEnsures = []
+                               }
+  addImport e = addProc I.Proc { I.procSym = I.importSym e
+                               , I.procRetTy = err "addImport" "tried to use return type"
+                               , I.procArgs = []
+                               , I.procBody = []
+                               , I.procRequires = []
+                               , I.procEnsures = []
+                               }
 
 --------------------------------------------------------------------------------
 
@@ -202,7 +201,7 @@ toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
   e  <- toExpr t exp
   v' <- addEnvVar t (toVar v)
-  addInvariant $ (var v' .== e)
+  addInvariant (var v' .== e)
 
 toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
 toCall t retV nm args = do
@@ -254,10 +253,10 @@ toCallContract t retV nm args = do
                     (I.procEnsures pc)
       return ()
   where
-  checkRequires su reqs = forM_ reqs $ \ (I.Require c) -> do
+  checkRequires su reqs = forM_ reqs $ \ (I.Require c) ->
     addQuery =<< toAssertion (subst su) c
     
-  assumeEnsures su ens = forM_ ens $ \ (I.Ensure c) -> do
+  assumeEnsures su ens = forM_ ens $ \ (I.Ensure c) ->
     addInvariant =<< toAssertion (subst su) c
 
 
@@ -304,7 +303,7 @@ toIfTE ens cond blk0 blk1 = do
 toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
   I.ExpSym s                 -> return (var s)
-  I.ExpVar v                 -> lookupVar (toVar v) >>= return . var
+  I.ExpVar v                 -> var <$> lookupVar (toVar v)
   I.ExpLit lit               -> 
     case lit of
       I.LitInteger i -> return $ intLit i
@@ -324,7 +323,7 @@ toExpr t exp = case exp of
                                    assertBoundedVar t e'
                                    return e'
   I.ExpOp op args            -> toExprOp t op args
-  I.ExpAddrOfGlobal s        -> lookupVar s >>= return . var
+  I.ExpAddrOfGlobal s        -> var <$> lookupVar s
   I.ExpMaxMin True           -> return $ intLit $ fromJust $ I.toMaxSize t
   I.ExpMaxMin False          -> return $ intLit $ fromJust $ I.toMinSize t
 
@@ -343,7 +342,7 @@ toExprOp t op args = case op of
     case orEq of
       True  -> go t' (.>=)
       False -> go t' (.>)
-  I.ExpNot        -> toExpr I.TyBool arg0 >>= return . not'
+  I.ExpNot        -> not' <$> toExpr I.TyBool arg0
   I.ExpAnd        -> go t (.&&)
   I.ExpOr         -> go t (.||)
   I.ExpMod        -> toMod t arg0 arg1
@@ -456,11 +455,8 @@ toType t = case t of
   I.TyRef t'       -> toType t'
   I.TyConstRef t'  -> toType t'
   I.TyPtr t'       -> toType t'
-  I.TyArr i t'     -> do t'' <- toType t'
-                         return (Array t'')
-  I.TyCArray t'    -> do t'' <- toType t'
-                         return (Array t'')
-  -- I.TyCArray t'    -> err "toType" "<< carray >>"
+  I.TyArr i t'     -> Array <$> toType t'
+  I.TyCArray t'    -> Array <$> toType t'
   I.TyOpaque       -> return Opaque
   I.TyStruct name  -> return $ Struct name
 
@@ -513,7 +509,7 @@ loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
 
     -- Abstract unknown loop length to max allowed by Ix bound
     -- FIXME: this can't possibly scale well..
-    I.ExpOp I.ExpMod [_, I.ExpLit l] -> case l of
+    I.ExpOp I.ExpCond [I.ExpOp _ [I.ExpOp I.ExpMod [_, I.ExpLit l], _], _, _] -> case l of
       I.LitInteger i -> i
       _              -> err "loopIterations.ExpLit" (show e)
 
