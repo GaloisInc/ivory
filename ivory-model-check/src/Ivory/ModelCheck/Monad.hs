@@ -77,7 +77,8 @@ data SymExecSt = SymExecSt
   , symSt    :: ProgramSt
   , symQuery :: Queries
   , symProcs :: M.Map I.Sym I.Proc
-  , symRefs  :: M.Map (I.Type, Var) Var -- ^ To track assignment to Refs during inlined calls
+  , symRefs  :: M.Map (I.Type, Var) Var
+    -- ^ To track assignment to Refs during inlined calls
   }
 
 data SymOpts = SymOpts

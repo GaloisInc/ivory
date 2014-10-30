@@ -450,7 +450,8 @@ toType t = case t of
   I.TyChar         -> return Char
   I.TyFloat        -> return Real
   I.TyDouble       -> return Real
-  I.TyProc t' ts   -> err "toType" "<< proc >>"
+  I.TyProc _ _     -> return Opaque
+  -- I.TyProc t' ts   -> err "toType" "<< proc >>"
   I.TyRef t'       -> toType t'
   I.TyConstRef t'  -> toType t'
   I.TyPtr t'       -> toType t'
