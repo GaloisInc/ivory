@@ -1,9 +1,15 @@
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
 module Ivory.Language.Plugin (plugin) where
 
-import qualified Data.IntMap           as IntMap
+import           Control.Exception
+import           Control.Monad
+import           CostCentre
+import qualified Data.Array        as Array
+import           Data.IntMap       (IntMap)
+import qualified Data.IntMap       as IntMap
 import           DynamicLoading
 import           GhcPlugins
 import           Trace.Hpc.Mix
@@ -35,15 +41,12 @@ pass killForeignStubs guts@(ModGuts {..}) = do
   Just ivoryName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD iVORY
   ivoryCon <- lookupTyCon ivoryName
 
-  let modName = moduleNameString $ moduleName mg_module
-  Mix file _ _ _ entries <- liftIO $ readMix [hpcDir df] $ Left modName
-  fileExpr <- mkStringExpr file
-  let locs = IntMap.fromList $ zip [0..] $ map fst entries
+  mkLoc <- liftIO $ getLocs df guts
 
-  let binds = map (addLocationsBind (mkWithLocExpr withLocVar)
-                                    (mkLocExpr mkLocVar df fileExpr . (locs IntMap.!))
-                                    (isIvoryStmt ivoryCon))
-                   mg_binds
+  binds <- mapM (addLocationsBind mkLoc
+                                  (mkWithLocExpr df mkLocVar withLocVar)
+                                  (isIvoryStmt ivoryCon))
+                mg_binds
 
   let stubs = if killForeignStubs
                  then NoStubs
@@ -51,44 +54,69 @@ pass killForeignStubs guts@(ModGuts {..}) = do
 
   return (guts { mg_binds = binds, mg_foreign = stubs })
 
-addLocationsBind :: (CoreExpr -> CoreExpr -> CoreExpr) 
-                 -> (Int -> CoreExpr) 
-                 -> (CoreExpr -> Bool) 
-                 -> CoreBind -> CoreBind
-addLocationsBind withLoc mkLoc isIvory bndr = case bndr of
-  NonRec b expr -> NonRec b (addLocationsExpr withLoc mkLoc isIvory expr)
-  Rec binds     -> Rec [ (b, addLocationsExpr withLoc mkLoc isIvory expr) 
-                       | (b, expr) <- binds 
-                       ]
+getLocs :: DynFlags -> ModGuts -> IO (Tickish Var -> SrcSpan)
+getLocs df ModGuts {..} = do
+  let modName = moduleName mg_module
+  mixEntries <- getMixEntries modName (hpcDir df) 
+                  `catch` \(_ :: SomeException) -> return []
+  let locs = IntMap.fromList $ zip [0..] mixEntries
+  let bks  = IntMap.fromList $ Array.assocs $ modBreaks_locs mg_modBreaks
+  return (tickLoc locs bks)
 
-addLocationsExpr :: (CoreExpr -> CoreExpr -> CoreExpr) 
-                 -> (Int -> CoreExpr) 
+getMixEntries :: ModuleName -> FilePath -> IO [SrcSpan]
+getMixEntries nm dir = do
+  Mix file _ _ _ entries <- readMix [dir] (Left $ moduleNameString nm)
+  let f = fsLit file
+  return [ mkSrcSpan (mkSrcLoc f l1 c1) (mkSrcLoc f l2 c2) 
+         | (hpc, _) <- entries, let (l1,c1,l2,c2) = fromHpcPos hpc 
+         ]
+
+tickLoc :: IntMap SrcSpan -> IntMap SrcSpan -> Tickish Var -> SrcSpan
+tickLoc _       _        (ProfNote cc _ _) = cc_loc cc
+tickLoc hpcLocs _        (HpcTick _ i)     = IntMap.findWithDefault noSrcSpan i hpcLocs
+tickLoc _       bkPoints (Breakpoint i _)  = IntMap.findWithDefault noSrcSpan i bkPoints
+
+
+addLocationsBind :: (Tickish Var -> SrcSpan)
+                 -> (SrcSpan -> CoreExpr -> CoreM CoreExpr) 
                  -> (CoreExpr -> Bool) 
-                 -> CoreExpr -> CoreExpr
-addLocationsExpr withLoc mkLoc isIvory = go 0
+                 -> CoreBind -> CoreM CoreBind
+addLocationsBind getSpan withLoc isIvory bndr = case bndr of
+  NonRec b expr -> NonRec b `liftM` addLocationsExpr getSpan withLoc isIvory expr
+  Rec binds     -> do binds' <- forM binds $ \(b, expr) -> 
+                                  (b,) `liftM` addLocationsExpr getSpan withLoc isIvory expr
+                      return $ Rec binds'
+
+addLocationsExpr :: (Tickish Var -> SrcSpan)
+                 -> (SrcSpan -> CoreExpr -> CoreM CoreExpr) 
+                 -> (CoreExpr -> Bool) 
+                 -> CoreExpr -> CoreM CoreExpr
+addLocationsExpr getSpan withLoc isIvory = go noSrcSpan
   where
-  go _  (Tick (HpcTick _ i) expr) 
-    = go i expr
-  go i (Tick _ expr) 
-    = go i expr
-  go i e@(App expr arg) 
-    | isIvory e
-    = withLoc (mkLoc i) (App (go i expr) (go i arg))
+  go ss (Tick t expr) 
+    | isGoodSrcSpan (getSpan t)
+    = go (getSpan t) expr
     | otherwise
-    = App (go i expr) (go i arg)
-  go i (Lam x expr)
-    = Lam x (go i expr)
-  go i (Let bndr expr)
-    = Let (addLocationsBind withLoc mkLoc isIvory bndr) (go i expr)
-  go i (Case expr x t alts)
-    = Case (go i expr) x t (map (addLocationsAlt i) alts)
-  go i (Cast expr c)
-    = Cast (go i expr) c
+    = go ss expr
+  go ss e@(App expr arg) 
+    | isIvory e
+    = do e' <- liftM2 App (go ss expr) (go ss arg)
+         withLoc ss e'
+    | otherwise
+    = liftM2 App (go ss expr) (go ss arg)
+  go ss (Lam x expr)
+    = liftM (Lam x) (go ss expr)
+  go ss (Let bndr expr)
+    = liftM2 Let (addLocationsBind getSpan withLoc isIvory bndr) (go ss expr)
+  go ss (Case expr x t alts)
+    = liftM2 (\e as -> Case e x t as) (go ss expr) (mapM (addLocationsAlt ss) alts)
+  go ss (Cast expr c)
+    = (`Cast` c) `liftM` go ss expr
   go _  expr
-    = expr
+    = return expr
 
-  addLocationsAlt i (c, xs, expr)
-    = (c, xs, go i expr)
+  addLocationsAlt ss (c, xs, expr)
+    = (c, xs,) `liftM` go ss expr
 
 
 isIvoryStmt :: TyCon -> CoreExpr -> Bool
@@ -99,21 +127,25 @@ isIvoryStmt ivory expr
   = False
 
 
-mkWithLocExpr :: Var -> CoreExpr -> CoreExpr -> CoreExpr
-mkWithLocExpr withLocVar loc expr 
-  = mkCoreApps (Var withLocVar) [ Type effTy, Type exprResTy
-                                , loc, expr
-                                ]
+mkWithLocExpr :: DynFlags -> Var -> Var -> SrcSpan -> CoreExpr -> CoreM CoreExpr
+mkWithLocExpr df mkLocVar withLocVar (RealSrcSpan ss) expr = do
+  loc <- mkLocExpr mkLocVar df ss
+  return $ mkCoreApps (Var withLocVar) [ Type effTy, Type exprResTy
+                                       , loc, expr
+                                       ]
   where
   (_, [effTy, exprResTy]) = splitAppTys $ exprType expr
 
+mkWithLocExpr _ _ _ _ expr = return expr
 
-mkLocExpr :: Var -> DynFlags -> CoreExpr -> HpcPos -> CoreExpr
-mkLocExpr mkLocVar df file (fromHpcPos -> (l1,c1,l2,c2))
-  = mkCoreApps (Var mkLocVar) [ file
-                              , mkInt df l1, mkInt df c1
-                              , mkInt df l2, mkInt df c2
-                              ]
+
+mkLocExpr :: Var -> DynFlags -> RealSrcSpan -> CoreM CoreExpr
+mkLocExpr mkLocVar df ss = do 
+  file <- mkStringExprFS $ srcSpanFile ss
+  return $ mkCoreApps (Var mkLocVar) [ file
+                                     , mkInt df (srcSpanStartLine ss), mkInt df (srcSpanStartCol ss)
+                                     , mkInt df (srcSpanEndLine ss), mkInt df (srcSpanEndCol ss)
+                                     ]
 
 iVORY_MONAD :: ModuleName
 iVORY_MONAD = mkModuleName "Ivory.Language.Monad"
