@@ -364,7 +364,7 @@ simpleStmt :
       '{' exps '}'                { LocStmt (atList (AllocRef (AllocArr (unLoc $2) (reverse $7)))
                                                [ $1, getLoc $2, getLoc $7]) }
 
-  | alloc ident                   { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) []))
+  | alloc ident '{' '}'           { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) []))
                                                $1 $2) }
   | alloc ident '='
       '{' fieldAssigns '}'        { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) (reverse $5)))
