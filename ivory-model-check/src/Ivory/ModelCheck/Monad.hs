@@ -11,6 +11,7 @@ module Ivory.ModelCheck.Monad
   , getState
   , setState
   , joinState
+  , setSrcLoc
   , addProc
   , lookupProc
   , getRefs

@@ -131,6 +131,8 @@ toBody ens stmt =
     I.AllocRef t ref name  -> toAlloc t ref name
 
     I.Loop v exp inc blk   -> toLoop ens v exp inc blk
+    I.Comment (I.SourcePos src)
+      -> setSrcLoc src
     I.Comment _            -> return ()
     I.Break                -> err "toBody" (show stmt)
     I.Forever _            -> err "toBody" (show stmt)
