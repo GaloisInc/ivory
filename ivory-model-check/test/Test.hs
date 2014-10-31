@@ -27,7 +27,7 @@ tests :: TestTree
 tests = testGroup "Tests" [ shouldPass, shouldFail, examples ]
 
 shouldPass :: TestTree
-shouldPass = testGroup "shouldPass"
+shouldPass = testGroup "should be safe"
              [ mkSuccess "foo2" m2
              , mkSuccess "foo3" m3
              , mkSuccess "foo4" m4
@@ -48,14 +48,14 @@ shouldPass = testGroup "shouldPass"
              ]
 
 shouldFail :: TestTree
-shouldFail = testGroup "shouldFail"
+shouldFail = testGroup "should be unsafe"
              [ mkFailure "foo1" m1
              , mkFailure "foo14" m14
              ]
 
 examples :: TestTree
-examples = testGroup "examples"
-           [ mkSuccess (I.modName m) m | m <- Examples.modules ]
+examples = testGroup "examples (shouldn't crash)"
+           [ mkNotError (I.modName m) m | m <- Examples.modules ]
 
 testArgs :: Args
 testArgs = initArgs { printQuery = False, printEnv = False }
@@ -80,6 +80,13 @@ mkFailure nm m = testCase nm $ do
   let msg = printf "Expected: Unsafe\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (isUnsafe r)
+
+mkNotError :: TestName -> Module -> TestTree
+mkNotError nm m = testCase nm $ do
+  (r, f) <- modelCheck testArgs m
+  let msg = printf "Expected: anything but Error\nActual: %s\n(check %s for details)"
+            (showResult r) f
+  assertBool msg (not $ isError r)
 
 --------------------------------------------------------------------------------
 -- test modules

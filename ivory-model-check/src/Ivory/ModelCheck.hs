@@ -58,6 +58,10 @@ isUnsafe :: Result -> Bool
 isUnsafe (Unsafe _) = True
 isUnsafe _          = False
 
+isError :: Result -> Bool
+isError (Error _) = True
+isError _         = False
+
 showResult :: Result -> String
 showResult Safe         = "Safe"
 showResult Inconsistent = "Inconsistent"

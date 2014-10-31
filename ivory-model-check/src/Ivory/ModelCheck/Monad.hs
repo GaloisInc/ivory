@@ -77,7 +77,7 @@ data SymExecSt = SymExecSt
   , symSt    :: ProgramSt
   , symQuery :: Queries
   , symProcs :: M.Map I.Sym I.Proc
-  , symRefs  :: M.Map (I.Type, Var) Var
+  , symRefs  :: M.Map (I.Type, Var) [Var]
     -- ^ To track assignment to Refs during inlined calls
   }
 
@@ -173,14 +173,14 @@ addInvariant exp = do
 -- getProgramSt :: ModelCheck ProgramSt
 -- getProgramSt = return . symSt =<< get
 
-getRefs :: ModelCheck (M.Map (I.Type, Var) Var)
+getRefs :: ModelCheck (M.Map (I.Type, Var) [Var])
 getRefs = do
   st <- get
   return (symRefs st)
 
 updateStRef :: I.Type -> Var -> Var -> ModelCheck ()
 updateStRef t v v' =
-  sets_ (\st -> st { symRefs = M.insert (t,v) v' (symRefs st) })
+  sets_ (\st -> st { symRefs = M.insert (t,v) [v'] (symRefs st) })
 
 withLocalRefs :: ModelCheck a -> ModelCheck a
 withLocalRefs m = do
@@ -373,15 +373,13 @@ instance Monoid SymExecSt where
   (SymExecSt f0 e0 s0 q0 p0 r0) `mappend` (SymExecSt f1 e1 s1 q1 p1 r1)
     | f0 /= f1 = error "Sym states have different function symbols."
     | p0 /= p1 = error "Sym states have different proc environments."
-      -- XXX: TODO: join the ref environments
-    | r0 /= r1 = error "Sym states have different ref environments."
     | otherwise =
       SymExecSt { funcSym  = f0
                 , symEnv   = e0 `M.union` e1
                 , symSt    = s0 `mappend` s1
                 , symQuery = q0 `mappend` q1
                 , symProcs = p0
-                , symRefs  = r0
+                , symRefs  = M.unionWith (++) r0 r1
                 }
 
 --------------------------------------------------------------------------------

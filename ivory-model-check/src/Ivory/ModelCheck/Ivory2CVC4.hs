@@ -223,12 +223,12 @@ toCallInline t retV nm args = do
     mapM_ (toBody []) procBody
 
     rs <- getRefs
-    forM_ (M.toList rs) $ \ ((t, r), v) -> do
+    forM_ (M.toList rs) $ \ ((t, r), vs) -> do
       -- XXX: can we rely on Refs always being passed as a Var?
       let Just (Var x) = lookup r argEnv
-      -- traceShowM (r, x)
       r' <- addEnvVar t x
-      addInvariant (var r' .== var v)
+      -- x may point to any number of values upon returning from a call
+      addInvariant $ foldr1 (.||) [var r' .== var v | v <- vs]
 
   case retV of
    Nothing -> return ()
