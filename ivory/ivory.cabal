@@ -46,7 +46,6 @@ library
                         Ivory.Language.Loop,
                         Ivory.Language.MemArea,
                         Ivory.Language.Module,
-                        Ivory.Language.Plugin,
                         Ivory.Language.Proc,
                         Ivory.Language.Proxy,
                         Ivory.Language.Ptr,
@@ -86,8 +85,6 @@ library
                         template-haskell >= 2.8,
                         filepath,
                         text,
-                        ghc,
-                        hpc,
                         dlist >= 0.5,
                         -- QuickCheck >= 2.5.1,
                         th-lift >= 0.5.5,
@@ -96,3 +93,7 @@ library
   default-language:     Haskell2010
 
   ghc-options:          -Wall
+
+  if impl(ghc >= 7.8)
+    build-depends:      ghc, hpc
+    exposed-modules:    Ivory.Language.Plugin

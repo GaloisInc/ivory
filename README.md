@@ -30,32 +30,6 @@ to work with with GHC 7.6.2,  7.6.3, and the 7.8.x series.
 We recommend using a cabal sandbox containing these Ivory language packages and
 any programs which use them.
 
-### Note on `language-c-quote`
-
-At this time, `ivory-backend-c` depends on [a fork][fork-c] of Geoff Mainland's
-`language-c-quote` package. Therefore, you must first install our fork of the
-package (version `0.8.1`) in your sandbox from sources:
-
-```sh
-
-$ git clone https://github.com/galoisinc/ivory
-$ cd ivory
-$ git clone https://github.com/pchickey/language-c-quote
-$ cabal sandbox init
-$ cabal install language-c-quote/language-c-quote.cabal
-$ cabal install ivory/ivory.cabal \
-   ivory-opts/ivory-opts.cabal \
-   ivory-backend-c/ivory-backend-c.cabal \
-   ivory-examples/ivory-examples.cabal \
-   ivory-hw/ivory-hw.cabal \
-   ivory-quickcheck/ivory-quickcheck.cabal \
-   ivory-serialize/ivory-serialize.cabal \
-   ivory-stdlib/ivory-stdlib.cabal
-
-```
-
-[fork-c]: https://github.com/pchickey/language-c-quote
-
 ## Copyright and license
 Copyright 2013-2014 [Galois, Inc.][galois]
 

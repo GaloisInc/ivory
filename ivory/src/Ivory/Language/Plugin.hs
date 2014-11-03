@@ -15,6 +15,10 @@ import           GhcPlugins
 import           Trace.Hpc.Mix
 import           Trace.Hpc.Util
 
+#if __GLASGOW_HASKELL__ < 708
+# error Ivory.Language.Plugin requires at least ghc-7.8
+#endif
+
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
 
@@ -32,13 +36,13 @@ pass killForeignStubs guts@(ModGuts {..}) = do
   df  <- getDynFlags
   EPS {..} <- liftIO $ hscEPS hsc_env
 
-  Just withLocName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD wITH_LOC
+  Just withLocName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD wITH_LOC
   withLocVar <- lookupId withLocName
 
-  Just mkLocName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD mK_LOC
+  Just mkLocName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD mK_LOC
   mkLocVar <- lookupId mkLocName
 
-  Just ivoryName <- liftIO $ lookupRdrName hsc_env iVORY_MONAD iVORY
+  Just ivoryName <- liftIO $ lookupRdrNameInModuleForPlugins hsc_env iVORY_MONAD iVORY
   ivoryCon <- lookupTyCon ivoryName
 
   mkLoc <- liftIO $ getLocs df guts
@@ -143,8 +147,10 @@ mkLocExpr :: Var -> DynFlags -> RealSrcSpan -> CoreM CoreExpr
 mkLocExpr mkLocVar df ss = do 
   file <- mkStringExprFS $ srcSpanFile ss
   return $ mkCoreApps (Var mkLocVar) [ file
-                                     , mkInt df (srcSpanStartLine ss), mkInt df (srcSpanStartCol ss)
-                                     , mkInt df (srcSpanEndLine ss), mkInt df (srcSpanEndCol ss)
+                                     , mkIntExprInt df (srcSpanStartLine ss)
+                                     , mkIntExprInt df (srcSpanStartCol ss)
+                                     , mkIntExprInt df (srcSpanEndLine ss)
+                                     , mkIntExprInt df (srcSpanEndCol ss)
                                      ]
 
 iVORY_MONAD :: ModuleName
@@ -154,19 +160,3 @@ wITH_LOC, mK_LOC, iVORY :: RdrName
 wITH_LOC    = mkVarUnqual $ fsLit "withLocation"
 mK_LOC      = mkVarUnqual $ fsLit "mkLocation"
 iVORY       = mkRdrQual iVORY_MONAD $ mkTcOcc "Ivory"
-
-
---------------------------------------------------------------------------------
--- Let's maintain a bit of backwards compatibility..
---------------------------------------------------------------------------------
-
-lookupRdrName :: HscEnv -> ModuleName -> RdrName -> IO (Maybe Name)
-mkInt :: DynFlags -> Int -> CoreExpr
-
-#if __GLASGOW_HASKELL__ >= 708
-lookupRdrName = lookupRdrNameInModuleForPlugins
-mkInt = mkIntExprInt
-#else
-lookupRdrName = lookupRdrNameInModule
-mkInt _ = mkIntExprInt
-#endif
