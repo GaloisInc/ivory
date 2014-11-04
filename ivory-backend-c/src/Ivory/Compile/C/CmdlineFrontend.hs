@@ -6,18 +6,15 @@ module Ivory.Compile.C.CmdlineFrontend
   , runCompilerWith
   , Opts(..), parseOpts, printUsage
   , initialOpts
-  , ModuleFiles(..)
-  , standaloneDepFile
-  , compileDepFile
   ) where
 
-import qualified Paths_ivory_backend_c
+import qualified Paths_ivory_backend_c      as P
 import qualified Ivory.Compile.C            as C
-import qualified Ivory.Compile.C.SourceDeps as C
 
 import           Ivory.Compile.C.CmdlineFrontend.Options
 
 import           Ivory.Language
+import           Ivory.Artifact
 import           Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Opts.BitShift        as O
 import qualified Ivory.Opts.ConstFold       as O
@@ -28,53 +25,49 @@ import qualified Ivory.Opts.FP              as O
 import qualified Ivory.Opts.CFG             as G
 import qualified Ivory.Opts.TypeCheck       as T
 
-import qualified Data.ByteString.Char8      as B
 
 import Data.Maybe (mapMaybe)
 import Data.Monoid
 import Control.Monad (when)
 import Data.List (foldl')
-import System.Directory (doesFileExist,createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing)
 import System.Environment (getArgs)
-import System.FilePath (takeDirectory,takeExtension,addExtension,(</>))
-import Text.PrettyPrint.Mainland
-    ((<+>),line,text,stack,punctuate,render,empty,indent,displayS)
-import qualified System.FilePath.Posix as PFP
-
+import System.FilePath (addExtension,(</>))
 
 -- Code Generation Front End ---------------------------------------------------
 
-data ModuleFiles =
-  ModuleFiles
-    { mf_sources :: [FilePath]
-    , mf_headers :: [FilePath]
-    }
+compile :: [Module] -> [Artifact] -> IO ()
+compile = compileWith Nothing
 
-compile :: [Module] -> IO ()
-compile = compileWith Nothing Nothing
-
-compileWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module]
-            -> IO ()
-compileWith sm sp ms = do
+compileWith :: Maybe G.SizeMap -> [Module] -> [Artifact] -> IO ()
+compileWith sm ms as = do
   args <- getArgs
   opts <- parseOpts args
-  mf   <- runCompilerWith sm sp ms opts
-  compileDepFile opts (standaloneDepFile mf)
+  runCompilerWith sm ms as opts
 
-compileDepFile :: Opts -> [(String, [String])] -> IO ()
-compileDepFile opts ds =
-  when (not (null (deps opts))) $ outputDepFile opts ds
+
+runArtifactCompiler :: [Artifact] -> Opts -> IO ()
+runArtifactCompiler as opts = do
+  errs <- putArtifacts (srcDir opts) (as ++ runtimeArtifacts)
+  case errs of
+    Nothing -> return ()
+    Just e -> error e
+
+runtimeArtifacts :: [Artifact]
+runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
+  where a f = artifactCabalFile P.getDataDir ("runtime/" ++ f)
+
+runCompiler :: [Module] -> [Artifact] -> Opts -> IO ()
+runCompiler ms as os = runCompilerWith Nothing ms as os
 
 -- | Main compile function plus domain-specific type-checking that can't be
 -- embedded in the Haskell type-system.  Type-checker also emits warnings.
-runCompilerWith :: Maybe G.SizeMap -> Maybe [IO FilePath] -> [Module] -> Opts
-                -> IO ModuleFiles
-runCompilerWith sm sp modules opts = do
+runCompilerWith :: Maybe G.SizeMap -> [Module] -> [Artifact] -> Opts -> IO ()
+runCompilerWith sm modules artifacts opts = do
   let (bs, msgs) = concatRes (map tcMod modules)
   putStrLn msgs
   when (tcErrors opts && bs) (error "There were type-checking errors.")
-  rc (maybe G.defaultSizeMap id sm)
-     (maybe [] id sp) modules opts
+  rc (maybe G.defaultSizeMap id sm) modules artifacts opts
   where
   concatRes :: [(Bool, String)] -> (Bool, String)
   concatRes r = let (bs, strs) = unzip r in
@@ -101,36 +94,24 @@ runCompilerWith sm sp modules opts = do
       warnings = res T.showWarnings
       errs     = res T.showErrors
 
-runCompiler :: [Module] -> Opts -> IO ModuleFiles
-runCompiler ms os = runCompilerWith Nothing Nothing ms os
-
-rc :: G.SizeMap -> [IO FilePath] -> [Module] -> Opts -> IO ModuleFiles
-rc sm userSearchPath modules opts
-  | not (null (deps opts)) = return moduleFiles
-  | outProcSyms opts       = C.outputProcSyms modules >> return moduleFiles
-  | stdOut opts            = stdoutmodules            >> return moduleFiles
-  | otherwise              = outputmodules            >> return moduleFiles
+rc :: G.SizeMap -> [Module] -> [Artifact] -> Opts -> IO ()
+rc sm modules artifacts opts
+  | outProcSyms opts       = C.outputProcSyms modules
+  | stdOut opts            = stdoutmodules
+  | otherwise              = outputmodules
 
   where
-  moduleFiles = ModuleFiles
-      { mf_sources = genSs ++ cpySs
-      , mf_headers = genHs ++ cpyHs
-      }
-
-  ivoryHeaders = ["ivory.h", "ivory_templates.h", "ivory_asserts.h"]
 
   stdoutmodules = do
     mapM_ showM_ cmodules
     cfgoutput
 
   outputmodules = do
-    searchPath <- mkSearchPath opts userSearchPath
     createDirectoryIfMissing True (includeDir opts)
     createDirectoryIfMissing True (srcDir opts)
     outputHeaders (includeDir opts) cmodules
     outputSources (srcDir opts) cmodules
-    C.outputSourceDeps (includeDir opts) (srcDir opts)
-       (map ("runtime/" ++) ivoryHeaders ++ (C.collectSourceDeps modules)) searchPath
+    runArtifactCompiler artifacts opts
     cfgoutput
 
   cfgoutput = when (cfg opts) $ do
@@ -138,14 +119,6 @@ rc sm userSearchPath modules opts
     let maxstacks = map ms (zip cfgps cfs)
     mapM_ maxStackMsg (zip cfgps maxstacks)
 
-
-  sdeps = C.collectSourceDeps modules
-  genHs = map (modFilePath (includeDir opts) ".h") cmodules
-  genSs = map (modFilePath (srcDir opts) ".c")     cmodules
-  cpyHs = map (srcFilePath (includeDir opts)) $
-            filter (\p -> takeExtension p == ".h") sdeps
-  cpySs = map (srcFilePath (srcDir opts)) $
-            filter (\p -> takeExtension p == ".c") sdeps
 
   optModules = map (C.runOpt passes) modules
 
@@ -220,60 +193,7 @@ rc sm userSearchPath modules opts
 
 --------------------------------------------------------------------------------
 
-modFilePath :: FilePath -> String -> C.CompileUnits -> String
-modFilePath basepath extension unit = basepath PFP.</> (C.unitName unit) PFP.<.> extension
-
-srcFilePath :: FilePath -> FilePath -> String
-srcFilePath basepath sdep = basepath PFP.</> sdep
-
-standaloneDepFile :: ModuleFiles -> [(String, [String])]
-standaloneDepFile mf =
-  [ ("HEADERS", mf_headers mf)
-  , ("SOURCES", mf_sources mf)
-  ]
-
-outputDepFile :: Opts -> [(String, [String])] -> IO ()
-outputDepFile opts kvs = do
-  createDirectoryIfMissing True (takeDirectory path)
-  outputIfChanged docstring
-  where
-  path = deps opts
-  prefix = depPrefix opts
-  docstring = displayS (render w d) ""
-  w = 10000000 -- don't ever wrap lines - invalid make syntax
-  d = stack $
-    [ text "# dep file autogenerated by ivory compiler"
-    , empty
-    ] ++ map (uncurry listof) kvs
-
-  declaration n = text prefix <> text "_" <> text n <+> text ":= \\" <> line
-  listof name values = declaration name <>
-    (indent 4 $ stack $ punctuate (text " \\") (map text values)) <>
-    line <> empty
-
-  outputIfChanged :: String -> IO ()
-  outputIfChanged string_contents = do
-    let contents = B.pack string_contents
-    exists <- doesFileExist path
-    case exists of
-      False -> B.writeFile path contents
-      True -> do
-        existing <- B.readFile path
-        case existing == contents of
-            True -> return ()
-            False -> B.writeFile path contents
-
-
-mkSearchPath :: Opts -> [IO FilePath] -> IO [FilePath]
-mkSearchPath opts userSearchPaths = do
-  rtPath <- getRtPath
-  users <- sequence userSearchPaths
-  return $ rtPath:users
-  where
-  getRtPath :: IO FilePath
-  getRtPath  = case rtIncludeDir opts of
-    Just path -> return path
-    Nothing   -> Paths_ivory_backend_c.getDataDir
+-- XXX eliminate rtIncludeDir
 
 dropSrcLocs :: I.Proc -> I.Proc
 dropSrcLocs p = p { I.procBody = dropSrcLocsBlock (I.procBody p) }
