@@ -1,2 +1,11 @@
-cabal.sandbox.config
+cabal.sandbox.config*
+.cabal-sandbox*
+dist
 /ivory-examples/test_dir/
+TAGS
+ghc-switch.sh
+*.o
+*.out
+*.log
+.hpc
+clang-test-dir
