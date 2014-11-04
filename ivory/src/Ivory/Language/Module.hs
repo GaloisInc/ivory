@@ -87,12 +87,6 @@ defMemArea m = case m of
 defConstMemArea :: IvoryArea area => ConstMemArea area -> ModuleDef
 defConstMemArea (ConstMemArea m) = defMemArea m
 
--- | Depend on an existing (object language) source file which should be copied
---   to the user build tree as part of code generation
-sourceDep :: FilePath -> ModuleDef
-sourceDep d =
-  put (mempty { I.modSourceDeps = Set.singleton d })
-
 -- | Package the module up. Default visibility is public.
 package :: String -> ModuleDef -> I.Module
 package name build = (snd (runM (unModule build) Public)) { I.modName = name }
