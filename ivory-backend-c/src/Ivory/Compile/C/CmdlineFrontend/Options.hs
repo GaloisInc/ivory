@@ -52,13 +52,7 @@ parseOptions opts args = case getOpt Permute opts args of
 -- Command Line Options --------------------------------------------------------
 
 data Opts = Opts
-  { stdOut      :: Bool
-  , includeDir  :: FilePath
-  , srcDir      :: FilePath
-  -- dependencies
-  , deps        :: FilePath
-  , depPrefix   :: String
-  , rtIncludeDir:: Maybe FilePath
+  { outDir      :: Maybe FilePath
   -- optimization passes
   , constFold   :: Bool
   , overflow    :: Bool
@@ -82,14 +76,7 @@ data Opts = Opts
 
 initialOpts :: Opts
 initialOpts  = Opts
-  { stdOut       = False
-  , includeDir   = ""
-  , srcDir       = ""
-
-  -- dependencies
-  , deps         = ""
-  , depPrefix    = ""
-  , rtIncludeDir = Nothing
+  { outDir       = Just ""
 
   -- optimization/safety passes
   , constFold    = False
@@ -112,22 +99,10 @@ initialOpts  = Opts
   }
 
 setStdOut :: OptParser Opts
-setStdOut  = success (\opts -> opts { stdOut = True } )
+setStdOut  = success (\opts -> opts { outDir = Nothing } )
 
-setIncludeDir :: String -> OptParser Opts
-setIncludeDir str = success (\opts -> opts { includeDir = str })
-
-setSrcDir :: String -> OptParser Opts
-setSrcDir str = success (\opts -> opts { srcDir = str })
-
-setDeps :: String -> OptParser Opts
-setDeps str = success (\opts -> opts { deps = str })
-
-setDepPrefix :: String -> OptParser Opts
-setDepPrefix str = success (\opts -> opts { depPrefix = str })
-
-setRtIncludeDir :: String -> OptParser Opts
-setRtIncludeDir str = success (\opts -> opts { rtIncludeDir = Just str })
+setOutDir :: String -> OptParser Opts
+setOutDir str = success (\opts -> opts { outDir = Just str })
 
 setConstFold :: OptParser Opts
 setConstFold  = success (\opts -> opts { constFold = True })
@@ -175,17 +150,9 @@ options :: [OptDescr (OptParser Opts)]
 options  =
   [ Option "" ["std-out"] (NoArg setStdOut)
     "print to stdout only"
-  , Option "" ["include-dir"] (ReqArg setIncludeDir "PATH")
-    "output directory for header files"
-  , Option "" ["src-dir"] (ReqArg setSrcDir "PATH")
-    "output directory for source files"
 
-  , Option "" ["dep-file"] (ReqArg setDeps "FILE")
-    "makefile dependency output"
-  , Option "" ["dep-prefix"] (ReqArg setDepPrefix "STRING")
-    "makefile dependency prefix"
-  , Option "" ["rt-include-dir"] (ReqArg setRtIncludeDir "PATH")
-    "path to ivory runtime includes"
+  , Option "" ["src-dir"] (ReqArg setOutDir "PATH")
+    "output directory for source files"
 
   , Option "" ["const-fold"] (NoArg setConstFold)
     "enable the constant folding pass"
