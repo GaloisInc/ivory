@@ -112,7 +112,7 @@ getModData sym = case sym of
   GlobalTypeDef{}    -> Nothing
   GlobalConstDef{}   -> Nothing
   GlobalInclude    i -> Just (ModInclude i)
-  GlobalAddfile    i -> Just (ModAddfile i)
+  GlobalAddfile    i -> Nothing
 
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
@@ -159,10 +159,6 @@ ivoryMod  modName incls = do
                     (AppT (ConT ''I.Proxy) (LitT (StrTyLit (structSym d)))))
     ModInclude incl
       -> AppE (VarE 'I.depend) (VarE $ mkName $ inclModule incl)
-    ModAddfile file
-      -- Rewrap in string quotes
-      -> AppE (VarE 'I.sourceDep) (LitE $ StringL $ addfileFile file)
-
 --------------------------------------------------------------------------------
 
 -- | Data to put in the Ivory module.
@@ -170,7 +166,6 @@ data ModuleData =
     ModProc    ProcDef
   | ModStruct  StructDef
   | ModInclude IncludeDef
-  | ModAddfile AddfileDef
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
