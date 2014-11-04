@@ -1,5 +1,6 @@
 language: haskell
-script: "./make"
+script:
+  - make
 ghc:
   - 7.6.3
   - 7.8.3
