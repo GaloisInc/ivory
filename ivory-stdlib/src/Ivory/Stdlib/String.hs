@@ -17,14 +17,17 @@ module Ivory.Stdlib.String
   ( copy_istring , strcpy , strncpy , strncpy_uint8 , strncmp
   , stdlibStringModule, stringInit, istr_eq, sz_from_istr, istr_len
   , istr_from_sz, istr_copy, istr_convert
+  , stdlibStringArtifacts
   ) where
 
 import Data.Char (ord)
 
 import Ivory.Language
+import Ivory.Artifact
 import Ivory.Language.Proxy
 
 import qualified Control.Monad as M
+import qualified Paths_ivory_stdlib as P
 
 -- Should be same underlying type as IxRep to make casting easier.
 type Len = Sint32
@@ -260,6 +263,12 @@ stdlibStringModule = package "ivory_stdlib_string" $ do
   incl do_istr_eq
   incl string_copy
   incl string_copy_z
-  sourceDep "ivory_stdlib_string_prim.h"
-  sourceDep "ivory_stdlib_string_prim.c"
+
+stdlibStringArtifacts :: [Artifact]
+stdlibStringArtifacts =
+  [ supportfile "ivory_stdlib_string_prim.h"
+  , supportfile "ivory_stdlib_string_prim.c"
+  ]
+  where
+  supportfile f = artifactCabalFile P.getDataDir ("support/" ++ f)
 
