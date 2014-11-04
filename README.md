@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/GaloisInc/ivory.svg?branch=master)](https://travis-ci.org/GaloisInc/ivory)
+
 # [Ivory][ivory]
 
 Ivory is an embedded domain specific language (EDSL) which aims to provide

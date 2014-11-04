@@ -87,7 +87,7 @@ module Ivory.Language (
   , extern
 
     -- ** Arithmetic (operators from the 'Num' class are also provided).
-  , IvoryIntegral((.%), iDiv)
+  , IvoryIntegral((.%), iDiv), (./)
 
     -- ** Comparisons
   , IvoryEq((==?),(/=?))

@@ -1,0 +1,13 @@
+language: haskell
+install:
+  - cabal install alex
+  - cabal install happy
+  - alex --version
+  - happy --version
+  - make build
+script:
+  - make test
+ghc:
+  - 7.6.3
+  - 7.8.3
+

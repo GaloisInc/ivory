@@ -112,6 +112,7 @@ getModData sym = case sym of
   GlobalTypeDef{}    -> Nothing
   GlobalConstDef{}   -> Nothing
   GlobalInclude    i -> Just (ModInclude i)
+  GlobalAddfile    i -> Just (ModAddfile i)
 
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
@@ -120,8 +121,9 @@ mkDef def = case def of
   GlobalBitData d       -> fromBitData d
   GlobalTypeDef tyDef   -> fromTypeDef tyDef
   GlobalConstDef const  -> fromConstDef const
-  -- No definition to make for includes.
+  -- No definition to make for includes, source depends.
   GlobalInclude{}       -> return []
+  GlobalAddfile{}        -> return []
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: String -> [ModuleData] -> Q [Dec]
@@ -149,14 +151,17 @@ ivoryMod  modName incls = do
   -- | Include an Ivory symbol into the Ivory module.
   ivorySymMod :: ModuleData -> Q.Exp
   ivorySymMod m = case m of
-    ModProc      d
+    ModProc   d
       -> AppE (VarE 'I.incl) (VarE $ mkName (procSym d))
-    ModStruct    d
+    ModStruct d
       -> AppE (VarE 'I.defStruct)
               (SigE (ConE 'I.Proxy)
                     (AppT (ConT ''I.Proxy) (LitT (StrTyLit (structSym d)))))
-    ModInclude    incl
+    ModInclude incl
       -> AppE (VarE 'I.depend) (VarE $ mkName $ inclModule incl)
+    ModAddfile file
+      -- Rewrap in string quotes
+      -> AppE (VarE 'I.sourceDep) (LitE $ StringL $ addfileFile file)
 
 --------------------------------------------------------------------------------
 
@@ -165,6 +170,7 @@ data ModuleData =
     ModProc    ProcDef
   | ModStruct  StructDef
   | ModInclude IncludeDef
+  | ModAddfile AddfileDef
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------

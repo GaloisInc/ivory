@@ -404,8 +404,8 @@ toExpr t (I.ExpIndex at a ti i) = case t of
 toExpr tTo (I.ExpSafeCast tFrom e) =
   [cexp| ($ty:(toType tTo))$exp:(toExpr tFrom e) |]
 ----------------------------------------
-toExpr tTo (I.ExpToIx e maxSz) =
-  [cexp| $exp:(toExpr tTo e ) % $exp:maxSz |]
+toExpr _ (I.ExpToIx e maxSz) =
+  [cexp| $exp:(toExpr I.ixRep e ) % $exp:maxSz |]
 ----------------------------------------
 toExpr tTo (I.ExpAddrOfGlobal sym) = case tTo of
   I.TyRef (I.TyArr _ _)       -> [cexp| $id:sym |]

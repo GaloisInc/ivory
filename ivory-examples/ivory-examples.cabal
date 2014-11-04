@@ -16,6 +16,21 @@ source-repository    this
   location: https://github.com/GaloisInc/ivory
   tag:      hackage-examples-0102
 
+executable ivory-concrete
+  main-is:              ConcreteFile.hs
+  hs-source-dirs:       examples
+  build-depends:        base >= 4.6,
+                        pretty >= 1.1,
+                        monadLib >= 3.7,
+                        template-haskell >= 2.8,
+                        mainland-pretty >= 0.2.4,
+                        wl-pprint,
+                        ivory,
+                        ivory-opts,
+                        ivory-backend-c,
+                        ivory-stdlib
+  default-language:     Haskell2010
+  ghc-options:          -Wall
 
 executable ivory-fibtutorial
   main-is:              FibTutorial.hs
