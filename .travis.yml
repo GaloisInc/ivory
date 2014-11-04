@@ -1,5 +1,5 @@
 language: haskell
-script:
+install:
   - make
 ghc:
   - 7.6.3
