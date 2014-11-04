@@ -188,7 +188,6 @@ module Ivory.Language (
   , defMemArea, defConstMemArea
   , inclHeader
   , private, public
-  , sourceDep
 
     -- * Quasiquoters
   , ivory
