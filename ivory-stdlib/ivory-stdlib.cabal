@@ -25,14 +25,14 @@ library
                         Ivory.Stdlib.Operators,
                         Ivory.Stdlib.String,
                         Ivory.Stdlib.Trig,
-                        Ivory.Stdlib.SearchDir,
                         Ivory.Stdlib.Maybe
 
   other-modules:        Paths_ivory_stdlib
 
   build-depends:        base >= 4.6,
                         filepath,
-                        ivory
+                        ivory,
+                        ivory-artifact
 
   hs-source-dirs:       src
   default-language:     Haskell2010
