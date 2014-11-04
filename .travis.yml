@@ -1,7 +1,8 @@
 language: haskell
-script:
 install:
-  - make
+  - make build
+script:
+  - make test
 ghc:
   - 7.6.3
   - 7.8.3
