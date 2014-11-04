@@ -3,13 +3,12 @@
 
 module Bits (runBits, cmodule) where
 
-import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language hiding (setBit, clearBit, runBits)
 import MonadLib.Monads (runState, sets)
 
 runBits :: IO ()
-runBits = void $ runCompiler [cmodule] initialOpts {stdOut = True}
+runBits = runCompiler [cmodule] [] initialOpts {stdOut = True}
 
 cmodule :: Module
 cmodule = package "Bits" $ do

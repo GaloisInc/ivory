@@ -7,7 +7,6 @@
 
 module Alloc where
 
-import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Compile.C.Modules
@@ -192,7 +191,7 @@ cmodule = package "Alloc" $ do
   defMemArea arrayTest
 
 runAlloc :: IO ()
-runAlloc = void $ runCompiler [cmodule] initialOpts { stdOut = True }
+runAlloc = runCompiler [cmodule] [] initialOpts { stdOut = True }
 
 test2 :: [[String]]
 test2 = showModule (compileModule cmodule)

@@ -10,7 +10,6 @@
 
 module PublicPrivate where
 
-import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -45,4 +44,5 @@ cmodule = package "PublicPrivate" $ do
     incl pubUpdate
 
 runPublicPrivate :: IO ()
-runPublicPrivate  = void $ runCompiler [cmodule] initialOpts { stdOut = True, constFold = True }
+runPublicPrivate  = runCompiler [cmodule] []
+  initialOpts { stdOut = True, constFold = True }
