@@ -112,7 +112,6 @@ getModData sym = case sym of
   GlobalTypeDef{}    -> Nothing
   GlobalConstDef{}   -> Nothing
   GlobalInclude    i -> Just (ModInclude i)
-  GlobalAddfile    i -> Nothing
 
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
@@ -123,7 +122,6 @@ mkDef def = case def of
   GlobalConstDef const  -> fromConstDef const
   -- No definition to make for includes, source depends.
   GlobalInclude{}       -> return []
-  GlobalAddfile{}        -> return []
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: String -> [ModuleData] -> Q [Dec]
@@ -159,6 +157,7 @@ ivoryMod  modName incls = do
                     (AppT (ConT ''I.Proxy) (LitT (StrTyLit (structSym d)))))
     ModInclude incl
       -> AppE (VarE 'I.depend) (VarE $ mkName $ inclModule incl)
+
 --------------------------------------------------------------------------------
 
 -- | Data to put in the Ivory module.

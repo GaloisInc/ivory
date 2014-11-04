@@ -30,16 +30,7 @@ data GlobalSym = GlobalProc     ProcDef
                | GlobalTypeDef  TypeDef
                | GlobalConstDef ConstDef
                | GlobalInclude  IncludeDef
-               | GlobalAddfile   AddfileDef
   deriving (Show, Read, Eq, Ord)
-
---------------------------------------------------------------------------------
--- Add sources
-
-data AddfileDef = AddfileDef
-  { addfileFile :: String
-  , addfileLoc  :: SrcLoc
-  } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Includes
@@ -340,15 +331,10 @@ instance HasLocation GlobalSym where
     GlobalTypeDef t  -> GlobalTypeDef  (stripLoc t)
     GlobalConstDef c -> GlobalConstDef (stripLoc c)
     GlobalInclude i  -> GlobalInclude  (stripLoc i)
-    GlobalAddfile  i  -> GlobalAddfile (stripLoc i)
 
 instance HasLocation IncludeDef where
   getLoc = inclDefLoc
   stripLoc incl = incl { inclDefLoc = mempty }
-
-instance HasLocation AddfileDef where
-  getLoc = addfileLoc
-  stripLoc file = file { addfileLoc = mempty }
 
 instance HasLocation ConstDef where
   getLoc = constDefLoc
