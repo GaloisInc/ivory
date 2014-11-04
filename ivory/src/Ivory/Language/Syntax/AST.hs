@@ -46,7 +46,6 @@ data Module = Module
   , modStructs     :: Visible Struct
   , modAreas       :: Visible Area
   , modAreaImports :: [AreaImport]
-  , modSourceDeps  :: Set.Set FilePath
   } deriving (Show, Eq, Ord)
 
 instance Monoid Module where
@@ -60,7 +59,6 @@ instance Monoid Module where
     , modStructs     = mempty
     , modAreas       = mempty
     , modAreaImports = []
-    , modSourceDeps  = Set.empty
     }
 
   mappend l r = Module
@@ -73,7 +71,6 @@ instance Monoid Module where
     , modStructs     = modStructs     l `mappend` modStructs     r
     , modAreas       = modAreas       l `mappend` modAreas       r
     , modAreaImports = modAreaImports l `mappend` modAreaImports r
-    , modSourceDeps  = modSourceDeps  l `mappend` modSourceDeps  r
     }
 
 
