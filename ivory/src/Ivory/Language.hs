@@ -137,7 +137,7 @@ module Ivory.Language (
   , Def()
   , ProcPtr(), procPtr
   , proc, externProc, importProc
-  , Body(), body
+  , Body(), body, importFrom
 
     -- *** Pre/Post-Conditions
   , requires

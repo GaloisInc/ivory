@@ -10,6 +10,7 @@ module Main where
 import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
 import qualified Ivory.Language as L
 import qualified Ivory.Language.Syntax as I
+import Ivory.Serialize
 import Ivory.ModelCheck
 
 import Text.Printf
@@ -45,7 +46,7 @@ shouldPass = testGroup "should be safe"
              , mkSuccess "foo17" m17 []
              , mkSuccess "foo18" m18 []
              , mkSuccessInline "heartbeat" Heartbeat.heartbeatModule
-                                           [Heartbeat.serializeModule]
+                                           [serializeModule]
              ]
 
 shouldFail :: TestTree
