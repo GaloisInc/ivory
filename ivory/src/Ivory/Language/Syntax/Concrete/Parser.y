@@ -215,7 +215,6 @@ import Ivory.Language.Syntax.Concrete.Location
 
   ty       { Located $$ (TokReserved "type") }
   include  { Located $$ (TokReserved "include") }
-  addfile  { Located $$ (TokReserved "addfile") }
 
   -- Bit data
   bitdata  { Located $$ (TokReserved "bitdata") }
@@ -282,7 +281,6 @@ defs : defs procDef       { GlobalProc     $2 : $1 }
      | defs typeDef       { GlobalTypeDef  $2 : $1 }
      | defs constDef      { GlobalConstDef $2 : $1 }
      | defs includeDef    { GlobalInclude  $2 : $1 }
-     | defs addfileDef     { GlobalAddfile $2 : $1 }
      | {- empty -}        { [] }
 
 ----------------------------------------
@@ -290,13 +288,6 @@ defs : defs procDef       { GlobalProc     $2 : $1 }
 
 includeDef :: { IncludeDef }
 includeDef : include ident { IncludeDef (unLoc $2) ($1 <> getLoc $2)  }
-
-----------------------------------------
--- Add other source files (Ivory's "sourcDep").
-
-addfileDef :: { AddfileDef }
-addfileDef : addfile str { let TokString s = unLoc $2 in
-                           AddfileDef s ($1 <> getLoc $2)  }
 
 ----------------------------------------
 -- Constant definitions
