@@ -16,7 +16,6 @@
 
 module Concrete where
 
-import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -48,4 +47,4 @@ printf2  = importProc "printf" "stdio.h"
 [ivoryFile|examples/file.ivory|]
 
 runFile :: IO ()
-runFile = void $ runCompiler [examplesfile] initialOpts {stdOut = True, constFold = True}
+runFile = runCompiler [examplesfile] [] initialOpts {stdOut = True, constFold = True}

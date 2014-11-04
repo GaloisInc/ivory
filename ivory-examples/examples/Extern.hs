@@ -3,7 +3,6 @@
 
 module Extern where
 
-import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -20,7 +19,7 @@ test  = proc "test" $ \ c -> body $
   >> retVoid
 
 runExtern :: IO ()
-runExtern  = void $ runCompiler [cmodule] initialOpts { stdOut = True }
+runExtern  = runCompiler [cmodule] [] initialOpts { stdOut = True }
 
 cmodule :: Module
 cmodule  = package "Extern" $ do

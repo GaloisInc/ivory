@@ -3,7 +3,6 @@
 
 module Cond where
 
-import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 import Prelude hiding (exp)
@@ -30,6 +29,7 @@ fooMod :: Module
 fooMod  = package "fooM" $ incl foo
 
 runFoo :: IO ()
-runFoo = void $ runCompiler [fooMod] initialOpts { stdOut = True
-                                          , divZero = True
-                                          }
+runFoo = runCompiler [fooMod] []
+            initialOpts { stdOut = True
+                        , divZero = True
+                        }
