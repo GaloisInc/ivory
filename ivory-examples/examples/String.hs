@@ -20,7 +20,7 @@ test  = proc "test" $ body $ do
   retVoid
 
 runString :: IO ()
-runString = runCompiler [cmodule] [] initialOpts { stdOut = True }
+runString = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
 cmodule :: Module
 cmodule = package "String" $ do

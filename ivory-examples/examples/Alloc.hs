@@ -191,7 +191,7 @@ cmodule = package "Alloc" $ do
   defMemArea arrayTest
 
 runAlloc :: IO ()
-runAlloc = runCompiler [cmodule] [] initialOpts { stdOut = True }
+runAlloc = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
-test2 :: [[String]]
+test2 :: String
 test2 = showModule (compileModule cmodule)

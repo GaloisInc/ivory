@@ -8,7 +8,7 @@ import Ivory.Language hiding (setBit, clearBit, runBits)
 import MonadLib.Monads (runState, sets)
 
 runBits :: IO ()
-runBits = runCompiler [cmodule] [] initialOpts {stdOut = True}
+runBits = runCompiler [cmodule] [] initialOpts {outDir = Nothing}
 
 cmodule :: Module
 cmodule = package "Bits" $ do

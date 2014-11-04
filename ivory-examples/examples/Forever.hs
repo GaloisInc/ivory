@@ -33,5 +33,5 @@ cmodule = package "Forever" $ do
   incl foreverFactorial
 
 runFactorial :: IO ()
-runFactorial = runCompiler [cmodule] [] initialOpts { stdOut = True }
+runFactorial = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 

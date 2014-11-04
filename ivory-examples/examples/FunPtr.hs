@@ -16,7 +16,7 @@ test :: Def ('[] :-> Sint32)
 test  = proc "test" (body (ret =<< call invoke (procPtr f) 10))
 
 runFunPtr :: IO ()
-runFunPtr = runCompiler [cmodule] [] initialOpts { stdOut = True }
+runFunPtr = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
 cmodule :: Module
 cmodule = package "FunPtr" $ do

@@ -81,7 +81,7 @@ bar = proc "bar" $ \r0 r1 r2 -> body $ do
 makeCCode :: IO ()
 makeCCode = runCompiler [cmodule] [] opts
   where
-  opts = initialOpts { stdOut = True, constFold = True }
+  opts = initialOpts { outDir = Nothing, constFold = True }
   cmodule = package "Module" $ do
     defStruct (Proxy :: Proxy "StanagBase")
     defStruct (Proxy :: Proxy "StanagBaseMsg1")
