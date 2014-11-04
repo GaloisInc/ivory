@@ -28,62 +28,63 @@ tests = testGroup "Tests" [ shouldPass, shouldFail, examples ]
 
 shouldPass :: TestTree
 shouldPass = testGroup "should be safe"
-             [ mkSuccess "foo2" m2
-             , mkSuccess "foo3" m3
-             , mkSuccess "foo4" m4
-             , mkSuccess "foo5" m5
-             , mkSuccess "foo6" m6
-             , mkSuccess "foo7" m7
-             , mkSuccess "foo8" m8
-             , mkSuccess "foo9" m9
-             , mkSuccess "foo10" m10
-             , mkSuccess "foo11" m11
-             , mkSuccess "foo12" m12
-             , mkSuccess "foo13" m13
-             , mkSuccess "foo15" m15
-             , mkSuccess "foo16" m16
-             , mkSuccess "foo17" m17
-             , mkSuccess "foo18" m18
+             [ mkSuccess "foo2" m2 []
+             , mkSuccess "foo3" m3 []
+             , mkSuccess "foo4" m4 []
+             , mkSuccess "foo5" m5 []
+             , mkSuccess "foo6" m6 []
+             , mkSuccess "foo7" m7 []
+             , mkSuccess "foo8" m8 []
+             , mkSuccess "foo9" m9 []
+             , mkSuccess "foo10" m10 []
+             , mkSuccess "foo11" m11 []
+             , mkSuccess "foo12" m12 []
+             , mkSuccess "foo13" m13 []
+             , mkSuccess "foo15" m15 []
+             , mkSuccess "foo16" m16 []
+             , mkSuccess "foo17" m17 []
+             , mkSuccess "foo18" m18 []
              , mkSuccessInline "heartbeat" Heartbeat.heartbeatModule
+                                           [Heartbeat.serializeModule]
              ]
 
 shouldFail :: TestTree
 shouldFail = testGroup "should be unsafe"
-             [ mkFailure "foo1" m1
-             , mkFailure "foo14" m14
+             [ mkFailure "foo1" m1 []
+             , mkFailure "foo14" m14 []
              ]
 
 examples :: TestTree
 examples = testGroup "examples (shouldn't crash)"
-           [ mkNotError (I.modName m) m | m <- Examples.modules ]
+           [ mkNotError (I.modName m) m [] | m <- Examples.modules ]
 
 testArgs :: Args
 testArgs = initArgs { printQuery = False, printEnv = False }
 
-mkSuccess :: TestName -> Module -> TestTree
-mkSuccess nm m = testCase nm $ do
-  (r, f) <- modelCheck testArgs m
+mkSuccess :: TestName -> Module -> [Module] -> TestTree
+mkSuccess nm m deps = testCase nm $ do
+  (r, f) <- modelCheck testArgs deps m
   let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (isSafe r)
 
-mkSuccessInline :: TestName -> Module -> TestTree
-mkSuccessInline nm m = testCase nm $ do
-  (r, f) <- modelCheck (testArgs { inlineCall = True }) m
+mkSuccessInline :: TestName -> Module -> [Module] -> TestTree
+mkSuccessInline nm m deps = testCase nm $ do
+  (r, f) <- modelCheck (testArgs { inlineCall = True }) deps m
   let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (isSafe r)
 
-mkFailure :: TestName -> Module -> TestTree
-mkFailure nm m = testCase nm $ do
-  (r, f) <- modelCheck testArgs m
+mkFailure :: TestName -> Module -> [Module] -> TestTree
+mkFailure nm m deps = testCase nm $ do
+  (r, f) <- modelCheck testArgs deps m
   let msg = printf "Expected: Unsafe\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (isUnsafe r)
 
-mkNotError :: TestName -> Module -> TestTree
-mkNotError nm m = testCase nm $ do
-  (r, f) <- modelCheck testArgs m
+mkNotError :: TestName -> Module -> [Module] -> TestTree
+mkNotError nm m deps = testCase nm $ do
+  (r, f) <- modelCheck testArgs deps m
   let msg = printf "Expected: anything but Error\nActual: %s\n(check %s for details)"
             (showResult r) f
   assertBool msg (not $ isError r)

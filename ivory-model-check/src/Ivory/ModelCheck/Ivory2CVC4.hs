@@ -11,6 +11,7 @@ import           Control.Applicative
 import           Control.Monad
 import qualified Data.Map               as M
 import           Data.Maybe
+import qualified Data.Set               as S
 import qualified Ivory.Language.Array   as I
 import qualified Ivory.Language.Cast    as I
 import qualified Ivory.Language.Syntax  as I
@@ -28,6 +29,7 @@ import           Ivory.ModelCheck.Monad
 
 modelCheckMod :: I.Module -> ModelCheck ()
 modelCheckMod m = do
+  mapM_ addDepends (S.toList $ I.modDepends m)
   mapM_ toStruct (getVisible $ I.modStructs m)
   mapM_ addExtern (I.modExterns m)
   mapM_ addImport (I.modImports m)
@@ -36,6 +38,8 @@ modelCheckMod m = do
   mapM_ (modelCheckProc . overflowFold . constFold) (getVisible $ I.modProcs m)
   where
   getVisible ps = I.public ps ++ I.private ps
+  addDepends mn = do m <- lookupModule mn
+                     mapM_ addProc (getVisible $ I.modProcs m)
   addExtern e = addProc I.Proc { I.procSym = I.externSym e
                                , I.procRetTy = I.externRetType e
                                , I.procArgs = map (\arg -> I.Typed arg (I.VarName "dummy"))

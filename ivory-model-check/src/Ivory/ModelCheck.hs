@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 --XXX testing
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
@@ -21,6 +22,7 @@ import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 import           Data.List
+import qualified Data.Map                    as M
 
 --------------------------------------------------------------------------------
 
@@ -68,15 +70,15 @@ showResult Inconsistent = "Inconsistent"
 showResult (Unsafe qs)  = "Unsafe: " ++ intercalate ", " qs
 showResult (Error e)    = "Error: " ++ e
 
-modelCheck' :: I.Module -> IO ()
-modelCheck' m = do
-  (res, file) <- modelCheck initArgs m
+modelCheck' :: [I.Module] -> I.Module -> IO ()
+modelCheck' deps m = do
+  (res, file) <- modelCheck initArgs deps m
   print file
   print res
 
-modelCheck :: Args -> I.Module -> IO (Result, FilePath)
-modelCheck args m = do
-  let (_, st) = runMC (SymOpts (inlineCall args)) (modelCheckMod m)
+modelCheck :: Args -> [I.Module] -> I.Module -> IO (Result, FilePath)
+modelCheck args (mkModuleEnv -> deps) m = do
+  let (_, st) = runMC (SymOpts (inlineCall args) deps) (modelCheckMod m)
   let bs = B.unlines (mkScript st)
   debugging args st bs
   file <- writeInput bs
@@ -91,6 +93,9 @@ modelCheck args m = do
              | (q, "invalid") <- zip (tail $ allQueries st) results
              ]
    _ -> return (Error (show out), file)
+
+mkModuleEnv :: [I.Module] -> M.Map I.ModuleName I.Module
+mkModuleEnv deps = M.fromList [ (I.modName m, m) | m <- deps ]
 
 --------------------------------------------------------------------------------
 

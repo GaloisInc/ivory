@@ -28,6 +28,7 @@ module Ivory.ModelCheck.Monad
   , resetSt
   , branchSt
   , askInline
+  , lookupModule
   )
  where
 
@@ -83,7 +84,10 @@ data SymExecSt = SymExecSt
 
 data SymOpts = SymOpts
   { inlineCalls :: Bool
+  , moduleEnv   :: ModuleEnv
   }
+
+type ModuleEnv = M.Map I.ModuleName I.Module
 
 newtype ModelCheck a = ModelCheck (StateT SymExecSt (ReaderT SymOpts Id) a)
   -- { unModelCheck ::
@@ -241,6 +245,11 @@ nullProc nm = I.Proc nm (error "tried to use ret ty") [] [] [] []
 
 askInline :: ModelCheck Bool
 askInline = asks inlineCalls
+
+lookupModule :: I.ModuleName -> ModelCheck I.Module
+lookupModule nm = do
+  env <- asks moduleEnv
+  return $ env M.! nm
 
 -- | Lookup a variable in the environment.  If it's not in there return a fresh
 -- variable (and update the environment) and declare it (which is why we need

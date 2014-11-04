@@ -40,14 +40,12 @@ heartbeatCrcExtra = 50
 
 heartbeatModule :: Module
 heartbeatModule = package "mavlink_heartbeat_msg" $ do
-  -- depend serializeModule
+  depend serializeModule
   -- depend mavlinkSendModule
   -- incl mkHeartbeatSender
   incl packUnpack
   incl heartbeatPackCArray
   incl heartbeatUnpackCArray
-  incl unpack8
-  incl unpack32
   defStruct (Proxy :: Proxy "heartbeat_msg")
   defStruct (Proxy :: Proxy "mavlinkPacket")
 
@@ -196,34 +194,6 @@ heartbeatUnpackCArray = proc "heartbeat_unpack_carray" $ \ msg buf -> body $ do
   store (msg ~> system_status)   =<< call unpack8 buf 7
   store (msg ~> mavlink_version) =<< call unpack8 buf 8
 
-pack8 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint8] :-> ())
-pack8 = proc "ivory_serialize_pack_uint8" 
-      $ \arr ix v -> ensures_ ((arr !! ix) ==? v)
-      $ importFrom "serialize.h"
-
-unpack8 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint8)
-unpack8 = proc "ivory_serialize_unpack_uint8" 
-        $ \arr ix -> ensures (\r -> r ==? arr !! ix)
-        $ importFrom "serialize.h"
-
-pack32 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint32] :-> ())
-pack32 = proc "ivory_serialize_pack_uint32" 
-       $ \arr ix v -> ensures_ ((arr !! ix) ==? v)
-       $ importFrom "serialize.h"
-
-unpack32 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint32)
-unpack32 = proc "ivory_serialize_unpack_uint32" 
-         $ \arr ix -> ensures (\r -> r ==? arr !! ix)
-         $ importFrom "serialize.h"
-
-(!!) :: forall s area ref a.
-        ( IvoryArea area, IvoryRef ref
-        , IvoryExpr (ref s (CArray area)), IvoryExpr a)
-     => ref s (CArray area) -> Uint32 -> a
-arr !! ix = wrapExpr (AST.ExpIndex ty (unwrapExpr arr) ixRep (getUint32 ix))
-  where
-  ty    =  TyCArray (TyWord Word8) -- ivoryArea (Proxy :: Proxy (CArray area))
-
 --------------------------------------------------------------------------------
 -- SMACCMPilot.Mavlink.Send
 --------------------------------------------------------------------------------
@@ -255,3 +225,41 @@ class MavlinkUnpackableMsg t where
                        , ConstRef s2 (CArray (Stored Uint8))
                        ] :-> ())
                 , Uint8 )
+
+--------------------------------------------------------------------------------
+-- Ivory.Serialize
+--------------------------------------------------------------------------------
+serializeModule :: Module
+serializeModule = package "ivory_serialize" $ do
+  incl pack8
+  incl unpack8
+  incl pack32
+  incl unpack32
+
+pack8 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint8] :-> ())
+pack8 = proc "ivory_serialize_pack_uint8" 
+      $ \arr ix v -> ensures_ ((arr !! ix) ==? v)
+      $ importFrom "serialize.h"
+
+unpack8 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint8)
+unpack8 = proc "ivory_serialize_unpack_uint8" 
+        $ \arr ix -> ensures (\r -> r ==? arr !! ix)
+        $ importFrom "serialize.h"
+
+pack32 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint32] :-> ())
+pack32 = proc "ivory_serialize_pack_uint32" 
+       $ \arr ix v -> ensures_ ((arr !! ix) ==? v)
+       $ importFrom "serialize.h"
+
+unpack32 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint32)
+unpack32 = proc "ivory_serialize_unpack_uint32" 
+         $ \arr ix -> ensures (\r -> r ==? arr !! ix)
+         $ importFrom "serialize.h"
+
+(!!) :: forall s area ref a.
+        ( IvoryArea area, IvoryRef ref
+        , IvoryExpr (ref s (CArray area)), IvoryExpr a)
+     => ref s (CArray area) -> Uint32 -> a
+arr !! ix = wrapExpr (AST.ExpIndex ty (unwrapExpr arr) ixRep (getUint32 ix))
+  where
+  ty    =  TyCArray (TyWord Word8) -- ivoryArea (Proxy :: Proxy (CArray area))
