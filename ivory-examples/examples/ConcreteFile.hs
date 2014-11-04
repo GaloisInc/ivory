@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -14,12 +15,9 @@
 -- All rights reserved.
 --
 
-module Concrete where
-
 import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
-
 
 e :: IBool
 e = (4::Sint32) >? 3
@@ -47,5 +45,5 @@ printf2  = importProc "printf" "stdio.h"
 
 [ivoryFile|examples/file.ivory|]
 
-runFile :: IO ()
-runFile = void $ runCompiler [examplesfile] initialOpts {stdOut = True, constFold = True}
+main :: IO ()
+main = void $ runCompiler [examplesfile] initialOpts {stdOut = True, constFold = True}
