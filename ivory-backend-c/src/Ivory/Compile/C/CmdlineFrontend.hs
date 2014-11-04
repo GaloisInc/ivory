@@ -48,10 +48,14 @@ compileWith sm ms as = do
 
 runArtifactCompiler :: [Artifact] -> Opts -> IO ()
 runArtifactCompiler as opts = do
-  errs <- putArtifacts (srcDir opts) (as ++ runtimeArtifacts)
+  errs <- putAs (outDir opts)
   case errs of
     Nothing -> return ()
     Just e -> error e
+  where
+  artifacts = as ++ runtimeArtifacts
+  putAs Nothing    = printArtifacts artifacts
+  putAs (Just dir) = putArtifacts dir artifacts
 
 runtimeArtifacts :: [Artifact]
 runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
@@ -97,20 +101,20 @@ runCompilerWith sm modules artifacts opts = do
 rc :: G.SizeMap -> [Module] -> [Artifact] -> Opts -> IO ()
 rc sm modules artifacts opts
   | outProcSyms opts       = C.outputProcSyms modules
-  | stdOut opts            = stdoutmodules
+  | Nothing <- outDir opts = stdoutmodules
   | otherwise              = outputmodules
 
   where
 
   stdoutmodules = do
-    mapM_ showM_ cmodules
+    mapM_ (putStrLn . C.showModule) cmodules
     cfgoutput
 
   outputmodules = do
-    createDirectoryIfMissing True (includeDir opts)
-    createDirectoryIfMissing True (srcDir opts)
-    outputHeaders (includeDir opts) cmodules
-    outputSources (srcDir opts) cmodules
+    let Just dir = outDir opts
+    createDirectoryIfMissing True dir
+    outputHeaders dir cmodules
+    outputSources dir cmodules
     runArtifactCompiler artifacts opts
     cfgoutput
 
@@ -130,9 +134,6 @@ rc sm modules artifacts opts
     putStrLn $ "Maximum stack usage from function " ++ p ++ ": " ++ show res
 
   cmodules   = map C.compileModule optModules
-
-  showM_ mods = do
-    mapM_ (mapM_ putStrLn) (C.showModule mods)
 
   cfPass = mkPass constFold O.constFold
 
@@ -158,6 +159,7 @@ rc sm modules artifacts opts
     , cfPass
     ]
 
+  -- XXX can refactor these into one:
   -- Output headers in a directory
   outputHeaders :: FilePath -> [C.CompileUnits] -> IO ()
   outputHeaders fp cus = mapM_ (process outputHeader fp) cus
