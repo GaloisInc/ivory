@@ -10,7 +10,7 @@ cmodule :: Module
 cmodule = package "Array" $ incl arrayExample
 
 runArrayExample :: IO ()
-runArrayExample = runCompiler [cmodule] [] initialOpts { stdOut = True }
+runArrayExample = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
 arrayExample :: Def('[Ref s (Array 4 (Stored Uint8)), Uint8] :-> ())
 arrayExample = proc "arrayExample" $ \arr n -> body $ do

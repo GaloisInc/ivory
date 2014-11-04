@@ -28,5 +28,5 @@ cmodule = package "Overflow" $ --incl ovf1 >> incl ovf2 >>
 
 writeOverflow :: Opts -> IO ()
 writeOverflow opts = runCompiler [cmodule] []
-  opts { constFold = False, overflow = False, divZero = True, stdOut = True }
+  opts { constFold = False, overflow = False, divZero = True, outDir = Nothing }
 

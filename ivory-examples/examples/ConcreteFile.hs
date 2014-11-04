@@ -47,4 +47,4 @@ printf2  = importProc "printf" "stdio.h"
 [ivoryFile|examples/file.ivory|]
 
 runFile :: IO ()
-runFile = runCompiler [examplesfile] [] initialOpts {stdOut = True, constFold = True}
+runFile = runCompiler [examplesfile] [] initialOpts {outDir = Nothing, constFold = True}

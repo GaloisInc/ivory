@@ -22,4 +22,4 @@ cmodule :: Module
 cmodule = package "Factorial" $ incl factorial
 
 runFactorial :: IO ()
-runFactorial = runCompiler [cmodule] [] initialOpts { stdOut = True }
+runFactorial = runCompiler [cmodule] [] initialOpts { outDir = Nothing }

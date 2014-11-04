@@ -16,4 +16,4 @@ runConstRef :: IO ()
 runConstRef = runCompiler
                 [package "ConstRef" (incl test)]
                 []
-                initialOpts { stdOut = True }
+                initialOpts { outDir = Nothing }
