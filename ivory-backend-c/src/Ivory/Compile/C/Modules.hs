@@ -22,13 +22,14 @@ import MonadLib (put,runM)
 
 --------------------------------------------------------------------------------
 
-showModule :: CompileUnits -> [[String]]
-showModule m =
-  [ mk "// Sources:\n" (sources m)
-  , mk "// Header:\n"  (headers m)
-  , mk "// Externs:\n" (S.empty, externs m)
+showModule :: CompileUnits -> String
+showModule m = unlines $ map unlines $
+  [ mk (lbl "Source") (sources m)
+  , mk (lbl "Header") (headers m)
+  , mk (lbl "Extern") (S.empty, externs m)
   ]
   where
+  lbl l = "// module " ++ unitName m ++ " " ++ l ++ ":\n"
   mk _   (_,[])         = []
   mk str (incls,units)  = str : pp (map includeDef (S.toList incls) ++ units)
   pp = map (show . ppr)
