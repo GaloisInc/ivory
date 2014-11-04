@@ -103,12 +103,19 @@ compileUnit I.Proc { I.procSym      = sym
                    , I.procEnsures  = ensures
                    }
   = do let ens  = map I.getEnsure ensures
-       let bd   = concatMap (toBody ens) body
+       let bd   = foldr collapseComment [] $ concatMap (toBody ens) body
        let reqs = map (toRequire . I.getRequire) requires
        putSrc [cedecl| $ty:(toType ret) ($id:sym) ($params:(toArgs args))
                          { $items:reqs
                            $items:bd
                          } |]
+
+collapseComment :: C.BlockItem -> [C.BlockItem] -> [C.BlockItem]
+collapseComment (C.BlockStm (C.Comment c (C.Exp Nothing _) src))
+                (C.BlockStm stm : items)
+  = C.BlockStm (C.Comment c stm src) : items
+collapseComment stm items
+  = stm : items
 
 --------------------------------------------------------------------------------
 -- | Get the prototypes.
