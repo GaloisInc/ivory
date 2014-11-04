@@ -12,7 +12,9 @@ import qualified Ivory.Language.Array as I
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Type as I
 import qualified Ivory.Language.Uint as I
+import Ivory.Artifact
 import Ivory.Serialize.Class
+import qualified Paths_ivory_serialize as P
 
 serializeHeader :: String
 serializeHeader = "ivory_serialize_prim.h"
@@ -20,7 +22,6 @@ serializeHeader = "ivory_serialize_prim.h"
 serializeModule :: Module
 serializeModule = package "ivory_serialize" $ do
   inclHeader serializeHeader
-  sourceDep  serializeHeader
   incl packU8
   incl unpackU8
   incl packS8
@@ -42,6 +43,10 @@ serializeModule = package "ivory_serialize" $ do
   incl packD
   incl unpackD
 
+searializeArtifacts :: [Artifact]
+searializeArtifacts = [ a serializeHeader ]
+  where
+  a f = artifactCabalFile P.getDataDir ("support/" ++ f)
 
 instance Serializable Uint8 where
   pack dst offs src = call_ packU8 dst offs src
