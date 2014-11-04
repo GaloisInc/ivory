@@ -3,7 +3,6 @@
 
 module Forever where
 
-import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -34,5 +33,5 @@ cmodule = package "Forever" $ do
   incl foreverFactorial
 
 runFactorial :: IO ()
-runFactorial = void $ runCompiler [cmodule] initialOpts { stdOut = True }
+runFactorial = runCompiler [cmodule] [] initialOpts { stdOut = True }
 

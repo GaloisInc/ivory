@@ -4,7 +4,6 @@
 
 module String where
 
-import Control.Monad (void)
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
@@ -21,7 +20,7 @@ test  = proc "test" $ body $ do
   retVoid
 
 runString :: IO ()
-runString = void $ runCompiler [cmodule] initialOpts { stdOut = True }
+runString = runCompiler [cmodule] [] initialOpts { stdOut = True }
 
 cmodule :: Module
 cmodule = package "String" $ do

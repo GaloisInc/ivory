@@ -23,4 +23,4 @@ fib_tutorial_module = package "fib_tutorial" $ do
   incl fib_loop
 
 main :: IO ()
-main = C.compile [ fib_tutorial_module ]
+main = C.compile [ fib_tutorial_module ] []

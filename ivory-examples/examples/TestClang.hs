@@ -17,12 +17,10 @@ import qualified SizeOf
 import qualified AddrOfRegression
 import qualified Array
 
-import Control.Monad (void, when)
+import Control.Monad (when)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language (Module(),moduleName)
 import Ivory.Stdlib (stdlibModules)
-
-import qualified Ivory.Stdlib.SearchDir as S
 
 main :: IO ()
 main = do
@@ -40,7 +38,7 @@ main = do
 compileExample :: Opts -> Module -> IO ()
 compileExample opts m = do
   putStrLn ("Compiling: " ++ moduleName m)
-  void $ runCompilerWith Nothing (Just [S.searchDir]) [m] opts
+  runCompiler [m] [] opts -- XXX will need stdlib artifacts to build
 
 modules :: [Module]
 modules = [ PID.cmodule

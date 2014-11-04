@@ -6,7 +6,6 @@
 
 module QC where
 
-import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 import Ivory.QuickCheck
@@ -63,11 +62,13 @@ runTest = do
 runTests :: IO ()
 runTests = do
   d <- runIO runTest
-  void $ runCompiler [cmodule d] initialOpts { includeDir = "test"
-                                      , srcDir     = "test"
-                                      , constFold  = True
-                                      }
-    
-cmodule d = package "qc" $ do
-  incl d
-  incl func
+  runCompiler [cmodule d] []
+            initialOpts { includeDir = "test"
+                        , srcDir     = "test"
+                        , constFold  = True
+                        }
+  where
+  cmodule d = package "qc" $ do
+    incl d
+    incl func
+

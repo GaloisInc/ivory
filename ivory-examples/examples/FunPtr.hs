@@ -3,7 +3,6 @@
 
 module FunPtr where
 
-import Control.Monad (void)
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 
@@ -17,7 +16,7 @@ test :: Def ('[] :-> Sint32)
 test  = proc "test" (body (ret =<< call invoke (procPtr f) 10))
 
 runFunPtr :: IO ()
-runFunPtr = void $ runCompiler [cmodule] initialOpts { stdOut = True }
+runFunPtr = runCompiler [cmodule] [] initialOpts { stdOut = True }
 
 cmodule :: Module
 cmodule = package "FunPtr" $ do

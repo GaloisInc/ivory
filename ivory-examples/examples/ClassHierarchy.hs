@@ -79,7 +79,7 @@ bar = proc "bar" $ \r0 r1 r2 -> body $ do
   ret (b0 .&& b1 .&& b2)
 
 makeCCode :: IO ()
-makeCCode = void $ runCompiler [cmodule] opts
+makeCCode = runCompiler [cmodule] [] opts
   where
   opts = initialOpts { stdOut = True, constFold = True }
 
