@@ -30,6 +30,6 @@ fooMod  = package "fooM" $ incl foo
 
 runFoo :: IO ()
 runFoo = runCompiler [fooMod] []
-            initialOpts { stdOut = True
+            initialOpts { outDir = Nothing
                         , divZero = True
                         }

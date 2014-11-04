@@ -78,7 +78,8 @@ foo = proc "foo" $ \a b ->
     retVoid
 
 runPID :: IO ()
-runPID = runCompiler [cmodule] [] initialOpts { stdOut = True, bitShiftCheck = True, divZero = True }
+runPID = runCompiler [cmodule] []
+  initialOpts { outDir = Nothing, bitShiftCheck = True, divZero = True }
 
 cmodule :: Module
 cmodule = package "PID" $ do

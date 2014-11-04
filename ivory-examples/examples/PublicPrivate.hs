@@ -45,4 +45,4 @@ cmodule = package "PublicPrivate" $ do
 
 runPublicPrivate :: IO ()
 runPublicPrivate  = runCompiler [cmodule] []
-  initialOpts { stdOut = True, constFold = True }
+  initialOpts { outDir = Nothing, constFold = True }

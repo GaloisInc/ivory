@@ -72,4 +72,4 @@ cmodule = package "FibLoop" $ do
   incl fib_struct_loop
 
 runFibLoop :: IO ()
-runFibLoop  = runCompiler [cmodule] [] initialOpts { stdOut = True, constFold = True }
+runFibLoop  = runCompiler [cmodule] [] initialOpts { outDir = Nothing, constFold = True }

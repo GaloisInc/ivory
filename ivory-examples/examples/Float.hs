@@ -7,7 +7,7 @@ import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 
 runFloat :: IO ()
-runFloat = runCompiler [cmodule] [] initialOpts { stdOut = True }
+runFloat = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
 cmodule :: Module
 cmodule  = package "Float" $ do
