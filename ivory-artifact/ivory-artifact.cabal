@@ -13,7 +13,8 @@ source-repository    this
   location: https://github.com/GaloisInc/ivory
 
 library
-  exposed-modules:      Ivory.Artifact
+  exposed-modules:      Ivory.Artifact,
+                        Ivory.Artifact.Transformer
   build-depends:        base >= 4.6,
                         filepath,
                         directory,

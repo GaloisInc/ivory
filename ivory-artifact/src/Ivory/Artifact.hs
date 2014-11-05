@@ -8,8 +8,12 @@ module Ivory.Artifact (
   --
   -- Artifacts are exposed as an abstract type `Artifact` with a set of
   -- constructors, an accessor `artifactFileName`, and two functions,
-  -- `putArtifacts` and `printArtifacts`, which are used to write a set of
-  -- Artifacts to a file or print them to stdout, respectively.
+  -- `putArtifact` and `printArtifact`, which are used to write an
+  -- Artifacts to a file or print it to stdout, respectively.
+  --
+  -- Users may specify transformations on the contents of an artifact.
+  -- Optionally, these transformations can throw an error. This is useful when
+  -- using artifact files as templates.
   --
     Artifact()
   -- | Gives the file name that will be used when writing the `Artifact` to the
@@ -43,34 +47,51 @@ module Ivory.Artifact (
   -- `artifactText`.
   , artifactString
 
+  -- | `artifactTransform` and `artifactTransformString` specify a
+  -- transformation on the contents of an `Artifact`.
+  , artifactTransform, artifactTransformString
+
+  -- | `artifactTransformErr` and `artifactTransformErrString` specify a
+  -- transformation on the contents of an `Artifact` which may give an error.
+  , artifactTransformErr, artifactTransformErrString
+
   -- * Artifact actions
-  -- | Takes a directory of type `FilePath` and a list of `Artifact`s, and
-  -- writes each Artifact to the filesystem. Gives a `Maybe String` containing
-  -- any errors encountered when an `Artifact` is specified by an input filename
-  -- which does not exist.
-  , putArtifacts
+  -- | Takes a directory of type `FilePath` and an `Artifact`
+  -- writes each `Artifact` to the file system or gives an error explaining why
+  -- not. `Maybe String` containins errors encountered when an `Artifact` is
+  -- transformed, or specified by an input filename which does not exist.
+  , putArtifact
 
-  -- | Takes a list of `Artifact`s and prints them to stdout.
-  , printArtifacts
+  -- | Takes an `Artifact` and prints it, or an appropriate error message, to
+  -- stdout.
+  , printArtifact
   ) where
-
-import Data.Either (lefts, rights)
 
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import System.FilePath
 import System.Directory
+import Ivory.Artifact.Transformer
 
-data Artifact = Artifact FilePath AContents
+data Artifact =
+  Artifact
+    { artifact_outputname  :: FilePath
+    , artifact_contents    :: AContents
+    , artifact_transformer :: Transformer T.Text
+    }
+
 data AContents = LiteralContents T.Text
                | FileContents (IO FilePath)
 
 artifactFileName :: Artifact -> FilePath
-artifactFileName (Artifact f _ ) = f
+artifactFileName = artifact_outputname
 
 artifactFile :: FilePath -> IO FilePath -> Artifact
-artifactFile outputname inputpath =
-  Artifact (takeFileName outputname) (FileContents inputpath)
+artifactFile outputname inputpath = Artifact
+  { artifact_outputname  = takeFileName outputname
+  , artifact_contents    = FileContents inputpath
+  , artifact_transformer = emptyTransformer
+  }
 
 artifactCabalFile :: IO FilePath -> FilePath -> Artifact
 artifactCabalFile inputdir inputfname =
@@ -78,59 +99,72 @@ artifactCabalFile inputdir inputfname =
                (fmap (\i -> (i </> inputfname)) inputdir)
 
 artifactText :: FilePath -> T.Text -> Artifact
-artifactText outputname t =
-  Artifact (takeFileName outputname) (LiteralContents t)
+artifactText outputname t = Artifact
+  { artifact_outputname  = takeFileName outputname
+  , artifact_contents    = LiteralContents t
+  , artifact_transformer = emptyTransformer
+  }
 
 artifactString :: FilePath -> String -> Artifact
 artifactString f s = artifactText f (T.pack s)
 
--- Write a set of artifacts to a given directory.
--- Return value is an error report.
-putArtifacts :: FilePath -> [Artifact] -> IO (Maybe String)
-putArtifacts dir as = aux putcontents as
+artifactTransform :: (T.Text -> T.Text) -> Artifact -> Artifact
+artifactTransform f a =
+  a { artifact_transformer = transform f (artifact_transformer a) }
+
+artifactTransformString :: (String -> String) -> Artifact -> Artifact
+artifactTransformString f a = artifactTransform f' a
+  where f' = T.pack . f . T.unpack
+
+artifactTransformErr :: (T.Text -> Either String T.Text) -> Artifact -> Artifact
+artifactTransformErr f a =
+  a { artifact_transformer = transformErr f (artifact_transformer a) }
+
+artifactTransformErrString :: (String -> Either String String) -> Artifact -> Artifact
+artifactTransformErrString f a = artifactTransformErr f' a
+  where f' t = fmap T.pack (f (T.unpack t))
+
+getArtifact :: Artifact -> IO (Either String T.Text)
+getArtifact a = g (artifact_contents a)
   where
-  putcontents :: Artifact -> IO (Either String (IO ()))
-  putcontents (Artifact fname c) = case c of
-    LiteralContents t -> return $ Right $ T.writeFile (dir </> fname) t
-    FileContents getf -> do
+  runT t = runTransformer (artifact_transformer a) t
+  g (LiteralContents t) = return (runT t)
+  g (FileContents getf) = do
       srcpath <- getf
       -- Check if srcpath exists. If it does not, give an error
       exists <- doesFileExist srcpath
       case exists of
-        True -> return $ Right $ copyFile srcpath (dir </> fname)
-        False -> return $ Left $ "Path " ++ srcpath ++ " (for Artifact named "
-                                 ++ fname ++ ") could not be found."
+        True -> do
+          t <- T.readFile srcpath
+          return (runT t)
+        False -> return (Left (notfound srcpath))
 
-printArtifacts :: [Artifact] -> IO (Maybe String)
-printArtifacts as = aux printcontents as
+  notfound srcpath = "Path " ++ srcpath ++ " for Artifact named "
+     ++ artifact_outputname a ++ " could not be found."
+
+withContents :: Artifact -> (T.Text -> IO ()) -> IO (Maybe String)
+withContents a f = do
+  contents <- getArtifact a
+  case contents of
+    Left err -> return (Just err)
+    Right c  -> f c >> return Nothing
+
+putArtifact :: FilePath -> Artifact -> IO (Maybe String)
+putArtifact fp a = withContents a $ \c ->
+  T.writeFile (fp </> artifact_outputname a) c
+
+printArtifact :: Artifact -> IO ()
+printArtifact a = do
+  res <- withContents a aux
+  case res of
+    Nothing -> return ()
+    Just err -> putStrLn $
+      "Encountered error when creating artifact " ++ artifact_outputname a
+        ++ ":\n" ++ err
   where
-  printcontents :: Artifact -> IO (Either String (IO ()))
-  printcontents (Artifact fname c) = case c of
-    LiteralContents t -> return $ Right $ do
-      putStrLn ("Artifact " ++ fname)
-      putStrLn  "==================="
-      T.putStrLn t
-      putStrLn  "==================="
-    FileContents getf -> do
-      srcpath <- getf
-      -- Check if srcpath exists. If it does not, give an error
-      exists <- doesFileExist srcpath
-      case exists of
-        True -> return $ Right $ do
-          putStrLn ("Artifact " ++ fname ++ " from " ++ srcpath)
-          putStrLn  "==================="
-          T.readFile srcpath >>= T.putStrLn
-          putStrLn  "==================="
-        False -> return $ Left $ "Path " ++ srcpath ++ " (for Artifact named "
-                                 ++ fname ++ ") could not be found."
-
-aux :: (Artifact -> IO (Either String (IO ()))) -> [Artifact]
-    -> IO (Maybe String)
-aux contents as =  do
-  output <- mapM contents as
-  sequence_ (rights output)
-  case lefts output of
-    [] -> return Nothing
-    es -> return $ Just $
-            "putArtifacts had the following failures: \n" ++ unlines es
+  aux c = do
+    putStrLn ("Artifact " ++ artifact_outputname a)
+    putStrLn "================"
+    T.putStrLn c
+    putStrLn "================"
 
