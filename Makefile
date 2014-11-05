@@ -32,6 +32,8 @@ test: build
 	./$(BIN)/ivory-c-clang-test clang-test-dir
 	./$(BIN)/ivory-fibtutorial
 	./$(BIN)/ivory-concrete
+	# Created from ivory-model-check
+	./$(find . -name "test" | grep "\.\/dist/.*/test/test")
 
 .PHONY: veryclean
 veryclean:
