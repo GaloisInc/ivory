@@ -15,7 +15,7 @@
 -- All rights reserved.
 --
 
-module Concrete where
+module Main where
 
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
@@ -25,15 +25,22 @@ e = (4::Sint32) >? 3
 
 type SomeInt = Uint32
 
+macroStmts ::
+     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ Scope s)
+  => a -> a -> Ivory eff ()
 macroStmts x y = do
   a <- local (ival 0)
   store a (x + y)
 
+macroStmtsRet ::
+     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ Scope s)
+  => a -> a -> Ivory eff a
 macroStmtsRet x y = do
   a <- local (ival 0)
   store a (x + y)
   return =<< deref a
 
+macroExp :: IvoryOrd a => a -> a -> IBool
 macroExp x y = do
   x <? y
 
