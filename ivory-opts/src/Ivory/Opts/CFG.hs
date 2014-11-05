@@ -131,7 +131,7 @@ toStackType ty =
     I.TyVoid       -> TyVoid
     I.TyInt i      -> TyInt (toIntType i)
     I.TyWord w     -> TyWord (toWordType w)
-    I.TyIndex n    -> toStackType I.ixRep
+    I.TyIndex _n   -> toStackType I.ixRep
     I.TyBool       -> TyBool
     I.TyChar       -> TyChar
     I.TyFloat      -> TyFloat

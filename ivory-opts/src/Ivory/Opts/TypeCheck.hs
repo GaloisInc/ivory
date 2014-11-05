@@ -167,8 +167,8 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
     = do b <- tyChk' (True, False) ss0
          when b (putWarn LoopWarn)
          tyChk' (sb, False) ss
-  tyChk' b (I.Local t v init : ss)
-    = do checkInit init
+  tyChk' b (I.Local _t _v init' : ss)
+    = do checkInit init'
          tyChk' b ss
   tyChk' b (I.Comment (I.SourcePos src):ss)
     = do set src
