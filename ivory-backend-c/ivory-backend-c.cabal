@@ -41,7 +41,6 @@ library
                         directory,
                         filepath,
                         process,
-                        cmdlib >= 0.3.5,
                         containers,
                         ivory,
                         ivory-opts,
