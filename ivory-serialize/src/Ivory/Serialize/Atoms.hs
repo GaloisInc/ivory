@@ -16,12 +16,9 @@ import Ivory.Artifact
 import Ivory.Serialize.Class
 import qualified Paths_ivory_serialize as P
 
-serializeHeader :: String
-serializeHeader = "ivory_serialize_prim.h"
 
 serializeModule :: Module
 serializeModule = package "ivory_serialize" $ do
-  inclHeader serializeHeader
   incl packU8
   incl unpackU8
   incl packS8
@@ -42,6 +39,9 @@ serializeModule = package "ivory_serialize" $ do
   incl unpackF
   incl packD
   incl unpackD
+
+serializeHeader :: String
+serializeHeader = "ivory_serialize_prim.h"
 
 searializeArtifacts :: [Artifact]
 searializeArtifacts = [ a serializeHeader ]
