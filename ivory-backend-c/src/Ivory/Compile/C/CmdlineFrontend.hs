@@ -26,8 +26,7 @@ import qualified Ivory.Opts.CFG             as G
 import qualified Ivory.Opts.TypeCheck       as T
 
 
-import Data.Maybe (mapMaybe)
-import Data.Monoid
+import Data.Maybe (mapMaybe, catMaybes)
 import Control.Monad (when)
 import Data.List (foldl')
 import System.Directory (createDirectoryIfMissing)
@@ -44,22 +43,6 @@ compileWith sm ms as = do
   args <- getArgs
   opts <- parseOpts args
   runCompilerWith sm ms as opts
-
-
-runArtifactCompiler :: [Artifact] -> Opts -> IO ()
-runArtifactCompiler as opts = do
-  errs <- putAs (outDir opts)
-  case errs of
-    Nothing -> return ()
-    Just e -> error e
-  where
-  artifacts = as ++ runtimeArtifacts
-  putAs Nothing    = printArtifacts artifacts
-  putAs (Just dir) = putArtifacts dir artifacts
-
-runtimeArtifacts :: [Artifact]
-runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
-  where a f = artifactCabalFile P.getDataDir ("runtime/" ++ f)
 
 runCompiler :: [Module] -> [Artifact] -> Opts -> IO ()
 runCompiler ms as os = runCompilerWith Nothing ms as os
@@ -192,6 +175,23 @@ rc sm modules artifacts opts
       putStrLn " Done"
     where
     out = writeFile fname contents
+
+--------------------------------------------------------------------------------
+
+runArtifactCompiler :: [Artifact] -> Opts -> IO ()
+runArtifactCompiler as opts = putAs (outDir opts)
+  where
+  artifacts = as ++ runtimeArtifacts
+  putAs Nothing    = mapM_ printArtifact artifacts
+  putAs (Just dir) = do
+    mes <- mapM (putArtifact dir) artifacts
+    case catMaybes mes of
+      [] -> return ()
+      errs -> error (unlines errs)
+
+runtimeArtifacts :: [Artifact]
+runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
+  where a f = artifactCabalFile P.getDataDir ("runtime/" ++ f)
 
 --------------------------------------------------------------------------------
 
