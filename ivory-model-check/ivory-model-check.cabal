@@ -31,7 +31,10 @@ test-suite test
   hs-source-dirs: test, test/examples
   type:           exitcode-stdio-1.0
   main-is:        Test.hs
-  ghc-options:    -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opt=Ivory.Language.Plugin:kill-foreign-stubs
+  if impl(ghc >= 7.8)
+    ghc-options:        -Wall -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opt=Ivory.Language.Plugin:kill-foreign-stubs
+  else
+    ghc-options:        -Wall
   build-depends:  base
                ,  tasty >= 0.10
                ,  tasty-hunit
