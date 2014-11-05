@@ -19,7 +19,7 @@ struct Foo
  { -- When context makes apparent and we can syntactically check the type, a
    -- base type is promoted to a memory area (i.e., bool is rewritten to &bool).
    bool aFoo
-   -- '&' at the type level binds mostly tightly and is righ-associative. When
+   -- '&' at the type level binds most tightly and is right-associative. When
    -- we use a type alias, the '&' must be added explicitly.
  ; &SomeInt[4] aBar
  }
