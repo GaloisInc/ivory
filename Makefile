@@ -10,11 +10,11 @@ PACKAGE= \
   ivory-backend-c \
   ivory-examples \
   ivory-hw \
+  ivory-model-check \
   ivory-opts \
   ivory-quickcheck \
   ivory-serialize \
   ivory-stdlib
-#   ivory-model-check \
 
 .cabal-sandbox:
 	cabal sandbox init
