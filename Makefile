@@ -30,7 +30,7 @@ build: cabal.sandbox.config
 test: build
 	./$(BIN)/ivory-c-clang-test clang-test-dir
 	./$(BIN)/ivory-fibtutorial
-	# ./$(BIN)/ivory-concrete
+	./$(BIN)/ivory-concrete
 
 .PHONY: veryclean
 veryclean:

@@ -3,7 +3,11 @@
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Ivory.Serialize.Atoms (serializeHeader, serializeModule) where
+module Ivory.Serialize.Atoms
+  ( serializeHeader
+  , serializeModule
+  , serializeArtifacts
+  ) where
 
 import Prelude hiding ((!!))
 
@@ -43,8 +47,8 @@ serializeModule = package "ivory_serialize" $ do
 serializeHeader :: String
 serializeHeader = "ivory_serialize_prim.h"
 
-searializeArtifacts :: [Artifact]
-searializeArtifacts = [ a serializeHeader ]
+serializeArtifacts :: [Artifact]
+serializeArtifacts = [ a serializeHeader ]
   where
   a f = artifactCabalFile P.getDataDir ("support/" ++ f)
 

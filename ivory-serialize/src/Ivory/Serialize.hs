@@ -3,6 +3,7 @@ module Ivory.Serialize
   ( Serializable
   , pack, unpack, packedSize
   , serializeModule
+  , serializeArtifacts
   , arrayPack, arrayUnpack
   , module Ivory.Serialize.Safe
   ) where
