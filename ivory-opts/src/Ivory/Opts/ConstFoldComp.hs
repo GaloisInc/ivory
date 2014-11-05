@@ -26,7 +26,6 @@ module Ivory.Opts.ConstFoldComp
 
 import qualified Ivory.Language.Syntax.AST as I
 import qualified Ivory.Language.Syntax.Type as I
-import qualified Ivory.Language.Array as I
 import Ivory.Language.Cast (toMaxSize, toMinSize)
 
 import Control.Monad (mzero,msum)
