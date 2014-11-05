@@ -16,25 +16,24 @@ PACKAGE= \
   ivory-serialize \
   ivory-stdlib
 
-.cabal-sandbox:
+PACKAGEDIR=$(foreach p, $(PACKAGE), $(p)/)
+
+cabal.sandbox.config:
 	cabal sandbox init
 
-.PHONY: add-srcs
-add-srcs: .cabal-sandbox
-	cabal sandbox add-source $(PACKAGE)
-
 .PHONY: build
-build: add-srcs
-	cabal install $(PACKAGE)
+build: cabal.sandbox.config
+	cabal sandbox add-source $(PACKAGEDIR)
+	cabal install $(PACKAGEDIR)
 
 .PHONY: test
 test: build
 	./$(BIN)/ivory-c-clang-test clang-test-dir
 	./$(BIN)/ivory-fibtutorial
-	./$(BIN)/ivory-concrete
+	# ./$(BIN)/ivory-concrete
 
 .PHONY: veryclean
 veryclean:
-	-rm -rf cabal.sandbox.confg
+	-rm -rf cabal.sandbox.config
 	-rm -rf .cabal-sandbox
-
+	-rm -rf dist
