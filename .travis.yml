@@ -1,9 +1,13 @@
 language: haskell
+before_install:
+  - sudo add-apt-repository "deb http://cvc4.cs.nyu.edu/debian/ unstable/"
+  - sudo apt-get update
+  - sudo apt-get install -y cvc4
+  - make cabal.sandbox.config
+  - echo "tests: True" >> cabal.sandbox.config
 install:
   - cabal install alex
   - cabal install happy
-  - alex --version
-  - happy --version
   - make build
 script:
   - make test

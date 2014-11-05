@@ -1,4 +1,4 @@
-all: test
+all: build
 
 BIN=.cabal-sandbox/bin
 
