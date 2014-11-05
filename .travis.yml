@@ -1,8 +1,10 @@
 language: haskell
 before_install:
-  - sudo add-apt-repository "deb http://cvc4.cs.nyu.edu/debian/ unstable/"
-  - sudo apt-get update
-  - sudo apt-get install -y --force-yes cvc4
+  - wget
+  http://cvc4.cs.nyu.edu/builds/i386-linux-opt/unstable/cvc4-2014-11-02-i386-linux-opt
+  - ln -s cvc4-2014-11-02-i386-linux-opt /usr/local/bin/cvc4
+  - sudo chmod a+x /usr/local/bin/cvc4
+  - cvc4 --version
 install:
   - cabal install alex
   - cabal install happy
