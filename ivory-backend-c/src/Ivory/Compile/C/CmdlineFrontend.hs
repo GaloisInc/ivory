@@ -96,8 +96,8 @@ rc sm modules artifacts opts
   outputmodules = do
     let Just dir = outDir opts
     createDirectoryIfMissing True dir
-    outputHeaders dir cmodules
-    outputSources dir cmodules
+    mapM_ (output dir ".h" renderHeader) cmodules
+    mapM_ (output dir ".c" renderSource) cmodules
     runArtifactCompiler artifacts opts
     cfgoutput
 
@@ -142,29 +142,14 @@ rc sm modules artifacts opts
     , cfPass
     ]
 
-  -- XXX can refactor these into one:
-  -- Output headers in a directory
-  outputHeaders :: FilePath -> [C.CompileUnits] -> IO ()
-  outputHeaders fp cus = mapM_ (process outputHeader fp) cus
-  -- Output sources in a directory
-  outputSources :: FilePath -> [C.CompileUnits] -> IO ()
-  outputSources fp cus = mapM_ (process outputSrc fp) cus
+  output :: FilePath -> FilePath -> (C.CompileUnits -> String)
+         -> C.CompileUnits
+         -> IO ()
+  output dir ext render m = outputHelper fout (render m)
+    where fout = addExtension (dir </> (C.unitName m)) ext
 
-  process outputter dir m = outputter (dir </> (C.unitName m)) m
-
-  -- Transform a compiled unit into a header, and write to a .h file
-  outputHeader :: FilePath -> C.CompileUnits -> IO ()
-  outputHeader basename cm = do
-    let headerfname = addExtension basename ".h"
-        header = C.renderHdr (C.headers cm) (C.unitName cm)
-    outputHelper headerfname header
-
-  -- Transform a compiled unit into a c src, and write to a .c file
-  outputSrc :: FilePath -> C.CompileUnits -> IO ()
-  outputSrc basename cm = do
-    let srcfname = addExtension basename ".c"
-        src = C.renderSrc (C.sources cm)
-    outputHelper srcfname src
+  renderHeader cu = C.renderHdr (C.headers cu) (C.unitName cu)
+  renderSource cu = C.renderSrc (C.sources cu)
 
   outputHelper :: FilePath -> String -> IO ()
   outputHelper fname contents = case verbose opts of
@@ -194,8 +179,6 @@ runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
   where a f = artifactCabalFile P.getDataDir ("runtime/" ++ f)
 
 --------------------------------------------------------------------------------
-
--- XXX eliminate rtIncludeDir
 
 dropSrcLocs :: I.Proc -> I.Proc
 dropSrcLocs p = p { I.procBody = dropSrcLocsBlock (I.procBody p) }
