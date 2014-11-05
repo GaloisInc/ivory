@@ -20,6 +20,7 @@ PACKAGEDIR=$(foreach p, $(PACKAGE), $(p)/)
 
 cabal.sandbox.config:
 	cabal sandbox init
+	echo "tests: True" >> cabal.sandbox.config
 
 .PHONY: build
 build: cabal.sandbox.config
