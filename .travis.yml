@@ -1,7 +1,7 @@
 language: haskell
 before_install:
   - wget http://cvc4.cs.nyu.edu/builds/i386-linux-opt/unstable/cvc4-2014-11-02-i386-linux-opt
-  - ln -s cvc4-2014-11-02-i386-linux-opt /usr/local/bin/cvc4
+  - sudo ln -s cvc4-2014-11-02-i386-linux-opt /usr/local/bin/cvc4
   - sudo chmod a+x /usr/local/bin/cvc4
   - cvc4 --version
 install:
