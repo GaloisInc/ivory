@@ -2,7 +2,8 @@ language: haskell
 before_install:
   - wget http://cvc4.cs.nyu.edu/builds/i386-linux-opt/unstable/cvc4-2014-11-02-i386-linux-opt
   - sudo chmod a+x cvc4-2014-11-02-i386-linux-opt
-  - sudo ln -s cvc4-2014-11-02-i386-linux-opt /usr/local/bin/cvc4
+  - sudo ln -s cvc4-2014-11-02-i386-linux-opt /usr/local/cvc4
+  - export PATH=/usr/local/:$PATH
   - cvc4 --version
 install:
   - cabal install alex
