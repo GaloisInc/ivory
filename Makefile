@@ -33,7 +33,7 @@ test: build
 	./$(BIN)/ivory-fibtutorial
 	./$(BIN)/ivory-concrete
 	# Created from ivory-model-check
-	./$(find . -name "test" | grep "\.\/dist/.*/test/test")
+	./$(find ivory-model-check/dist/ -name "test" | grep "/test/test")
 
 .PHONY: veryclean
 veryclean:
