@@ -12,8 +12,11 @@ module Ivory.HW (
   -- * Bit Data I/O registers
   , BitDataReg(), mkBitDataReg,  mkBitDataRegNamed
   , getReg, setReg, modifyReg
+  -- * Dependency Capture
+  , hw_moduledef, hw_artifacts
 ) where
 
 import Ivory.HW.Reg
 import Ivory.HW.BitData
 import Ivory.HW.Prim
+import Ivory.HW.Module
