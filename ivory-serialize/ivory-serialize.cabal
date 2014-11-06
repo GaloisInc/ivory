@@ -14,9 +14,8 @@ library
                         Ivory.Serialize.Array,
                         Ivory.Serialize.Atoms,
                         Ivory.Serialize.Class,
-                        Ivory.Serialize.Safe
-
-  other-modules:        Paths_ivory_serialize
+                        Ivory.Serialize.Safe,
+                        Paths_ivory_serialize
 
   build-depends:        base >= 4.6,
                         filepath,
