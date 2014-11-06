@@ -2,7 +2,7 @@ language: haskell
 before_install:
   - wget http://cvc4.cs.nyu.edu/builds/i386-linux-opt/unstable/cvc4-2014-11-02-i386-linux-opt
   - mv cvc4-2014-11-02-i386-linux-opt cvc4
-  - chmod cvc4
+  - chmod a+x cvc4
   - export PATH=.:$PATH
   - cvc4 --version
 install:
