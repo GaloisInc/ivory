@@ -9,7 +9,6 @@
 
 -- TODO
 -- types for allocs
--- neg numbers in expressions
 
 module Ivory.Language.Syntax.Concrete.Parser where
 
@@ -23,7 +22,8 @@ import Ivory.Language.Syntax.Concrete.Location
 
 }
 
-%name      ivoryParser
+%name      topParser   defs
+%name      stmtsParser stmts
 %tokentype { Lexeme }
 %monad     { Parser } { (>>=) } { return }
 %lexer     { lexer } { Located mempty TokEOF }

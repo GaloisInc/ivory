@@ -12,9 +12,10 @@
 --
 
 module Ivory.Language.Syntax.Concrete.QQ
-  -- ( ivory
-  -- , ivoryFile
-  -- )
+  ( ivory
+  , ivoryFile
+  , ivoryBlk
+  )
     where
 
 import           Prelude hiding (exp, init, const)
@@ -38,14 +39,23 @@ import Ivory.Language.Syntax.Concrete.QQ.StructQQ
 import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
+import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
 
 import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
 import Ivory.Language.Syntax.Concrete.Lexer (scan)
-import Ivory.Language.Syntax.Concrete.Parser (ivoryParser)
+import qualified Ivory.Language.Syntax.Concrete.Parser as P
 import qualified Ivory.Language.Syntax.Concrete.ParseCore as P
 
-runParser :: FilePath -> L.Text -> [GlobalSym]
-runParser fp txt = P.runParser (scan fp txt) ivoryParser
+--------------------------------------------------------------------------------
+
+mkParser :: P.Parser a -> FilePath -> L.Text -> a
+mkParser p fp txt = P.runParser (scan fp txt) p
+
+topParser :: FilePath -> L.Text -> [GlobalSym]
+topParser = mkParser P.topParser
+
+stmtsParser :: FilePath -> L.Text -> [Stmt]
+stmtsParser = mkParser P.stmtsParser
 
 --------------------------------------------------------------------------------
 -- QuasiQuoters
@@ -57,9 +67,18 @@ ivory = justDecQQ decP
   where
   decP str = do
     loc <- location
-    let defs = reverse (runParser (loc_filename loc) (L.pack str))
+    let defs = reverse (topParser (loc_filename loc) (L.pack str))
     decs    <- mapM mkDef defs
     return (concat decs)
+
+-- | Quasiquoter for defining blocks of Ivory statements.
+ivoryBlk :: QuasiQuoter
+ivoryBlk = justExpQQ stmtsP
+  where
+  stmtsP str = do
+    loc <- location
+    let ss = reverse (stmtsParser (loc_filename loc) (L.pack str))
+    fromProgram ss
 
 -- | Parse a file.  Use
 --
@@ -81,7 +100,7 @@ ivoryFile = justDecQQ decP
   decP filePath = do
     str <- runIO (L.readFile filePath)
     addDependentFile filePath
-    let defs      = reverse (runParser filePath str)
+    let defs      = reverse (topParser filePath str)
     decs         <- mapM mkDef defs
     let fileName  = concat
                   $ filter (not . (any isPathSeparator))
@@ -99,7 +118,17 @@ justDecQQ decQQ = QuasiQuoter
   , quoteType = err "quoteType"
   }
   where
-  err str = error $ str ++ " not implemented for c quasiquoter."
+  err str = error $ str ++ " not implemented for Ivory quasiquoter."
+
+justExpQQ :: (String -> Q Q.Exp) -> QuasiQuoter
+justExpQQ expQQ = QuasiQuoter
+  { quoteExp  = expQQ
+  , quotePat  = err "quotePat"
+  , quoteDec  = err "quoteDec"
+  , quoteType = err "quoteType"
+  }
+  where
+  err str = error $ str ++ " not implemented for Ivory quasiquoter."
 
 --------------------------------------------------------------------------------
 
