@@ -64,7 +64,7 @@ module Ivory.Language (
     -- ** Floating-point Numbers
   , IFloat()
   , IDouble()
-  , isnan, isinf, roundF, ceilF, floorF
+  , isnan, isinf, roundF, ceilF, floorF, atan2F
   , ifloat, idouble
 
     -- * Effects

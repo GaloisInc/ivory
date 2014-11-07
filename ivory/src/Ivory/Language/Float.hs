@@ -165,5 +165,9 @@ class (Floating a, IvoryExpr a) => IvoryFloat a where
   floorF :: a -> a
   floorF  = primRound I.ExpFloorF
 
+  -- | The arctangent function of two arguments.
+  atan2F :: a -> a -> a
+  atan2F y x = wrapExpr (I.ExpOp I.ExpFAtan2 [unwrapExpr y, unwrapExpr x])
+
 instance IvoryFloat IFloat
 instance IvoryFloat IDouble

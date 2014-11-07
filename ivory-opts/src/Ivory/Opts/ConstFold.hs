@@ -306,6 +306,7 @@ cfOp' ty op args = case op of
   I.ExpFAsin    -> goF
   I.ExpFAcos    -> goF
   I.ExpFAtan    -> goF
+  I.ExpFAtan2   -> goF
   I.ExpFSinh    -> goF
   I.ExpFCosh    -> goF
   I.ExpFTanh    -> goF
@@ -375,6 +376,7 @@ liftChoice copies ty op args = case op of
   -- I.ExpFAsin    ->
   -- I.ExpFAcos    ->
   -- I.ExpFAtan    ->
+  -- I.ExpFAtan2   ->
   -- I.ExpFSinh    ->
   -- I.ExpFCosh    ->
   -- I.ExpFTanh    ->

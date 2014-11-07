@@ -334,6 +334,7 @@ data ExpOp
   | ExpFCos
   | ExpFAsin
   | ExpFAtan
+  | ExpFAtan2
   | ExpFAcos
   | ExpFSinh
   | ExpFTanh

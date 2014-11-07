@@ -362,10 +362,11 @@ cfFloating op args = case args of
     I.ExpFAtanh  -> atanh
     _            -> err "wrong op1 to cfFloating"
 
-  op2 :: Floating a => a -> a -> a
+  op2 :: RealFloat a => a -> a -> a
   op2 = case op of
     I.ExpFPow     -> (**)
     I.ExpFLogBase -> logBase
+    I.ExpFAtan2   -> atan2
     _            -> err "wrong op2 to cfFloating"
 
 cfFloatingB :: I.ExpOp

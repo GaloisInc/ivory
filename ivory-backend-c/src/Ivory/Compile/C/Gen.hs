@@ -520,6 +520,7 @@ toExpOp ty op args = case op of
   I.ExpFAsin      -> floatingUnary ty "asin"  args
   I.ExpFAcos      -> floatingUnary ty "acos"  args
   I.ExpFAtan      -> floatingUnary ty "atan"  args
+  I.ExpFAtan2     -> floatingBinary ty "atan2" args
   I.ExpFSinh      -> floatingUnary ty "sinh"  args
   I.ExpFCosh      -> floatingUnary ty "cosh"  args
   I.ExpFTanh      -> floatingUnary ty "tanh"  args
