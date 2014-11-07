@@ -23,6 +23,7 @@ available on [ivorylang.org](http://ivorylang.org).
 * `ivory-hw`: a macro language library for writing hardware drivers
   in Ivory.
 * `ivory-backend-aadl`: a backend for describing Ivory types in AADL
+* `ivory-model-check`: a backend for verifying Ivory programs with CVC4
 
 ## Installing
 

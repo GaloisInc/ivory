@@ -49,7 +49,10 @@ initArgs = Args
 
 --------------------------------------------------------------------------------
 
-data Result = Safe | Unsafe [String] | Inconsistent | Error String
+data Result = Safe
+            | Unsafe [String] FilePath 
+            | Inconsistent FilePath 
+            | Error String FilePath
             deriving (Show, Eq)
 
 isSafe :: Result -> Bool
@@ -57,26 +60,25 @@ isSafe Safe = True
 isSafe _    = False
 
 isUnsafe :: Result -> Bool
-isUnsafe (Unsafe _) = True
+isUnsafe (Unsafe{}) = True
 isUnsafe _          = False
 
 isError :: Result -> Bool
-isError (Error _) = True
+isError (Error{}) = True
 isError _         = False
 
 showResult :: Result -> String
-showResult Safe         = "Safe"
-showResult Inconsistent = "Inconsistent"
-showResult (Unsafe qs)  = "Unsafe: " ++ intercalate ", " qs
-showResult (Error e)    = "Error: " ++ e
+showResult Safe             = "Safe"
+showResult (Inconsistent f) = printf "Inconsistent (generated script at %s)" f
+showResult (Unsafe qs f)    = printf "Unsafe: %s (generated script at %s)" (intercalate ", " qs) f
+showResult (Error e f)      = printf "Error: %s (generated script at %s)" e f
 
 modelCheck' :: [I.Module] -> I.Module -> IO ()
 modelCheck' deps m = do
-  (res, file) <- modelCheck initArgs deps m
-  print file
+  res <- modelCheck initArgs deps m
   print res
 
-modelCheck :: Args -> [I.Module] -> I.Module -> IO (Result, FilePath)
+modelCheck :: Args -> [I.Module] -> I.Module -> IO Result
 modelCheck args (mkModuleEnv -> deps) m = do
   let (_, st) = runMC (SymOpts (inlineCall args) deps) (modelCheckMod m)
   let bs = B.unlines (mkScript st)
@@ -84,15 +86,15 @@ modelCheck args (mkModuleEnv -> deps) m = do
   file <- writeInput bs
   out  <- reverse <$> runCVC4 args file
   case out of
-   ("valid":_) -> return (Inconsistent, file)
+   ("valid":_) -> return (Inconsistent file)
    ("invalid":results)
-     | all (=="valid") results -> return (Safe, file)
-     | otherwise -> return (Unsafe bad, file)
+     | all (=="valid") results -> return Safe
+     | otherwise -> return (Unsafe bad file)
      where
        bad = [ B.unpack $ concrete q
              | (q, "invalid") <- zip (tail $ allQueries st) results
              ]
-   _ -> return (Error (show out), file)
+   _ -> return (Error (show out) file)
 
 mkModuleEnv :: [I.Module] -> M.Map I.ModuleName I.Module
 mkModuleEnv deps = M.fromList [ (I.modName m, m) | m <- deps ]

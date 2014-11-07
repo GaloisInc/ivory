@@ -64,30 +64,30 @@ testArgs = initArgs { printQuery = False, printEnv = False }
 
 mkSuccess :: TestName -> Module -> [Module] -> TestTree
 mkSuccess nm m deps = testCase nm $ do
-  (r, f) <- modelCheck testArgs deps m
-  let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
-            (showResult r) f
+  r <- modelCheck testArgs deps m
+  let msg = printf "Expected: Safe\nActual: %s"
+            (showResult r)
   assertBool msg (isSafe r)
 
 mkSuccessInline :: TestName -> Module -> [Module] -> TestTree
 mkSuccessInline nm m deps = testCase nm $ do
-  (r, f) <- modelCheck (testArgs { inlineCall = True }) deps m
-  let msg = printf "Expected: Safe\nActual: %s\n(check %s for details)"
-            (showResult r) f
+  r <- modelCheck (testArgs { inlineCall = True }) deps m
+  let msg = printf "Expected: Safe\nActual: %s"
+            (showResult r)
   assertBool msg (isSafe r)
 
 mkFailure :: TestName -> Module -> [Module] -> TestTree
 mkFailure nm m deps = testCase nm $ do
-  (r, f) <- modelCheck testArgs deps m
-  let msg = printf "Expected: Unsafe\nActual: %s\n(check %s for details)"
-            (showResult r) f
+  r <- modelCheck testArgs deps m
+  let msg = printf "Expected: Unsafe\nActual: %s"
+            (showResult r)
   assertBool msg (isUnsafe r)
 
 mkNotError :: TestName -> Module -> [Module] -> TestTree
 mkNotError nm m deps = testCase nm $ do
-  (r, f) <- modelCheck testArgs deps m
-  let msg = printf "Expected: anything but Error\nActual: %s\n(check %s for details)"
-            (showResult r) f
+  r <- modelCheck testArgs deps m
+  let msg = printf "Expected: anything but Error\nActual: %s"
+            (showResult r)
   assertBool msg (not $ isError r)
 
 --------------------------------------------------------------------------------
