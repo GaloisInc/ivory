@@ -20,6 +20,7 @@ import Test.Tasty.HUnit
 
 import qualified Examples
 import qualified Heartbeat
+import qualified PPM
 
 main :: IO ()
 main = defaultMain tests
@@ -47,6 +48,7 @@ shouldPass = testGroup "should be safe"
              , mkSuccess "foo18" m18 []
              , mkSuccessInline "heartbeat" Heartbeat.heartbeatModule
                                            [serializeModule]
+             , mkSuccess "ppm_decode" PPM.ppmModule [PPM.userInputTypeModule]
              ]
 
 shouldFail :: TestTree

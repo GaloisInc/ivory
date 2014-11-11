@@ -39,6 +39,7 @@ modelCheckMod m = do
   where
   getVisible ps = I.public ps ++ I.private ps
   addDepends mn = do m <- lookupModule mn
+                     mapM_ toStruct (getVisible $ I.modStructs m)
                      mapM_ addProc (getVisible $ I.modProcs m)
   addExtern e = addProc I.Proc { I.procSym = I.externSym e
                                , I.procRetTy = I.externRetType e
