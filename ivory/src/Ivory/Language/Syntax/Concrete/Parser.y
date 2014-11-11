@@ -270,6 +270,7 @@ import Ivory.Language.Syntax.Concrete.Location
   ceil
   floor
   const
+  div
 %%
 
 ----------------------------------------
@@ -490,7 +491,6 @@ exp : integer            { let TokInteger i = unLoc $1 in
     | exp '*'   exp      { LocExp (atBin (ExpOp MulOp [$1, $3]) $1 $3) }
     | exp '/'   exp      { LocExp (atBin (ExpOp DivOp [$1, $3]) $1 $3) }
     | exp '%'   exp      { LocExp (atBin (ExpOp ModOp [$1, $3]) $1 $3) }
-    | div exp   exp      { LocExp (atBin (ExpOp EucDivOp [$2, $3]) $2 $3) }
 
     -- Tertiary operators
     | exp '?' exp ':' exp { LocExp ((ExpOp CondOp [$1, $3, $5]) `at` (getLoc [$1, $3, $5]))  }
@@ -521,6 +521,7 @@ libFuncExp :
     | ceil         expArgs { LocExp (atBin (ExpOp CeilFOp $2) $1 $2) }
     | floor        expArgs { LocExp (atBin (ExpOp FloorFOp $2) $1 $2) }
     | const        expArgs { LocExp (atBin (ExpOp ConstRefOp $2) $1 $2) }
+    | div          expArgs { LocExp (atBin (ExpOp EucDivOp $2) $1 $2) }
 
     | castWith     expArgs { LocExp (atBin (ExpOp CastWith $2) $1 $2) }
     | safeCast     expArgs { LocExp (atBin (ExpOp SafeCast $2) $1 $2) }
