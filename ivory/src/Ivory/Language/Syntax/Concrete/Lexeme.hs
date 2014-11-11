@@ -19,7 +19,7 @@ type Lexeme = Located Token
 -- | Token types
 data Token =
     TokInteger Integer
-  | TokFloat Rational -- represents floats and doubles
+  | TokFloat Double -- represents floats and doubles
   | TokString String
   | TokHex Integer
   | TokBitLit (Integer, Integer) -- width, value (e.g., 5b0101)

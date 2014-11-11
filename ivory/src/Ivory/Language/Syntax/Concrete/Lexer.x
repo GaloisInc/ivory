@@ -81,6 +81,7 @@ tokens :-
   sqrt             { keyword }
   log              { keyword }
   pow              { keyword }
+  div              { keyword }
 
   sin              { keyword }
   cos              { keyword }

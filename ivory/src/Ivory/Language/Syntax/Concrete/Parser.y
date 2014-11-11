@@ -63,6 +63,7 @@ import Ivory.Language.Syntax.Concrete.Location
   sqrt         { Located $$ (TokReserved "sqrt") }
   log          { Located $$ (TokReserved "log") }
   pow          { Located $$ (TokReserved "pow") }
+  div          { Located $$ (TokReserved "div") }
 
   sin          { Located $$ (TokReserved "sin") }
   cos          { Located $$ (TokReserved "cos") }
@@ -489,6 +490,7 @@ exp : integer            { let TokInteger i = unLoc $1 in
     | exp '*'   exp      { LocExp (atBin (ExpOp MulOp [$1, $3]) $1 $3) }
     | exp '/'   exp      { LocExp (atBin (ExpOp DivOp [$1, $3]) $1 $3) }
     | exp '%'   exp      { LocExp (atBin (ExpOp ModOp [$1, $3]) $1 $3) }
+    | div exp   exp      { LocExp (atBin (ExpOp EucDivOp [$2, $3]) $2 $3) }
 
     -- Tertiary operators
     | exp '?' exp ':' exp { LocExp ((ExpOp CondOp [$1, $3, $5]) `at` (getLoc [$1, $3, $5]))  }
