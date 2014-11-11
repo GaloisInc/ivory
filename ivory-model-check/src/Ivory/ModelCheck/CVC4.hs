@@ -362,17 +362,15 @@ modAbs = "mod"
 -- a % b is abstracted with a fresh var v.
 modFunc :: Statement
 modFunc = Statement $ B.unwords
-  [ B.pack modAbs, ":", "(INT, INT, INT)", "->", "BOOLEAN"
-  , "=", "LAMBDA", "(v:INT, a:INT, b:INT)", ":"
-  , concrete exp
-  ]
+  [ B.pack modAbs, ":", "(INT, INT)", "->", "INT" ]
+
+modExp :: Expr -> Expr -> Expr -> Expr
+modExp v a b
+  =   ((a .>= z) .&& (v .>= z) .&& (v .< b) .&& (v .<= a))
+  .|| ((a .< z)  .&& (v .<= z) .&& (v .> b) .&& (v .>= a))
   where
-  v = var "v"
-  a = var "a"
-  b = var "b"
   z = intLit 0
-  exp =   ((a .>= z) .&& (v .>= z) .&& (v .< b) .&& (v .<= a))
-      .|| ((a .< z)  .&& (v .<= z) .&& (v .> b) .&& (v .>= a))
+
 
 ----------------------------------------
 -- Mul
@@ -382,20 +380,18 @@ mulAbs = "mul"
 
 mulFunc :: Statement
 mulFunc = Statement $ B.unwords
-  [ B.pack mulAbs, ":", "(INT, INT, INT)", "->", "BOOLEAN"
-  , "=", "LAMBDA", "(v:INT, a:INT, b:INT)", ":"
-  , concrete exp
-  ]
+  [ B.pack mulAbs, ":", "(INT, INT)", "->", "INT" ]
+
+mulExp :: Expr -> Expr -> Expr -> Expr
+mulExp v a b
+  = (((a .== z) .|| (b .== z)) .=> (v .== z))
+  .&& ((a .== o) .=> (v .== b))
+  .&& ((b .== o) .=> (v .== a))
+  .&& (((a .> o) .&& (b .> o)) .=> ((v .> a) .&& (v .> b)))
   where
-  v = var "v"
-  a = var "a"
-  b = var "b"
   z = intLit 0
   o = intLit 1
-  exp =   (((a .== z) .|| (b .== z)) .=> (v .== z))
-      .&& ((a .== o) .=> (v .== b))
-      .&& ((b .== o) .=> (v .== a))
-      .&& (((a .> o) .&& (b .> o)) .=> ((v .> a) .&& (v .> b)))
+
   
 ----------------------------------------
 -- Div
@@ -405,19 +401,16 @@ divAbs = "div"
 
 divFunc :: Statement
 divFunc = Statement $ B.unwords
-  [ B.pack divAbs, ":", "(INT, INT, INT)", "->", "BOOLEAN"
-  , "=", "LAMBDA", "(v:INT, a:INT, b:INT)", ":"
-  , concrete exp
-  ]
+  [ B.pack divAbs, ":", "(INT, INT)", "->", "INT" ]
+
+divExp :: Expr -> Expr -> Expr -> Expr
+divExp v a b
+  =   ((b .== o) .=> (v .== a))
+  .&& ((a .== z) .=> (v .== z))
+  .&& (((a .>= o) .&& (b .> o)) .=> ((v .>= z) .&& (v .< a)))
   where
-  v = var "v"
-  a = var "a"
-  b = var "b"
   z = intLit 0
   o = intLit 1
-  exp =   ((b .== o) .=> (v .== a))
-      .&& ((a .== z) .=> (v .== z))
-      .&& (((a .>= o) .&& (b .> o)) .=> ((v .>= z) .&& (v .< a)))
 
 
 cvc4Lib :: [Statement]

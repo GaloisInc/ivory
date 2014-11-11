@@ -398,7 +398,7 @@ toMod t e0 e1 = do
   a <- toExpr t e0
   b <- toExpr t e1
   let v' = var v
-  addInvariant (call modAbs [v', a, b])
+  addInvariant (v' .== call modAbs [a, b] .&& modExp v' a b)
   return v'
 
 toMul :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
@@ -407,7 +407,7 @@ toMul t e0 e1 = do
   a <- toExpr t e0
   b <- toExpr t e1
   let v' = var v
-  addInvariant (call mulAbs [v', a, b])
+  addInvariant (v' .== call mulAbs [a, b] .&& mulExp v' a b)
   return v'
 
 toDiv :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
@@ -416,7 +416,7 @@ toDiv t e0 e1 = do
   a <- toExpr t e0
   b <- toExpr t e1
   let v' = var v
-  addInvariant (call divAbs [v', a, b])
+  addInvariant (v' .== call divAbs [a, b] .&& divExp v' a b)
   return v'
 
 --------------------------------------------------------------------------------
