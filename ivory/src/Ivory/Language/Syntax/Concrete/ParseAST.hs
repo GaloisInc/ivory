@@ -130,7 +130,7 @@ data WordSize
 
 data Literal
   = LitInteger Integer
-  | LitFloat Rational -- represents floats, too
+  | LitFloat Double -- represents floats, too
   | LitString String
   deriving (Show, Read, Eq, Ord)
 
@@ -170,6 +170,7 @@ data ExpOp
   | SignumOp
 
   | DivOp
+  | EucDivOp
   | ModOp
 
   | FExpOp

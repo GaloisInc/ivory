@@ -63,6 +63,7 @@ import Ivory.Language.Syntax.Concrete.Location
   sqrt         { Located $$ (TokReserved "sqrt") }
   log          { Located $$ (TokReserved "log") }
   pow          { Located $$ (TokReserved "pow") }
+  div          { Located $$ (TokReserved "div") }
 
   sin          { Located $$ (TokReserved "sin") }
   cos          { Located $$ (TokReserved "cos") }
@@ -269,6 +270,7 @@ import Ivory.Language.Syntax.Concrete.Location
   ceil
   floor
   const
+  div
 %%
 
 ----------------------------------------
@@ -519,6 +521,7 @@ libFuncExp :
     | ceil         expArgs { LocExp (atBin (ExpOp CeilFOp $2) $1 $2) }
     | floor        expArgs { LocExp (atBin (ExpOp FloorFOp $2) $1 $2) }
     | const        expArgs { LocExp (atBin (ExpOp ConstRefOp $2) $1 $2) }
+    | div          expArgs { LocExp (atBin (ExpOp EucDivOp $2) $1 $2) }
 
     | castWith     expArgs { LocExp (atBin (ExpOp CastWith $2) $1 $2) }
     | safeCast     expArgs { LocExp (atBin (ExpOp SafeCast $2) $1 $2) }

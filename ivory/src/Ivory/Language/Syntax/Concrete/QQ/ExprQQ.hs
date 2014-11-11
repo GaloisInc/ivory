@@ -76,7 +76,7 @@ fromConstDef def = case def of
 fromLit :: Literal -> T.Exp
 fromLit lit = case lit of
   LitInteger int -> LitE (IntegerL int)
-  LitFloat   f   -> LitE (RationalL f)
+  LitFloat   f   -> LitE (RationalL (toRational f))
   LitString  str -> LitE (StringL str)
 
 fromOpExp :: VarEnv -> ExpOp -> [Exp] -> T.Exp
@@ -95,12 +95,13 @@ fromOpExp env op args = case op of
   MulOp            -> mkInfix '(*)
   AddOp            -> mkInfix '(+)
   SubOp            -> mkInfix '(-)
+  DivOp            -> mkInfix '(/)
   NegateOp         -> mkUn 'negate
   AbsOp            -> mkUn 'abs
   SignumOp         -> mkUn 'signum
 
-  DivOp            -> mkInfix 'I.iDiv -- Euclidean division
-  ModOp            -> mkInfix '(I..%) -- Euclidean modulo
+  EucDivOp         -> mkInfix '(I../)   -- Euclidean division
+  ModOp            -> mkInfix '(I..%)  -- Euclidean modulo
 
   FExpOp           -> mkUn 'P.exp
   FSqrtOp          -> mkUn 'sqrt

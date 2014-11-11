@@ -14,11 +14,13 @@ source-repository    this
 
 library
   exposed-modules:      Ivory.Artifact,
+                        Ivory.Artifact.Template,
                         Ivory.Artifact.Transformer
   build-depends:        base >= 4.6,
                         filepath,
                         directory,
-                        text
+                        text,
+                        HStringTemplate
   hs-source-dirs:       src
   default-language:     Haskell2010
 
