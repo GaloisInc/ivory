@@ -17,8 +17,8 @@ The main entry-point for this package is `Ivory.ModelCheck.modelCheck`:
 ```haskell
 modelCheck :: Args     -- ^ Options, e.g. verbosity, whether to inline function-calls, etc.
            -> [Module] -- ^ Modules we intend to call into
-           -> Module   -- ^ The module we wish to verify
-           -> Result
+           -> Def p    -- ^ The procedure we wish to verify
+           -> IO Result
 ```
 
 The most important option is likely `inlineCall`, which determines how to handle
