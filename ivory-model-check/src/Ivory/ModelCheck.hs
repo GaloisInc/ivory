@@ -96,6 +96,7 @@ modelCheck args mods (I.DefProc p) = do
              | (q, "invalid") <- zip (tail $ allQueries st) results
              ]
    _ -> return (Error (show out) file)
+modelCheck _ _ _ = error "I can only check procedures defined in Ivory!"
 
 mkModuleEnv :: [I.Module] -> M.Map I.ModuleName I.Module
 mkModuleEnv deps = M.fromList [ (I.modName m, m) | m <- deps ]

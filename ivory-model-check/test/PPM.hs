@@ -14,8 +14,6 @@ module PPM where
 import Ivory.Language
 import Ivory.Stdlib
 
-import Ivory.ModelCheck
-
 data PPMDecoder =
   PPMDecoder
     { ppmd_init       :: forall eff    . Ivory eff ()
@@ -136,7 +134,7 @@ invalidate = do
     -- am_no_sample armingmachine
 
 new_sample_proc :: Def('[Ref s PPMs, ITime ]:->())
-new_sample_proc = proc "ppm_new_sample_proc" $ \ppms time -> body $ do
+new_sample_proc = proc "ppm_new_sample_proc" $ \ppms tm -> body $ do
   all_good <- local (ival true)
   arrayMap $ \ix -> when (ix <? useful_channels) $ do
     ch <- deref (ppms ! ix)
@@ -148,7 +146,7 @@ new_sample_proc = proc "ppm_new_sample_proc" $ \ppms time -> body $ do
   when   s $ do
     arrayMap $ \ix -> when (ix <? useful_channels)
       (deref (ppms ! ix) >>= store (ppm_last ! ix))
-    store ppm_last_time time
+    store ppm_last_time tm
     store ppm_valid true
     -- ms_new_sample modeswitch ppms time
     -- am_new_sample armingmachine ppms time
@@ -158,9 +156,9 @@ new_sample_proc = proc "ppm_new_sample_proc" $ \ppms time -> body $ do
   -- XXX: inlined
   ui <- local $ istruct []
   valid <- deref ppm_valid
-  time <- deref ppm_last_time
+  last_time <- deref ppm_last_time
   ifte_ valid
-    (call_  ppm_decode_ui_proc ppm_last ui time)
+    (call_  ppm_decode_ui_proc ppm_last ui last_time)
     (failsafe ui)
 
 ppmModule :: Module

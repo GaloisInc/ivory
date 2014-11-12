@@ -193,8 +193,11 @@ getStructs = do
   return (symStructs st)
 
 addStruct :: I.Struct -> ModelCheck ()
-addStruct s@(I.Struct nm _) = do
+addStruct s = do
   st <- get
+  let nm = case s of
+             I.Struct n _ -> n
+             I.Abstract n _ -> n
   let st' = st { symStructs = M.insert nm s (symStructs st) }
   set st'
   

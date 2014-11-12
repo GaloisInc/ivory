@@ -16,7 +16,10 @@ import           Data.Maybe
 import qualified Ivory.Language.Array   as I
 import qualified Ivory.Language.Cast    as I
 import qualified Ivory.Language.Syntax  as I
+import           Ivory.Opts.BitShift    (bitShiftFold)
 import           Ivory.Opts.ConstFold   (constFold)
+import           Ivory.Opts.DivZero     (divZeroFold)
+import           Ivory.Opts.Index       (ixFold)
 import           Ivory.Opts.Overflow    (overflowFold)
 import           Prelude                hiding (exp)
 
@@ -37,7 +40,7 @@ modelCheckProc mods p = do
     mapM_ addImport (I.modImports m)
     mapM_ addProc (getVisible $ I.modProcs m)
     mapM_ toArea (getVisible $ I.modAreas m)
-  modelCheckProc' . overflowFold . constFold $ p
+  modelCheckProc' . overflowFold . divZeroFold . bitShiftFold . ixFold . constFold $ p
   where
   getVisible ps = I.public ps ++ I.private ps
   addExtern e = addProc I.Proc { I.procSym = I.externSym e
@@ -211,6 +214,7 @@ toInit ty init =
       return tv
   where
   lookupField f (I.Struct _ tfs) = listToMaybe [ t | I.Typed t f' <- tfs, f == f' ]
+  lookupField f (I.Abstract _ _) = Nothing
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
