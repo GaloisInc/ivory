@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
@@ -9,9 +10,9 @@ module Ivory.ModelCheck.Ivory2CVC4
 
 import           Control.Applicative
 import           Control.Monad
+import           Data.List              (nub)
 import qualified Data.Map               as M
 import           Data.Maybe
-import qualified Data.Set               as S
 import qualified Ivory.Language.Array   as I
 import qualified Ivory.Language.Cast    as I
 import qualified Ivory.Language.Syntax  as I
@@ -27,20 +28,18 @@ import           Ivory.ModelCheck.Monad
 
 --------------------------------------------------------------------------------
 
-modelCheckMod :: I.Module -> ModelCheck ()
-modelCheckMod m = do
-  mapM_ addDepends (S.toList $ I.modDepends m)
-  mapM_ toStruct (getVisible $ I.modStructs m)
-  mapM_ addExtern (I.modExterns m)
-  mapM_ addImport (I.modImports m)
-  mapM_ addProc (getVisible $ I.modProcs m)
-  mapM_ toArea (getVisible $ I.modAreas m)
-  mapM_ (modelCheckProc . overflowFold . constFold) (getVisible $ I.modProcs m)
+modelCheckProc :: [I.Module] -> I.Proc -> ModelCheck ()
+modelCheckProc mods p = do
+  forM_ mods $ \m -> do
+    mapM_ toStruct (getVisible $ I.modStructs m)
+    mapM_ addStruct (getVisible $ I.modStructs m)
+    mapM_ addExtern (I.modExterns m)
+    mapM_ addImport (I.modImports m)
+    mapM_ addProc (getVisible $ I.modProcs m)
+    mapM_ toArea (getVisible $ I.modAreas m)
+  modelCheckProc' . overflowFold . constFold $ p
   where
   getVisible ps = I.public ps ++ I.private ps
-  addDepends mn = do m <- lookupModule mn
-                     mapM_ toStruct (getVisible $ I.modStructs m)
-                     mapM_ addProc (getVisible $ I.modProcs m)
   addExtern e = addProc I.Proc { I.procSym = I.externSym e
                                , I.procRetTy = I.externRetType e
                                , I.procArgs = map (\arg -> I.Typed arg (I.VarName "dummy"))
@@ -62,13 +61,16 @@ modelCheckMod m = do
 toArea :: I.Area -> ModelCheck ()
 toArea I.Area { I.areaSym  = sym
               , I.areaType = ty
+              , I.areaInit = init
               }
-  = void $ addEnvVar ty sym
+  = do v <- addEnvVar ty sym
+       e <- toInit ty init
+       addInvariant (var v .== e)
 
 --------------------------------------------------------------------------------
 
-modelCheckProc :: I.Proc -> ModelCheck ()
-modelCheckProc I.Proc { I.procSym      = sym
+modelCheckProc' :: I.Proc -> ModelCheck ()
+modelCheckProc' I.Proc { I.procSym      = sym
                       , I.procRetTy    = ret
                       , I.procArgs     = args
                       , I.procBody     = body
@@ -185,21 +187,30 @@ toInit ty init =
       case ty of
        I.TyArr _ _ -> fmap var $ incReservedVar =<< toType ty
        I.TyStruct _-> fmap var $ incReservedVar =<< toType ty
+       I.TyBool    -> return false
        _           -> return $ intLit 0
     I.InitExpr t exp -> toExpr t exp
     I.InitArray is   -> do
       let (I.TyArr k t) = ty
       tv <- fmap var $ incReservedVar =<< toType ty
       forM_ (zip [0..] is) $ \ (ix,i) -> do
-        e <- toInit (err "toInit" "nested array") i
+        e <- toInit t i
         addInvariant (index (intLit ix) tv .== e)
       return tv
     I.InitStruct fs  -> do
       tv <- fmap var $ incReservedVar =<< toType ty
+      let (I.TyStruct s) = ty
       forM_ fs $ \ (f, i) -> do
-        e <- toInit (err "toInit" "nested struct") i
-        addInvariant (field (var f) tv .== e)
+        structs <- getStructs
+        case M.lookup s structs >>= lookupField f of
+          Just t -> do
+            e <- toInit t i
+            addInvariant (field (var f) tv .== e)
+          Nothing -> error $ "I don't know how to initialize field " ++ f
+                          ++ " of struct " ++ s
       return tv
+  where
+  lookupField f (I.Struct _ tfs) = listToMaybe [ t | I.Typed t f' <- tfs, f == f' ]
 
 toAssign :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toAssign t v exp = do
@@ -230,10 +241,12 @@ toCallInline t retV nm args = do
     rs <- getRefs
     forM_ (M.toList rs) $ \ ((t, r), vs) -> do
       -- XXX: can we rely on Refs always being passed as a Var?
-      let Just (Var x) = lookup r argEnv
-      r' <- addEnvVar t x
-      -- x may point to any number of values upon returning from a call
-      addInvariant $ foldr1 (.||) [var r' .== var v | v <- vs]
+      case lookup r argEnv of
+        Just (Var x) -> do
+          r' <- addEnvVar t x
+          -- x may point to any number of values upon returning from a call
+          addInvariant $ foldr1 (.||) [var r' .== var v | v <- vs]
+        _ -> return ()
 
   case retV of
    Nothing -> return ()
@@ -289,18 +302,18 @@ toLoop ens v start end blk =
 
 toIfTE :: [Expr] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens cond blk0 blk1 = do
-  st  <- getState
   b   <- toExpr I.TyBool cond
-  runBranch st b blk0
-  st' <- joinState st
-  runBranch st (not' b) blk1
-  void (joinState st')
+  trs <- runBranch b blk0
+  frs <- runBranch (not' b) blk1
+  forM_ (M.toList (M.unionWith (++) trs frs)) $ \ ((t, r), nub -> vs) -> do
+    when (length vs == 2) $ do
+      r' <- addEnvVar t r
+      let [tv,fv] = vs
+      addInvariant $ (b .=> (var r' .== var tv)) .&& (not' b .=> (var r' .== var fv))
   where
-  runBranch :: SymExecSt -> Expr -> [I.Stmt] -> ModelCheck ()
-  runBranch st b blk = do
-    resetSt st                   -- Empty state except environment
+  runBranch b blk = withLocalRefs $ inBranch b $ do
     mapM_ (toBody ens) blk       -- Body under the invariant
-    branchSt b                   -- Make conditions under hypothesis b
+    symRefs <$> getState
 
 --------------------------------------------------------------------------------
 
@@ -469,13 +482,9 @@ updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
 updateEnvRef t ref =
   case ref of
     I.ExpVar v
-      -> do v' <- addEnvVar t (toVar v)
-            updateStRef t (toVar v) v'
-            return v'
+      -> addEnvVar t (toVar v)
     I.ExpAddrOfGlobal v
-      -> do v' <- addEnvVar t v
-            updateStRef t v v'
-            return v'
+      -> addEnvVar t v
 
     _ -> err "updateEnvRef" (show ref)
 
@@ -573,7 +582,13 @@ varOp = I.ExpVar . I.VarName
 addEnvVar :: I.Type -> Var -> ModelCheck Var
 addEnvVar t v = do
   t' <- toType t
-  declUpdateEnv t' v
+  v' <- declUpdateEnv t' v
+  updateStRef t v v'
+  return v'
+  where
+  isRef = case t of
+    I.TyRef _ -> True
+    _         -> False
 
 -- Call the appropriate cvc4lib functions.
 assertBoundedVar :: I.Type -> Expr -> ModelCheck ()

@@ -10,12 +10,14 @@ module Ivory.ModelCheck.Monad
   , ProgramSt(..)
   , getState
   , setState
-  , joinState
+  , inBranch
   , askOpts
   , setSrcLoc
   , addProc
   , lookupProc
   , getRefs
+  , getStructs
+  , addStruct
   , withLocalRefs
   , updateStRef
   , addType
@@ -25,10 +27,7 @@ module Ivory.ModelCheck.Monad
   , addQuery
   , addEnsure
   , addInvariant
-  , resetSt
-  , branchSt
   , askInline
-  , lookupModule
   )
  where
 
@@ -78,16 +77,19 @@ data SymExecSt = SymExecSt
   , symSt    :: ProgramSt
   , symQuery :: Queries
   , symProcs :: M.Map I.Sym I.Proc
+  , symStructs :: M.Map I.Sym I.Struct
   , symRefs  :: M.Map (I.Type, Var) [Var]
     -- ^ To track assignment to Refs during inlined calls
+  , symCond  :: Expr
+    -- ^ The current branch condition
   }
 
 data SymOpts = SymOpts
   { inlineCalls :: Bool
-  , moduleEnv   :: ModuleEnv
+  -- , moduleEnv   :: ModuleEnv
   }
 
-type ModuleEnv = M.Map I.ModuleName I.Module
+-- type ModuleEnv = M.Map I.ModuleName I.Module
 
 newtype ModelCheck a = ModelCheck (StateT SymExecSt (ReaderT SymOpts Id) a)
   -- { unModelCheck ::
@@ -105,7 +107,9 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symSt    = mempty
                       , symQuery = mempty
                       , symProcs = overflowProcs
+                      , symStructs = mempty
                       , symRefs  = mempty
+                      , symCond  = true
                       }
 
 mcVar :: String
@@ -116,7 +120,6 @@ constructVar :: Var -> Int -> Var
 constructVar v i
   | i == 0    = v
   | otherwise = mcVar ++ show i ++ v
-  where
 
 takeInt :: Char -> Bool
 takeInt c = case reads [c] :: [(Int, String)] of
@@ -167,11 +170,13 @@ addType ty fs = do
     set st { symSt = ps' }
 
 addInvariant :: Expr -> ModelCheck ()
+addInvariant T   = return ()
 addInvariant exp = do
   st  <- get
   loc <- getSrcLoc
+  let b = symCond st
   let ps = symSt st
-  let ps' = ps { invars = exp `at` loc : invars ps }
+  let ps' = ps { invars = (b .=> exp) `at` loc : invars ps }
   set st { symSt = ps' }
 
 -- getProgramSt :: ModelCheck ProgramSt
@@ -182,6 +187,18 @@ getRefs = do
   st <- get
   return (symRefs st)
 
+getStructs :: ModelCheck (M.Map I.Sym I.Struct)
+getStructs = do
+  st <- get
+  return (symStructs st)
+
+addStruct :: I.Struct -> ModelCheck ()
+addStruct s@(I.Struct nm _) = do
+  st <- get
+  let st' = st { symStructs = M.insert nm s (symStructs st) }
+  set st'
+  
+
 updateStRef :: I.Type -> Var -> Var -> ModelCheck ()
 updateStRef t v v' =
   sets_ (\st -> st { symRefs = M.insert (t,v) [v'] (symRefs st) })
@@ -190,7 +207,7 @@ withLocalRefs :: ModelCheck a -> ModelCheck a
 withLocalRefs m = do
   st <- get
   let refs = symRefs st
-  sets_ (\s -> s { symRefs = mempty })
+  -- sets_ (\s -> s { symRefs = mempty })
   a <- m
   sets_ (\s -> s { symRefs = refs })
   return a
@@ -217,16 +234,22 @@ setQueries q = do
   set st { symQuery = q }
 
 addQuery :: Expr -> ModelCheck ()
+addQuery T = return ()
 addQuery exp = do
+  st  <- getState
   loc <- getSrcLoc
+  let b = symCond st
   q   <- getQueries
-  setQueries q { assertQueries = exp `at` loc : assertQueries q }
+  setQueries q { assertQueries = (b .=> exp) `at` loc : assertQueries q }
 
 addEnsure :: Expr -> ModelCheck ()
+addEnsure T = return ()
 addEnsure exp = do
+  st  <- getState
   loc <- getSrcLoc
+  let b = symCond st
   q   <- getQueries
-  setQueries q { ensureQueries = exp `at` loc : ensureQueries q }
+  setQueries q { ensureQueries = (b .=> exp) `at` loc : ensureQueries q }
 
 addProc :: I.Proc -> ModelCheck ()
 addProc p = do
@@ -245,11 +268,6 @@ nullProc nm = I.Proc nm (error "tried to use ret ty") [] [] [] []
 
 askInline :: ModelCheck Bool
 askInline = asks inlineCalls
-
-lookupModule :: I.ModuleName -> ModelCheck I.Module
-lookupModule nm = do
-  env <- asks moduleEnv
-  return $ env M.! nm
 
 -- | Lookup a variable in the environment.  If it's not in there return a fresh
 -- variable (and update the environment) and declare it (which is why we need
@@ -287,46 +305,14 @@ lookupVar v = do
   st <- get
   return $ lookupEnvVar v (symEnv st)
 
--- | Reset all the state except for the environment.
-resetSt :: SymExecSt -> ModelCheck ()
-resetSt st =
-  set st { symSt    = mempty
-         , symQuery = mempty
-         }
-
--- | Makes the invariants and queries in the current state conditional on the
--- given expression holding.
-branchSt :: Expr -> ModelCheck ()
-branchSt exp = do
-  st <- get
-  let ps = symSt st
-  let invars' = implies (invars ps)
-  let ps' = ps { decls  = decls ps
-               , invars = invars' }
-  let qs = symQuery st
-  let asserts' = implies (assertQueries qs)
-  let ensures' = implies (ensureQueries qs)
-  let queries' = qs { assertQueries = asserts'
-                    , ensureQueries = ensures' }
-  let st' = SymExecSt { funcSym  = funcSym st
-                      , symEnv   = symEnv st
-                      , symSt    = ps'
-                      , symQuery = queries'
-                      , symProcs = symProcs st
-                      , symRefs  = symRefs st
-                      }
-  set st'
-  where
-  implies = map (fmap (exp .=>))
-
-joinState :: SymExecSt -> ModelCheck SymExecSt
-joinState st0 = do
-  st1 <- get
-  -- This is the right order.
-  let st = st1 `mappend` st0
-  set st
-  return st
-
+inBranch :: Expr -> ModelCheck a -> ModelCheck a
+inBranch b doThis = do
+  b' <- symCond <$> getState
+  sets_ (\s -> s { symCond = b })
+  res <- doThis
+  sets_ (\s -> s { symCond = b' })
+  return res
+  
 runMC :: SymOpts -> ModelCheck a -> (a, SymExecSt)
 runMC opts (ModelCheck m) = runId (runReaderT opts (runStateT initSymSt m))
 
@@ -370,26 +356,6 @@ instance Monoid ProgramSt where
               , invars = e0 ++ e1
               , srcloc = NoLoc    -- XXX: should be able to do better than this..
               }
-
-instance Monoid SymExecSt where
-  mempty = SymExecSt { funcSym  = ""
-                     , symEnv   = mempty
-                     , symSt    = mempty
-                     , symQuery = mempty
-                     , symProcs = mempty
-                     , symRefs  = mempty
-                     }
-  (SymExecSt f0 e0 s0 q0 p0 r0) `mappend` (SymExecSt f1 e1 s1 q1 p1 r1)
-    | f0 /= f1 = error "Sym states have different function symbols."
-    | p0 /= p1 = error "Sym states have different proc environments."
-    | otherwise =
-      SymExecSt { funcSym  = f0
-                , symEnv   = e0 `M.union` e1
-                , symSt    = s0 `mappend` s1
-                , symQuery = q0 `mappend` q1
-                , symProcs = p0
-                , symRefs  = M.unionWith (++) r0 r1
-                }
 
 --------------------------------------------------------------------------------
 -- Contracts for overflow assertions

@@ -12,6 +12,9 @@
 module PPM where
 
 import Ivory.Language
+import Ivory.Stdlib
+
+import Ivory.ModelCheck
 
 data PPMDecoder =
   PPMDecoder
@@ -108,9 +111,65 @@ data PPMDecoder =
 --   useful_channels = 6
 --   timeout_limit = fromIMilliseconds (150 :: Uint8)-- ms
 
+useful_channels :: Ix 8
+useful_channels = 6
+
+ppm_valid_area :: MemArea (Stored IBool)
+ppm_valid_area = area "ppm_valid" (Just izero) -- XXX: TODO: need to model global inits
+ppm_valid :: Ref Global (Stored IBool)
+ppm_valid = addrOf ppm_valid_area
+
+ppm_last_area :: MemArea (Array 8 (Stored PPM))
+ppm_last_area = area "ppm_last" Nothing
+ppm_last :: Ref Global (Array 8 (Stored PPM))
+ppm_last = addrOf ppm_last_area
+
+ppm_last_time_area :: MemArea (Stored ITime)
+ppm_last_time_area = area "ppm_last_time" Nothing
+ppm_last_time :: Ref Global (Stored ITime)
+ppm_last_time = addrOf ppm_last_time_area
+
+invalidate :: Ivory eff ()
+invalidate = do
+    store ppm_valid false
+    -- ms_no_sample modeswitch
+    -- am_no_sample armingmachine
+
+new_sample_proc :: Def('[Ref s PPMs, ITime ]:->())
+new_sample_proc = proc "ppm_new_sample_proc" $ \ppms time -> body $ do
+  all_good <- local (ival true)
+  arrayMap $ \ix -> when (ix <? useful_channels) $ do
+    ch <- deref (ppms ! ix)
+    unless (ch >=? minBound .&& ch <=? maxBound)
+           (store all_good false)
+
+  s <- deref all_good
+  unless s $ invalidate
+  when   s $ do
+    arrayMap $ \ix -> when (ix <? useful_channels)
+      (deref (ppms ! ix) >>= store (ppm_last ! ix))
+    store ppm_last_time time
+    store ppm_valid true
+    -- ms_new_sample modeswitch ppms time
+    -- am_new_sample armingmachine ppms time
+
+  -- get_ui_proc :: Def('[Ref s (Struct "userinput_result")]:->())
+  -- get_ui_proc = proc (named "get_ui") $ \ui -> body $ do
+  -- XXX: inlined
+  ui <- local $ istruct []
+  valid <- deref ppm_valid
+  time <- deref ppm_last_time
+  ifte_ valid
+    (call_  ppm_decode_ui_proc ppm_last ui time)
+    (failsafe ui)
+
 ppmModule :: Module
 ppmModule = package "ppm_userinput" $ do
   depend userInputTypeModule
+  defMemArea ppm_valid_area
+  defMemArea ppm_last_area
+  defMemArea ppm_last_time_area
+  incl new_sample_proc
   incl scale_proc
   incl ppm_decode_ui_proc
 

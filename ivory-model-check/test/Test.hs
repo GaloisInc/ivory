@@ -9,6 +9,8 @@ module Main where
 
 import Ivory.Language hiding (Struct, assert, true, false, proc, (.&&))
 import qualified Ivory.Language as L
+import qualified Ivory.Stdlib as L
+import qualified Ivory.Language.Proc as I
 import qualified Ivory.Language.Syntax as I
 import Ivory.Serialize
 import Ivory.ModelCheck
@@ -30,64 +32,67 @@ tests = testGroup "Tests" [ shouldPass, shouldFail, examples ]
 
 shouldPass :: TestTree
 shouldPass = testGroup "should be safe"
-             [ mkSuccess "foo2" m2 []
-             , mkSuccess "foo3" m3 []
-             , mkSuccess "foo4" m4 []
-             , mkSuccess "foo5" m5 []
-             , mkSuccess "foo6" m6 []
-             , mkSuccess "foo7" m7 []
-             , mkSuccess "foo8" m8 []
-             , mkSuccess "foo9" m9 []
-             , mkSuccess "foo10" m10 []
-             , mkSuccess "foo11" m11 []
-             , mkSuccess "foo12" m12 []
-             , mkSuccess "foo13" m13 []
-             , mkSuccess "foo15" m15 []
-             , mkSuccess "foo16" m16 []
-             , mkSuccess "foo17" m17 []
-             , mkSuccess "foo18" m18 []
-             , mkSuccessInline "heartbeat" Heartbeat.heartbeatModule
-                                           [serializeModule]
-             , mkSuccess "ppm_decode" PPM.ppmModule [PPM.userInputTypeModule]
+             [ mkSuccess foo2 [m2]
+             , mkSuccess foo3 [m3]
+             , mkSuccess foo4 [m4]
+             , mkSuccess foo5 [m5]
+             , mkSuccess foo6 [m6]
+             , mkSuccess foo7 [m7]
+             , mkSuccess foo8 [m8]
+             , mkSuccess foo9 [m9]
+             , mkSuccess foo10 [m10]
+             , mkSuccess foo11 [m11]
+             , mkSuccess foo12 [m12]
+             , mkSuccess foo13 [m13]
+             , mkSuccess foo15 [m15]
+             , mkSuccess foo16 [m16]
+             , mkSuccess foo17 [m17]
+             , mkSuccess foo18 [m18]
+             , mkSuccessInline Heartbeat.packUnpack
+               [ Heartbeat.heartbeatModule, serializeModule ]
+             , mkSuccess PPM.new_sample_proc
+               [ PPM.ppmModule, PPM.userInputTypeModule ]
              ]
 
 shouldFail :: TestTree
 shouldFail = testGroup "should be unsafe"
-             [ mkFailure "foo1" m1 []
-             , mkFailure "foo14" m14 []
+             [ mkFailure foo1 [m1]
+             , mkFailure foo14 [m14]
              ]
 
 examples :: TestTree
 examples = testGroup "examples (shouldn't crash)"
-           [ mkNotError (I.modName m) m [] | m <- Examples.modules ]
+           [ mkNotError (I.DefProc p) [m]
+           | m <- Examples.modules
+           , p <- I.public (I.modProcs m) ]
 
 testArgs :: Args
 testArgs = initArgs { printQuery = False, printEnv = False }
 
-mkSuccess :: TestName -> Module -> [Module] -> TestTree
-mkSuccess nm m deps = testCase nm $ do
-  r <- modelCheck testArgs deps m
+mkSuccess :: Def p -> [Module] -> TestTree
+mkSuccess d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
+  r <- modelCheck testArgs mods d
   let msg = printf "Expected: Safe\nActual: %s"
             (showResult r)
   assertBool msg (isSafe r)
 
-mkSuccessInline :: TestName -> Module -> [Module] -> TestTree
-mkSuccessInline nm m deps = testCase nm $ do
-  r <- modelCheck (testArgs { inlineCall = True }) deps m
+mkSuccessInline :: Def p -> [Module] -> TestTree
+mkSuccessInline d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
+  r <- modelCheck (testArgs { inlineCall = True }) mods d
   let msg = printf "Expected: Safe\nActual: %s"
             (showResult r)
   assertBool msg (isSafe r)
 
-mkFailure :: TestName -> Module -> [Module] -> TestTree
-mkFailure nm m deps = testCase nm $ do
-  r <- modelCheck testArgs deps m
+mkFailure :: Def p -> [Module] -> TestTree
+mkFailure d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
+  r <- modelCheck testArgs mods d
   let msg = printf "Expected: Unsafe\nActual: %s"
             (showResult r)
   assertBool msg (isUnsafe r)
 
-mkNotError :: TestName -> Module -> [Module] -> TestTree
-mkNotError nm m deps = testCase nm $ do
-  r <- modelCheck testArgs deps m
+mkNotError :: Def p -> [Module] -> TestTree
+mkNotError d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
+  r <- modelCheck testArgs mods d
   let msg = printf "Expected: anything but Error\nActual: %s"
             (showResult r)
   assertBool msg (not $ isError r)
@@ -171,7 +176,7 @@ m5 = package "foo5" (incl foo5)
 -----------------------
 
 foo6 :: Def ('[Uint8] :-> ())
-foo6 = L.proc "foo1" $ \x -> body $ do
+foo6 = L.proc "foo6" $ \x -> body $ do
   y <- local (ival (0 :: Uint8))
   ifte_ (x <? 3)
         (do a <- local (ival (9 :: Uint8))
@@ -350,3 +355,34 @@ m18 :: Module
 m18 = package "foo18" $ do
   defStruct (Proxy :: Proxy "foo2")
   incl foo18
+
+-----------------------
+
+ppm_valid_area :: MemArea (Stored IBool)
+ppm_valid_area = area "ppm_valid" Nothing
+
+foo19 :: Def('[Ref s (Array 1 (Stored Uint32))] :-> ())
+foo19 = L.proc "foo19" $ \ppms -> body $ do
+  all_good <- local (ival L.true)
+  ppm_last <- local (iarray [])
+  let ppm_valid = addrOf ppm_valid_area
+  -- ppm_valid <- local izero
+  arrayMap $ \ix -> do
+    x <- deref (ppms ! ix)
+    L.unless (x >=? 800 L..&& x <=? 2000)
+      (store all_good L.false)
+
+  b <- deref all_good
+  L.when b $ do
+    (arrayMap $ \ix -> (deref (ppms ! ix) >>= store (ppm_last ! ix)))
+    store ppm_valid L.true
+  
+  valid <- deref ppm_valid
+  ppm <- deref (ppm_last ! 0)
+  L.assert (L.iNot valid .|| (ppm >=? 800 L..&& ppm <=? 2000))
+  retVoid
+
+m19 :: Module
+m19 = package "foo19" $ do
+  defMemArea ppm_valid_area
+  incl foo19

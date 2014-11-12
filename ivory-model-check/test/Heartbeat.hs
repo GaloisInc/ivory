@@ -48,7 +48,7 @@ struct heartbeat_msg
 |]
 
 packUnpack :: Def ('[Ref s1 (Struct "heartbeat_msg")] :-> ())
-packUnpack = proc "pack_unpack" $ \ msg -> body $ do
+packUnpack = proc "heartbeat_pack_unpack" $ \ msg -> body $ do
   buf <- local (iarray [] :: Init (Array 9 (Stored Uint8)))
   let buf' = toCArray buf
   call_ heartbeatPack (constRef msg) buf'

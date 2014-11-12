@@ -253,7 +253,8 @@ not' = Not
 (.||) = Or
 
 (.=>) :: Expr -> Expr -> Expr
-(.=>) = Impl
+(.=>) T e = e
+(.=>) x y = Impl x y
 
 (.<=>) :: Expr -> Expr -> Expr
 (.<=>) = Equiv

@@ -7,6 +7,7 @@
 
 module Ivory.ModelCheck where
 
+import qualified Ivory.Language.Proc         as I
 import qualified Ivory.Language.Syntax       as I
 import           Ivory.Language.Syntax.Concrete.Location
 import           Text.Printf
@@ -73,14 +74,14 @@ showResult (Inconsistent f) = printf "Inconsistent (generated script at %s)" f
 showResult (Unsafe qs f)    = printf "Unsafe: %s (generated script at %s)" (intercalate ", " qs) f
 showResult (Error e f)      = printf "Error: %s (generated script at %s)" e f
 
-modelCheck' :: [I.Module] -> I.Module -> IO ()
-modelCheck' deps m = do
-  res <- modelCheck initArgs deps m
+modelCheck' :: [I.Module] -> I.Def p -> IO ()
+modelCheck' mods p = do
+  res <- modelCheck initArgs mods p
   print res
 
-modelCheck :: Args -> [I.Module] -> I.Module -> IO Result
-modelCheck args (mkModuleEnv -> deps) m = do
-  let (_, st) = runMC (SymOpts (inlineCall args) deps) (modelCheckMod m)
+modelCheck :: Args -> [I.Module] -> I.Def p -> IO Result
+modelCheck args mods (I.DefProc p) = do
+  let (_, st) = runMC (SymOpts (inlineCall args)) (modelCheckProc mods p)
   let bs = B.unlines (mkScript st)
   debugging args st bs
   file <- writeInput bs
