@@ -12,23 +12,16 @@ import System.Exit (exitFailure,exitSuccess)
 
 -- Option Parsing --------------------------------------------------------------
 
-data OptParser opt
-  = Success (opt -> opt)
-  | Error [String]
-
+data OptParser opt = OptParser [String] (opt -> opt)
 instance Monoid (OptParser opt) where
-  mempty                        = Success id
-
+  mempty = OptParser [] id
   -- left-to-right composition makes the last option parsed take precedence
-  Success f `mappend` Success g = Success (f . g)
-  Error as  `mappend` Error bs  = Error (as ++ bs)
-  Error as  `mappend` _         = Error as
-  _         `mappend` Error bs  = Error bs
+  OptParser as f `mappend` OptParser bs g = OptParser (as ++ bs) (f . g)
 
 -- | Option parser succeeded, use this function to transform the default
 -- options.
 success :: (opt -> opt) -> OptParser opt
-success  = Success
+success  = OptParser []
 
 -- | Option parser failed, emit this message.
 --
@@ -43,8 +36,8 @@ parseOptions :: [OptDescr (OptParser opt)] -> [String]
              -> (Either [String] (opt -> opt))
 parseOptions opts args = case getOpt Permute opts args of
   (fs,[],[]) -> case mconcat fs of
-    Success f -> Right f
-    Error es  -> Left es
+    OptParser [] f -> Right f
+    OptParser es _ -> Left es
   (_,_,es)  -> Left es
 
 
