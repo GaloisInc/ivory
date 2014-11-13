@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE QuasiQuotes #-}
+
 --
 -- String.hs --- C-string utilities for Ivory.
 --
@@ -16,13 +17,14 @@
 module Ivory.Stdlib.String
   ( copy_istring , strcpy , strncpy , strncpy_uint8 , strncmp
   , stdlibStringModule, stringInit, istr_eq, sz_from_istr, istr_len
-  , istr_from_sz, istr_copy, istr_convert
+  , istr_from_sz, istr_copy, string_lit_store
   , stdlibStringArtifacts
   ) where
 
 import Data.Char (ord)
 
 import Ivory.Language
+import Ivory.Language.Array (IxRep)
 import Ivory.Artifact
 import Ivory.Language.Proxy
 
@@ -30,29 +32,60 @@ import qualified Control.Monad as M
 import qualified Paths_ivory_stdlib as P
 
 -- Should be same underlying type as IxRep to make casting easier.
-type Len = Sint32
+type Len = IxRep
 
 ----------------------------------------------------------------------
 -- Yet Another Ivory String Type
 
--- TODO: Should we generate a warning or error if the string
--- is too long for the string type?
-gen_stringInit :: (IvoryStruct name, ANat len)
+gen_stringInit :: forall name len . (IvoryStruct name, ANat len)
                => Label name (Array len (Stored Uint8))
                -> Label name (Stored Len)
                -> String
                -> Init (Struct name)
 gen_stringInit l_data l_len xs =
-  istruct
-    [ l_data .= iarray (map (ival . fromIntegral . ord) xs)
-    , l_len  .= ival len
-    ]
+  let nat = fromIntegral (fromTypeNat (Proxy :: Proxy len)) in
+  if len > nat
+    then error $ "gen_stringInit: " ++ " String " ++ xs
+      ++ " is too large to initialize dynamic string with"
+      ++ " maximum size " ++ show nat
+    else go
   where
-  len :: Len
-  len = fromIntegral (length xs)
+  go =
+    istruct
+      [ l_data .= iarray (map ival (stringArray xs))
+      , l_len  .= ival (fromIntegral len)
+      ]
+  len = length xs
 
+-- | String initialization. Error returned if the `String` is too large.
 stringInit :: IvoryString str => String -> Init str
 stringInit = gen_stringInit stringDataL stringLengthL
+
+-- | Store a constant string into an `IvoryString`. Error returned if the
+-- `String` is too large.
+string_lit_store :: forall n str s eff
+                  . ( IvoryString str
+                    , n ~ Capacity str
+                    )
+                 => String
+                 -> Ref s str
+                 -> Ivory eff ()
+string_lit_store s str =
+  let d  = str~>stringDataL in
+  let ls = stringArray s in
+  let go :: (Integer, Uint8) -> Ivory eff ()
+      go (ix, c) = store (d ! fromIntegral ix) c in
+  let ln = fromIntegral (length ls) in
+  let nat = fromTypeNat (Proxy :: Proxy n) in
+  if ln > nat
+    then error $ "string_lit_store: " ++ " String " ++ s
+      ++ " is too large for the dynamic string max size "
+      ++ show nat
+    else do mapM_ go (zip [0..] ls)
+            store (stringLength str) (fromIntegral ln)
+
+stringArray :: String -> [Uint8]
+stringArray = map (fromIntegral . ord)
 
 ----------------------------------------------------------------------
 -- Generic Functions
@@ -110,18 +143,6 @@ istr_copy dest src = do
   len <- istr_len src
   call_ memcpy (stringData dest) (stringData src) len
   store (stringLength dest) len
-
--- | Copy one string to another of a possibly different type.  If
--- the destination string is too small, the output may be truncated.
--- This returns true if the string fit, and false if it was
--- truncated to fit the destination.
---
--- TODO: Implement this once it's needed.
-istr_convert :: (IvoryString str1, IvoryString str2)
-             => Ref      s1 str1
-             -> ConstRef s2 str2
-             -> Ivory eff IBool
-istr_convert = undefined
 
 -- | Internal function to compare strings for equality.
 do_istr_eq :: Def ('[ ConstRef s1 (CArray (Stored Uint8))

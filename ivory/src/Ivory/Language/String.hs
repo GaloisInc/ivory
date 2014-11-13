@@ -7,8 +7,8 @@
 module Ivory.Language.String where
 
 import Ivory.Language.Area
+import Ivory.Language.Array(IxRep)
 import Ivory.Language.Struct
-import Ivory.Language.Sint
 import Ivory.Language.Uint
 import Ivory.Language.Proxy (ANat)
 
@@ -22,7 +22,7 @@ class ( ANat (Capacity a)
   type Capacity a :: Nat
 
   stringDataL   :: Label (StructName a) (Array (Capacity a) (Stored Uint8))
-  stringLengthL :: Label (StructName a) (Stored Sint32) -- Should be same
-                                                        -- underlying type as
-                                                        -- IxRep
+  stringLengthL :: Label (StructName a) (Stored IxRep) -- Should be same
+                                                       -- underlying type as
+                                                       -- IxRep
 
