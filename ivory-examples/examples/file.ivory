@@ -25,15 +25,24 @@ struct Foo
  }
 
 -- Safe string structs: strings of max length 16 bytes Generates two field
--- labels: stringLengthL (int32_t) and stringDataL (array uint8_t[16]). The type
+-- labels: stringLengthL (int32_t) and stringDataL (array uint8_t[4]). The type
 -- of the struct is ivory_string_FooStr. See the String library in ivory-stdlib
 -- for some string library functions.
-string struct FooStr 16
+string struct FooStr 4
 
 -- Nested struct references
 struct Foo2
   { struct Foo foo2f
   }
+
+r* struct ivory_string_FooStr foostr(r* struct ivory_string_FooStr s) {
+  -- Allocate a new string dynamic string. Fails if the string is too large.
+  alloc s0{} = $stringInit("foo");
+  foostr(s0);
+  -- Store a new string into the dynamic string data structure.
+  $string_lit_store("foos", s);
+  return s;
+}
 
 -- Abstract structs
 abstract struct fooStruct "foobar/foo.h"
@@ -177,7 +186,7 @@ uint32_t foo17(G*uint32_t i) {
 
 -- allocate and initialize a struct.
 void foo92() {
-  alloc s = {aFoo = true};
+  alloc s{} = {aFoo = true};
   return;
 }
 

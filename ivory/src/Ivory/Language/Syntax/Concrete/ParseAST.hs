@@ -7,6 +7,7 @@
 
 module Ivory.Language.Syntax.Concrete.ParseAST where
 
+import Prelude hiding (init)
 import Data.Monoid
 
 import Ivory.Language.Syntax.Concrete.Location
@@ -222,10 +223,16 @@ data ExpOp
 
   deriving (Show, Read, Eq, Ord)
 
+data StructInit
+  = Empty
+  | MacroInit (String, [Exp])
+  | FieldInits [(FieldNm, Exp)]
+  deriving (Show, Read, Eq, Ord)
+
 data AllocRef
   = AllocBase    RefVar (Maybe Exp)
   | AllocArr     RefVar [Exp]
-  | AllocStruct  RefVar [(FieldNm, Exp)]
+  | AllocStruct  RefVar StructInit
   deriving (Show, Read, Eq, Ord)
 
 -- | AST for parsing C-like statements.
@@ -398,9 +405,16 @@ instance HasLocation Exp where
 instance HasLocation AllocRef where
   getLoc _ = mempty
   stripLoc a = case a of
-    AllocBase v e    -> AllocBase v (stripLoc e)
-    AllocArr v es    -> AllocArr v (stripLoc es)
-    AllocStruct v fs -> AllocStruct v (map (\(n,e) -> (n, stripLoc e)) fs)
+    AllocBase v e      -> AllocBase v (stripLoc e)
+    AllocArr v es      -> AllocArr v (stripLoc es)
+    AllocStruct v init -> AllocStruct v (stripLoc init)
+
+instance HasLocation StructInit where
+  getLoc _ = mempty
+  stripLoc init = case init of
+    Empty             -> Empty
+    MacroInit (fn,es) -> MacroInit (fn, map stripLoc es)
+    FieldInits fs     -> FieldInits (map (\(n,e) -> (n, stripLoc e)) fs)
 
 instance HasLocation Stmt where
   getLoc s = case s of

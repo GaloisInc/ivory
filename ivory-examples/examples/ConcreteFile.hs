@@ -18,6 +18,7 @@
 module Main where
 
 import Ivory.Language
+import Ivory.Stdlib.String
 import Ivory.Compile.C.CmdlineFrontend
 
 e :: IBool

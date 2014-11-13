@@ -366,10 +366,10 @@ simpleStmt :
       '{' exps '}'                { LocStmt (atList (AllocRef (AllocArr (unLoc $2) (reverse $7)))
                                                [ $1, getLoc $2, getLoc $7]) }
 
-  | alloc ident '{' '}'           { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) []))
+  | alloc ident '{' '}'           { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) Empty))
                                                $1 $2) }
-  | alloc ident '='
-      '{' fieldAssigns '}'        { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) (reverse $5)))
+  | alloc ident '{' '}' '='
+      structInit                  { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) $6))
                                                $1 $2) }
 
   | refCopy ident ident           { LocStmt (atList (RefCopy (ExpVar (unLoc $2)) (ExpVar (unLoc $3)))
@@ -416,6 +416,11 @@ exps : exps ',' exp           { $3 : $1 }
      | exps ','               { $1 }
      | exp                    { [$1] }
      | {- empty -}            { [] }
+
+structInit :: { StructInit }
+structInit :
+    ivoryMacro           { MacroInit (unLoc $1) }
+  | '{' fieldAssigns '}' { FieldInits $2 }
 
 fieldAssigns :: { [(FieldNm, Exp)] }
 fieldAssigns :

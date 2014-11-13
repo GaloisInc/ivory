@@ -135,14 +135,25 @@ fromAlloc alloc = case alloc of
           let p = mkName arr
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.iarray) init))
-  AllocStruct s fieldAssigns
-    -> do es <- mapM (fromExpStmt . snd) fieldAssigns
-          let mkIval = AppE (VarE 'I.ival)
-          let assign (fnm, e) = InfixE (Just $ mkVar fnm) (VarE '(I..=)) (Just $ mkIval e)
-          let init = ListE $ map assign (zip (fst $ unzip fieldAssigns) es)
-          let p = mkName s
+  AllocStruct s init
+    -> do i <- fromInit
           insert $ BindS (VarP p)
-                         (AppE (VarE 'I.local) (AppE (VarE 'I.istruct) init))
+                         (AppE (VarE 'I.local) i)
+    where
+    p = mkName s
+    fromInit = case init of
+      Empty
+        -> liftQ $ appE (varE 'I.istruct) [|[]|]
+      MacroInit (nm,args)
+        -> do es <- fromArgs args
+              return (callit (mkVar nm) es)
+      FieldInits fieldAssigns
+        -> do es <- mapM (fromExpStmt . snd) fieldAssigns
+              let ls = ListE $ map assign (zip (fst $ unzip fieldAssigns) es)
+              return (AppE (VarE 'I.istruct) ls)
+        where
+        assign (fnm, e) = InfixE (Just $ mkVar fnm) (VarE '(I..=)) (Just $ mkIval e)
+        mkIval = AppE (VarE 'I.ival)
 
 --------------------------------------------------------------------------------
 
