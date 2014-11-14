@@ -31,11 +31,11 @@ aSymbol :: KnownSymbol s => Proxy s
 aSymbol = Proxy
 
 -- | The string associated with a type-symbol.
-fromTypeSym :: ASymbol sym => proxy (sym :: Symbol) -> String
+fromTypeSym :: KnownSymbol sym => proxy (sym :: Symbol) -> String
 fromTypeSym  = symbolVal
 
 -- | The integer associated with a type-nat.
-fromTypeNat :: ANat i => proxy (i :: Nat) -> Integer
+fromTypeNat :: KnownNat i => proxy (i :: Nat) -> Integer
 fromTypeNat  = natVal
 
 --------------------------------------------------------------------------------
@@ -52,11 +52,11 @@ aSymbol :: SingI s => Sing s
 aSymbol = sing
 
 -- | The string associated with a type-symbol.
-fromTypeSym :: ASymbol sym => proxy (sym :: Symbol) -> String
+fromTypeSym :: Sing (sym :: Symbol) -> String
 fromTypeSym  = fromSing
 
 -- | The integer associated with a type-nat.
-fromTypeNat :: ANat i => proxy (i :: Nat) -> Integer
+fromTypeNat :: Sing (i :: Nat) -> Integer
 fromTypeNat  = fromSing
 
 #endif

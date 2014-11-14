@@ -66,7 +66,6 @@ stringInit = gen_stringInit stringDataL stringLengthL
 string_lit_store :: forall n str s eff
                   . ( IvoryString str
                     , n ~ Capacity str
-                    , ANat n
                     )
                  => String
                  -> Ref s str
