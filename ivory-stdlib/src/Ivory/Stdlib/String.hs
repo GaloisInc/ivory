@@ -43,7 +43,7 @@ gen_stringInit :: forall name len . (IvoryStruct name, ANat len)
                -> String
                -> Init (Struct name)
 gen_stringInit l_data l_len xs =
-  let nat = fromIntegral (fromTypeNat (Proxy :: Proxy len)) in
+  let nat = fromIntegral (fromTypeNat (aNat :: NatType len)) in
   if len > nat
     then error $ "gen_stringInit: " ++ " String " ++ xs
       ++ " is too large to initialize dynamic string with"
@@ -77,7 +77,7 @@ string_lit_store s str =
   let go :: (Integer, Uint8) -> Ivory eff ()
       go (ix, c) = store (d ! fromIntegral ix) c in
   let ln = fromIntegral (length ls) in
-  let nat = fromTypeNat (Proxy :: Proxy n) in
+  let nat = fromTypeNat (aNat :: NatType n) in
   if ln > nat
     then error $ "string_lit_store: " ++ " String " ++ s
       ++ " is too large for the dynamic string max size "
