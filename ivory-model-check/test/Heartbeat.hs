@@ -22,6 +22,8 @@ import           Ivory.Serialize
 
 import           Ivory.Language
 
+import Ivory.ModelCheck
+
 heartbeatMsgId :: Uint8
 heartbeatMsgId = 0
 

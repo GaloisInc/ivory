@@ -44,7 +44,7 @@ modules = [ AddrOfRegression.cmodule
           -- , FibTutorial.fib_tutorial_module
           , Float.cmodule
           -- , Forever.cmodule
-          , FunPtr.cmodule
+          -- , FunPtr.cmodule
           , Overflow.cmodule
           , PID.cmodule
           , PublicPrivate.cmodule

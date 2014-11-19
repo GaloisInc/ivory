@@ -5,6 +5,7 @@ module Ivory.ModelCheck.Monad
   ( runMC
   , assertQueries
   , ModelCheck()
+  , IsDefined(..)
   , SymExecSt(..)
   , SymOpts(..)
   , ProgramSt(..)
@@ -70,13 +71,15 @@ data ProgramSt = ProgramSt
   , srcloc :: SrcLoc
   }
 
+data IsDefined = Defined | Imported
+
 -- | The full simulation state.
 data SymExecSt = SymExecSt
   { funcSym  :: String
   , symEnv   :: Env
   , symSt    :: ProgramSt
   , symQuery :: Queries
-  , symProcs :: M.Map I.Sym I.Proc
+  , symProcs :: M.Map I.Sym (IsDefined, I.Proc)
   , symStructs :: M.Map I.Sym I.Struct
   , symRefs  :: M.Map (I.Type, Var) [Var]
     -- ^ To track assignment to Refs during inlined calls
@@ -254,20 +257,17 @@ addEnsure exp = do
   q   <- getQueries
   setQueries q { ensureQueries = (b .=> exp) `at` loc : ensureQueries q }
 
-addProc :: I.Proc -> ModelCheck ()
-addProc p = do
+addProc :: IsDefined -> I.Proc -> ModelCheck ()
+addProc d p = do
   st <- get
-  set st { symProcs = M.insert (I.procSym p) p (symProcs st) }
+  set st { symProcs = M.insert (I.procSym p) (d,p) (symProcs st) }
 
-lookupProc :: I.Sym -> ModelCheck I.Proc
+lookupProc :: I.Sym -> ModelCheck (IsDefined, I.Proc)
 lookupProc nm = do
   st <- get
   case M.lookup nm (symProcs st) of
-    Nothing -> return $ nullProc nm -- error $ "couldn't find proc: " ++ show nm
+    Nothing -> error $ "couldn't find proc: " ++ show nm
     Just p  -> return p
-
-nullProc :: I.Sym -> I.Proc
-nullProc nm = I.Proc nm (error "tried to use ret ty") [] [] [] []
 
 askInline :: ModelCheck Bool
 askInline = asks inlineCalls
@@ -363,8 +363,8 @@ instance Monoid ProgramSt where
 --------------------------------------------------------------------------------
 -- Contracts for overflow assertions
 
-overflowProcs :: M.Map I.Sym I.Proc
-overflowProcs = M.fromList $ concat
+overflowProcs :: M.Map I.Sym (IsDefined, I.Proc)
+overflowProcs = M.fromList . map (\(s,p) -> (s, (Imported, p))) $ concat
   [ map mkAdd is, map mkAdd ws
   , map mkSub is, map mkSub ws
   , map mkMul is, map mkMul ws

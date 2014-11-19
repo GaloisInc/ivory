@@ -38,12 +38,13 @@ modelCheckProc mods p = do
     mapM_ addStruct (getVisible $ I.modStructs m)
     mapM_ addExtern (I.modExterns m)
     mapM_ addImport (I.modImports m)
-    mapM_ addProc (getVisible $ I.modProcs m)
+    mapM_ (addProc Defined) (getVisible $ I.modProcs m)
     mapM_ toArea (getVisible $ I.modAreas m)
   modelCheckProc' . overflowFold . divZeroFold . bitShiftFold . ixFold . constFold $ p
   where
   getVisible ps = I.public ps ++ I.private ps
-  addExtern e = addProc I.Proc { I.procSym = I.externSym e
+  addExtern e = addProc Imported
+                        I.Proc { I.procSym = I.externSym e
                                , I.procRetTy = I.externRetType e
                                , I.procArgs = map (\arg -> I.Typed arg (I.VarName "dummy"))
                                                   (I.externArgs e)
@@ -51,12 +52,13 @@ modelCheckProc mods p = do
                                , I.procRequires = []
                                , I.procEnsures = []
                                }
-  addImport e = addProc I.Proc { I.procSym = I.importSym e
+  addImport e = addProc Imported
+                        I.Proc { I.procSym = I.importSym e
                                , I.procRetTy = err "addImport" "tried to use return type"
-                               , I.procArgs = []
+                               , I.procArgs = I.importArgs e
                                , I.procBody = []
-                               , I.procRequires = []
-                               , I.procEnsures = []
+                               , I.procRequires = I.importRequires e
+                               , I.procEnsures = I.importEnsures e
                                }
 
 --------------------------------------------------------------------------------
@@ -83,10 +85,7 @@ modelCheckProc' I.Proc { I.procSym      = sym
   = do
   mapM_ toParam args
   mapM_ toRequire requires
-  unless (ret == I.TyVoid) $
-    void $ addEnvVar ret "retval"
-  ens <- mapM toEnsure ensures
-  mapM_ (toBody ens) body
+  mapM_ (toBody ensures) body
 
 --------------------------------------------------------------------------------
 
@@ -120,7 +119,7 @@ toAssertion trans cond = case cond of
 
 -- | Symbolically execute statements, carrying the return requirements forward
 -- to each location that there is a return statement.
-toBody :: [Expr] -> I.Stmt -> ModelCheck ()
+toBody :: [I.Ensure] -> I.Stmt -> ModelCheck ()
 toBody ens stmt =
   case stmt of
     I.IfTE exp blk0 blk1   -> toIfTE ens exp blk0 blk1
@@ -145,9 +144,11 @@ toBody ens stmt =
     I.Break                -> err "toBody" (show stmt)
     I.Forever _            -> err "toBody" (show stmt)
 
-toReturn :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
+toReturn :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 toReturn ens t exp = do
-  void $ toExpr t exp
+  e <- toExpr t exp
+  v <- addEnvVar t "retval"
+  addInvariant (var v .== e)
   queryEnsures ens t exp
 
 toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
@@ -224,15 +225,17 @@ toAssign t v exp = do
 
 toCall :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
 toCall t retV nm args = do
-  inline <- askInline
-  if inline
-    then toCallInline t retV nm args
-    else toCallContract t retV nm args
+  (d, p) <- lookupProc $ toName nm
+  case d of
+    Imported -> toCallContract t retV p args
+    Defined  -> do
+      inline <- askInline
+      if inline
+        then toCallInline t retV p args
+        else toCallContract t retV p args
 
-toCallInline :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
-toCallInline t retV nm args = do
-  I.Proc {..} <- lookupProc $ toName nm
-
+toCallInline :: I.Type -> Maybe I.Var -> I.Proc -> [I.Typed I.Expr] -> ModelCheck ()
+toCallInline t retV (I.Proc {..}) args = do
   argEnv <- forM (zip procArgs args) $ \ (formal, actual) -> do
     e <- toExpr (I.tType actual) (I.tValue actual)
     v <- addEnvVar (I.tType formal) (toVar $ I.tValue formal)
@@ -256,13 +259,12 @@ toCallInline t retV nm args = do
    Nothing -> return ()
    Just v  -> do
      r  <- addEnvVar t (toVar v)
-     rv <- addEnvVar t (toVar I.retval)
+     rv <- lookupVar (toVar I.retval)
      addInvariant (var r .== var rv)
 
   
-toCallContract :: I.Type -> Maybe I.Var -> I.Name -> [I.Typed I.Expr] -> ModelCheck ()
-toCallContract t retV nm args = do
-  pc <- lookupProc $ toName nm
+toCallContract :: I.Type -> Maybe I.Var -> I.Proc -> [I.Typed I.Expr] -> ModelCheck ()
+toCallContract t retV pc args = do
   let su = [ (v, e) | (I.Typed _ v, I.Typed _ e) <- zip (I.procArgs pc) args]
   checkRequires su $ I.procRequires pc
 
@@ -283,7 +285,7 @@ toCallContract t retV nm args = do
 
 -- XXX Abstraction (to implement): If there is load/stores in the block, the we
 -- don't care how many times it iterates.  It's pure.
-toLoop :: [Expr] -> I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
+toLoop :: [I.Ensure] -> I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
 toLoop ens v start end blk =
   mapM_ go ixs
   where
@@ -304,7 +306,7 @@ toLoop ens v start end blk =
       = takeWhile (>= endVal loopData) $
           iterate (flip (-) 1) (startVal loopData)
 
-toIfTE :: [Expr] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
+toIfTE :: [I.Ensure] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
 toIfTE ens cond blk0 blk1 = do
   b   <- toExpr I.TyBool cond
   trs <- runBranch b blk0
@@ -635,11 +637,8 @@ subst su = loop
     I.ExpAddrOfGlobal{}    -> e
     I.ExpMaxMin{}          -> e
 
-queryEnsures :: [Expr] -> I.Type -> I.Expr -> ModelCheck ()
-queryEnsures ens t retE = do
-  exp <- toExpr t retE
-  mapM_ (addQuery . substExpr [("retval", exp)]) ens
-
+queryEnsures :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
+queryEnsures ens t retE = forM_ ens $ \e -> addQuery =<< toEnsure e
 
 toStruct :: I.Struct -> ModelCheck ()
 toStruct (I.Abstract name _) = addType name []
