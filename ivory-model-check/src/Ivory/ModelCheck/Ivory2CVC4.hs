@@ -126,8 +126,8 @@ toBody ens stmt =
     I.Assume exp           -> addInvariant =<< toExpr I.TyBool exp
     I.Assert exp           -> addQuery =<< toExpr I.TyBool exp
     I.CompilerAssert exp   -> addQuery =<< toExpr I.TyBool exp
-    I.Return (I.Typed t e) -> toReturn ens t e
-    I.ReturnVoid           -> return ()
+    I.Return (I.Typed t e) -> snapshotRefs >> toReturn ens t e
+    I.ReturnVoid           -> snapshotRefs >> return ()
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.RefCopy t ptr exp    -> toStore t ptr exp -- XXX is this correct?
@@ -242,17 +242,18 @@ toCallInline t retV (I.Proc {..}) args = do
     addInvariant (var v .== e)
     return (toVar (I.tValue formal), e)
 
-  withLocalRefs $ do
+  withLocalReturnRefs $ do
     mapM_ (toBody []) procBody
+    snapshotRefs -- incase of implicit retVoid
 
-    rs <- getRefs
-    forM_ (M.toList rs) $ \ ((t, r), vs) -> do
+    rs <- getReturnRefs
+    forM_ (M.toList rs) $ \ ((t, r), bvs) -> do
       -- XXX: can we rely on Refs always being passed as a Var?
       case lookup r argEnv of
         Just (Var x) -> do
           r' <- addEnvVar t x
           -- x may point to any number of values upon returning from a call
-          addInvariant $ foldr1 (.||) [var r' .== var v | v <- vs]
+          addInvariant $ foldr1 (.&&) [b .=> (var r' .== var v) | (b,v) <- bvs]
         _ -> return ()
 
   case retV of

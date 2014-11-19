@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Ivory.ModelCheck.Monad
@@ -17,10 +18,14 @@ module Ivory.ModelCheck.Monad
   , addProc
   , lookupProc
   , getRefs
+  , getReturnRefs
+  , snapshotRefs
   , getStructs
   , addStruct
   , withLocalRefs
+  , withLocalReturnRefs
   , updateStRef
+  , updateStReturnRef
   , addType
   , declUpdateEnv
   , lookupVar
@@ -82,6 +87,8 @@ data SymExecSt = SymExecSt
   , symProcs :: M.Map I.Sym (IsDefined, I.Proc)
   , symStructs :: M.Map I.Sym I.Struct
   , symRefs  :: M.Map (I.Type, Var) [Var]
+    -- ^ To track assignment to Refs
+  , symReturnRefs :: M.Map (I.Type, Var) [(Expr,Var)]
     -- ^ To track assignment to Refs during inlined calls
   , symCond  :: Expr
     -- ^ The current branch condition
@@ -112,6 +119,7 @@ initSymSt = SymExecSt { funcSym  = ""
                       , symProcs = overflowProcs
                       , symStructs = mempty
                       , symRefs  = mempty
+                      , symReturnRefs = mempty
                       , symCond  = true
                       }
 
@@ -190,6 +198,18 @@ getRefs = do
   st <- get
   return (symRefs st)
 
+getReturnRefs :: ModelCheck (M.Map (I.Type, Var) [(Expr,Var)])
+getReturnRefs = do
+  st <- get
+  return (symReturnRefs st)
+
+snapshotRefs :: ModelCheck ()
+snapshotRefs = do
+  rs <- getRefs
+  b  <- symCond <$> get
+  forM_ (M.toList rs) $ \ ((t,r),[v]) ->
+    updateStReturnRef t r b v
+
 getStructs :: ModelCheck (M.Map I.Sym I.Struct)
 getStructs = do
   st <- get
@@ -204,10 +224,13 @@ addStruct s = do
   let st' = st { symStructs = M.insert nm s (symStructs st) }
   set st'
   
-
 updateStRef :: I.Type -> Var -> Var -> ModelCheck ()
 updateStRef t v v' =
   sets_ (\st -> st { symRefs = M.insert (t,v) [v'] (symRefs st) })
+
+updateStReturnRef :: I.Type -> Var -> Expr -> Var -> ModelCheck ()
+updateStReturnRef t v b v' =
+  sets_ (\st -> st { symReturnRefs = M.insertWith (++) (t,v) [(b,v')] (symReturnRefs st) })
 
 withLocalRefs :: ModelCheck a -> ModelCheck a
 withLocalRefs m = do
@@ -216,6 +239,16 @@ withLocalRefs m = do
   -- sets_ (\s -> s { symRefs = mempty })
   a <- m
   sets_ (\s -> s { symRefs = refs })
+  return a
+
+withLocalReturnRefs :: ModelCheck a -> ModelCheck a
+withLocalReturnRefs m = do
+  st <- get
+  let refs = symRefs st
+  let returnRefs = symReturnRefs st
+  sets_ (\s -> s { symRefs = mempty, symReturnRefs = mempty })
+  a <- m
+  sets_ (\s -> s { symRefs = refs, symReturnRefs = returnRefs })
   return a
 
 getSrcLoc :: ModelCheck SrcLoc

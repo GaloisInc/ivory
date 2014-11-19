@@ -79,6 +79,7 @@ ringBuffer s = RingBuffer
 
   push_proc :: Def('[ConstRef s a]:->IBool)
   push_proc = proc (named "push") $ \v ->
+   -- requires/ensures in terms of hidden state?
    body $ do
     f <- full
     ifte_ f (ret false) $ do
@@ -110,17 +111,19 @@ insert_area :: MemArea (Stored (Ix 10))
 insert_area = area "queue_ringbuffer_insert" (Just (ival 0))
 insert = addrOf insert_area
 
-push_pop_inv :: Def('[ConstRef s (Stored Uint8)]:->())
-push_pop_inv = proc "push_pop_inv" $ \x ->
+push_pop_inv :: Def('[ConstRef s (Stored Uint8), ConstRef s (Stored Uint8)]:->())
+push_pop_inv = proc "push_pop_inv" $ \x y ->
   -- only holds if the buffer is not full
   requires (checkStored insert (\i -> checkStored remove (\r -> iNot (i+1 ==? r)))) $
   body $ do
-    y <- local izero
-    _ <- ringbuffer_push queue x
-    _ <- ringbuffer_pop queue y
+    o <- local izero
+    assert =<< ringbuffer_push queue x
+    assert =<< ringbuffer_push queue y
+    assert =<< ringbuffer_pop queue o
     xv <- deref x
-    yv <- deref y
-    assert (xv ==? yv)
+    ov <- deref o
+    -- queues are FIFO
+    assert (xv ==? ov)
 
 testModule :: Module
 testModule = package "ringbuffer" $ do

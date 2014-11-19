@@ -99,3 +99,4 @@ heartbeatUnpack = proc "heartbeat_unpack" $ \ msg buf -> body $ do
   store (msg ~> base_mode)       =<< unpack buf 6
   store (msg ~> system_status)   =<< unpack buf 7
   store (msg ~> mavlink_version) =<< unpack buf 8
+  -- retVoid
