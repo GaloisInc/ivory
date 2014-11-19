@@ -1,6 +1,10 @@
 language: haskell
+
+# On a BSD machine, you'll want to use the following
+# CVC4=cvc4-20$(date -v-1d +"%y-%m-%d")-i386-linux-opt
+
 before_install:
-  - CVC4=cvc4-20$(date -v-1d +"%y-%m-%d")-i386-linux-opt
+  - CVC4=cvc4-20$(date --date='1 day ago' +"%y-%m-%d")-i386-linux-opt
   - wget http://cvc4.cs.nyu.edu/builds/i386-linux-opt/unstable/$CVC4
   - sudo mv $CVC4 /usr/local/bin/cvc4
   - sudo chmod a+x /usr/local/bin/cvc4
