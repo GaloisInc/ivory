@@ -101,28 +101,40 @@ ringBuffer s = RingBuffer
 -- Test
 --------------------------------------------------------------------------------
 
-queue :: RingBuffer 10 (Stored Uint8)
+-- A `RingBuffer n a` can hold `n-1` values!
+queue :: RingBuffer 3 (Stored Uint8)
 queue = ringBuffer "queue"
 
-remove_area :: MemArea (Stored (Ix 10))
+remove_area :: MemArea (Stored (Ix 3))
 remove_area = area "queue_ringbuffer_remove" (Just (ival 0))
 remove = addrOf remove_area
-insert_area :: MemArea (Stored (Ix 10))
+insert_area :: MemArea (Stored (Ix 3))
 insert_area = area "queue_ringbuffer_insert" (Just (ival 0))
 insert = addrOf insert_area
 
 push_pop_inv :: Def('[ConstRef s (Stored Uint8), ConstRef s (Stored Uint8)]:->())
 push_pop_inv = proc "push_pop_inv" $ \x y ->
   -- only holds if the buffer is not full
-  requires (checkStored insert (\i -> checkStored remove (\r -> iNot (i+1 ==? r)))) $
+  -- requires (checkStored insert (\i -> checkStored remove (\r -> iNot (i+1 ==? r)))) $
   body $ do
     o <- local izero
+
     assert =<< ringbuffer_push queue x
     assert =<< ringbuffer_push queue y
-    assert =<< ringbuffer_pop queue o
+    assert =<< ringbuffer_pop  queue o
     xv <- deref x
     ov <- deref o
-    -- queues are FIFO
+    assert (xv ==? ov)
+
+    assert =<< ringbuffer_push queue x
+    assert =<< ringbuffer_pop  queue o
+    yv <- deref y
+    ov <- deref o
+    assert (yv ==? ov)
+
+    assert =<< ringbuffer_pop  queue o
+    xv <- deref x
+    ov <- deref o
     assert (xv ==? ov)
 
 testModule :: Module
