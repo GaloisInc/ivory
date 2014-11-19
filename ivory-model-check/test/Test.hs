@@ -23,6 +23,7 @@ import Test.Tasty.HUnit
 import qualified Examples
 import qualified Heartbeat
 import qualified PPM
+import qualified RingBuffer
 
 main :: IO ()
 main = defaultMain tests
@@ -52,6 +53,8 @@ shouldPass = testGroup "should be safe"
                [ Heartbeat.heartbeatModule, serializeModule ]
              , mkSuccess PPM.new_sample_proc
                [ PPM.ppmModule, PPM.userInputTypeModule ]
+             , mkSuccessInline RingBuffer.push_pop_inv
+               [ RingBuffer.testModule ]
              ]
 
 shouldFail :: TestTree
