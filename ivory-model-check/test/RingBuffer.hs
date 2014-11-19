@@ -112,10 +112,9 @@ insert = addrOf insert_area
 
 push_pop_inv :: Def('[ConstRef s (Stored Uint8)]:->())
 push_pop_inv = proc "push_pop_inv" $ \x ->
-  -- only holds if the buffer is non-empty
+  -- only holds if the buffer is not full
   requires (checkStored insert (\i -> checkStored remove (\r -> iNot (i+1 ==? r)))) $
   body $ do
-    -- x <- local (ival (5 :: Uint8))
     y <- local izero
     _ <- ringbuffer_push queue x
     _ <- ringbuffer_pop queue y
