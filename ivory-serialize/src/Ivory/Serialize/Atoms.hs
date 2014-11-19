@@ -1,6 +1,7 @@
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Serialize.Atoms
@@ -52,10 +53,10 @@ serializeArtifacts = [ a serializeHeader ]
   where
   a f = artifactCabalFile P.getDataDir ("support/" ++ f)
 
+instance SerializableRef (Stored Uint8)
 instance Serializable Uint8 where
   pack dst offs src = call_ packU8 dst offs src
   unpack src offs   = call unpackU8 src offs
-  packedSize _      = 1
 
 packU8 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint8] :-> ())
 packU8 = mkPack "ivory_serialize_pack_uint8"
@@ -64,10 +65,10 @@ unpackU8 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint8)
 unpackU8 = mkUnpack "ivory_serialize_unpack_uint8"
 
 
+instance SerializableRef (Stored Sint8)
 instance Serializable Sint8 where
   pack dst offs src = call_ packS8 dst offs src
   unpack src offs   = call unpackS8 src offs
-  packedSize _      = 1
 
 packS8 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint8] :-> ())
 packS8 = mkPack "ivory_serialize_pack_int8"
@@ -76,10 +77,10 @@ unpackS8 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint8)
 unpackS8 = mkUnpack "ivory_serialize_unpack_int8"
 
 
+instance SerializableRef (Stored Uint16)
 instance Serializable Uint16 where
   pack dst offs src = call_ packU16 dst offs src
   unpack src offs   = call unpackU16 src offs
-  packedSize _      = 2
 
 packU16 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint16] :-> ())
 packU16 = mkPack "ivory_serialize_pack_uint16"
@@ -88,10 +89,10 @@ unpackU16 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint16)
 unpackU16 = mkUnpack "ivory_serialize_unpack_uint16"
 
 
+instance SerializableRef (Stored Sint16)
 instance Serializable Sint16 where
   pack dst offs src = call_ packS16 dst offs src
   unpack src offs   = call unpackS16 src offs
-  packedSize _      = 2
 
 packS16 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint16] :-> ())
 packS16 = mkPack "ivory_serialize_pack_int16"
@@ -100,10 +101,10 @@ unpackS16 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint16)
 unpackS16 = mkUnpack "ivory_serialize_unpack_int16"
 
 
+instance SerializableRef (Stored Uint32)
 instance Serializable Uint32 where
   pack dst offs src = call_ packU32 dst offs src
   unpack src offs   = call unpackU32 src offs
-  packedSize _      = 4
 
 packU32 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint32] :-> ())
 packU32 = mkPack "ivory_serialize_pack_uint32"
@@ -112,10 +113,10 @@ unpackU32 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint32)
 unpackU32 = mkUnpack "ivory_serialize_unpack_uint32"
 
 
+instance SerializableRef (Stored Sint32)
 instance Serializable Sint32 where
   pack dst offs src = call_ packS32 dst offs src
   unpack src offs   = call unpackS32 src offs
-  packedSize _      = 4
 
 packS32 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint32] :-> ())
 packS32 = mkPack "ivory_serialize_pack_int32"
@@ -124,10 +125,10 @@ unpackS32 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint32)
 unpackS32 = mkUnpack "ivory_serialize_unpack_int32"
 
 
+instance SerializableRef (Stored IFloat)
 instance Serializable IFloat where
   pack dst offs src = call_ packF dst offs src
   unpack src offs   = call unpackF src offs
-  packedSize _      = 4
 
 packF :: Def('[Ref s (CArray (Stored Uint8)), Uint32, IFloat] :-> ())
 packF = mkPack "ivory_serialize_pack_float"
@@ -135,10 +136,10 @@ unpackF :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> IFloat)
 unpackF = mkUnpack "ivory_serialize_unpack_float"
 
 
+instance SerializableRef (Stored Uint64)
 instance Serializable Uint64 where
   pack dst offs src = call_ packU64 dst offs src
   unpack src offs   = call unpackU64 src offs
-  packedSize _      = 8
 
 packU64 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint64] :-> ())
 packU64 = mkPack "ivory_serialize_pack_uint64"
@@ -147,10 +148,10 @@ unpackU64 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint64)
 unpackU64 = mkUnpack "ivory_serialize_unpack_uint64"
 
 
+instance SerializableRef (Stored Sint64)
 instance Serializable Sint64 where
   pack dst offs src = call_ packS64 dst offs src
   unpack src offs   = call unpackS64 src offs
-  packedSize _      = 8
 
 packS64 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint64] :-> ())
 packS64 = mkPack "ivory_serialize_pack_int64"
@@ -159,10 +160,10 @@ unpackS64 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint64)
 unpackS64 = mkUnpack "ivory_serialize_unpack_int64"
 
 
+instance SerializableRef (Stored IDouble)
 instance Serializable IDouble where
   pack dst offs src = call_ packD dst offs src
   unpack src offs   = call unpackD src offs
-  packedSize _      = 8
 
 packD :: Def('[Ref s (CArray (Stored Uint8)), Uint32, IDouble] :-> ())
 packD = mkPack "ivory_serialize_pack_double"

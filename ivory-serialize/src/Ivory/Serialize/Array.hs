@@ -5,23 +5,16 @@ module Ivory.Serialize.Array where
 import Ivory.Language
 import Ivory.Serialize.Class
 
-arrayPack :: (ANat len, Serializable rep)
+arrayPack :: (ANat len, IvoryArea rep, SerializableRef rep)
           => Ref s1 (CArray (Stored Uint8))
           -> Uint32
-          -> ConstRef s2 (Array len (Stored rep))
+          -> ConstRef s2 (Array len rep)
           -> Ivory eff ()
-arrayPack dst offs src = do
-  arr <- assign src  -- Give the source array a local name
-  arrayMap $ \ix -> do -- Produce a loop of pack calls
-    pack dst (offs + safeCast ix) =<< deref (arr ! ix)
+arrayPack = packRef
 
-arrayUnpack :: (ANat len, Serializable rep, IvoryStore rep)
+arrayUnpack :: (ANat len, IvoryArea rep, SerializableRef rep)
             => ConstRef s1 (CArray (Stored Uint8))
             -> Uint32
-            -> Ref s (Array len (Stored rep))
+            -> Ref s (Array len rep)
             -> Ivory eff ()
-arrayUnpack src offs dest = do
-  arrayMap $ \ix -> do
-    val <- unpack src (offs + safeCast ix)
-    store (dest ! ix) val
-
+arrayUnpack = unpackRef

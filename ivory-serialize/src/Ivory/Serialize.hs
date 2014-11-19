@@ -1,7 +1,9 @@
 
 module Ivory.Serialize
   ( Serializable
-  , pack, unpack, packedSize
+  , pack, unpack
+  , SerializableRef
+  , packRef, unpackRef
   , serializeModule
   , serializeArtifacts
   , arrayPack, arrayUnpack

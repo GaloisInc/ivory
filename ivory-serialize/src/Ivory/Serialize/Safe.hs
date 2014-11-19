@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -25,7 +26,6 @@ module Ivory.Serialize.Safe (
 
 import Ivory.Language
 import Ivory.Serialize.Class
-import Ivory.Serialize.Array
 import MonadLib hiding (local)
 import Control.Applicative
 
@@ -71,16 +71,23 @@ instance MonadIvory PackM where
 -- | Dereference a "ConstRef" and pack the value into the array stored
 -- in the context established by "packInto".  An error will be thrown
 -- at code generation time if too much data is packed into the array.
-mpack :: (Serializable a) => ConstRef s (Stored a) -> PackM eff ()
-mpack ref = do
-  val <- PackM $ lift $ lift $ deref ref
-  mpackV val
+mpack :: forall a s eff. (IvorySizeOf a, SerializableRef a) => ConstRef s a -> PackM eff ()
+mpack ref = PackM $ do
+  buf    <- ask
+  offset <- get
+  let new_offset = offset + fromIntegral (sizeOfBytes (Proxy :: Proxy a))
+  if new_offset > arrayLen buf
+    then error $ "packing " ++ (show new_offset) ++ " bytes into "
+              ++ "array of length " ++ (show (arrayLen buf :: Int))
+    else return ()
+  lift $ lift $ packRef (toCArray buf) (fromIntegral offset) ref
+  set new_offset
 
-mpackV :: (Serializable a) => a -> PackM eff ()
+mpackV :: forall a eff. (IvorySizeOf (Stored a), Serializable a) => a -> PackM eff ()
 mpackV val = PackM $ do
   buf    <- ask
   offset <- get
-  let new_offset = offset + packedSize val
+  let new_offset = offset + fromIntegral (sizeOfBytes (Proxy :: Proxy (Stored a)))
   if new_offset > arrayLen buf
     then error $ "packing " ++ (show new_offset) ++ " bytes into "
               ++ "array of length " ++ (show (arrayLen buf :: Int))
@@ -93,18 +100,9 @@ mpackV val = PackM $ do
 -- generation time if too much data is packed into the array.
 --
 -- XXX array ref should be const
-marrayPack :: forall eff a len s.  (Serializable a, ANat len)
+marrayPack :: (IvorySizeOf (Stored a), Serializable a, ANat len)
            => Ref s (Array len (Stored a)) -> PackM eff ()
-marrayPack arr = PackM $ do
-  buf    <- ask
-  offset <- get
-  let new_offset = offset + (arrayLen arr * packedSize (undefined :: a))
-  if new_offset > arrayLen buf
-    then error $ "packing " ++ (show new_offset) ++ " bytes into "
-              ++ "array of length " ++ (show (arrayLen buf :: Int))
-    else return ()
-  lift $ lift $ arrayPack (toCArray buf) (fromIntegral offset) (constRef arr)
-  set new_offset
+marrayPack = mpack . constRef
 
 -- | Begin a context to pack values into a byte array, given an
 -- initial offset.  Returns the final offset.
@@ -155,38 +153,26 @@ instance MonadIvory UnpackM where
 -- by "unpackFrom" into a reference.  An error will be thrown at code
 -- generation time if too much data is unpacked from the array.
 munpack :: forall eff a s.
-           (Serializable a, IvoryStore a)
-        => Ref s (Stored a) -> UnpackM eff ()
+           (IvorySizeOf a, SerializableRef a)
+        => Ref s a -> UnpackM eff ()
 munpack ref = UnpackM $ do
   buf    <- ask
   offset <- get
-  let new_offset = offset + packedSize (undefined :: a)
+  let new_offset = offset + fromIntegral (sizeOfBytes (Proxy :: Proxy a))
   if new_offset > arrayLen buf
     then error $ "unpacking " ++ (show new_offset) ++ " bytes from "
               ++ "array of length " ++ (show (arrayLen buf :: Int))
     else return ()
-  lift $ lift $ do
-    val <- unpack (toCArray buf) (fromIntegral offset)
-    store ref val
+  lift $ lift $ unpackRef (toCArray buf) (fromIntegral offset) ref
   set new_offset
 
 -- | Unpack an array of values from the array stored in the context
 -- established by "unpackFrom".  An error will be thrown at code
 -- generation time if too much data is unpacked from the array.
-marrayUnpack :: forall eff a len s.
-                (Serializable a, ANat len, IvoryStore a)
-             => Ref s (Array len (Stored a))
+marrayUnpack :: (SerializableRef a, ANat len, IvorySizeOf a)
+             => Ref s (Array len a)
              -> UnpackM eff ()
-marrayUnpack arr = UnpackM $ do
-  buf    <- ask
-  offset <- get
-  let new_offset = offset + (arrayLen arr * packedSize (undefined :: a))
-  if new_offset > arrayLen buf
-    then error $ "unpacking " ++ (show new_offset) ++ " bytes from "
-              ++ "array of length " ++ (show (arrayLen buf :: Int))
-    else return ()
-  lift $ lift $ arrayUnpack (toCArray buf) (fromIntegral offset) arr
-  set new_offset
+marrayUnpack = munpack
 
 -- | Begin a context to unpack values from a byte array, given an
 -- initial offset.  Returns the final offset.
