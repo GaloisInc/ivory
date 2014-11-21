@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GADTs #-}
 
 module Ivory.Compile.C.CmdlineFrontend.Options where
@@ -64,6 +63,7 @@ data Opts = Opts
   -- Typechecking
   , tcWarnings  :: Bool
   , tcErrors    :: Bool
+  , scErrors    :: Bool
 
   , help        :: Bool
   } deriving (Show)
@@ -90,6 +90,7 @@ initialOpts  = Opts
   , srcLocs      = False
   , tcWarnings   = False
   , tcErrors     = True
+  , scErrors     = True
   , help         = False
   }
 
@@ -141,6 +142,9 @@ setWarnings = success (\opts -> opts { verbose = True })
 setErrors :: Bool -> OptParser Opts
 setErrors b = success (\opts -> opts { verbose = b })
 
+setSanityCheck :: Bool -> OptParser Opts
+setSanityCheck b = success (\opts -> opts { scErrors = b })
+
 setHelp :: OptParser Opts
 setHelp  = success (\opts -> opts { help = True })
 
@@ -190,6 +194,12 @@ options  =
 
   , Option "" ["no-tc-errors"] (NoArg $ setErrors False)
     "Treat type-check errors as warnings"
+
+  , Option "" ["sanity-check"] (NoArg $ setSanityCheck True)
+    "Enable sanity-check"
+
+  , Option "" ["no-sanity-check"] (NoArg $ setSanityCheck False)
+    "Disable sanity-check"
 
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"

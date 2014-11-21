@@ -53,12 +53,23 @@ runCompilerWith :: Maybe G.SizeMap -> [Module] -> [Artifact] -> Opts -> IO ()
 runCompilerWith sm modules artifacts opts = do
   let (bs, msgs) = concatRes (map tcMod modules)
   putStrLn msgs
+  when (scErrors opts) $ do
+    let (bs, msgs) = concatRes (map scMod modules)
+    when bs $ do
+      putStrLn msgs
+      error "Sanity-check failed!"
   when (tcErrors opts && bs) (error "There were type-checking errors.")
   rc (maybe G.defaultSizeMap id sm) modules artifacts opts
   where
   concatRes :: [(Bool, String)] -> (Bool, String)
   concatRes r = let (bs, strs) = unzip r in
             (or bs, concat strs)
+
+  scMod :: I.Module -> (Bool, String)
+  scMod m = (Sanity.existErrors res, Sanity.render msg)
+    where
+    res = Sanity.sanityCheck modules m
+    msg = Sanity.showErrors (I.modSym m) res
 
   tcMod :: I.Module -> (Bool, String)
   tcMod m = concatRes reses

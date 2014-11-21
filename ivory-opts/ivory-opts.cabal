@@ -28,6 +28,7 @@ library
                         Ivory.Opts.Index,
                         Ivory.Opts.FP,
                         Ivory.Opts.Overflow,
+                        Ivory.Opts.SanityCheck,
                         Ivory.Opts.TypeCheck
 
   other-modules:        Ivory.Opts.Utils
