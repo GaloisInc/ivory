@@ -52,6 +52,7 @@ import Ivory.Language.Syntax.Concrete.Location
   mapArr   { Located $$ (TokReserved "map") }
   upTo     { Located $$ (TokReserved "upTo") }
   forever  { Located $$ (TokReserved "forever") }
+  break    { Located $$ (TokReserved "break") }
 
   -- Start of Ivory macros
   iMacro   { Located $$ (TokSym "$") }
@@ -384,6 +385,7 @@ simpleStmt :
   | ivoryMacro                    { LocStmt ((IvoryMacroStmt Nothing (unLoc $1)) `at` getLoc $1) }
   | ident '<-' ivoryMacro         { LocStmt (atBin (IvoryMacroStmt (Just (unLoc $1)) (unLoc $3))
                                                $1 $3) }
+  | break                         { LocStmt (Break `at` $1) }
 
 ivoryMacro :: { Located (String, [Exp]) }
 ivoryMacro : iMacro ident          { atBin (unLoc $2, []) $1 (getLoc $2) }

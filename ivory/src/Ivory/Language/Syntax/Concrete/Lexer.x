@@ -73,6 +73,7 @@ tokens :-
   map      { keyword }
   upTo     { keyword }
   forever  { keyword }
+  break    { keyword }
 
 -- Reserved words: expressions
   abs              { keyword }

@@ -253,7 +253,7 @@ data Stmt
   | UpTo Exp IxVar [Stmt]
   | Forever [Stmt]
   | IvoryMacroStmt (Maybe Var) (String, [Exp])
--- Break XXX Too dangerous (and difficult) for non-macro use?
+  | Break
   | LocStmt (Located Stmt)
   deriving (Show, Read, Eq, Ord)
 
@@ -426,6 +426,7 @@ instance HasLocation Stmt where
     Assume e        -> Assume (stripLoc e)
     Return e        -> Return (stripLoc e)
     ReturnVoid      -> ReturnVoid
+    Break           -> Break
     Store e0 e1     -> Store (stripLoc e0) (stripLoc e1)
     Assign v e t    -> Assign v (stripLoc e) (stripLoc t)
     NoBindCall v es -> NoBindCall v (stripLoc es)

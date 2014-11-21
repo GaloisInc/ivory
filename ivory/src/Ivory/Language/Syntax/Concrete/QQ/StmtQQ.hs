@@ -94,7 +94,8 @@ fromStmt stmt = case stmt of
     -> do
     b <- fromBlock blk
     insert $ NoBindS (AppE (VarE 'I.forever) b)
---  Break -> insert $ NoBindS (VarE 'I.break)
+  Break
+    -> insert $ NoBindS (VarE 'I.breakOut)
   AllocRef alloc
     -> fromAlloc alloc
   MapArr ixVar blk
