@@ -23,6 +23,7 @@ import qualified Ivory.Opts.DivZero         as O
 import qualified Ivory.Opts.Index           as O
 import qualified Ivory.Opts.FP              as O
 import qualified Ivory.Opts.CFG             as G
+import qualified Ivory.Opts.SanityCheck     as S
 import qualified Ivory.Opts.TypeCheck       as T
 
 
@@ -66,10 +67,10 @@ runCompilerWith sm modules artifacts opts = do
             (or bs, concat strs)
 
   scMod :: I.Module -> (Bool, String)
-  scMod m = (Sanity.existErrors res, Sanity.render msg)
+  scMod m = (S.existErrors res, S.render msg)
     where
-    res = Sanity.sanityCheck modules m
-    msg = Sanity.showErrors (I.modSym m) res
+    res = S.sanityCheck modules m
+    msg = S.showErrors (I.modName m) res
 
   tcMod :: I.Module -> (Bool, String)
   tcMod m = concatRes reses

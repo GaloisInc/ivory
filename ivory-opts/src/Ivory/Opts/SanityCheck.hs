@@ -171,12 +171,14 @@ sanityCheck deps this@(I.Module {..})
   getVisible v = I.public v ++ I.private v
 
   topLevel :: M.Map String I.Type
-  topLevel = M.fromList $ concat [ procs m ++ areas m | m <- this:deps ]
+  topLevel = M.fromList $ concat [ procs m ++ imports m ++ areas m | m <- this:deps ]
 
   procs m = [ (procSym, I.TyProc procRetTy (map getType procArgs) )
-            | I.Proc {..} <- I.public $ I.modProcs m ]
+            | I.Proc {..} <- getVisible $ I.modProcs m ]
+  imports m = [ (importSym, I.TyProc importRetTy (map getType importArgs) )
+              | I.Import {..} <- I.modImports m ]
   areas m = [ (areaSym, areaType )
-            | I.Area {..} <- I.public $ I.modAreas m ]
+            | I.Area {..} <- getVisible $ I.modAreas m ]
 
 -- | Sanity Check a procedure. Check for unbound and ill-typed values
 sanityCheckProc :: M.Map String I.Type -> I.Proc -> Results

@@ -27,7 +27,7 @@ main = do
   args <- getArgs
   when (null args) (error "Binary takes a path to srcs/hdrs as an argument")
   let path = head args
-  let opts = initialOpts { outDir = Just path, srcLocs = True }
+  let opts = initialOpts { outDir = Just path, srcLocs = True, scErrors = True }
 
   mapM_ (compileExample opts) modules
 

@@ -39,7 +39,8 @@ library
                         filepath,
                         dlist >= 0.5,
                         fgl >= 5.4.2.4,
-                        containers
+                        containers,
+                        pretty
   hs-source-dirs:       src
   default-language:     Haskell2010
   ghc-options:          -Wall

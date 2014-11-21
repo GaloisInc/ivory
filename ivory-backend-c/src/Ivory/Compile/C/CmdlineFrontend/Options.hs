@@ -90,7 +90,7 @@ initialOpts  = Opts
   , srcLocs      = False
   , tcWarnings   = False
   , tcErrors     = True
-  , scErrors     = True
+  , scErrors     = False
   , help         = False
   }
 
