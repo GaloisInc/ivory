@@ -114,10 +114,10 @@ insert_area :: MemArea (Stored (Ix 3))
 insert_area = area "queue_ringbuffer_insert" (Just (ival 0))
 insert = addrOf insert_area
 
-bounded :: KnownNat n => Ix n -> IBool
+bounded :: ANat n => Ix n -> IBool
 bounded x = x >=? 0 .&& x <? (fromIntegral $ ixSize x)
 
-empty :: KnownNat n => Ix n -> Ix n -> IBool
+empty :: ANat n => Ix n -> Ix n -> IBool
 empty i r = i' ==? r'
   where
   i' = fromIx i
