@@ -7,10 +7,12 @@
 
 module RingBuffer where
 
-import GHC.TypeLits
-import Ivory.Language
-import Ivory.Stdlib
-import Ivory.ModelCheck
+import           GHC.TypeLits
+import           Ivory.Language
+import qualified Ivory.Language.Syntax.AST as I
+import           Ivory.Language.Type
+import           Ivory.ModelCheck
+import           Ivory.Stdlib
 -- import Ivory.Tower
 
 data RingBuffer (n :: Nat) a =
@@ -112,10 +114,20 @@ insert_area :: MemArea (Stored (Ix 3))
 insert_area = area "queue_ringbuffer_insert" (Just (ival 0))
 insert = addrOf insert_area
 
+bounded :: KnownNat n => Ix n -> IBool
+bounded x = x >=? 0 .&& x <? (fromIntegral $ ixSize x)
+
+empty :: KnownNat n => Ix n -> Ix n -> IBool
+empty i r = i' ==? r'
+  where
+  i' = fromIx i
+  r' = fromIx r
+
 push_pop_inv :: Def('[ConstRef s (Stored Uint8), ConstRef s (Stored Uint8)]:->())
 push_pop_inv = proc "push_pop_inv" $ \x y ->
-  -- only holds if the buffer is not full
-  -- requires (checkStored insert (\i -> checkStored remove (\r -> iNot (i+1 ==? r)))) $
+  -- assume buffer is empty to start
+  requires (checkStored insert (\i -> checkStored remove (\r ->
+     empty i r .&& bounded i .&& bounded r))) $
   body $ do
     o <- local izero
 

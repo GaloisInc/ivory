@@ -138,6 +138,7 @@ data Expr = Var Var
           | forall a . (Show a, Concrete a, Num a) => NumLit a
           | Add      Expr Expr
           | Sub      Expr Expr
+          | Mod      Expr Integer -- CVC4 can handle mod-by-constant
           | Call     Func [Expr]
           | Store    Expr Expr
           | StoreMany Expr [(Expr,Expr)]
@@ -170,6 +171,7 @@ substExpr su = go
   go (Geq x y)   = Geq (go x) (go y)
   go (Add x y)   = Add (go x) (go y)
   go (Sub x y)   = Sub (go x) (go y)
+  go (Mod x y)   = Mod (go x) y
   go (Call f es) = Call f (map go es)
   go (Store s e) = Store (go s) (go e)
   go (StoreMany a ies) = StoreMany (go a) (map (\(i,e) -> (go i, go e)) ies)
@@ -209,6 +211,7 @@ instance Concrete Expr where
   concrete (NumLit n)    = concrete n
   concrete (Add e0 e1)   = B.unwords [parens e0, "+", parens e1]
   concrete (Sub e0 e1)   = B.unwords [parens e0, "-", parens e1]
+  concrete (Mod e x)     = B.unwords [parens e, "MOD", concrete x]
   concrete (Call f args) = concrete f
                 `B.append` ('(' `B.cons` (args' `B.snoc` ')'))
     where
@@ -279,6 +282,9 @@ not' = Not
 
 (.-) :: Expr -> Expr -> Expr
 (.-) = Sub
+
+(.%) :: Expr -> Integer -> Expr
+(.%) = Mod
 
 lit :: (Show a, Concrete a, Num a) => a -> Expr
 lit = NumLit

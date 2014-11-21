@@ -68,9 +68,7 @@ toArea I.Area { I.areaSym  = sym
               , I.areaType = ty
               , I.areaInit = init
               }
-  = do v <- addEnvVar ty sym
-       e <- toInit ty init
-       addInvariant (var v .== e)
+  = void $ addEnvVar ty sym
 
 --------------------------------------------------------------------------------
 
@@ -415,10 +413,14 @@ toExpCond t b x y = do
 toMod :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr
 toMod t e0 e1 = do
   v <- incReservedVar =<< toType t
-  a <- toExpr t e0
-  b <- toExpr t e1
   let v' = var v
-  addInvariant (v' .== call modAbs [a, b] .&& modExp v' a b)
+  a <- toExpr t e0
+  case e1 of
+    I.ExpLit (I.LitInteger i) ->
+      addInvariant (v' .== (a .% i))
+    _ -> do
+      b <- toExpr t e1
+      addInvariant (v' .== call modAbs [a, b] .&& modExp v' a b)
   return v'
 
 toMul :: I.Type -> I.Expr -> I.Expr -> ModelCheck Expr

@@ -45,7 +45,7 @@ initArgs = Args
   , inlineCall = False
   , callCVC4   = True
   , cvc4Path   =  ""
-  , cvc4Args   = ["--incremental"]
+  , cvc4Args   = ["--incremental", "--rewrite-divk"]
   }
 
 --------------------------------------------------------------------------------
