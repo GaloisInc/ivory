@@ -17,9 +17,7 @@ source-repository    this
   tag:      hackage-qc-0100
 
 library
-  exposed-modules:      Ivory.QuickCheck,
-                        Ivory.QuickCheck.Arbitrary,
-                        Ivory.QuickCheck.Monad
+  exposed-modules:      Ivory.QuickCheck
   build-depends:        base >= 4.6,
                         monadLib,
                         random,
