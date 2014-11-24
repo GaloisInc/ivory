@@ -15,11 +15,13 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE ParallelListComp #-}
 module Ivory.QuickCheck.Testable where
 
 import           Control.Applicative
 import           Control.Monad
 import           Data.IORef
+import           Data.List
 import           Ivory.Compile.C.CmdlineFrontend
 import           Ivory.Language
 import           Ivory.Language.Proc
@@ -43,16 +45,17 @@ struct foo
 
 -- Function we want to generate inputs for.
 func :: Def ('[Uint8
-              -- , Ref s (Array 3 (Stored Uint8))
+              , Ref s (Array 3 (Stored Uint64))
               -- , Ref s (Struct "foo")
               ] :-> Uint8)
-func = proc "func" $ \u ->
-  requires (u >? 5) $
+func = proc "func" $ \u arr ->
+  requires (u >=? 0) $
+  ensures (const $ checkStored (arr ! 0) (\r -> r >? safeCast u)) $
   body $ do
-  -- arrayMap $ \ix -> do
-  --   a <- deref (arr ! ix)
-  --   b <- deref (str ~> foo_b)
-  --   store (arr ! ix) (a + b + u)
+  arrayMap $ \ix -> do
+    a <- deref (arr ! ix)
+    -- b <- deref (str ~> foo_b)
+    store (arr ! ix) (a + safeCast u) -- (a + b + u)
   ret 1
 
 cmodule = package "func" $ do
@@ -178,14 +181,20 @@ apply = undefined
 --     return $ zipWith3 (\a b c -> a ::: b ::: c ::: Nil) as bs cs
 --   apply p (a ::: b ::: c ::: Nil) = call p a b c
 
-check :: forall proc eff impl. Testable proc eff impl
-      => Int -> Module -> Def proc -> IO ()
+check :: Int -> Module -> Def (args :-> IBool) -> IO ()
 check n m prop@(DefProc p) = do
   inputs <- sampleProc m p n
-  let main = proc "main" $ body $ do
-               -- forM_ inputs $ \i -> do
-               --   assert =<< apply prop i
-               retVoid
+  -- let main = proc "main" $ body $ do
+  --              -- forM_ inputs $ \i -> do
+  --              --   assert =<< apply prop i
+  --              retVoid
+  let main = DefProc (I.Proc { I.procSym = "main"
+                             , I.procRetTy = I.TyVoid
+                             , I.procArgs = []
+                             , I.procBody = concat inputs
+                             , I.procRequires = []
+                             , I.procEnsures = []
+                             })
   let test = package (I.modName m ++ "__test") $ do
                depend m
                incl prop
@@ -198,14 +207,26 @@ mkUnique = do
   writeIORef ?counter (i+1)
   return i
 
-sampleProc :: Module -> I.Proc -> Int -> IO [[I.Block]]
-sampleProc m@(I.Module {..}) (I.Proc {..}) n
+sampleProc :: Module -> I.Proc -> Int -> IO [I.Block]
+sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
   = do c <- newIORef 0
        let ?counter = c
-       args <- forM procArgs $ \ (I.Typed t _) -> do
+       initss <- forM procArgs $ \ (I.Typed t _) -> do
          sampleType m t n
-       return args
-       undefined
+       forM (transpose initss) $ \ args -> do
+         let (vars, inits) = unzip args
+         chk <- mkCheck p vars
+         return (concat inits ++ chk)
+
+mkCheck :: (?counter :: IORef Integer)
+        => I.Proc -> [I.Var] -> IO I.Block
+mkCheck (I.Proc {..}) args = do
+  n <- mkUnique
+  let b = mkVar n
+  let c = [ I.Call I.TyBool (Just b) (I.NameSym procSym)
+            [ I.Typed t (I.ExpVar v) | (I.Typed t _, v) <- zip procArgs args ]
+          , I.Assert (I.ExpVar b) ]
+  return c
 
 sampleType :: (?counter :: IORef Integer)
            => Module -> I.Type -> Int -> IO [(I.Var, I.Block)]
@@ -224,11 +245,23 @@ sampleType m t n = case t of
     -> mapM (mkLocal t) =<< sampleFloat n
   I.TyDouble
     -> mapM (mkLocal t) =<< sampleDouble n
-  I.TyRef t
-    -> mapM (mkRef t) =<< sampleType m t n
-  I.TyConstRef t
-    -> mapM (mkRef t) =<< sampleType m t n
+  I.TyRef ty
+    -> mapM (mkRef ty) =<< sampleType m ty n
+  I.TyConstRef ty
+    -> mapM (mkRef ty) =<< sampleType m ty n
   -- I.TyPtr t -> mapM mkPtr (sampleType m t n)
+  I.TyArr len ty
+    -> mapM (mkArr len ty) . transpose =<< replicateM len (sampleType m ty n)
+
+mkArr :: (?counter :: IORef Integer) => Int -> I.Type -> [(I.Var, I.Block)]
+      -> IO (I.Var, I.Block)
+mkArr len ty inits = do
+  local <- mkLocal (I.TyArr len ty) (I.InitArray [])
+  (v, blck) <- mkRef (I.TyArr len ty) local
+  let mkDeref = I.ExpIndex (I.TyArr len ty) (I.ExpVar v) ty . I.ExpLit . I.LitInteger
+  let blcks = [ init ++ [I.Store ty (mkDeref ix) (I.ExpVar v)]
+              | (v, init) <- inits | ix <- [0..] ]
+  return (v, blck ++ concat blcks)
 
 mkLocal :: (?counter :: IORef Integer) => I.Type -> I.Init -> IO (I.Var, I.Block)
 mkLocal ty init = do
@@ -241,7 +274,7 @@ mkRef :: (?counter :: IORef Integer) => I.Type -> (I.Var, I.Block)
 mkRef ty (v, init) = do
   n <- mkUnique
   let r = I.VarName ("ref" ++ show n)
-  return (r, init ++ [ I.AllocRef (I.TyRef ty) r (I.NameVar v) ])
+  return (r, init ++ [ I.AllocRef ty r (I.NameVar v) ])
 
 mkVar :: Integer -> I.Var
 mkVar n = I.VarName ("var" ++ show n)
