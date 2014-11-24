@@ -3,40 +3,41 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ImplicitParams #-}
 
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+
 -- | Check properties of Ivory programs using random inputs.
 --
 -- Example usage:
--- @
--- [ivory|
--- struct foo
---   { foo_a :: Stored IFloat
---   ; foo_b :: Stored Uint8
---   }
--- |]
---
--- -- Function we want to generate inputs for.
--- func :: Def ('[Uint8
---               , Ref s (Array 3 (Stored Uint8))
---               , Ref s (Struct "foo")
---               ] :-> ())
--- func = proc "func" $ \u arr str -> body $
---   ensures (const $ checkStored (arr ! 0) (\r -> r >? safeCast u)) $
---   arrayMap $ \ix -> do
---     a <- deref (arr ! ix)
---     b <- deref (str ~> foo_b)
---     store (arr ! ix) (a + b + u)
---
--- -- Module containing our function
--- cmodule :: Module
--- cmodule = package "module" $ do
---   defStruct (Proxy :: Proxy "foo")
---   incl func
---
--- -- Running @mkTest@ will produce a C program in @`pwd`/test@ that will check
--- @func@'s contract on 10 random inputs.
--- mkTest :: IO ()
--- mkTest = check 10 cmodule (contract func)
--- @
+-- 
+-- > [ivory|
+-- > struct foo
+-- >   { foo_a :: Stored IFloat
+-- >   ; foo_b :: Stored Uint8
+-- >   }
+-- > |]
+-- >
+-- > -- Function we want to generate inputs for.
+-- > func :: Def ('[Uint8
+-- >               , Ref s (Array 3 (Stored Uint8))
+-- >               , Ref s (Struct "foo")
+-- >               ] :-> ())
+-- > func = proc "func" $ \u arr str -> body $
+-- >   ensures (const $ checkStored (arr ! 0) (\r -> r >? u)) $
+-- >   arrayMap $ \ix -> do
+-- >     a <- deref (arr ! ix)
+-- >     b <- deref (str ~> foo_b)
+-- >     store (arr ! ix) (a + b + u)
+-- >
+-- > -- Module containing our function
+-- > cmodule :: Module
+-- > cmodule = package "module" $ do
+-- >   defStruct (Proxy :: Proxy "foo")
+-- >   incl func
+-- >
+-- > -- Running @mkTest@ will produce a C program in @<pwd>/test@ that will check
+-- > -- @func@'s contract on 10 random inputs.
+-- > mkTest :: IO ()
+-- > mkTest = check 10 cmodule (contract func)
 
 module Ivory.QuickCheck (check, contract) where
 
@@ -57,7 +58,7 @@ import           Data.Int
 import           Data.Word
 
 -- | Generate a random C program to check that the property holds. The
--- generated program will be placed in the "test" subdirectory.
+-- generated program will be placed in the @test@ subdirectory.
 check :: Int                  -- ^ The number of inputs to generate.
       -> Module               -- ^ The defining module.
       -> Def (args :-> IBool) -- ^ The property to check.
