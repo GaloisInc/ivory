@@ -46,16 +46,16 @@ struct foo
 -- Function we want to generate inputs for.
 func :: Def ('[Uint8
               , Ref s (Array 3 (Stored Uint64))
-              -- , Ref s (Struct "foo")
+              , Ref s (Struct "foo")
               ] :-> Uint8)
-func = proc "func" $ \u arr ->
+func = proc "func" $ \u arr str ->
   requires (u >=? 0) $
   ensures (const $ checkStored (arr ! 0) (\r -> r >? safeCast u)) $
   body $ do
   arrayMap $ \ix -> do
     a <- deref (arr ! ix)
-    -- b <- deref (str ~> foo_b)
-    store (arr ! ix) (a + safeCast u) -- (a + b + u)
+    b <- deref (str ~> foo_b)
+    store (arr ! ix) (a + safeCast b + safeCast u) -- (a + b + u)
   ret 1
 
 cmodule = package "func" $ do
@@ -249,19 +249,17 @@ sampleType m t n = case t of
     -> mapM (mkRef ty) =<< sampleType m ty n
   I.TyConstRef ty
     -> mapM (mkRef ty) =<< sampleType m ty n
-  -- I.TyPtr t -> mapM mkPtr (sampleType m t n)
   I.TyArr len ty
-    -> mapM (mkArr len ty) . transpose =<< replicateM len (sampleType m ty n)
-
-mkArr :: (?counter :: IORef Integer) => Int -> I.Type -> [(I.Var, I.Block)]
-      -> IO (I.Var, I.Block)
-mkArr len ty inits = do
-  local <- mkLocal (I.TyArr len ty) (I.InitArray [])
-  (v, blck) <- mkRef (I.TyArr len ty) local
-  let mkDeref = I.ExpIndex (I.TyArr len ty) (I.ExpVar v) ty . I.ExpLit . I.LitInteger
-  let blcks = [ init ++ [I.Store ty (mkDeref ix) (I.ExpVar v)]
-              | (v, init) <- inits | ix <- [0..] ]
-  return (v, blck ++ concat blcks)
+    -> sampleArray m len ty n
+  I.TyStruct ty
+    -> sampleStruct m ty n
+  I.TyProc _ _ -> err 
+  I.TyVoid     -> err 
+  I.TyPtr _    -> err 
+  I.TyCArray _ -> err 
+  I.TyOpaque   -> err
+  where
+  err = error $ "I don't know how to make values of type '" ++ show t ++ "'!"
 
 mkLocal :: (?counter :: IORef Integer) => I.Type -> I.Init -> IO (I.Var, I.Block)
 mkLocal ty init = do
@@ -335,3 +333,25 @@ sampleDouble n = do
   cs <- mk n A.arbitrary
   return [I.InitExpr I.TyDouble (I.ExpLit (I.LitDouble c)) | c <- cs]
 
+sampleStruct :: (?counter :: IORef Integer)
+             => I.Module -> String -> Int -> IO [(I.Var, I.Block)]
+sampleStruct m@(I.Module {..}) ty n
+  = case find (\s -> ty == I.structName s) structs of
+    Just (I.Struct _ fields) -> replicateM n $ do
+      (vars, blcks) <- fmap unzip $ forM fields $ \ (I.Typed t f) ->
+        fmap head $ sampleType m t 1
+      let init = zipWith (\ (I.Typed t f) v -> (f, I.InitExpr t (I.ExpVar v))) fields vars
+      (v, blck) <- mkLocal (I.TyStruct ty) (I.InitStruct init)
+      return (v, concat blcks ++ blck)
+    _ -> error ("I don't know how to construct a '" ++ ty ++ "'!")
+  where
+  structs = I.public modStructs ++ I.private modStructs
+
+sampleArray :: (?counter :: IORef Integer)
+            => I.Module -> Int -> I.Type -> Int
+            -> IO [(I.Var, I.Block)]
+sampleArray m len ty n = replicateM n $ do
+  (vars, blcks) <- fmap unzip $ replicateM len (fmap head $ sampleType m ty 1)
+  let init = [ I.InitExpr ty (I.ExpVar v) | v <- vars ]
+  (v, blck) <- mkLocal (I.TyArr len ty) (I.InitArray init)
+  return (v, concat blcks ++ blck)
