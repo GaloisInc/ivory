@@ -18,8 +18,9 @@ source-repository    head
 library
   exposed-modules:      Ivory.Eval
   build-depends:        base >= 4.6,
+                        containers,
                         monadLib,
-                        ivory,
+                        ivory
   hs-source-dirs:       src
   default-language:     Haskell2010
   ghc-options:          -Wall

@@ -20,6 +20,9 @@ import Ivory.Language.Syntax
 type Error  = String
 type Eval a = StateT EvalState (Exception Error) a
 
+eval :: Eval a -> Either Error a
+eval runThis = fmap fst (runEval M.empty runThis)
+
 runEval :: M.Map I.Sym Value -> Eval a -> Either Error (a, EvalState)
 runEval st runThis = runException (runStateT (initState st) runThis)
 
@@ -179,6 +182,21 @@ updateLoc loc = sets_ (\ s -> s { loc = loc })
 ----------------------------------------------------------------------
 evalBlock :: I.Block -> Eval ()
 evalBlock = mapM_ evalStmt
+
+evalRequires :: [I.Require] -> Eval Bool
+evalRequires = fmap Prelude.and . mapM (evalCond . I.getRequire)
+
+evalCond :: I.Cond -> Eval Bool
+evalCond cond = case cond of
+  I.CondBool expr -> do
+    val <- evalExpr I.TyBool expr
+    case val of
+      Bool True  -> return True
+      Bool False -> return False
+      _          -> raise $ "evalCond: expected boolean, got: " ++ show val
+  I.CondDeref ty expr var cond -> do
+    evalStmt (I.Deref ty var expr)
+    evalCond cond
 
 evalStmt :: I.Stmt -> Eval ()
 evalStmt stmt = case stmt of
