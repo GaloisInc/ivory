@@ -46,10 +46,11 @@ import           Control.Monad
 import           Data.IORef
 import           Data.List
 import           Ivory.Compile.C.CmdlineFrontend
+import qualified Ivory.Eval                      as E
 import           Ivory.Language
 import           Ivory.Language.Proc
 import qualified Ivory.Language.Syntax           as I
-
+import System.IO.Unsafe
 
 import qualified Test.QuickCheck.Arbitrary       as A
 import qualified Test.QuickCheck.Gen             as G
@@ -106,9 +107,19 @@ sampleProc :: Module -> I.Proc -> Int -> IO [I.Block]
 sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
   = do c <- newIORef 0
        let ?counter = c
-       initss <- forM procArgs $ \ (I.Typed t _) ->
-         sampleType m t n
-       forM (transpose initss) $ \ args -> do
+       allInits <- fmap transpose $ forM procArgs $ \ (I.Typed t _) ->
+         sampleType m t
+       let validInits =
+             [ inits | inits <- allInits
+                     , let (vars, blcks) = unzip inits
+                     , let asgn = [ I.Assign ty arg (I.ExpVar var)
+                                  | (I.Typed ty arg, var) <- zip procArgs vars
+                                  ]
+                     , E.eval (do E.evalBlock (concat blcks ++ asgn)
+                                  E.evalRequires procRequires)
+                       == Right True
+                     ]
+       forM (take n validInits) $ \ args -> do
          let (vars, inits) = unzip args
          chk <- mkCheck p vars
          return (concat inits ++ chk)
@@ -124,30 +135,30 @@ mkCheck (I.Proc {..}) args = do
   return c
 
 sampleType :: (?counter :: IORef Integer)
-           => Module -> I.Type -> Int -> IO [(I.Var, I.Block)]
-sampleType m t n = case t of
+           => Module -> I.Type -> IO [(I.Var, I.Block)]
+sampleType m t = case t of
   I.TyInt sz
-    -> mapM (mkLocal t) =<< sampleInt sz n
+    -> lazyMapIO (mkLocal t) =<< sampleInt sz
   I.TyWord sz
-    -> mapM (mkLocal t) =<< sampleWord sz n
+    -> lazyMapIO (mkLocal t) =<< sampleWord sz
   I.TyIndex i
-    -> mapM (mkLocal t) =<< sampleIndex i n
+    -> lazyMapIO (mkLocal t) =<< sampleIndex i
   I.TyBool
-    -> mapM (mkLocal t) =<< sampleBool n
+    -> lazyMapIO (mkLocal t) =<< sampleBool
   I.TyChar
-    -> mapM (mkLocal t) =<< sampleChar n
+    -> lazyMapIO (mkLocal t) =<< sampleChar
   I.TyFloat
-    -> mapM (mkLocal t) =<< sampleFloat n
+    -> lazyMapIO (mkLocal t) =<< sampleFloat
   I.TyDouble
-    -> mapM (mkLocal t) =<< sampleDouble n
+    -> lazyMapIO (mkLocal t) =<< sampleDouble
   I.TyRef ty
-    -> mapM (mkRef ty) =<< sampleType m ty n
+    -> lazyMapIO (mkRef ty) =<< sampleType m ty
   I.TyConstRef ty
-    -> mapM (mkRef ty) =<< sampleType m ty n
+    -> lazyMapIO (mkRef ty) =<< sampleType m ty
   I.TyArr len ty
-    -> sampleArray m len ty n
+    -> sampleArray m len ty
   I.TyStruct ty
-    -> sampleStruct m ty n
+    -> sampleStruct m ty
   I.TyProc _ _ -> err 
   I.TyVoid     -> err 
   I.TyPtr _    -> err 
@@ -155,6 +166,13 @@ sampleType m t n = case t of
   I.TyOpaque   -> err
   where
   err = error $ "I don't know how to make values of type '" ++ show t ++ "'!"
+
+lazyMapIO :: (a -> IO b) -> [a] -> IO [b]
+lazyMapIO f [] = return []
+lazyMapIO f (a:as) = do
+  b  <- f a
+  bs <- unsafeInterleaveIO (lazyMapIO f as)
+  return (b:bs)
 
 mkLocal :: (?counter :: IORef Integer) => I.Type -> I.Init -> IO (I.Var, I.Block)
 mkLocal ty init = do
@@ -172,68 +190,68 @@ mkRef ty (v, init) = do
 mkVar :: Integer -> I.Var
 mkVar n = I.VarName ("var" ++ show n)
 
-mk :: Int -> G.Gen a -> IO [a]
-mk n g = G.generate (G.vectorOf n g)
+mk :: G.Gen a -> IO [a]
+mk g = G.generate (G.infiniteListOf g)
 
-sampleInt :: I.IntSize -> Int -> IO [I.Init]
-sampleInt sz n = do
+sampleInt :: I.IntSize -> IO [I.Init]
+sampleInt sz = do
   xs <- gen
   return [ I.InitExpr (I.TyInt sz) (I.ExpLit (I.LitInteger x)) | x <- xs ]
   where
   gen = case sz of
-    I.Int8  -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Int8)
-    I.Int16 -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Int16)
-    I.Int32 -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Int32)
-    I.Int64 -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Int64)
+    I.Int8  -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Int8)
+    I.Int16 -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Int16)
+    I.Int32 -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Int32)
+    I.Int64 -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Int64)
 
-sampleWord :: I.WordSize -> Int -> IO [I.Init]
-sampleWord sz n = do
+sampleWord :: I.WordSize -> IO [I.Init]
+sampleWord sz = do
   xs <- gen
   return [ I.InitExpr (I.TyWord sz) (I.ExpLit (I.LitInteger x))
          | x <- xs
          ]
   where
   gen = case sz of
-    I.Word8  -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Word8)
-    I.Word16 -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Word16)
-    I.Word32 -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Word32)
-    I.Word64 -> fmap fromIntegral <$> mk n (A.arbitrary :: G.Gen Word64)
+    I.Word8  -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Word8)
+    I.Word16 -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Word16)
+    I.Word32 -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Word32)
+    I.Word64 -> fmap fromIntegral <$> mk (A.arbitrary :: G.Gen Word64)
 
-sampleIndex :: Integer -> Int -> IO [I.Init]
-sampleIndex ix n = do
-  xs <- mk n (A.arbitrary :: G.Gen Word64)
+sampleIndex :: Integer -> IO [I.Init]
+sampleIndex ix = do
+  xs <- mk (A.arbitrary :: G.Gen Word64)
   return [ I.InitExpr (I.TyIndex ix)
            (I.ExpLit (I.LitInteger (fromIntegral x `mod` ix)))
          | x <- xs
          ]
 
-sampleBool :: Int -> IO [I.Init]
-sampleBool n = do
-  bs <- mk n A.arbitrary
+sampleBool :: IO [I.Init]
+sampleBool = do
+  bs <- mk A.arbitrary
   return [I.InitExpr I.TyBool (I.ExpLit (I.LitBool b)) | b <- bs]
 
-sampleChar :: Int -> IO [I.Init]
-sampleChar n = do
-  cs <- mk n A.arbitrary
+sampleChar :: IO [I.Init]
+sampleChar = do
+  cs <- mk A.arbitrary
   return [I.InitExpr I.TyChar (I.ExpLit (I.LitChar c)) | c <- cs]
 
-sampleFloat :: Int -> IO [I.Init]
-sampleFloat n = do
-  cs <- mk n A.arbitrary
+sampleFloat :: IO [I.Init]
+sampleFloat = do
+  cs <- mk A.arbitrary
   return [I.InitExpr I.TyFloat (I.ExpLit (I.LitFloat c)) | c <- cs]
 
-sampleDouble :: Int -> IO [I.Init]
-sampleDouble n = do
-  cs <- mk n A.arbitrary
+sampleDouble :: IO [I.Init]
+sampleDouble = do
+  cs <- mk A.arbitrary
   return [I.InitExpr I.TyDouble (I.ExpLit (I.LitDouble c)) | c <- cs]
 
 sampleStruct :: (?counter :: IORef Integer)
-             => I.Module -> String -> Int -> IO [(I.Var, I.Block)]
-sampleStruct m@(I.Module {..}) ty n
+             => I.Module -> String -> IO [(I.Var, I.Block)]
+sampleStruct m@(I.Module {..}) ty
   = case find (\s -> ty == I.structName s) structs of
-    Just (I.Struct _ fields) -> replicateM n $ do
+    Just (I.Struct _ fields) -> repeatIO $ do
       (vars, blcks) <- fmap unzip $ forM fields $ \ (I.Typed t _) ->
-        fmap head $ sampleType m t 1
+        fmap head $ sampleType m t
       let init = zipWith (\ (I.Typed t f) v -> (f, I.InitExpr t (I.ExpVar v)))
                  fields vars
       (v, blck) <- mkLocal (I.TyStruct ty) (I.InitStruct init)
@@ -243,10 +261,16 @@ sampleStruct m@(I.Module {..}) ty n
   structs = I.public modStructs ++ I.private modStructs
 
 sampleArray :: (?counter :: IORef Integer)
-            => I.Module -> Int -> I.Type -> Int
+            => I.Module -> Int -> I.Type
             -> IO [(I.Var, I.Block)]
-sampleArray m len ty n = replicateM n $ do
-  (vars, blcks) <- fmap unzip $ replicateM len (fmap head $ sampleType m ty 1)
+sampleArray m len ty = repeatIO $ do
+  (vars, blcks) <- fmap unzip $ replicateM len (fmap head $ sampleType m ty)
   let init = [ I.InitExpr ty (I.ExpVar v) | v <- vars ]
   (v, blck) <- mkLocal (I.TyArr len ty) (I.InitArray init)
   return (v, concat blcks ++ blck)
+
+repeatIO :: IO a -> IO [a]
+repeatIO doThis = do
+  x  <- doThis
+  xs <- unsafeInterleaveIO (repeatIO doThis)
+  return (x : xs)
