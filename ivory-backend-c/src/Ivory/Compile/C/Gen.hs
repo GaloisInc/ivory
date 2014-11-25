@@ -535,9 +535,9 @@ toExpOp ty op args = case op of
   -- isinf returns -1 for negative infinity and 1 for positive infinity.
   I.ExpIsInf ety -> let xs = mkArgs ety args in
                     [cexp| ($ty:(toType I.TyBool)) (isinf($exp:(exp0 xs))) |]
-  I.ExpRoundF    -> floatingBinary ty "round" args
-  I.ExpCeilF     -> floatingBinary ty "ceil" args
-  I.ExpFloorF    -> floatingBinary ty "floor" args
+  I.ExpRoundF    -> floatingUnary ty "round" args
+  I.ExpCeilF     -> floatingUnary ty "ceil"  args
+  I.ExpFloorF    -> floatingUnary ty "floor" args
 
   -- -- float casting
   -- I.ExpToFloat ety   -> let xs = mkArgs ety args in
