@@ -115,7 +115,7 @@ insert_area = area "queue_ringbuffer_insert" (Just (ival 0))
 insert = addrOf insert_area
 
 bounded :: ANat n => Ix n -> IBool
-bounded x = x >=? 0 .&& x <? (fromIntegral $ ixSize x)
+bounded x = x >=? 0 .&& x <=? (fromIntegral $ ixSize x - 1)
 
 empty :: ANat n => Ix n -> Ix n -> IBool
 empty i r = i' ==? r'
