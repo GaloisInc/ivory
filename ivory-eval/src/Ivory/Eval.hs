@@ -259,11 +259,10 @@ evalStmt stmt = case stmt of
           untilM done (evalBlock body >> step)
   I.Return (I.Typed  _ty expr)
     -> void $ evalExpr _ty expr
-  I.Store _ty (I.ExpVar dst) expr
-    -> do val <- evalExpr _ty expr
-          Ref var <- readStore (varSym dst)
-          writeStore var val
   I.Store _ty (I.ExpAddrOfGlobal dst) expr
+    -> do val <- evalExpr _ty expr
+          writeStore dst val
+  I.RefCopy _ty (I.ExpAddrOfGlobal dst) expr
     -> do val <- evalExpr _ty expr
           writeStore dst val
   _ -> error $ show stmt
@@ -286,7 +285,7 @@ readRef sym = do
   val <- readStore sym
   case val of
     Ref ref -> readStore ref
-    _       -> return val
+    -- _       -> return val
 
 evalAssert :: I.Expr -> Eval ()
 evalAssert asrt = do

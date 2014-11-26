@@ -112,8 +112,13 @@ sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
          sampleType m t
        allAreas <- fmap transpose $ forM (getVisible modAreas) $ \ I.Area {..} -> do
          inits <- sampleType m areaType
-         lazyMapIO (\ (var, blck) ->
-                     return $ blck ++ [ I.Store areaType (I.ExpAddrOfGlobal areaSym) (I.ExpVar var)])
+         lazyMapIO (\ (var, blck) -> do
+                     let store = case areaType of
+                           I.TyArr _ _  -> I.RefCopy
+                           I.TyStruct _ -> I.RefCopy
+                           I.TyRef _    -> I.RefCopy -- XXX: this shouldn't actually appear
+                           _            -> I.Store
+                     return $ blck ++ [ store areaType (I.ExpAddrOfGlobal areaSym) (I.ExpVar var)])
                    inits
        --XXX: Refactor!
        let validInits =
