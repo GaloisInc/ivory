@@ -115,8 +115,8 @@ sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
                      , let asgn = [ I.Assign ty arg (I.ExpVar var)
                                   | (I.Typed ty arg, var) <- zip procArgs vars
                                   ]
-                     , E.eval (do E.evalBlock (concat blcks ++ asgn)
-                                  E.evalRequires procRequires)
+                     , E.eval m (do E.evalBlock (concat blcks ++ asgn)
+                                    E.evalRequires procRequires)
                        == Right True
                      ]
        forM (take n validInits) $ \ args -> do
@@ -166,13 +166,6 @@ sampleType m t = case t of
   I.TyOpaque   -> err
   where
   err = error $ "I don't know how to make values of type '" ++ show t ++ "'!"
-
-lazyMapIO :: (a -> IO b) -> [a] -> IO [b]
-lazyMapIO f [] = return []
-lazyMapIO f (a:as) = do
-  b  <- f a
-  bs <- unsafeInterleaveIO (lazyMapIO f as)
-  return (b:bs)
 
 mkLocal :: (?counter :: IORef Integer) => I.Type -> I.Init -> IO (I.Var, I.Block)
 mkLocal ty init = do
@@ -274,3 +267,10 @@ repeatIO doThis = do
   x  <- doThis
   xs <- unsafeInterleaveIO (repeatIO doThis)
   return (x : xs)
+
+lazyMapIO :: (a -> IO b) -> [a] -> IO [b]
+lazyMapIO _ [] = return []
+lazyMapIO f (a:as) = do
+  b  <- f a
+  bs <- unsafeInterleaveIO (lazyMapIO f as)
+  return (b : bs)

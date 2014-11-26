@@ -1,38 +1,50 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module Ivory.Eval where
 
-import Prelude hiding (negate, div, mod, not, and, or)
+import           Data.Maybe
+import           Data.Monoid
 import qualified Prelude
+import           Prelude                                 hiding (negate, div, mod, not, and, or, mapM)
 
-import Data.Int
-import qualified Data.Map as M
-import Data.Word
-import MonadLib.Monads
-import Ivory.Language.Syntax.Concrete.Location
-import qualified Ivory.Language.Array as I
-import qualified Ivory.Language.Syntax as I
+import           Data.Int
+import qualified Data.Map                                as Map
+import qualified Data.Sequence                           as Seq
+import           Data.Traversable                        (mapM)
+import           Data.Word
+import           MonadLib.Monads                         hiding (mapM)
+import           Ivory.Language.Syntax.Concrete.Location
+import qualified Ivory.Language.Array                    as I
+import qualified Ivory.Language.Syntax                   as I
 
 -- XXX: DEBUG
-import Ivory.Language.Syntax
+import           Ivory.Language.Syntax hiding (Struct)
 
 type Error  = String
 type Eval a = StateT EvalState (Exception Error) a
 
-eval :: Eval a -> Either Error a
-eval runThis = fmap fst (runEval M.empty runThis)
+eval :: I.Module -> Eval a -> Either Error a
+eval m runThis = fmap fst (runEval m Map.empty runThis)
 
-runEval :: M.Map I.Sym Value -> Eval a -> Either Error (a, EvalState)
-runEval st runThis = runException (runStateT (initState st) runThis)
+runEval :: I.Module -> Map.Map I.Sym Value -> Eval a -> Either Error (a, EvalState)
+runEval m st runThis = runException (runStateT (initState st m) runThis)
 
 data EvalState = EvalState
-  { store :: M.Map I.Sym Value
-  , loc   :: SrcLoc
+  { store   :: Map.Map I.Sym Value
+  , loc     :: SrcLoc
+  , structs :: Map.Map I.Sym I.Struct
   } deriving Show
 
-initState :: M.Map I.Sym Value -> EvalState
-initState st = EvalState st NoLoc
+initState :: Map.Map I.Sym Value -> I.Module -> EvalState
+initState st (I.Module {..}) = EvalState st NoLoc structs
+  where
+  structs = Map.fromList [ (sym, struct)
+                         | struct@(I.Struct sym _) <-
+                              I.public modStructs ++ I.private modStructs
+                         ]
 
 data Value
   = Sint8  Int8
@@ -48,8 +60,8 @@ data Value
   | Char   Char
   | String String
   | Bool   Bool
-  | Array  [Value]
-  | Struct [(I.Sym, Value)]
+  | Array  (Seq.Seq Value)
+  | Struct (Map.Map I.Sym Value)
   | Ref    I.Sym
   deriving (Show, Eq)
 
@@ -164,18 +176,25 @@ x          `mod` y          = error $ "invalid operands to `mod`: " ++ show (x,y
 readStore :: I.Sym -> Eval Value
 readStore sym = do
   st <- fmap store get
-  case M.lookup sym st of
+  case Map.lookup sym st of
     Nothing -> raise $ "Unbound variable: `" ++ sym ++ "'!"
     Just v  -> return v
 
 writeStore :: I.Sym -> Value -> Eval ()
-writeStore sym val = sets_ (\s -> s { store = M.insert sym val (store s) })
+writeStore sym val = sets_ (\s -> s { store = Map.insert sym val (store s) })
 
 modifyStore :: I.Sym -> (Value -> Value) -> Eval ()
-modifyStore sym f = sets_ (\s -> s { store = M.update (Just . f) sym (store s) })
+modifyStore sym f = sets_ (\s -> s { store = Map.update (Just . f) sym (store s) })
 
 updateLoc :: SrcLoc -> Eval ()
 updateLoc loc = sets_ (\ s -> s { loc = loc })
+
+lookupStruct :: String -> Eval I.Struct
+lookupStruct str = do
+  structs <- fmap structs get
+  case Map.lookup str structs of
+    Nothing  -> raise $ "Couldn't find struct: " ++ str
+    Just str -> return str
 
 ----------------------------------------------------------------------
 -- | Main Evaluator
@@ -213,12 +232,12 @@ evalStmt stmt = case stmt of
             Bool False -> evalBlock false
             _          -> raise $ "evalStmt: IfTE: expected true or false, got: " ++ show b
   I.Deref _ty var expr
-    -> do val <- evalExpr _ty expr
+    -> do val <- evalDeref _ty expr
           case val of
             Ref ref -> do
               val <- readStore ref
               writeStore (varSym var) val
-            -- _ -> writeStore (varSym var) val
+            _ -> writeStore (varSym var) val
   I.Assign _ty var expr
     -> do val <- evalExpr _ty expr
           writeStore (varSym var) val
@@ -244,6 +263,19 @@ evalStmt stmt = case stmt of
     -> do val <- evalExpr _ty expr
           Ref var <- readStore (varSym dst)
           writeStore var val
+
+evalDeref :: I.Type -> I.Expr -> Eval Value
+evalDeref _ty expr = case expr of
+  I.ExpSym sym -> readStore sym
+  I.ExpVar var -> readStore (varSym var)
+  I.ExpAddrOfGlobal sym -> readStore sym -- XXX: is this right??
+  I.ExpIndex tarr arr tidx idx
+    -> do Array arr  <- evalDeref tarr arr
+          Sint32 idx <- evalExpr tidx idx
+          return (arr `Seq.index` fromIntegral idx)
+  I.ExpLabel tstr str lab
+    -> do Struct str <- evalDeref tstr str
+          return (fromJust $ Map.lookup lab str)
 
 evalAssert :: I.Expr -> Eval ()
 evalAssert asrt = do
@@ -305,6 +337,10 @@ mkVal ty = case ty of
   I.TyWord I.Word32 -> Uint32 . fromInteger
   I.TyWord I.Word64 -> Uint64 . fromInteger
   I.TyIndex _       -> Sint32 . fromInteger -- XXX: don't hard-code index rep
+  I.TyFloat         -> Float  . fromInteger
+  I.TyDouble        -> Double . fromInteger
+  I.TyBool          -> Bool   . toEnum . fromInteger
+  I.TyChar          -> Char   . toEnum . fromInteger
   _ -> error $ "mkVal: " ++ show ty
 
 evalOp :: I.ExpOp -> [Value] -> Eval Value
@@ -331,10 +367,39 @@ evalOp I.ExpCond [cond, true, false] =
 
 evalInit :: I.Type -> I.Init -> Eval Value
 evalInit ty init = case init of
-  I.InitZero ->
-    return (mkVal ty 0)
-  I.InitExpr _t expr ->
-    evalExpr _t expr
+  I.InitZero
+    -> case ty of
+         I.TyArr _ _  -> evalInit ty (I.InitArray [])
+         I.TyStruct _ -> evalInit ty (I.InitStruct [])
+         _            -> return (mkVal ty 0)
+  I.InitExpr ty expr
+    -> evalExpr ty expr
+  I.InitArray inits
+    -> case ty of
+         I.TyArr len ty
+           -> fmap (Array . Seq.fromList)
+              $ mapM (evalInit ty) (take len $ inits ++ repeat I.InitZero)
+         _ -> raise $ "evalInit: InitArray: unexpected type: " ++ show ty
+  I.InitStruct inits
+    -> case ty of
+         I.TyStruct str -> do
+           I.Struct _ fields <- lookupStruct str
+           zstr <- foldM (\ str (I.Typed ty fld) -> do
+                             val <- evalInit ty I.InitZero
+                             return (Map.insert fld val str))
+                         Map.empty fields
+           str <- foldM (\ str (fld, init) -> do
+                            val <- evalInit (lookupTyped fld fields) init
+                            return (Map.insert fld val str))
+                        zstr inits
+           return $ Struct str
+         _ -> raise $ "evalInit: InitStruct: unexpected type: " ++ show ty
+
+lookupTyped :: (Show a, Eq a) => a -> [I.Typed a] -> I.Type
+lookupTyped a [] = error $ "lookupTyped: couldn't find: " ++ show a
+lookupTyped a (I.Typed t x : xs)
+  | a == x    = t
+  | otherwise = lookupTyped a xs
 
 varSym :: I.Var -> I.Sym
 varSym (I.VarName sym)     = sym
