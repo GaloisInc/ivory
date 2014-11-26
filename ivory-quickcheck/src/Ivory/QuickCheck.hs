@@ -61,10 +61,11 @@ import           Data.Word
 -- | Generate a random C program to check that the property holds. The
 -- generated program will be placed in the @test@ subdirectory.
 check :: Int                  -- ^ The number of inputs to generate.
+      -> [Module]
       -> Module               -- ^ The defining module.
       -> Def (args :-> IBool) -- ^ The property to check.
       -> IO ()
-check n m prop@(DefProc p) = do
+check n deps m prop@(DefProc p) = do
   inputs <- sampleProc m p n
   let main = DefProc I.Proc { I.procSym = "main"
                             , I.procRetTy = I.TyVoid
@@ -77,8 +78,8 @@ check n m prop@(DefProc p) = do
                depend m
                incl prop
                incl main
-  runCompiler [m, test] [] initialOpts { outDir = Just "test" }
-check _ _ _ = error "I can only check normal Ivory procs!"
+  runCompiler ([m, test]++deps) [] initialOpts { outDir = Just "test" }
+check _ _ _ _ = error "I can only check normal Ivory procs!"
 
 -- | Make a @check@able property from an arbitrary Ivory procedure. The
 -- property will simply check that the contracts are satisfied.
@@ -109,20 +110,30 @@ sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
        let ?counter = c
        allInits <- fmap transpose $ forM procArgs $ \ (I.Typed t _) ->
          sampleType m t
+       allAreas <- fmap transpose $ forM (getVisible modAreas) $ \ I.Area {..} -> do
+         inits <- sampleType m areaType
+         lazyMapIO (\ (var, blck) ->
+                     return $ blck ++ [ I.Store areaType (I.ExpAddrOfGlobal areaSym) (I.ExpVar var)])
+                   inits
+       --XXX: Refactor!
        let validInits =
-             [ inits | inits <- allInits
-                     , let (vars, blcks) = unzip inits
-                     , let asgn = [ I.Assign ty arg (I.ExpVar var)
-                                  | (I.Typed ty arg, var) <- zip procArgs vars
-                                  ]
-                     , E.eval m (do E.evalBlock (concat blcks ++ asgn)
-                                    E.evalRequires procRequires)
-                       == Right True
-                     ]
-       forM (take n validInits) $ \ args -> do
+             [ (inits, areas)
+             | (inits, areas) <- zip allInits allAreas
+             , let (vars, blcks) = unzip inits
+             , let asgnv = [ I.Assign ty arg (I.ExpVar var)
+                           | (I.Typed ty arg, var) <- zip procArgs vars
+                           ]
+             , (E.eval m (do E.evalBlock (concat blcks ++ asgnv ++ concat areas)
+                             E.evalRequires procRequires))
+               == Right True
+             ]
+       forM (take n validInits) $ \ (args, areas) -> do
          let (vars, inits) = unzip args
          chk <- mkCheck p vars
-         return (concat inits ++ chk)
+         return (concat inits ++ concat areas ++ chk)
+
+getVisible :: I.Visible a -> [a]
+getVisible xs = I.public xs ++ I.private xs
 
 mkCheck :: (?counter :: IORef Integer)
         => I.Proc -> [I.Var] -> IO I.Block

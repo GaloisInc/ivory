@@ -263,11 +263,15 @@ evalStmt stmt = case stmt of
     -> do val <- evalExpr _ty expr
           Ref var <- readStore (varSym dst)
           writeStore var val
+  I.Store _ty (I.ExpAddrOfGlobal dst) expr
+    -> do val <- evalExpr _ty expr
+          writeStore dst val
+  _ -> error $ show stmt
 
 evalDeref :: I.Type -> I.Expr -> Eval Value
 evalDeref _ty expr = case expr of
-  I.ExpSym sym -> readStore sym
-  I.ExpVar var -> readStore (varSym var)
+  I.ExpSym sym -> readRef sym
+  I.ExpVar var -> readRef (varSym var)
   I.ExpAddrOfGlobal sym -> readStore sym -- XXX: is this right??
   I.ExpIndex tarr arr tidx idx
     -> do Array arr  <- evalDeref tarr arr
@@ -276,6 +280,13 @@ evalDeref _ty expr = case expr of
   I.ExpLabel tstr str lab
     -> do Struct str <- evalDeref tstr str
           return (fromJust $ Map.lookup lab str)
+
+readRef :: I.Sym -> Eval Value
+readRef sym = do
+  val <- readStore sym
+  case val of
+    Ref ref -> readStore ref
+    _       -> return val
 
 evalAssert :: I.Expr -> Eval ()
 evalAssert asrt = do
@@ -303,6 +314,9 @@ evalExpr ty expr = case expr of
   I.ExpSafeCast fromTy expr
     -> do val <- evalExpr fromTy expr
           return (cast ty fromTy val)
+  I.ExpToIx expr max
+    -> fmap (`mod` Sint32 (fromInteger max)) (evalExpr I.ixRep expr)
+  _ -> error $ show expr
 
 cast :: I.Type -> I.Type -> Value -> Value
 cast toTy _fromTy val = mkVal toTy integer
