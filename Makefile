@@ -5,7 +5,6 @@ BIN=.cabal-sandbox/bin
 PACKAGE= \
   ivory \
   ivory-artifact \
-  ivory-backend-aadl \
   ivory-backend-acl2 \
   ivory-backend-c \
   ivory-examples \
