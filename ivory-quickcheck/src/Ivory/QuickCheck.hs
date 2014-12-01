@@ -17,12 +17,13 @@
 -- > |]
 -- >
 -- > -- Function we want to generate inputs for.
--- > func :: Def ('[Uint8
+-- > func :: Def ('[ Uint8
 -- >               , Ref s (Array 3 (Stored Uint8))
 -- >               , Ref s (Struct "foo")
 -- >               ] :-> ())
--- > func = proc "func" $ \u arr str -> body $
--- >   ensures (const $ checkStored (arr ! 0) (\r -> r >? u)) $
+-- > func = proc "func" $ \u arr str ->
+-- >   ensures_ (checkStored (arr ! 0) (\r -> r >? u)) $
+-- >   body $
 -- >   arrayMap $ \ix -> do
 -- >     a <- deref (arr ! ix)
 -- >     b <- deref (str ~> foo_b)
@@ -58,10 +59,13 @@ import qualified Test.QuickCheck.Gen             as G
 import           Data.Int
 import           Data.Word
 
+-- XXX: DEBUG
+-- import Debug.Trace
+
 -- | Generate a random C program to check that the property holds. The
 -- generated program will be placed in the @test@ subdirectory.
 check :: Int                  -- ^ The number of inputs to generate.
-      -> [Module]
+      -> [Module]             -- ^ Modules we need to have in scope.
       -> Module               -- ^ The defining module.
       -> Def (args :-> IBool) -- ^ The property to check.
       -> IO ()
@@ -128,8 +132,9 @@ sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
              , let asgnv = [ I.Assign ty arg (I.ExpVar var)
                            | (I.Typed ty arg, var) <- zip procArgs vars
                            ]
-             , (E.eval m (do E.evalBlock (concat blcks ++ asgnv ++ concat areas)
-                             E.evalRequires procRequires))
+             , E.runEval (E.openModule m (do
+                 E.evalBlock (concat blcks ++ asgnv ++ concat areas)
+                 E.evalRequires procRequires))
                == Right True
              ]
        forM (take n validInits) $ \ (args, areas) -> do
@@ -260,7 +265,7 @@ sampleStruct m@(I.Module {..}) ty
   = case find (\s -> ty == I.structName s) structs of
     Just (I.Struct _ fields) -> repeatIO $ do
       (vars, blcks) <- fmap unzip $ forM fields $ \ (I.Typed t _) ->
-        fmap head $ sampleType m t
+        head <$> sampleType m t
       let init = zipWith (\ (I.Typed t f) v -> (f, I.InitExpr t (I.ExpVar v)))
                  fields vars
       (v, blck) <- mkLocal (I.TyStruct ty) (I.InitStruct init)
@@ -273,7 +278,7 @@ sampleArray :: (?counter :: IORef Integer)
             => I.Module -> Int -> I.Type
             -> IO [(I.Var, I.Block)]
 sampleArray m len ty = repeatIO $ do
-  (vars, blcks) <- fmap unzip $ replicateM len (fmap head $ sampleType m ty)
+  (vars, blcks) <- unzip <$> replicateM len (head <$> sampleType m ty)
   let init = [ I.InitExpr ty (I.ExpVar v) | v <- vars ]
   (v, blck) <- mkLocal (I.TyArr len ty) (I.InitArray init)
   return (v, concat blcks ++ blck)

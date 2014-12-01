@@ -163,7 +163,8 @@ new_sample_proc = proc "ppm_new_sample_proc" $ \ppms tm -> body $ do
 
 ppmModule :: Module
 ppmModule = package "ppm_userinput" $ do
-  depend userInputTypeModule
+  defStruct (Proxy :: Proxy "userinput_result")
+  -- depend userInputTypeModule
   defMemArea ppm_valid_area
   defMemArea ppm_last_area
   defMemArea ppm_last_time_area
@@ -239,9 +240,9 @@ ppm_decode_ui_proc = proc "ppm_decode_userinput" $ \ppms ui now ->
 -- From SMACCMPilot.Flight.Types.UserInput
 --------------------------------------------------------------------------------
 
-userInputTypeModule :: Module
-userInputTypeModule = package "userinput_type" $ do
-  defStruct (Proxy :: Proxy "userinput_result")
+-- userInputTypeModule :: Module
+-- userInputTypeModule = package "userinput_type" $ do
+--   defStruct (Proxy :: Proxy "userinput_result")
 
 [ivory|
 struct userinput_result
