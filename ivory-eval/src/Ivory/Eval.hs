@@ -1,12 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
+-- | A simple interpreter for a subset of Ivory.
 module Ivory.Eval where
 
+import           Control.Applicative
 import           Data.Maybe
-import           Data.Monoid
 import qualified Prelude
 import           Prelude                                 hiding (negate, div, mod, not, and, or, mapM)
 
@@ -21,16 +21,17 @@ import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax                   as I
 
 -- XXX: DEBUG
-import           Ivory.Language.Syntax hiding (Struct)
+-- import Debug.Trace
+-- import           Ivory.Language.Syntax hiding (Struct)
 
 type Error  = String
 type Eval a = StateT EvalState (Exception Error) a
 
-eval :: I.Module -> Eval a -> Either Error a
-eval m runThis = fmap fst (runEval m Map.empty runThis)
+runEval :: Eval a -> Either Error a
+runEval doThis = fmap fst (runEvalStartingFrom (initState Map.empty) doThis)
 
-runEval :: I.Module -> Map.Map I.Sym Value -> Eval a -> Either Error (a, EvalState)
-runEval m st runThis = runException (runStateT (initState st m) runThis)
+runEvalStartingFrom :: EvalState -> Eval a -> Either Error (a, EvalState)
+runEvalStartingFrom st doThis = runException (runStateT st doThis) 
 
 data EvalState = EvalState
   { store   :: Map.Map I.Sym Value
@@ -38,13 +39,22 @@ data EvalState = EvalState
   , structs :: Map.Map I.Sym I.Struct
   } deriving Show
 
-initState :: Map.Map I.Sym Value -> I.Module -> EvalState
-initState st (I.Module {..}) = EvalState st NoLoc structs
+initState :: Map.Map I.Sym Value -> EvalState
+initState st = EvalState st NoLoc Map.empty
+               
+-- | Run an action inside the scope of a given module.
+openModule :: I.Module -> Eval a -> Eval a
+openModule (I.Module {..}) doThis = do
+  oldStrs <- fmap structs get
+  sets_ (\s -> s { structs = Map.union (structs s) newStructs })
+  res <- doThis
+  sets_ (\s -> s { structs = oldStrs })
+  return res
   where
-  structs = Map.fromList [ (sym, struct)
-                         | struct@(I.Struct sym _) <-
-                              I.public modStructs ++ I.private modStructs
-                         ]
+  newStructs = Map.fromList
+               [ (sym, struct)
+               | struct@(I.Struct sym _) <- I.public modStructs ++ I.private modStructs
+               ]
 
 data Value
   = Sint8  Int8
@@ -271,7 +281,7 @@ evalDeref :: I.Type -> I.Expr -> Eval Value
 evalDeref _ty expr = case expr of
   I.ExpSym sym -> readRef sym
   I.ExpVar var -> readRef (varSym var)
-  I.ExpAddrOfGlobal sym -> readStore sym -- XXX: is this right??
+  I.ExpAddrOfGlobal sym -> readStore sym
   I.ExpIndex tarr arr tidx idx
     -> do Array arr  <- evalDeref tarr arr
           Sint32 idx <- evalExpr tidx idx
@@ -390,8 +400,8 @@ evalInit ty init = case init of
   I.InitArray inits
     -> case ty of
          I.TyArr len ty
-           -> fmap (Array . Seq.fromList)
-              $ mapM (evalInit ty) (take len $ inits ++ repeat I.InitZero)
+           -> Array . Seq.fromList
+              <$> mapM (evalInit ty) (take len $ inits ++ repeat I.InitZero)
          _ -> raise $ "evalInit: InitArray: unexpected type: " ++ show ty
   I.InitStruct inits
     -> case ty of
@@ -434,122 +444,122 @@ untilM done doThis = do
 ----------------------------------------------------------------------
 -- | Testing
 ----------------------------------------------------------------------
-myloop :: I.Block
-myloop =[ Local
-            (TyWord Word32)
-            (VarName "local0")
-            (InitExpr (TyWord Word32) (ExpLit (LitInteger 0)))
-        , AllocRef
-            (TyWord Word32) (VarName "ref1") (NameVar (VarName "local0"))
-        , CompilerAssert
-            (ExpOp
-               ExpAnd
-               [ ExpOp
-                   (ExpLt False (TyInt Int32))
-                   [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
-                   , ExpLit (LitInteger 100)
-                   ]
-               , ExpOp
-                   (ExpLt True (TyInt Int32))
-                   [ ExpOp ExpNegate [ ExpLit (LitInteger 1) ]
-                   , ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
-                   ]
-               ])
-        , CompilerAssert
-            (ExpOp
-               ExpAnd
-               [ ExpOp
-                   (ExpLt False (TyInt Int32))
-                   [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
-               , ExpOp
-                   (ExpLt True (TyInt Int32))
-                   [ ExpOp ExpNegate [ ExpLit (LitInteger 1) ]
-                   , ExpLit (LitInteger 0)
-                   ]
-               ])
-        , Loop
-            (VarName "ix2")
-            (ExpOp
-               ExpCond
-               [ ExpOp
-                   (ExpLt False (TyInt Int32))
-                   [ ExpOp
-                       ExpMod
-                       [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
-                       , ExpLit (LitInteger 100)
-                       ]
-                   , ExpLit (LitInteger 0)
-                   ]
-               , ExpOp
-                   ExpCond
-                   [ ExpOp
-                       (ExpGt False (TyInt Int32))
-                       [ ExpLit (LitInteger 100) , ExpLit (LitInteger 0) ]
-                   , ExpOp
-                       ExpAdd
-                       [ ExpOp
-                           ExpMod
-                           [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
-                           , ExpLit (LitInteger 100)
-                           ]
-                       , ExpLit (LitInteger 100)
-                       ]
-                   , ExpOp
-                       ExpSub
-                       [ ExpOp
-                           ExpMod
-                           [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
-                           , ExpLit (LitInteger 100)
-                           ]
-                       , ExpLit (LitInteger 100)
-                       ]
-                   ]
-               , ExpOp
-                   ExpMod
-                   [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
-                   , ExpLit (LitInteger 100)
-                   ]
-               ])
-            (DecrTo
-               (ExpOp
-                  ExpCond
-                  [ ExpOp
-                      (ExpLt False (TyInt Int32))
-                      [ ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
-                      , ExpLit (LitInteger 0)
-                      ]
-                  , ExpOp
-                      ExpCond
-                      [ ExpOp
-                          (ExpGt False (TyInt Int32))
-                          [ ExpLit (LitInteger 100) , ExpLit (LitInteger 0) ]
-                      , ExpOp
-                          ExpAdd
-                          [ ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
-                          , ExpLit (LitInteger 100)
-                          ]
-                      , ExpOp
-                          ExpSub
-                          [ ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
-                          , ExpLit (LitInteger 100)
-                          ]
-                      ]
-                  , ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
-                  ]))
-            [ Deref
-                (TyWord Word32) (VarName "deref3") (ExpVar (VarName "ref1"))
-            , Store
-                (TyWord Word32)
-                (ExpVar (VarName "ref1"))
-                (ExpOp
-                   ExpAdd
-                   [ ExpVar (VarName "deref3")
-                   , ExpSafeCast (TyInt Int32) (ExpVar (VarName "ix2"))
-                   ])
-            ]
-        , Deref
-            (TyWord Word32) (VarName "deref4") (ExpVar (VarName "ref1"))
-        , Return
-            Typed
-              { tType = TyWord Word32 , tValue = ExpVar (VarName "deref4") }
-        ]
+-- myloop :: I.Block
+-- myloop =[ Local
+--             (TyWord Word32)
+--             (VarName "local0")
+--             (InitExpr (TyWord Word32) (ExpLit (LitInteger 0)))
+--         , AllocRef
+--             (TyWord Word32) (VarName "ref1") (NameVar (VarName "local0"))
+--         , CompilerAssert
+--             (ExpOp
+--                ExpAnd
+--                [ ExpOp
+--                    (ExpLt False (TyInt Int32))
+--                    [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
+--                    , ExpLit (LitInteger 100)
+--                    ]
+--                , ExpOp
+--                    (ExpLt True (TyInt Int32))
+--                    [ ExpOp ExpNegate [ ExpLit (LitInteger 1) ]
+--                    , ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
+--                    ]
+--                ])
+--         , CompilerAssert
+--             (ExpOp
+--                ExpAnd
+--                [ ExpOp
+--                    (ExpLt False (TyInt Int32))
+--                    [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
+--                , ExpOp
+--                    (ExpLt True (TyInt Int32))
+--                    [ ExpOp ExpNegate [ ExpLit (LitInteger 1) ]
+--                    , ExpLit (LitInteger 0)
+--                    ]
+--                ])
+--         , Loop
+--             (VarName "ix2")
+--             (ExpOp
+--                ExpCond
+--                [ ExpOp
+--                    (ExpLt False (TyInt Int32))
+--                    [ ExpOp
+--                        ExpMod
+--                        [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
+--                        , ExpLit (LitInteger 100)
+--                        ]
+--                    , ExpLit (LitInteger 0)
+--                    ]
+--                , ExpOp
+--                    ExpCond
+--                    [ ExpOp
+--                        (ExpGt False (TyInt Int32))
+--                        [ ExpLit (LitInteger 100) , ExpLit (LitInteger 0) ]
+--                    , ExpOp
+--                        ExpAdd
+--                        [ ExpOp
+--                            ExpMod
+--                            [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
+--                            , ExpLit (LitInteger 100)
+--                            ]
+--                        , ExpLit (LitInteger 100)
+--                        ]
+--                    , ExpOp
+--                        ExpSub
+--                        [ ExpOp
+--                            ExpMod
+--                            [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
+--                            , ExpLit (LitInteger 100)
+--                            ]
+--                        , ExpLit (LitInteger 100)
+--                        ]
+--                    ]
+--                , ExpOp
+--                    ExpMod
+--                    [ ExpOp ExpSub [ ExpVar (VarName "var0") , ExpLit (LitInteger 1) ]
+--                    , ExpLit (LitInteger 100)
+--                    ]
+--                ])
+--             (DecrTo
+--                (ExpOp
+--                   ExpCond
+--                   [ ExpOp
+--                       (ExpLt False (TyInt Int32))
+--                       [ ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
+--                       , ExpLit (LitInteger 0)
+--                       ]
+--                   , ExpOp
+--                       ExpCond
+--                       [ ExpOp
+--                           (ExpGt False (TyInt Int32))
+--                           [ ExpLit (LitInteger 100) , ExpLit (LitInteger 0) ]
+--                       , ExpOp
+--                           ExpAdd
+--                           [ ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
+--                           , ExpLit (LitInteger 100)
+--                           ]
+--                       , ExpOp
+--                           ExpSub
+--                           [ ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
+--                           , ExpLit (LitInteger 100)
+--                           ]
+--                       ]
+--                   , ExpOp ExpMod [ ExpLit (LitInteger 0) , ExpLit (LitInteger 100) ]
+--                   ]))
+--             [ Deref
+--                 (TyWord Word32) (VarName "deref3") (ExpVar (VarName "ref1"))
+--             , Store
+--                 (TyWord Word32)
+--                 (ExpVar (VarName "ref1"))
+--                 (ExpOp
+--                    ExpAdd
+--                    [ ExpVar (VarName "deref3")
+--                    , ExpSafeCast (TyInt Int32) (ExpVar (VarName "ix2"))
+--                    ])
+--             ]
+--         , Deref
+--             (TyWord Word32) (VarName "deref4") (ExpVar (VarName "ref1"))
+--         , Return
+--             Typed
+--               { tType = TyWord Word32 , tValue = ExpVar (VarName "deref4") }
+--         ]
