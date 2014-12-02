@@ -95,5 +95,5 @@ library
   ghc-options:          -Wall
 
   if impl(ghc >= 7.8)
-    build-depends:      ghc, hpc
+    build-depends:      ghc, hpc, ghc-srcspan-plugin
     exposed-modules:    Ivory.Language.Plugin
