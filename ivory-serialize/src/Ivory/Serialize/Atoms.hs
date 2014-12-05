@@ -24,6 +24,7 @@ import qualified Paths_ivory_serialize as P
 
 serializeModule :: Module
 serializeModule = package "ivory_serialize" $ do
+  inclHeader serializeHeader
   incl packU8
   incl unpackU8
   incl packS8
