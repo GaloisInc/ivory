@@ -1,7 +1,7 @@
 name:                ivory-eval
 version:             0.1.0.0
 author:              Galois, Inc.
-copyright:           2013 Galois, Inc.
+copyright:           2014 Galois, Inc.
 maintainer:          eseidel@galois.com
 category:            Testing
 build-type:          Simple
