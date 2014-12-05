@@ -33,6 +33,7 @@ test: build
 	./$(BIN)/ivory-concrete
 	# Created from ivory-model-check
 	./$(shell find ivory-model-check/dist/ -path "*/test/test")
+	./$(shell find ivory-eval/dist/ -path "*/test/test")
 
 .PHONY: veryclean
 veryclean:
