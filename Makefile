@@ -7,6 +7,7 @@ PACKAGE= \
   ivory-artifact \
   ivory-backend-acl2 \
   ivory-backend-c \
+  ivory-eval \
   ivory-examples \
   ivory-hw \
   ivory-model-check \
