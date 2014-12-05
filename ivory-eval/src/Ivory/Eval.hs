@@ -3,7 +3,26 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 -- | A simple interpreter for a subset of Ivory.
-module Ivory.Eval where
+module Ivory.Eval
+  ( runEval
+  , runEvalStartingFrom
+  , Error
+  , Eval
+  , EvalState(EvalState)
+  , Value(..)
+  , initState
+  , openModule
+  , evalAssert
+  , evalBlock
+  , evalCond
+  , evalDeref
+  , evalExpr
+  , evalInit
+  , evalLit
+  , evalOp
+  , evalRequires
+  , evalStmt
+  ) where
 
 import           Control.Applicative
 import           Data.Maybe
@@ -272,6 +291,10 @@ evalStmt stmt = case stmt of
   I.Store _ty (I.ExpAddrOfGlobal dst) expr
     -> do val <- evalExpr _ty expr
           writeStore dst val
+  I.Store _ty (I.ExpVar dst) expr
+    -> do val <- evalExpr _ty expr
+          Ref ref <- readStore (varSym dst)
+          writeStore ref val
   I.RefCopy _ty (I.ExpAddrOfGlobal dst) expr
     -> do val <- evalExpr _ty expr
           writeStore dst val
@@ -289,13 +312,14 @@ evalDeref _ty expr = case expr of
   I.ExpLabel tstr str lab
     -> do Struct str <- evalDeref tstr str
           return (fromJust $ Map.lookup lab str)
+  _ -> error $ show expr
 
 readRef :: I.Sym -> Eval Value
 readRef sym = do
   val <- readStore sym
   case val of
     Ref ref -> readStore ref
-    -- _       -> return val
+    _       -> raise $ "Expected Ref, got: " ++ show val
 
 evalAssert :: I.Expr -> Eval ()
 evalAssert asrt = do
@@ -339,6 +363,7 @@ cast toTy _fromTy val = mkVal toTy integer
     Uint16 i -> toInteger i
     Uint32 i -> toInteger i
     Uint64 i -> toInteger i
+    _        -> error $ "Expected number, got: " ++ show val
 
 evalLit :: I.Type -> I.Literal -> Eval Value
 evalLit ty lit = case lit of
@@ -348,6 +373,7 @@ evalLit ty lit = case lit of
   I.LitChar c    -> return (Char c)
   I.LitBool b    -> return (Bool b)
   I.LitString s  -> return (String s)
+  _              -> raise $ "evalLit: can't handle: " ++ show lit
 
 mkVal :: I.Type -> Integer -> Value
 mkVal ty = case ty of
@@ -386,7 +412,8 @@ evalOp I.ExpCond [cond, true, false] =
   case cond of
     Bool True  -> return true
     Bool False -> return false
-    _          -> raise $ "evalStmt: IfTE: expected true or false, got: " ++ show cond
+    _          -> raise $ "evalOp: ExpCond: expected true or false, got: " ++ show cond
+evalOp op args = raise $ "evalOp: can't handle: " ++ show (op, args)
 
 evalInit :: I.Type -> I.Init -> Eval Value
 evalInit ty init = case init of
