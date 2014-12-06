@@ -21,7 +21,7 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [ sumTest ]
+tests = testGroup "Tests" [ sumTest, assertTest ]
 
 
 --------------------------------------------------------------------------------
