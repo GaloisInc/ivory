@@ -46,3 +46,20 @@ test-suite test
                ,  ivory-stdlib
 
   default-language: Haskell2010
+
+executable c-gen
+  hs-source-dirs: test
+  type:           exitcode-stdio-1.0
+  main-is:        GenCode.hs
+  if impl(ghc >= 7.8)
+    ghc-options:        -Wall -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opt=Ivory.Language.Plugin:kill-foreign-stubs
+  else
+    ghc-options:        -Wall
+  build-depends:  base
+               ,  ivory
+               ,  ivory-backend-c
+               ,  ivory-serialize
+               ,  ivory-stdlib
+               ,  ivory-model-check
+
+  default-language: Haskell2010
