@@ -1,5 +1,5 @@
 name:                ivory-quickcheck
-version:             0.1.0.0
+version:             0.2.0.0
 author:              Galois, Inc.
 copyright:           2013 Galois, Inc.
 maintainer:          leepike@galois.com
@@ -17,14 +17,14 @@ source-repository    this
   tag:      hackage-qc-0100
 
 library
-  exposed-modules:      Ivory.QuickCheck,
-                        Ivory.QuickCheck.Arbitrary,
-                        Ivory.QuickCheck.Monad
+  exposed-modules:      Ivory.QuickCheck
   build-depends:        base >= 4.6,
                         monadLib,
                         random,
                         QuickCheck >= 2.7,
-                        ivory
+                        ivory,
+                        ivory-backend-c,
+                        ivory-eval
   hs-source-dirs:       src
   default-language:     Haskell2010
   ghc-options:          -Wall

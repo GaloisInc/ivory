@@ -52,7 +52,7 @@ shouldPass = testGroup "should be safe"
              , mkSuccessInline Heartbeat.packUnpack
                [ Heartbeat.heartbeatModule, serializeModule ]
              , mkSuccess PPM.new_sample_proc
-               [ PPM.ppmModule, PPM.userInputTypeModule ]
+               [ PPM.ppmModule ]
              , mkSuccessInline RingBuffer.push_pop_inv
                [ RingBuffer.testModule ]
              ]
