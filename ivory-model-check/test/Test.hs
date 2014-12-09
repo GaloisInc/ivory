@@ -49,6 +49,7 @@ shouldPass = testGroup "should be safe"
              , mkSuccess foo16 [m16]
              , mkSuccess foo17 [m17]
              , mkSuccess foo18 [m18]
+             , mkSuccess foo19 [m19]
              , mkSuccessInline Heartbeat.packUnpack
                [ Heartbeat.heartbeatModule, serializeModule ]
              , mkSuccess PPM.new_sample_proc
@@ -369,13 +370,13 @@ foo19 = L.proc "foo19" $ \ppms -> body $ do
   all_good <- local (ival L.true)
   ppm_last <- local (iarray [])
   let ppm_valid = addrOf ppm_valid_area
-  -- ppm_valid <- local izero
   arrayMap $ \ix -> do
     x <- deref (ppms ! ix)
     L.unless (x >=? 800 L..&& x <=? 2000)
       (store all_good L.false)
 
   b <- deref all_good
+  L.unless b (store ppm_valid L.false)
   L.when b $ do
     (arrayMap $ \ix -> (deref (ppms ! ix) >>= store (ppm_last ! ix)))
     store ppm_valid L.true

@@ -113,7 +113,7 @@ useful_channels :: Ix 8
 useful_channels = 6
 
 ppm_valid_area :: MemArea (Stored IBool)
-ppm_valid_area = area "ppm_valid" (Just izero) -- XXX: TODO: need to model global inits
+ppm_valid_area = area "ppm_valid" Nothing
 ppm_valid :: Ref Global (Stored IBool)
 ppm_valid = addrOf ppm_valid_area
 

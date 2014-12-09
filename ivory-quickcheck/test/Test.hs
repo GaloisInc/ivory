@@ -13,6 +13,8 @@ import qualified Ivory.Language.Proc   as I
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Stdlib          as L
 import           Ivory.Compile.C.CmdlineFrontend
+
+import           Control.Monad
 import           System.Directory
 import           System.Exit
 import           System.FilePath.Posix
@@ -44,6 +46,7 @@ shouldPass = testGroup "should be safe"
              , mkSuccess foo15 m15
              , mkSuccess foo17 m17
              , mkSuccess foo18 m18
+             , mkSuccess foo19 m19
              ]
 
 shouldFail :: TestTree
@@ -67,7 +70,8 @@ quickCheck :: Def (args :-> res) -> Module -> IO Bool
 quickCheck d@(~(I.DefProc p)) m = do
   tmpDir <- getTemporaryDirectory
   let testDir = tmpDir </> "ivory-quickcheck" </> I.procSym p
-  removeDirectoryRecursive testDir
+  b <- doesDirectoryExist testDir
+  when b $ removeDirectoryRecursive testDir
   checkWith 100 (initialOpts { outDir = Just testDir }) [] m (contract d)
   let cmd = printf "(cd %s && cc -DIVORY_TEST *.c && ./a.out)" testDir
   (_,_,_,pid) <- runInteractiveCommand cmd
@@ -77,7 +81,7 @@ quickCheck d@(~(I.DefProc p)) m = do
 --------------------------------------------------------------------------------
 -- test modules
 
-foo1 :: Def ('[Uint8, Uint8] :-> ())
+foo1 :: Def ('[Ix 10, Ix 10] :-> ())
 foo1 = L.proc "foo1" $ \y x -> body $ do
   ifte_ (y <? 3)
     (do ifte_ (y ==? 3)
@@ -274,13 +278,13 @@ foo19 = L.proc "foo19" $ \ppms -> body $ do
   all_good <- local (ival L.true)
   ppm_last <- local (iarray [])
   let ppm_valid = addrOf ppm_valid_area
-  -- ppm_valid <- local izero
   arrayMap $ \ix -> do
     x <- deref (ppms ! ix)
     L.unless (x >=? 800 L..&& x <=? 2000)
       (store all_good L.false)
 
   b <- deref all_good
+  L.unless b (store ppm_valid L.false)
   L.when b $ do
     (arrayMap $ \ix -> (deref (ppms ! ix) >>= store (ppm_last ! ix)))
     store ppm_valid L.true
