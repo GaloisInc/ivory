@@ -25,7 +25,8 @@ cabal.sandbox.config:
 .PHONY: build
 build: cabal.sandbox.config
 	cabal sandbox add-source $(PACKAGEDIR)
-	cabal install $(PACKAGEDIR)
+	cabal install --only-dependencies
+	cabal install -j1 $(PACKAGEDIR)
 
 .PHONY: test
 test: build
