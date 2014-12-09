@@ -38,9 +38,9 @@
 -- > -- Running @mkTest@ will produce a C program in @<pwd>/test@ that will check
 -- > -- @func@'s contract on 10 random inputs.
 -- > mkTest :: IO ()
--- > mkTest = check 10 cmodule (contract func)
+-- > mkTest = check 10 [] cmodule (contract func)
 
-module Ivory.QuickCheck (check, contract) where
+module Ivory.QuickCheck (check, checkWith, contract) where
 
 import           Control.Applicative
 import           Control.Monad
@@ -64,17 +64,18 @@ import           Data.Word
 
 -- | Generate a random C program to check that the property holds. The
 -- generated program will be placed in the @test@ subdirectory.
-check :: Int                  -- ^ The number of inputs to generate.
-      -> [Module]             -- ^ Modules we need to have in scope.
-      -> Module               -- ^ The defining module.
-      -> Def (args :-> IBool) -- ^ The property to check.
-      -> IO ()
-check n deps m prop@(DefProc p) = do
+checkWith :: Int                  -- ^ The number of inputs to generate.
+          -> Opts                 -- ^ Options to pass to the Ivory compiler.
+          -> [Module]             -- ^ Modules we need to have in scope.
+          -> Module               -- ^ The defining module.
+          -> Def (args :-> IBool) -- ^ The property to check.
+          -> IO ()
+checkWith n opts deps m prop@(DefProc p) = do
   inputs <- sampleProc m p n
   let main = DefProc I.Proc { I.procSym = "main"
-                            , I.procRetTy = I.TyVoid
+                            , I.procRetTy = I.TyInt I.Int32
                             , I.procArgs = []
-                            , I.procBody = concat inputs
+                            , I.procBody = concat inputs ++ [I.Return $ I.Typed (I.TyInt I.Int32) (I.ExpLit (I.LitInteger 0))]
                             , I.procRequires = []
                             , I.procEnsures = []
                             }
@@ -82,8 +83,17 @@ check n deps m prop@(DefProc p) = do
                depend m
                incl prop
                incl main
-  runCompiler ([m, test]++deps) [] initialOpts { outDir = Just "test" }
-check _ _ _ _ = error "I can only check normal Ivory procs!"
+  runCompiler ([m, test]++deps) [] opts -- initialOpts { outDir = Just "test" }
+checkWith _ _ _ _ _ = error "I can only check normal Ivory procs!"
+
+-- | Generate a random C program to check that the property holds. The
+-- generated program will be placed in the @test@ subdirectory.
+check :: Int                  -- ^ The number of inputs to generate.
+      -> [Module]             -- ^ Modules we need to have in scope.
+      -> Module               -- ^ The defining module.
+      -> Def (args :-> IBool) -- ^ The property to check.
+      -> IO ()
+check n deps m p = checkWith n (initialOpts { outDir = Just "test"}) deps m p
 
 -- | Make a @check@able property from an arbitrary Ivory procedure. The
 -- property will simply check that the contracts are satisfied.
@@ -126,8 +136,7 @@ sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
                    inits
        --XXX: Refactor!
        let validInits =
-             [ (inits, areas)
-             | (inits, areas) <- zip allInits allAreas
+             [ (inits, areas) | (inits, areas) <- zipLonger allInits allAreas
              , let (vars, blcks) = unzip inits
              , let asgnv = [ I.Assign ty arg (I.ExpVar var)
                            | (I.Typed ty arg, var) <- zip procArgs vars
@@ -295,3 +304,6 @@ lazyMapIO f (a:as) = do
   b  <- f a
   bs <- unsafeInterleaveIO (lazyMapIO f as)
   return (b : bs)
+
+zipLonger :: [[a]] -> [[b]] -> [([a], [b])]
+zipLonger as bs = zip (as ++ repeat []) (bs ++ repeat [])
