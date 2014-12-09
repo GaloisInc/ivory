@@ -18,6 +18,7 @@ import           Control.Monad
 import           System.Directory
 import           System.Exit
 import           System.FilePath.Posix
+import           System.IO
 import           System.Process
 
 import           Ivory.QuickCheck
@@ -57,26 +58,28 @@ shouldFail = testGroup "should be unsafe"
 
 mkSuccess :: Def (args :-> res) -> Module -> TestTree
 mkSuccess d@(~(I.DefProc p)) m = testCase (I.procSym p) $ do
-  r <- quickCheck d m
-  assertBool "Expected quickcheck to pass" r
+  (o, r) <- quickCheck d m
+  assertBool ("Expected quickcheck to pass: output:\n" ++ o) r
 
 mkFailure :: Def (args :-> res) -> Module -> TestTree
 mkFailure d@(~(I.DefProc p)) m = testCase (I.procSym p) $ do
-  r <- quickCheck d m
-  assertBool "Expected quickcheck to fail" (not r)
+  (o, r) <- quickCheck d m
+  assertBool ("Expected quickcheck to fail: output:\n" ++ o) (not r)
 
 
-quickCheck :: Def (args :-> res) -> Module -> IO Bool
+quickCheck :: Def (args :-> res) -> Module -> IO (String, Bool)
 quickCheck d@(~(I.DefProc p)) m = do
   tmpDir <- getTemporaryDirectory
   let testDir = tmpDir </> "ivory-quickcheck" </> I.procSym p
   b <- doesDirectoryExist testDir
   when b $ removeDirectoryRecursive testDir
   checkWith 100 (initialOpts { outDir = Just testDir }) [] m (contract d)
-  let cmd = printf "(cd %s && cc -DIVORY_TEST *.c && ./a.out)" testDir
-  (_,_,_,pid) <- runInteractiveCommand cmd
+  let cmd = printf "(cd %s && cc -std=c99 -DIVORY_TEST *.c && ./a.out)" testDir
+  (_,oh,eh,pid) <- runInteractiveCommand cmd
   code <- waitForProcess pid
-  return (code == ExitSuccess)
+  out <- hGetContents oh
+  err <- hGetContents eh
+  return (out ++ "\n" ++ err, code == ExitSuccess)
 
 --------------------------------------------------------------------------------
 -- test modules
