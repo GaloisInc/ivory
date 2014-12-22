@@ -149,7 +149,7 @@ toParam ty = case ty of
 -- arrays, and carrays to pointers.
 toType :: I.Type -> C.Type
 toType  = toTypeCxt $ \ t -> case t of
-  I.TyCArray t'  -> [cty| $ty:(toType t') *          |]
+  I.TyCArray  t' -> [cty| $ty:(toType t') *          |]
   I.TyArr len t' -> [cty| $ty:(toType t')[$uint:len] |]
   _              -> [cty| $ty:(toType t) *           |]
 
@@ -159,7 +159,7 @@ toType  = toTypeCxt $ \ t -> case t of
 toTypeAssign :: I.Type -> C.Type
 toTypeAssign  = toTypeCxt $ \ t -> case t of
   I.TyCArray t'  -> [cty| $ty:(toTypeAssign t') * |]
-  I.TyArr _   t' -> [cty| $ty:(toTypeAssign t') * |]
+  I.TyArr _  t'  -> [cty| $ty:(toTypeAssign t') * |]
   _              -> [cty| $ty:(toTypeAssign t)  * |]
 
 --------------------------------------------------------------------------------
@@ -538,12 +538,6 @@ toExpOp ty op args = case op of
   I.ExpRoundF    -> floatingUnary ty "round" args
   I.ExpCeilF     -> floatingUnary ty "ceil"  args
   I.ExpFloorF    -> floatingUnary ty "floor" args
-
-  -- -- float casting
-  -- I.ExpToFloat ety   -> let xs = mkArgs ety args in
-  --                       [cexp| ($ty:(toType ty))($exp:(exp0 xs)) |]
-  -- I.ExpFromFloat ety ->
-  --   [cexp| ($ty:(toType ty))($exp:(floatingUnary ety "trunc" args)) |]
 
   -- bit operations
   I.ExpBitAnd        -> let xs = mkArgs ty args in
