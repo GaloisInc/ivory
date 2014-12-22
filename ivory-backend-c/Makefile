@@ -8,3 +8,8 @@ create-sandbox:
 	cabal sandbox add-source ../ivory-opts
 	cabal sandbox add-source ../ivory-artifact
 	cabal install --dependencies-only
+
+clean:
+	-rm -rf dist
+	-rm -rf cabal.sandbox.config
+	-rm -rf .cabal-sandbox
