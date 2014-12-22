@@ -43,6 +43,7 @@ create-sandbox:
 	cabal sandbox add-source ../ivory-stdlib
 	cabal sandbox add-source ../ivory-backend-c
 	cabal sandbox add-source ../ivory-artifact
+	cabal sandbox add-source ../ivory-eval
 	cabal sandbox add-source ../ivory-quickcheck
 	cabal install --dependencies-only
 
