@@ -153,20 +153,26 @@ toParam ty = case ty of
 toType :: I.Type -> C.Type
 toType = toTypeCxt arrIxTy
   where
-  -- Invariant: ty is wrapped in a Ref or Ptr.
+  -- Invariant: ty is wrapped in a Ref, ConstRef, or Ptr.
   arrIxTy t = case t of
-    I.TyArr len t' -> [cty| $ty:(toTypeCxt arrIxTy t')[$uint:len] |]
-    _              -> [cty| $ty:(toTypeCxt arrIxTy t ) *          |]
+    I.TyArr    len t'
+      -> [cty| $ty:(toTypeCxt arrIxTy t')[$uint:len] |]
+    I.TyCArray t'
+      -> [cty| $ty:(toTypeCxt arrIxTy t') *          |]
+    _ -> [cty| $ty:(toTypeCxt arrIxTy t ) *          |]
 
 -- | Type conversion in the context of a cast, converting all arrays/carrays to
 -- pointers.
 toTypeCast :: I.Type -> C.Type
 toTypeCast = toTypeCxt arrIxTy
   where
-  -- Invariant: ty is wrapped in a Ref or Ptr.
+  -- Invariant: ty is wrapped in a Ref, ConstRef, or Ptr.
   arrIxTy t = case t of
-   I.TyArr len t' -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
-   _              -> [cty| $ty:(toTypeCxt arrIxTy t ) * |]
+   I.TyArr    len t'
+     -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
+   I.TyCArray t'
+     -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
+   _ -> [cty| $ty:(toTypeCxt arrIxTy t ) * |]
 
 -- | C type conversion, with a special case for references and pointers.
 toTypeCxt :: (I.Type -> C.Type) -> I.Type -> C.Type
