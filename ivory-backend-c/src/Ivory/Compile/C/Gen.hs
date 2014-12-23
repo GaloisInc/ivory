@@ -221,8 +221,9 @@ toBody :: [I.Cond] -> I.Stmt -> [C.BlockItem]
 toBody ens stmt =
   let toBody' = toBody ens in
   case stmt of
+    -- t is the ref type.
     I.Assign t v exp       ->
-      [C.BlockDecl [cdecl| $ty:(toTypeAssign t) $id:(toVar v)
+      [C.BlockDecl [cdecl| $ty:(toTypeCast t) $id:(toVar v)
                          = $exp:(toExpr t exp); |]]
     I.IfTE exp blk0 blk1   ->
       let ifBd   = concatMap toBody' blk0 in
@@ -361,7 +362,7 @@ toExpr _ (I.ExpVar var)  = [cexp| $id:(toVar var) |]
 toExpr t (I.ExpLit lit)  =
   case lit of
     -- XXX hack: should make type-correct literals.
-    I.LitInteger i -> [cexp| ($ty:(toType t))$id:fromInt |]
+    I.LitInteger i -> [cexp| ($ty:(toTypeCast t))$id:fromInt |]
       where fromInt = case t of
                         I.TyWord _  -> show i ++ "U"
                         I.TyInt  _  -> show i
@@ -377,7 +378,8 @@ toExpr t (I.ExpLit lit)  =
     I.LitFloat f   -> [cexp| $id:(show f ++ "f") |]
     I.LitDouble d  -> [cexp| $id:(show d) |]
 ----------------------------------------
-toExpr t (I.ExpOp op args) = [cexp| ($ty:(toType t)) $exp:(toExpOp t op args) |]
+toExpr t (I.ExpOp op args) =
+  [cexp| ($ty:(toTypeCast t)) $exp:(toExpOp t op args) |]
 ----------------------------------------
 toExpr _ (I.ExpSym sym) = [cexp| $id:sym |]
 ----------------------------------------
@@ -402,7 +404,7 @@ toExpr t (I.ExpIndex at a ti i) = case t of
     [cexp| ($exp:(toExpr (constr at) a) [$exp:(toExpr ti i)]) |]
 ----------------------------------------
 toExpr tTo (I.ExpSafeCast tFrom e) =
-  [cexp| ($ty:(toType tTo))$exp:(toExpr tFrom e) |]
+  [cexp| ($ty:(toTypeCast tTo))$exp:(toExpr tFrom e) |]
 ----------------------------------------
 toExpr _ (I.ExpToIx e maxSz) =
   [cexp| $exp:(toExpr I.ixRep e ) % $exp:maxSz |]
@@ -531,10 +533,10 @@ toExpOp ty op args = case op of
   -- float operations
   -- XXX this needs to add a dependency on <math.h>
   I.ExpIsNan ety -> let xs = mkArgs ety args in
-                    [cexp| ($ty:(toType I.TyBool)) (isnan($exp:(exp0 xs))) |]
+                    [cexp| ($ty:(toTypeCast I.TyBool)) (isnan($exp:(exp0 xs))) |]
   -- isinf returns -1 for negative infinity and 1 for positive infinity.
   I.ExpIsInf ety -> let xs = mkArgs ety args in
-                    [cexp| ($ty:(toType I.TyBool)) (isinf($exp:(exp0 xs))) |]
+                    [cexp| ($ty:(toTypeCast I.TyBool)) (isinf($exp:(exp0 xs))) |]
   I.ExpRoundF    -> floatingUnary ty "round" args
   I.ExpCeilF     -> floatingUnary ty "ceil"  args
   I.ExpFloorF    -> floatingUnary ty "floor" args
