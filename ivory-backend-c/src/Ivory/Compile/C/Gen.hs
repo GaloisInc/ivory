@@ -256,14 +256,15 @@ toBody ens stmt =
                 I.TyCArray _ -> [cexp| * $exp:e |]
                 _            -> [cexp|   $exp:e |]
       e = case exp of
-            I.ExpLabel t' e' field ->
-              [cexp| $exp:(toExpr (I.TyRef t') e') -> $id:field |]
-            I.ExpIndex t' e' ti i  ->
-              [cexp| $exp:(toExpr (I.TyRef t') e') [$exp:(toExpr ti i)] |]
-            _                      -> [cexp| * $exp:(toExpr (I.TyRef t) exp) |]
+            I.ExpLabel t' e' field
+              -> [cexp| $exp:(toExpr (I.TyRef t') e') -> $id:field |]
+            I.ExpIndex t' e' ti i
+              -> [cexp| $exp:(toExpr (I.TyRef t') e') [$exp:(toExpr ti i)] |]
+            _ -> [cexp| * $exp:(toExpr (I.TyRef t) exp) |]
 
     I.Local t var inits    -> [C.BlockDecl
-      [cdecl| $ty:(toType t) $id:(toVar var) = $init:(toInit inits); |]]
+      [cdecl| $ty:(toType t) $id:(toVar var)
+                = $init:(toInit inits); |]]
     -- Can't do a static check since we have local let bindings.
     I.RefCopy t vto vfrom  ->
       [C.BlockStm [cstm| if( $exp:toRef != $exp:fromRef) {
@@ -395,7 +396,7 @@ toExpr t (I.ExpLabel t' e field) = case t of
   I.TyConstRef (I.TyCArray _) -> getField
   _                           ->
     [cexp| &($exp:(toExpr (I.TyRef t') e) -> $id:field) |]
-  where getField = [cexp| ($exp:(toExpr  t' e) -> $id:field) |]
+  where getField = [cexp| ($exp:(toExpr t' e) -> $id:field) |]
 ----------------------------------------
 toExpr t (I.ExpIndex at a ti i) = case t of
   I.TyRef (I.TyArr _ _)       -> expIdx I.TyRef
