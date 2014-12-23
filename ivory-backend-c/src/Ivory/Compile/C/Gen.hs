@@ -145,24 +145,29 @@ toParam ty = case ty of
   C.Type spec decl loc -> C.Param Nothing spec decl loc
   _                    -> error "toParam: unexpected anti-quote"
 
--- | Type conversion outside of an assignment context.  This converts arrays to
+--------------------------------------------------------------------------------
+-- Types
+
+-- | Type conversion outside of an casting context. This converts arrays to
 -- arrays, and carrays to pointers.
 toType :: I.Type -> C.Type
-toType  = toTypeCxt $ \ t -> case t of
-  I.TyCArray  t' -> [cty| $ty:(toType t') *          |]
-  I.TyArr len t' -> [cty| $ty:(toType t')[$uint:len] |]
-  _              -> [cty| $ty:(toType t) *           |]
+toType = toTypeCxt arrIxTy
+  where
+  -- Invariant: ty is wrapped in a Ref or Ptr.
+  arrIxTy t = case t of
+    I.TyArr len t' -> [cty| $ty:(toTypeCxt arrIxTy t')[$uint:len] |]
+    _              -> [cty| $ty:(toTypeCxt arrIxTy t ) *          |]
 
+-- | Type conversion in the context of a cast, converting all arrays/carrays to
+-- pointers.
+toTypeCast :: I.Type -> C.Type
+toTypeCast = toTypeCxt arrIxTy
+  where
+  -- Invariant: ty is wrapped in a Ref or Ptr.
+  arrIxTy t = case t of
+   I.TyArr len t' -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
+   _              -> [cty| $ty:(toTypeCxt arrIxTy t ) * |]
 
--- | Type conversion in the context of an assignment.
--- This converts all arrays/carrays to pointers.
-toTypeAssign :: I.Type -> C.Type
-toTypeAssign  = toTypeCxt $ \ t -> case t of
-  I.TyCArray t'  -> [cty| $ty:(toTypeAssign t') * |]
-  I.TyArr _  t'  -> [cty| $ty:(toTypeAssign t') * |]
-  _              -> [cty| $ty:(toTypeAssign t)  * |]
-
---------------------------------------------------------------------------------
 -- | C type conversion, with a special case for references and pointers.
 toTypeCxt :: (I.Type -> C.Type) -> I.Type -> C.Type
 toTypeCxt arrCase = convert
@@ -172,17 +177,17 @@ toTypeCxt arrCase = convert
     I.TyChar              -> [cty| char |]
     I.TyInt i             -> intSize i
     I.TyWord w            -> wordSize w
-    I.TyIndex _           -> toTypeCxt arrCase I.ixRep
+    I.TyIndex _           -> convert I.ixRep
     I.TyBool              -> [cty| typename bool |]
     I.TyFloat             -> [cty| float |]
     I.TyDouble            -> [cty| double |]
     I.TyStruct nm         -> [cty| struct $id:nm |]
-    I.TyConstRef t        -> [cty| const $ty:(arrCase t) |]
-    -- Reference is a guaranted non-NULL pointer.
+    -- ConstRef always wraps a ref, which adds the ptr.
+    I.TyConstRef t        -> [cty| const $ty:(convert t) |]
     I.TyRef t             -> arrCase t
     I.TyPtr t             -> arrCase t
-    I.TyArr len t         -> [cty| $ty:(convert t)[$uint:len] |]
     I.TyCArray t          -> [cty| $ty:(convert t) * |]
+    I.TyArr len t         -> [cty| $ty:(convert t)[$uint:len] |]
     I.TyProc retTy argTys ->
       [cty| $ty:(convert retTy) (*)
             ($params:(map (toParam . convert) argTys)) |]
