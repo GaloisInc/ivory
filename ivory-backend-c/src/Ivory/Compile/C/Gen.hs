@@ -182,8 +182,7 @@ toTypeCxt arrCase = convert
     I.TyFloat             -> [cty| float |]
     I.TyDouble            -> [cty| double |]
     I.TyStruct nm         -> [cty| struct $id:nm |]
-    -- ConstRef always wraps a ref, which adds the ptr.
-    I.TyConstRef t        -> [cty| const $ty:(convert t) |]
+    I.TyConstRef t        -> [cty| const $ty:(arrCase t) |]
     I.TyRef t             -> arrCase t
     I.TyPtr t             -> arrCase t
     I.TyCArray t          -> [cty| $ty:(convert t) * |]
