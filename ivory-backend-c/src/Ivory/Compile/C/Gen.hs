@@ -134,7 +134,8 @@ extractProto visibility I.Proc { I.procSym   = sym
 
 -- | Argument conversion.
 toArgs :: [I.Typed I.Var] -> [C.Param]
-toArgs = foldl' go [] . reverse
+toArgs [] = [[cparam| void |]]
+toArgs ls = foldl' go [] (reverse ls)
   where
   go acc I.Typed { I.tType  = t
                  , I.tValue = v }

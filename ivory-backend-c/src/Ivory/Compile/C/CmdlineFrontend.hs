@@ -55,9 +55,9 @@ runCompilerWith sm modules artifacts opts = do
   let (bs, msgs) = concatRes (map tcMod modules)
   putStrLn msgs
   when (scErrors opts) $ do
-    let (bs, msgs) = concatRes (map scMod modules)
-    when bs $ do
-      putStrLn msgs
+    let (bs', msgs') = concatRes (map scMod modules)
+    when bs' $ do
+      putStrLn msgs'
       error "Sanity-check failed!"
   when (tcErrors opts && bs) (error "There were type-checking errors.")
   rc (maybe G.defaultSizeMap id sm) modules artifacts opts
