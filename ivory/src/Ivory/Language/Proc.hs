@@ -18,6 +18,7 @@ import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Type
 import Ivory.Language.Effects
+import qualified Ivory.Language.Ref as R
 import qualified Ivory.Language.Effects as E
 import qualified Ivory.Language.Syntax as AST
 
@@ -59,6 +60,7 @@ instance ProcType proc => IvoryVar (ProcPtr proc) where
 procPtr :: ProcType sig => Def sig -> ProcPtr sig
 procPtr  = ProcPtr . defSymbol
 
+instance ProcType proc => R.IvoryStore (ProcPtr proc)
 
 -- Function Symbols ------------------------------------------------------------
 
