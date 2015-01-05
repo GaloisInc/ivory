@@ -1,0 +1,165 @@
+%-----------------------------------------------------------------------------
+%
+%               Template for sigplanconf LaTeX Class
+%
+% Name:         sigplanconf-template.tex
+%
+% Purpose:      A template for sigplanconf.cls, which is a LaTeX 2e class
+%               file for SIGPLAN conference proceedings.
+%
+% Guide:        Refer to "Author's Guide to the ACM SIGPLAN Class,"
+%               sigplanconf-guide.pdf
+%
+% Author:       Paul C. Anagnostopoulos
+%               Windfall Software
+%               978 371-2316
+%               paul@windfall.com
+%
+% Created:      15 February 2005
+%
+%-----------------------------------------------------------------------------
+
+
+\documentclass{sigplanconf}
+
+% The following \documentclass options may be useful:
+
+% preprint      Remove this option only once the paper is in final form.
+% 10pt          To set in 10-point type instead of 9-point.
+% 11pt          To set in 11-point type instead of 9-point.
+% authoryear    To obtain author/year citation style instead of numeric.
+
+\usepackage{ifthen}
+\usepackage{color}
+\usepackage{framed}
+\usepackage{paralist}
+\usepackage{mathtools}
+\usepackage{alltt}
+\usepackage{textcomp}
+\usepackage{fixltx2e}
+\usepackage{url}
+\usepackage{flushend}
+
+\newboolean{td}
+  \setboolean{td}{true} % modify here
+  \ifthenelse{\boolean{td}}
+             {\newcommand{\pat}[1]{\textcolor{blue}{PH: #1}}
+              \newcommand{\lee}[1]{\textcolor{blue}{LP: #1}}
+              \newcommand{\simon}[1]{\textcolor{blue}{SW: #1}}
+              \newcommand{\trevor}[1]{\textcolor{blue}{TE: #1}}
+             }
+             {\newcommand{\ph}[1]{}
+               \newcommand{\lp}[1]{}
+             }
+
+\newcommand{\mytilde}{\raise.17ex\hbox{$\scriptstyle\mathtt{\sim}$}}
+\newenvironment{code}{\begin{alltt}\footnotesize}{\end{alltt}}
+\newenvironment{smcode}{\begin{alltt}\scriptsize}{\end{alltt}}
+
+%% \newenvironment{cols}{\begin{tabular}{m{3.6cm}|m{3.6cm}} &
+%%     \\\hline}{\end{tabular}}
+
+\newcommand{\cd}[1]{\texttt{#1}}
+
+\begin{document}
+
+\special{papersize=8.5in,11in}
+\setlength{\pdfpageheight}{\paperheight}
+\setlength{\pdfpagewidth}{\paperwidth}
+
+\conferenceinfo{ICFP~'14}{September 1--6, 2014, Gothenburg, Sweden}
+\copyrightyear{2014}
+\copyrightdata{978-1-4503-2873-9/14/09}
+\doi{2628136.2628146}
+
+% Uncomment one of the following two, if you are not going for the 
+% traditional copyright transfer agreement.
+
+%\exclusivelicense                % ACM gets exclusive license to publish, 
+                                  % you retain copyright
+
+\permissiontopublish             % ACM gets nonexclusive license to publish
+                                  % (paid open-access papers, 
+                                  % short abstracts)
+
+\titlebanner{Under submission}        % These are ignored unless
+\preprintfooter{short description of paper}   % 'preprint' option specified.
+
+\title{Ivory}
+\subtitle{catchy subtitle}
+
+\authorinfo{Trevor decides authors and order}
+           {Galois, Inc.}
+           {\{foobar\}@galois.com}
+%% \authorinfo{Name2\and Name3}
+%%            {Affiliation2/3}
+%%            {Email2/3}
+
+\maketitle
+
+\begin{abstract}
+\lee{I'll write it}
+\end{abstract}
+
+\category{D.3.2}{Language Classifications}{Applicative (functional) languages}
+
+% general terms are not compulsory anymore,
+% you may leave them out
+%% \terms
+%% term1, term2
+
+\keywords
+Embedded Domain Specific Languages; Embedded Systems
+
+\input{intro}
+
+\input{overview}
+
+\input{ivory-embedding}
+
+\input{semantics}
+
+\input{tools}
+
+\input{edsl}
+
+\input{related-work}
+
+\input{conclusion}
+
+
+%% \appendix
+%% \section{Appendix Title}
+
+
+
+\acks
+
+This work is supported by DARPA under contract no. FA8750-12-9-0169.  Opinions
+expressed herein are our own.
+
+% We recommend abbrvnat bibliography style.
+
+\bibliographystyle{abbrvnat}
+\bibliography{paper}
+
+% The bibliography should be embedded for final submission.
+
+%% \begin{thebibliography}{}
+%% \softraggedright
+
+%% \bibitem[Smith et~al.(2009)Smith, Jones]{smith02}
+%% P. Q. Smith, and X. Y. Jones. ...reference text...
+
+%% \end{thebibliography}
+
+
+\end{document}
+
+%                       Revision History
+%                       -------- -------
+%  Date         Person  Ver.    Change
+%  ----         ------  ----    ------
+
+%  2013.06.29   TU      0.1--4  comments on permission/copyright notices
+
