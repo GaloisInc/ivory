@@ -25,9 +25,9 @@ cabal.sandbox.config:
 .PHONY: build
 build: cabal.sandbox.config
 	cabal sandbox add-source $(PACKAGEDIR)
-	cabal install --only-dependencies $(PACKAGEDIR)
-	cabal install -j1 $(PACKAGEDIR)
+	cabal install $(PACKAGEDIR)
 
+# Can't do `cabal run` since there's no cabal file at the top level.
 .PHONY: test
 test: build
 	./$(BIN)/ivory-c-clang-test clang-test-dir
