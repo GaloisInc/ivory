@@ -7,7 +7,7 @@
 module Area where
 
 import Ivory.Language
-
+import Ivory.Compile.C.CmdlineFrontend
 
 [ivory|
 
@@ -39,3 +39,6 @@ cmodule = package "Area" $ do
   defMemArea val
   defConstMemArea cval
   defStruct (Proxy :: Proxy "val")
+
+main :: IO ()
+main = runCompiler [cmodule] [] initialOpts { outDir = Nothing, constFold = True }
