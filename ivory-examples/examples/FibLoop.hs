@@ -28,7 +28,7 @@ fib_loop  = proc "fib_loop" $ \ n -> body $ do
   a <- local (ival 0)
   b <- local (ival 0)
   comment "before loop"
-  n `times` \ _ -> do
+  n `times` \ _ix -> do
     comment "inside top of loop"
     a' <- deref a
     b' <- deref b
