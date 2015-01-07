@@ -91,18 +91,16 @@ makeArea sym isConst ty ini = I.Area
   }
 
 -- | Define a global constant.
-area :: forall area. IvoryArea area
+area :: forall area. (IvoryArea area, IvoryZero area)
      => I.Sym -> Maybe (Init area) -> MemArea area
-area sym (Just ini) = MemArea a1 as
+area sym mIni = MemArea a1 as
   where
-  (ini', binds) = areaInit sym ini
+  (ini', binds) = case mIni of
+                    Just ini -> areaInit sym ini
+                    Nothing  -> areaInit sym (izero :: Init area)
   ty            = ivoryArea (Proxy :: Proxy area)
   a1            = makeArea sym False ty ini'
   as            = map (bindingArea False) binds
-area sym Nothing = MemArea a1 []
-  where
-  ty = ivoryArea (Proxy :: Proxy area)
-  a1 = makeArea sym False ty I.zeroInit
 
 -- | Import an external symbol from a header.
 importArea :: IvoryArea area => I.Sym -> String -> MemArea area
