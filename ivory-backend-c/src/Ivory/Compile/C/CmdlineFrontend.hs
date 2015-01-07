@@ -18,6 +18,7 @@ import           Ivory.Artifact
 import           Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Opts.BitShift        as O
 import qualified Ivory.Opts.ConstFold       as O
+import qualified Ivory.Opts.CSE             as O
 import qualified Ivory.Opts.Overflow        as O
 import qualified Ivory.Opts.DivZero         as O
 import qualified Ivory.Opts.Index           as O
@@ -143,12 +144,18 @@ rc sm modules artifacts opts
 
   mkPass passOpt pass = if passOpt opts then pass else id
 
-  -- Constant folding before and after all other passes.
+  -- CSE first, because it uses observable sharing for efficiency, which will
+  -- be lost if any other re-writes happen before it.
+  --
+  -- Next, prune any source locations we don't need.
+  --
+  -- Finally, constant folding before and after all assertion passes.
   --
   -- XXX This should be made more efficient at some point, since each pass
   --traverses the AST.  It's not obvious how to do that cleanly, though.
   passes e = foldl' (flip ($)) e
-    [ locPass
+    [ O.cseFold
+    , locPass
     , cfPass
     , ofPass, dzPass, fpPass, ixPass, bsPass
     , cfPass
