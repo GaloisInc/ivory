@@ -93,12 +93,19 @@ toExpr (ExpToIxF ex bound) = AST.ExpToIx ex bound
 toExpr (ExpSafeCastF ty ex) = AST.ExpSafeCast ty ex
 toExpr (ExpOpF op args) = AST.ExpOp op args
 
+-- | Wrap the second type in either TyRef or TyConstRef, according to
+-- whether the first argument was a constant ref.
+copyConst :: AST.Type -> AST.Type -> AST.Type
+copyConst (AST.TyRef _) ty = AST.TyRef ty
+copyConst (AST.TyConstRef _) ty = AST.TyConstRef ty
+copyConst ty _ = error $ "Ivory.Opts.CSE.copyConst: expected a Ref type but got " ++ show ty
+
 -- | Label all sub-expressions with the type at which they're used,
 -- assuming that this expression is used at the given type.
 labelTypes :: AST.Type -> ExprF k -> ExprF (k, AST.Type)
 labelTypes _ (ExpSimpleF e) = ExpSimpleF e
-labelTypes _ (ExpLabelF ty ex nm) = ExpLabelF ty (ex, AST.TyRef ty) nm
-labelTypes _ (ExpIndexF ty1 ex1 ty2 ex2) = ExpIndexF ty1 (ex1, AST.TyRef ty1) ty2 (ex2, ty2)
+labelTypes resty (ExpLabelF ty ex nm) = ExpLabelF ty (ex, copyConst resty ty) nm
+labelTypes resty (ExpIndexF ty1 ex1 ty2 ex2) = ExpIndexF ty1 (ex1, copyConst resty ty1) ty2 (ex2, ty2)
 labelTypes _ (ExpToIxF ex bd) = ExpToIxF (ex, ixRep) bd
 labelTypes _ (ExpSafeCastF ty ex) = ExpSafeCastF ty (ex, ty)
 labelTypes ty (ExpOpF op args) = ExpOpF op $ case op of
@@ -151,7 +158,10 @@ toBlock :: (k -> AST.Type -> BlockM AST.Expr) -> (k -> BlockM ()) -> BlockF k ->
 toBlock expr block b = case b of
   StmtSimple s -> stmt $ return s
   StmtIfTE ex tb fb -> stmt $ AST.IfTE <$> expr ex AST.TyBool <*> genBlock (block tb) <*> genBlock (block fb)
-  StmtDeref ty var ex -> stmt $ AST.Deref ty var <$> expr ex (AST.TyRef ty)
+  -- XXX: The AST does not preserve whether the RHS of a deref was for a
+  -- const ref, but it's safe to assume it's const.
+  StmtDeref ty var ex -> stmt $ AST.Deref ty var <$> expr ex (AST.TyConstRef ty)
+  -- XXX: The LHS of a store must not have been const.
   StmtStore ty lhs rhs -> stmt $ AST.Store ty <$> expr lhs (AST.TyRef ty) <*> expr rhs ty
   StmtAssign ty var ex -> stmt $ AST.Assign ty var <$> expr ex ty
   Block stmts -> mapM_ block stmts
