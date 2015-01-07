@@ -34,11 +34,21 @@
 \usepackage{framed}
 \usepackage{paralist}
 \usepackage{mathtools}
-\usepackage{alltt}
+\usepackage{listings}
 \usepackage{textcomp}
 \usepackage{fixltx2e}
 \usepackage{url}
 \usepackage{flushend}
+\usepackage{bold-extra}
+
+% Language definition for both quasi-quoted Ivory, and Haskell.
+\lstdefinelanguage{Ivory}
+{morekeywords={struct,data,where,let,in,proc},
+ sensitive=true,
+ morestring=[b]",
+}
+
+\lstset{language=Ivory}
 
 \newboolean{td}
   \setboolean{td}{true} % modify here
@@ -54,8 +64,12 @@
              }
 
 \newcommand{\mytilde}{\raise.17ex\hbox{$\scriptstyle\mathtt{\sim}$}}
-\newenvironment{code}{\begin{alltt}\footnotesize}{\end{alltt}}
-\newenvironment{smcode}{\begin{alltt}\scriptsize}{\end{alltt}}
+\lstnewenvironment{code}[1][]
+  {\lstset{basicstyle=\small\ttfamily,#1}}
+  {}
+\lstnewenvironment{smcode}[1][]
+  {\lstset{basicstyle=\scriptsize\ttfamily,#1}}
+  {}
 
 %% \newenvironment{cols}{\begin{tabular}{m{3.6cm}|m{3.6cm}} &
 %%     \\\hline}{\end{tabular}}
