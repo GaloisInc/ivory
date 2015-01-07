@@ -90,8 +90,10 @@ makeArea sym isConst ty ini = I.Area
   , I.areaInit  = ini
   }
 
--- | Define a global constant.
-area :: forall area. IvoryArea area
+-- | Define a global constant. Requires an IvoryZero constraint to ensure the
+-- area has an initializers, but does not explicilty initialize to 0 so that the
+-- value is placed in the .bss section.
+area :: forall area. (IvoryArea area, IvoryZero area)
      => I.Sym -> Maybe (Init area) -> MemArea area
 area sym (Just ini) = MemArea a1 as
   where
