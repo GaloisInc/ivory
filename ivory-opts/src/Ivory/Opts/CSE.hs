@@ -318,6 +318,6 @@ reconstruct (Graph subexprs root) = D.toList rootBlock
   -- NOTE: `dedup` needs to merge the constants in first, which means
   -- that as long as this is a `foldr`, they need to be appended after
   -- `subexprs`. Don't try to optimize this by re-ordering the list.
-  (_, _, (_, blockFacts)) = foldr (dedup usedOnce) mempty $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
-  Just rootGen = IntMap.lookup root blockFacts
+  (_, remap, (_, blockFacts)) = foldr (dedup usedOnce) mempty $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
+  Just rootGen = IntMap.lookup (IntMap.findWithDefault root root remap) blockFacts
   (((), Bindings { unusedBindings = usedOnce }), rootBlock) = runM rootGen $ Bindings Map.empty IntSet.empty 0
