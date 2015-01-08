@@ -34,7 +34,7 @@ data RingBuffer (n :: Nat) a =
 --   return b
 
 ringBuffer :: forall n a
-            . (ANat n, IvoryArea a)
+            . (ANat n, IvoryArea a, IvoryZero a)
            => String -> RingBuffer n a
 ringBuffer s = RingBuffer
   { ringbuffer_push   = call push_proc
