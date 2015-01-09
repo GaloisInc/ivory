@@ -23,3 +23,42 @@ cmodule = package "FunPtr" $ do
   incl f
   incl test
   incl invoke
+
+--------------------------------------------------------------------------------
+
+type Fn = ('[Uint64] :-> Uint8)
+
+bar :: Def Fn
+bar = proc "bar" $ \_ -> body $ ret 42
+
+procArea :: MemArea (Stored (ProcPtr Fn))
+procArea = refArea "procArea" (ival (procPtr bar))
+
+foo :: Def ('[] :-> ())
+foo = proc "foo" $ body $ do
+  store (addrOf procArea) (procPtr bar)
+  p <- deref (addrOf procArea)
+  indirect_ p 3
+  r <- local (ival (procPtr bar))
+  r' <- deref r
+  indirect_ r' 3
+
+-- Impossible (good)
+-- procArea2 :: MemArea (Stored (ProcPtr Fn))
+-- procArea2 = area "procArea2" (Just (ival (procPtr bar)))
+-- procArea2 :: MemArea (Stored (Ref Global (Stored (ProcPtr Fn))))
+-- procArea2 = area "procArea2" Nothing
+-- procArea3 :: MemArea (Stored (ProcPtr Fn))
+-- procArea3 = area "procArea3" Nothing
+-- procArea3 :: MemArea (Stored (Uint8))
+-- procArea3 = area "procArea3" Nothing
+
+cmodule2 :: Module
+cmodule2 = package "funptr2" $ do
+  incl bar
+  incl foo
+  defMemArea procArea
+
+runFunPtr2 :: IO ()
+runFunPtr2 = runCompiler [cmodule2] [] initialOpts { outDir = Just "cmodule2" }
+

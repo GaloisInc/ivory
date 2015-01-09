@@ -129,7 +129,7 @@ module Ivory.Language (
   , bitToBool, boolToBit
 
     -- ** External memory areas
-  , MemArea(), area, importArea
+  , MemArea(), area, refArea, importArea
   , ConstMemArea(), constArea, importConstArea
   , IvoryAddrOf(addrOf)
 
@@ -237,3 +237,31 @@ import Ivory.Language.BitData.BitData
 import Ivory.Language.BitData.Bits
 import Ivory.Language.BitData.Monad
 import qualified Ivory.Language.Syntax.AST as AST
+
+type Fn = ('[Uint64] :-> Uint8)
+
+bar :: Def Fn
+bar = proc "bar" $ \_ -> body $ ret 42
+
+procArea :: MemArea (Stored (ProcPtr Fn))
+procArea = refArea "procArea" (ival (procPtr bar))
+
+foo :: Def ('[] :-> ())
+foo = proc "foo" $ body $ do
+  store (addrOf procArea) (procPtr bar)
+  p <- deref (addrOf procArea)
+  indirect_ p 3
+  r <- local (ival (procPtr bar))
+  r' <- deref r
+  indirect_ r' 3
+
+-- Impossible (good)
+-- procArea2 :: MemArea (Stored (ProcPtr Fn))
+-- procArea2 = area "procArea2" (Just (ival (procPtr bar)))
+-- procArea2 :: MemArea (Stored (Ref Global (Stored (ProcPtr Fn))))
+-- procArea2 = area "procArea2" Nothing
+-- procArea3 :: MemArea (Stored (ProcPtr Fn))
+-- procArea3 = area "procArea3" Nothing
+-- procArea3 :: MemArea (Stored (Uint8))
+-- procArea3 = area "procArea3" Nothing
+
