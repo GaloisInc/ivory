@@ -106,6 +106,15 @@ area sym Nothing = MemArea a1 []
   ty = ivoryArea (Proxy :: Proxy area)
   a1 = makeArea sym False ty I.zeroInit
 
+-- | A memory area containing a guaranteed non-null pointer.
+refArea :: forall area. IvoryArea area
+     => I.Sym -> Init area -> MemArea area
+refArea sym ini = MemArea a1 as
+  where
+  (ini', binds) = areaInit sym ini
+  ty            = ivoryArea (Proxy :: Proxy area)
+  a1            = makeArea sym False ty ini'
+  as            = map (bindingArea False) binds
 
 -- | Import an external symbol from a header.
 importArea :: IvoryArea area => I.Sym -> String -> MemArea area
