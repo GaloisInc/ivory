@@ -37,6 +37,7 @@ library
                         Ivory.Language.Comment,
                         Ivory.Language.Cond,
                         Ivory.Language.Const,
+                        Ivory.Language.Coroutine,
                         Ivory.Language.Float,
                         Ivory.Language.IBool,
                         Ivory.Language.IChar,

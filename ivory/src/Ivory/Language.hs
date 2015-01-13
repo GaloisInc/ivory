@@ -197,6 +197,7 @@ module Ivory.Language (
 
     -- * Utilities
   , Proxy(..), comment
+  , module Ivory.Language.Coroutine
 
   ) where
 
@@ -209,6 +210,7 @@ import Ivory.Language.Cast
 import Ivory.Language.Comment
 import Ivory.Language.Cond
 import Ivory.Language.Const
+import Ivory.Language.Coroutine
 import Ivory.Language.Effects
 import Ivory.Language.Float
 import Ivory.Language.IBool
