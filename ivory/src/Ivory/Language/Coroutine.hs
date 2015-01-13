@@ -25,7 +25,8 @@ import Ivory.Language.Type
 import qualified MonadLib
 
 data Coroutine a = Coroutine
-  { coroutineInit :: Def ('[] :-> ())
+  { coroutineName :: String
+  , coroutineInit :: Def ('[] :-> ())
   , coroutineRun :: forall s. Def ('[ConstRef s a] :-> ())
   , coroutineDef :: ModuleDef
   }
@@ -54,6 +55,8 @@ coroutine fromYield = Coroutine { .. }
   strDef = AST.Struct strName $ AST.Typed stateType stateName : D.toList localVars
   strTy = AST.TyStruct strName
   cont = AST.Area strName False strTy AST.InitZero
+
+  coroutineName = name
 
   coroutineInit = DefProc $ simpleProc (name ++ "_init") $ D.toList initCode
 
