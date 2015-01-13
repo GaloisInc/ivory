@@ -137,10 +137,10 @@ setSrcLocs :: OptParser Opts
 setSrcLocs  = success (\opts -> opts { srcLocs = True })
 
 setWarnings :: OptParser Opts
-setWarnings = success (\opts -> opts { verbose = True })
+setWarnings = success (\opts -> opts { tcWarnings = True })
 
 setErrors :: Bool -> OptParser Opts
-setErrors b = success (\opts -> opts { verbose = b })
+setErrors b = success (\opts -> opts { tcErrors = b })
 
 setSanityCheck :: Bool -> OptParser Opts
 setSanityCheck b = success (\opts -> opts { scErrors = b })
