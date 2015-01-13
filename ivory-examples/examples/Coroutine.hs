@@ -21,9 +21,13 @@ sequenced = coroutine $ \ yield -> proc "sequenced" $ body $ do
       (call_ emit 3)
       (call_ emit 2)
 
+run :: Def ('[IBool, ConstRef s (Stored Sint32)] :-> ())
+run = proc "run" $ \ doInit arg -> body $ coroutineRun sequenced doInit arg
+
 cmodule :: Module
 cmodule = package "sequenced" $ do
   incl emit
+  incl run
   coroutineDef sequenced
 
 main :: IO ()

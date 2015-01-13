@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import Data.Monoid
 import Ivory.Language.Area
 import Ivory.Language.Array
+import Ivory.Language.IBool
 import Ivory.Language.Module
 import Ivory.Language.Monad
 import Ivory.Language.Proc
@@ -26,8 +27,7 @@ import qualified MonadLib
 
 data Coroutine a = Coroutine
   { coroutineName :: String
-  , coroutineInit :: Def ('[] :-> ())
-  , coroutineRun :: forall s. Def ('[ConstRef s a] :-> ())
+  , coroutineRun :: forall s eff. IBool -> ConstRef s a -> Ivory eff () -- FIXME: what constraints to use on eff?
   , coroutineDef :: ModuleDef
   }
 
@@ -49,7 +49,7 @@ coroutine fromYield = Coroutine { .. }
     , derefs = 0
     }
 
-  ((((), initCode), (localVars, resumes)), finalState) = MonadLib.runM (extractLocals (resumeAt 0) rawCode) params initialState
+  (((initBB, _), (localVars, resumes)), finalState) = MonadLib.runM (getBlock rawCode (resumeAt 0)) params initialState
 
   strName = name ++ "_continuation"
   strDef = AST.Struct strName $ AST.Typed stateType stateName : D.toList localVars
@@ -58,30 +58,25 @@ coroutine fromYield = Coroutine { .. }
 
   coroutineName = name
 
-  coroutineInit = DefProc $ simpleProc (name ++ "_init") $ D.toList initCode
+  litLabel = AST.ExpLit . AST.LitInteger . fromIntegral
 
-  runCode = (AST.Deref stateType (AST.VarName stateName) $ getCont params $ stateName) : D.toList resumes
-  coroutineRun = DefProc $ (simpleProc (name ++ "_run") runCode)
-    { AST.procArgs = [AST.Typed (AST.TyConstRef $ ivoryArea (Proxy :: Proxy a)) $ AST.VarName argName] }
+  genBB (BasicBlock pre term) = pre ++ case term of
+    BranchTo suspend label -> (AST.Store stateType (getCont params stateName) $ litLabel label) : if suspend then [AST.Break] else []
+    CondBranchTo cond tb fb -> [AST.IfTE cond (genBB tb) (genBB fb)]
+
+  coroutineRun doInit arg = do
+    ifte_ doInit (emits mempty { blockStmts = genBB initBB }) (return ())
+    emit $ AST.Forever $ (AST.Deref stateType (AST.VarName stateName) $ getCont params stateName) : do
+      (label, block) <- zip [0..] $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
+      let cond = AST.ExpOp (AST.ExpEq stateType) [AST.ExpVar (AST.VarName stateName), litLabel label]
+      let b' = Map.findWithDefault (const []) label resumes (unwrapExpr arg) ++ genBB block
+      return $ AST.IfTE cond b' []
 
   coroutineDef = do
-    incl coroutineInit
-    incl coroutineRun
     MonadLib.put $ mempty
       { AST.modStructs = mempty { AST.private = [strDef] }
       , AST.modAreas = mempty { AST.private = [cont] }
       }
-    private $ mapM_ (\ (label, block) -> incl $ DefProc $ simpleProc (getLabelProc params label) block) $ zip [1..] $ reverse $ labels finalState
-
-simpleProc :: AST.Sym -> AST.Block -> AST.Proc
-simpleProc name block = AST.Proc
-  { AST.procSym = name
-  , AST.procRetTy = AST.TyVoid
-  , AST.procArgs = []
-  , AST.procBody = block
-  , AST.procRequires = []
-  , AST.procEnsures = []
-  }
 
 yieldName :: String
 yieldName = "+yield" -- not a valid C identifier, so can't collide with a real proc
@@ -92,10 +87,11 @@ stateName = "state"
 stateType :: AST.Type
 stateType = AST.TyWord AST.Word32
 
-argName :: String
-argName = "next_value"
-
+data BasicBlock = BasicBlock AST.Block Terminator
 type Goto = Int
+data Terminator
+  = BranchTo Bool Goto
+  | CondBranchTo AST.Expr BasicBlock BasicBlock
 
 data CoroutineParams = CoroutineParams
   { getCont :: String -> AST.Expr
@@ -105,19 +101,21 @@ data CoroutineParams = CoroutineParams
 
 data CoroutineState = CoroutineState
   { rewrites :: Map.Map AST.Var (CoroutineMonad AST.Expr)
-  , labels :: [AST.Block]
+  , labels :: [BasicBlock]
   , derefs :: !Integer
   }
 
-type CoroutineVars = (D.DList (AST.Typed String), D.DList AST.Stmt)
+type CoroutineResume = Map.Map Goto (AST.Expr -> AST.Block)
+
+type CoroutineVars = (D.DList (AST.Typed String), CoroutineResume)
 
 type CoroutineMonad = MonadLib.WriterT (D.DList AST.Stmt) (MonadLib.ReaderT CoroutineParams (MonadLib.WriterT CoroutineVars (MonadLib.StateT CoroutineState MonadLib.Id)))
 
-extractLocals :: CoroutineMonad () -> AST.Block -> CoroutineMonad ()
+extractLocals :: CoroutineMonad Terminator -> AST.Block -> CoroutineMonad Terminator
 extractLocals next [] = next
 extractLocals next (AST.IfTE cond tb fb : rest) = do
   after <- makeLabel $ extractLocals next rest
-  stmt =<< AST.IfTE <$> updateExpr cond <*> getBlock tb (goto after) <*> getBlock fb (goto after)
+  CondBranchTo <$> updateExpr cond <*> getBlock tb (goto after) <*> getBlock fb (goto after)
 extractLocals _next (AST.Return {} : _) = error "Ivory.Language.Coroutine: can't return a value from the coroutine body"
 -- XXX: this discards any code after a return. is that OK?
 extractLocals _next (AST.ReturnVoid : _) = resumeAt 0
@@ -158,17 +156,17 @@ extractLocals next (AST.Loop var initEx incr b : rest) = do
           AST.IncrTo ex -> (AST.ExpGt, AST.ExpAdd, ex)
           AST.DecrTo ex -> (AST.ExpLt, AST.ExpSub, ex)
     cond <- updateExpr $ AST.ExpOp (condOp False ty) [AST.ExpVar var, limitEx]
-    stmt =<< AST.IfTE cond <$> getBlock [] (goto after) <*> pure []
-    b' <- setBreakLabel after $ getBlock b $ do
-      stmt $ AST.Store ty cont $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)]
-      goto loop
-    stmts b'
+    CondBranchTo cond <$> getBlock [] (goto after) <*> do
+      setBreakLabel after $ getBlock b $ do
+        stmt $ AST.Store ty cont $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)]
+        goto loop
   goto loop
 extractLocals next (AST.Forever b : rest) = do
   after <- makeLabel $ extractLocals next rest
   loop <- mfix $ \ loop -> makeLabel $ do
-    b' <- setBreakLabel after $ getBlock b (goto loop)
+    BasicBlock b' term <- setBreakLabel after $ getBlock b (goto loop)
     stmts b'
+    return term
   goto loop
 -- XXX: this discards any code after a break. is that OK?
 extractLocals _next (AST.Break : _) = goto =<< MonadLib.asks getBreakLabel
@@ -182,33 +180,23 @@ extractLocals next (s : rest) = do
     _ -> return s
   extractLocals next rest
 
-getBlock :: AST.Block -> CoroutineMonad () -> CoroutineMonad AST.Block
+getBlock :: AST.Block -> CoroutineMonad Terminator -> CoroutineMonad BasicBlock
 getBlock b next = do
-  ((), b') <- MonadLib.collect $ extractLocals next b
-  return $ D.toList b'
+  (term, b') <- MonadLib.collect $ extractLocals next b
+  return $ BasicBlock (D.toList b') term
 
-makeLabel :: CoroutineMonad () -> CoroutineMonad Goto
+makeLabel :: CoroutineMonad Terminator -> CoroutineMonad Goto
 makeLabel m = do
   block <- getBlock [] m
   MonadLib.sets $ \ state ->
     let state' = state { labels = block : labels state }
     in (length (labels state'), state')
 
-goto :: Goto -> CoroutineMonad ()
-goto label = do
-  labelProc <- MonadLib.asks getLabelProc
-  stmts
-    [ AST.Call AST.TyVoid Nothing (AST.NameSym $ labelProc label) []
-    , AST.ReturnVoid
-    ]
+goto :: Goto -> CoroutineMonad Terminator
+goto = return . BranchTo False
 
-resumeAt :: Goto -> CoroutineMonad ()
-resumeAt label = do
-  cont <- contRef $ AST.VarName stateName
-  stmts
-    [ AST.Store stateType cont $ AST.ExpLit $ AST.LitInteger $ fromIntegral label
-    , AST.ReturnVoid
-    ]
+resumeAt :: Goto -> CoroutineMonad Terminator
+resumeAt = return . BranchTo True
 
 contRef :: AST.Var -> CoroutineMonad AST.Expr
 contRef var = do
@@ -227,16 +215,13 @@ addLocal ty var = do
     return $ AST.ExpVar var'
   return cont
 
-addYield :: AST.Type -> AST.Var -> AST.Block -> CoroutineMonad () -> CoroutineMonad ()
+addYield :: AST.Type -> AST.Var -> AST.Block -> CoroutineMonad Terminator -> CoroutineMonad Terminator
 addYield ty var rest next = do
   cont <- addLocal ty var
   after <- makeLabel $ extractLocals next rest
-  let cond = AST.ExpOp (AST.ExpEq stateType) [AST.ExpVar (AST.VarName stateName), AST.ExpLit $ AST.LitInteger $ fromIntegral after]
-  resume <- getBlock [] $ do
-    let AST.TyRef derefTy = ty
-    stmt $ AST.RefCopy derefTy cont $ AST.ExpVar (AST.VarName argName)
-    goto after
-  MonadLib.lift $ MonadLib.put (mempty, D.singleton $ AST.IfTE cond resume [])
+  let AST.TyRef derefTy = ty
+  let resume arg = [AST.RefCopy derefTy cont arg]
+  MonadLib.lift $ MonadLib.put (mempty, Map.singleton after resume)
   resumeAt after
 
 setBreakLabel :: Goto -> CoroutineMonad a -> CoroutineMonad a
