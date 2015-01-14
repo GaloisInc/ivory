@@ -61,12 +61,15 @@ module Ivory.Artifact (
   -- not. `Maybe String` containins errors encountered when an `Artifact` is
   -- transformed, or specified by an input filename which does not exist.
   , putArtifact
+  -- | like `putArtifact` but ignores any errors.
+  , putArtifact_
 
   -- | Takes an `Artifact` and prints it, or an appropriate error message, to
   -- stdout.
   , printArtifact
   ) where
 
+import Control.Monad (void)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import System.FilePath
@@ -150,8 +153,12 @@ withContents a f = do
     Right c  -> f c >> return Nothing
 
 putArtifact :: FilePath -> Artifact -> IO (Maybe String)
-putArtifact fp a = withContents a $ \c ->
+putArtifact fp a = withContents a $ \c -> do
+  createDirectoryIfMissing True fp
   T.writeFile (fp </> artifact_outputname a) c
+
+putArtifact_ :: FilePath -> Artifact -> IO ()
+putArtifact_ fp a = void (putArtifact fp a)
 
 printArtifact :: Artifact -> IO ()
 printArtifact a = do
