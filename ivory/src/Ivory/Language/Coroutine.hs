@@ -38,7 +38,7 @@ coroutine fromYield = Coroutine { .. }
   DefProc (AST.Proc { AST.procSym = name, AST.procBody = rawCode }) = fromYield $ call (proc yieldName $ body $ return ())
 
   params = CoroutineParams
-    { getCont = AST.ExpLabel strTy $ AST.ExpSym $ AST.areaSym cont
+    { getCont = AST.ExpLabel strTy $ AST.ExpAddrOfGlobal $ AST.areaSym cont
     , getBreakLabel = error "Ivory.Language.Coroutine: no break label set, but breakOut called"
     , getLabelProc = \ label -> name ++ "_bb_" ++ show label
     }
@@ -218,9 +218,12 @@ addLocal ty var = do
 
 addYield :: AST.Type -> AST.Var -> AST.Block -> CoroutineMonad Terminator -> CoroutineMonad Terminator
 addYield ty var rest next = do
-  cont <- addLocal ty var
-  after <- makeLabel $ extractLocals next rest
   let AST.TyRef derefTy = ty
+  let AST.VarName varStr = var
+  MonadLib.lift $ MonadLib.put (D.singleton $ AST.Typed derefTy varStr, mempty)
+  cont <- contRef var
+  var `rewriteTo` return cont
+  after <- makeLabel $ extractLocals next rest
   let resume arg = [AST.RefCopy derefTy cont arg]
   MonadLib.lift $ MonadLib.put (mempty, Map.singleton after resume)
   resumeAt after
