@@ -157,37 +157,42 @@ where
 
 (* We also know that \<forall>k \<in> ran (\<Delta> |` (- {\<rho>}). k < n *)
 inductive
-  WfFrees :: "'r region_env \<Rightarrow> ('var, 'r) storeT \<Rightarrow> 'r \<Rightarrow> 'r heapT \<Rightarrow> bool"
+  WfFrees :: "'r region_env \<Rightarrow> ('var, 'r) storeT \<Rightarrow> 'r heapT \<Rightarrow> bool"
 where
-  WfFrees: "\<lbrakk> \<Delta> \<rho> = Some n; \<forall>k \<in> ran \<Delta>. k \<le> n; 
+  WfFrees: "\<lbrakk> bij_betw \<Delta> (dom \<Delta>) (Some ` {0 .. n});
               tfrees_set (ran \<Gamma>) \<subseteq> dom \<Delta>; heap_frees \<Theta> \<subseteq> dom \<Delta>; 
-              finite (dom \<Delta>); n = length \<Theta> - 1 \<rbrakk> \<Longrightarrow> WfFrees \<Delta> \<Gamma> \<rho> \<Theta>"
+              finite (dom \<Delta>); n = length \<Theta> - 1 \<rbrakk> \<Longrightarrow> WfFrees \<Delta> \<Gamma> \<Theta>"
 
-inductive_cases WfFreesE [elim?]: "WfFrees \<Delta> \<Gamma> \<rho> \<Theta>"
+inductive_cases WfFreesE [elim?]: "WfFrees \<Delta> \<Gamma> \<Theta>"
+
+definition
+ region_for :: "'r region_env \<Rightarrow> nat \<Rightarrow> 'r"
+where
+ "region_for \<Delta> n \<equiv> THE \<rho>. \<Delta> \<rho> = Some n"
 
 inductive 
-  WfStack :: "('fun, 'r) funsT \<Rightarrow> 'r region_env \<Rightarrow> 'r heapT \<Rightarrow> ('var, 'fun) stack \<Rightarrow> 'r wtype \<Rightarrow> bool \<Rightarrow> 'r \<Rightarrow> bool"
+  WfStack :: "('fun, 'r) funsT \<Rightarrow> 'r region_env \<Rightarrow> 'r heapT \<Rightarrow> ('var, 'fun) stack \<Rightarrow> 'r wtype \<Rightarrow> bool \<Rightarrow> bool"
 where
-  wfStackNil:  "WfStack \<Psi> \<Delta> [\<Sigma>] [] NAT True \<rho>" (* The initial state expectss a nat back and has \<Sigma>, the global heap *)
-| wfStackFun: "\<lbrakk> WfStack \<Psi> \<Delta>' \<Theta> st \<tau>' b' \<gamma>; WfStore \<Delta>' \<Theta> store' \<Gamma>; \<Gamma>(x \<mapsto> \<tau>), \<Psi>, \<gamma> \<turnstile> cont : \<tau>', b'; 
-                 WfFrees \<Delta>' (\<Gamma>(x \<mapsto> \<tau>)) \<gamma> \<Theta>; \<Delta>' = \<Delta> |` (- {\<rho>}) \<rbrakk>
-                \<Longrightarrow> WfStack \<Psi> \<Delta> (\<Theta> @ [\<Sigma>]) ((store', cont, ReturnFrame x) # st) \<tau> True \<rho>"
-| wfStackSeq: "\<lbrakk> WfStack \<Psi> \<Delta> \<Theta> st \<tau> b' \<rho>; WfStore \<Delta> \<Theta> store' \<Gamma>; \<Gamma>, \<Psi>, \<rho> \<turnstile> cont : \<tau>, b'; tfrees_set (ran \<Gamma>) \<subseteq> dom \<Delta> \<rbrakk>
-                \<Longrightarrow> WfStack \<Psi> \<Delta> \<Theta> ((store', cont, SeqFrame) # st) \<tau> b \<rho>"
+  wfStackNil:  "WfStack \<Psi> \<Delta> [\<Sigma>] [] NAT True" (* The initial state expectss a nat back and has \<Sigma>, the global heap *)
+| wfStackFun: "\<lbrakk> WfStack \<Psi> \<Delta>' \<Theta> st \<tau>' b'; WfStore \<Delta>' \<Theta> store' \<Gamma>; \<Gamma>(x \<mapsto> \<tau>), \<Psi>, region_for \<Delta> (length \<Theta> - 1) \<turnstile> cont : \<tau>', b'; 
+                 tfrees_set (ran (\<Gamma>(x \<mapsto> \<tau>))) \<subseteq> dom \<Delta>'; \<Delta>' = \<Delta> |` (- { region_for \<Delta> (length \<Theta>) }) \<rbrakk>
+                \<Longrightarrow> WfStack \<Psi> \<Delta> (\<Theta> @ [\<Sigma>]) ((store', cont, ReturnFrame x) # st) \<tau> True"
+| wfStackSeq: "\<lbrakk> WfStack \<Psi> \<Delta> \<Theta> st \<tau> b'; WfStore \<Delta> \<Theta> store' \<Gamma>; \<Gamma>, \<Psi>, region_for \<Delta> (length \<Theta> - 1) \<turnstile> cont : \<tau>, b'; tfrees_set (ran \<Gamma>) \<subseteq> dom \<Delta> \<rbrakk>
+                \<Longrightarrow> WfStack \<Psi> \<Delta> \<Theta> ((store', cont, SeqFrame) # st) \<tau> b"
 
-inductive_cases wfStackFalseE: "WfStack \<Psi> \<Delta> \<Theta> st \<tau> False \<rho>"
+inductive_cases wfStackFalseE: "WfStack \<Psi> \<Delta> \<Theta> st \<tau> False"
 
-inductive_cases WfStackConsE: "WfStack \<Psi> \<Delta> \<Theta> (s#st) \<tau> b \<rho>"
-inductive_cases WfStackSeqE: "WfStack \<Psi> \<Delta> \<Theta> ((st, s, SeqFrame) # st') \<tau> b \<rho>"
+inductive_cases WfStackConsE: "WfStack \<Psi> \<Delta> \<Theta> (s#st) \<tau> b"
+inductive_cases WfStackSeqE: "WfStack \<Psi> \<Delta> \<Theta> ((st, s, SeqFrame) # st') \<tau> b"
 
 declare One_nat_def Un_insert_right [simp del]
-inductive_cases WfStackFunE: "WfStack \<Psi> \<Delta> \<Theta> ((st, s, ReturnFrame x) # st') \<tau> b \<rho>"
+inductive_cases WfStackFunE: "WfStack \<Psi> \<Delta> \<Theta> ((st, s, ReturnFrame x) # st') \<tau> b"
 declare One_nat_def Un_insert_right [simp]
 
 inductive 
   WfState :: "('var, 'fun) state \<Rightarrow> ('var, 'r) storeT \<Rightarrow> ('fun, 'r) funsT \<Rightarrow> 'r wtype \<Rightarrow> bool \<Rightarrow> 'r \<Rightarrow> bool"
 where
-  WfState: "\<lbrakk> WfStore \<Delta> \<Theta> (store S) \<Gamma>; WfHeap \<Delta> (heap S) \<Theta>; WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b \<rho>; WfFrees \<Delta> \<Gamma> \<rho> \<Theta> \<rbrakk>
+  WfState: "\<lbrakk> WfStore \<Delta> \<Theta> (store S) \<Gamma>; WfHeap \<Delta> (heap S) \<Theta>; WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b; WfFrees \<Delta> \<Gamma> \<Theta>; \<rho> = region_for \<Delta> (length \<Theta> - 1) \<rbrakk>
             \<Longrightarrow> WfState S \<Gamma> \<Psi> \<tau> b \<rho>"
 
 declare One_nat_def [simp del]

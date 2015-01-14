@@ -13,7 +13,7 @@ lemma Progress:
 proof (induct arbitrary: S)
   case (wfSkip \<Gamma> \<Psi> \<rho> \<tau> S)
   from `WfState S \<Gamma> \<Psi> \<tau> False \<rho>` 
-  obtain \<Delta> \<Theta> where "WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> False \<rho>" ..
+  obtain \<Delta> \<Theta> where "WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> False" ..
   then obtain store' cont st where "stack S = (store', cont, SeqFrame) # st"
     by (rule wfStackFalseE)
   show ?case by (rule exI StepSkip)+ fact
