@@ -73,9 +73,10 @@ coroutine fromYield = Coroutine { .. }
       return $ AST.IfTE cond b' []
 
   coroutineDef = do
+    visibility <- MonadLib.ask
     MonadLib.put $ mempty
-      { AST.modStructs = mempty { AST.private = [strDef] }
-      , AST.modAreas = mempty { AST.private = [cont] }
+      { AST.modStructs = visAcc visibility strDef
+      , AST.modAreas = visAcc visibility cont
       }
 
 yieldName :: String
