@@ -40,7 +40,6 @@ coroutine fromYield = Coroutine { .. }
   params = CoroutineParams
     { getCont = AST.ExpLabel strTy $ AST.ExpAddrOfGlobal $ AST.areaSym cont
     , getBreakLabel = error "Ivory.Language.Coroutine: no break label set, but breakOut called"
-    , getLabelProc = \ label -> name ++ "_bb_" ++ show label
     }
 
   initialState = CoroutineState
@@ -97,7 +96,6 @@ data Terminator
 data CoroutineParams = CoroutineParams
   { getCont :: String -> AST.Expr
   , getBreakLabel :: Goto
-  , getLabelProc :: Goto -> AST.Sym
   }
 
 data CoroutineState = CoroutineState
