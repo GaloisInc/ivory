@@ -25,6 +25,14 @@ import qualified Ivory.Language.Syntax as AST
 import Ivory.Language.Type
 import qualified MonadLib
 
+-- Optimizations TODO:
+-- TODO: remove blocks that are not reached
+-- TODO: inline empty blocks (preferably, allow comments)
+-- TODO: run variable rewrite side effects only once per expression
+-- TODO: re-use continuation variables that have gone out of scope
+-- TODO: full liveness analysis to maximize re-use
+-- TODO: only extract a variable to the continuation if it is live across a suspend
+
 data Coroutine a = Coroutine
   { coroutineName :: String
   , coroutineRun :: forall s eff. IBool -> ConstRef s a -> Ivory eff () -- FIXME: what constraints to use on eff?
