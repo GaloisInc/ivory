@@ -200,6 +200,94 @@ lemma ran_restrict_subset:
   unfolding ran_def
   by (auto simp: restrict_map_def)
 
+lemma WfWValue_renv_contained0:
+  assumes wfwv: "WfWValue \<Delta> \<Theta> v \<tau>"
+  and     wfhv: "WfHValue \<Delta> \<Theta> v' \<alpha>"
+  shows   "\<Delta> ` tfrees \<tau> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+  and     "\<Delta> ` afrees \<alpha> \<subseteq> Some ` {0 .. length \<Theta> - 1}" 
+  using wfwv wfhv
+proof (induction \<tau> and \<alpha> rule: tfrees_afrees.induct)
+  case 1
+  thus ?case
+    apply clarsimp
+    apply (erule WfRefVE)
+    apply (simp add: lookup_heap_Some_iff)
+    apply rule
+    apply clarsimp
+    apply (rule "1.IH" [simplified] )
+    defer
+    apply assumption
+    
+  case Stored
+  thus ?case
+    apply clarsimp
+  case (wfRefV \<Delta> \<rho> region \<Theta> off \<tau>)
+  thus ?case
+    apply (simp add: lookup_heap_Some_iff)
+    apply clarsimp
+  apply simp+
+  
+
+
+lemma WfHValue_renv_contained:
+  assumes wfhv: "WfHValue \<Delta> \<Theta> v \<alpha>"
+  shows   "\<Delta> ` afrees \<alpha> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+  using wfhv
+  apply induction
+  apply simp
+
+
+lemma WfHeap_renv_contained:
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  shows   "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+  using wfh
+proof induction
+  case wfHeapNil
+  thus ?case by simp
+next
+  case (wfHeapCons \<Delta> H \<Theta> \<Sigma> R)
+  let ?S = "{0..length (\<Theta> @ [\<Sigma>]) - 1}"
+  
+  have "\<Delta> ` heap_frees (\<Theta> @ [\<Sigma>]) = \<Delta> ` heap_frees \<Theta> \<union> \<Delta> ` afrees_set (ran \<Sigma>)"
+    by (simp add: heap_frees_append image_Un)
+  also have "... \<subseteq> Some ` ?S"
+  proof (rule Un_least)
+    have "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` {0..length \<Theta> - 1}" by fact
+    thus "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` ?S" by fastforce
+
+    from `submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>]))`
+    have "\<forall>\<alpha> \<in> ran \<Sigma>. \<Delta> ` afrees \<alpha> \<subseteq> Some ` {0..length \<Theta>}"
+      apply (clarsimp simp: ran_def)
+      apply (erule (1) submap_stE)
+      
+      
+    have "\<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` {0..length \<Theta>}"
+      apply -
+      apply clarsimp
+      
+      
+    thus "\<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` ?S" by simp
+  qed
+
+  finally show ?case .
+qed
+      
+      
+    
+
+  
+  
+  apply simp
+  apply (simp add: heap_frees_append image_Un)
+  apply rule
+  apply fastforce
+  
+  apply (erule order_trans)
+  apply clarsimp
+  
+  
+proof - 
+
 (* We need an infinite set of fresh names here *)
   
 lemma Preservation: 
@@ -264,11 +352,8 @@ next
       "WfStore \<Delta>' (butlast \<Theta>) store' \<Gamma>'" 
       "\<Gamma>'(x \<mapsto> \<tau>), \<Psi>, ?\<gamma> \<turnstile> cont : \<tau>', b'"
       "region_for \<Delta> (length (butlast \<Theta>)) \<notin> tfrees_set (ran (\<Gamma>'(x \<mapsto> \<tau>)))"
-      "\<Delta>' = \<Delta> |` (- { region_for \<Delta> (length (butlast \<Theta>)) })"
+      and delta': "\<Delta>' = \<Delta> |` (- { region_for \<Delta> (length (butlast \<Theta>)) })"
       by (auto elim!: WfStackFunE simp: subseteq_negate)
-
-    (* have delta': "\<Delta>' = \<Delta> |` (- {\<rho>})" by fact *)
-    (* hence "\<Delta>' \<subseteq>\<^sub>m \<Delta>" by (simp add: restrict_map_le) *)
 
     show ?thesis
     proof (intro exI conjI)
@@ -288,29 +373,45 @@ next
           qed fact+
         qed
 
-        from `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b` `WfHeap \<Delta> (heap S) \<Theta>`
-        have "heap S \<noteq> []" by (rule WfStack_heap_not_empty)
-        with `WfHeap \<Delta> (heap S) \<Theta>` `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b`
-        show "WfHeap \<Delta>' (pop_heap (heap S)) (butlast \<Theta>)" (* This answers: Why can we remove the region and retain safety? *)
-          sorry
-(*
+        from wff have "heap_frees \<Theta> \<subseteq> dom \<Delta>" ..
+        with delta' have "heap_frees (butlast \<Theta>) \<subseteq> dom \<Delta>'"
+          apply (clarsimp simp: butlast_conv_take)
+          apply rule
+           apply (erule order_trans [rotated])
+           apply (rule heap_frees_take)
+          apply (clarsimp simp: min_absorb2)
           
+          
+           apply (rule heap_frees_mono)
+          
+        with `WfHeap \<Delta> (heap S) \<Theta>` `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b` delta'
+        show "WfHeap \<Delta>' (pop_heap (heap S)) (butlast \<Theta>)" (* This answers: Why can we remove the region and retain safety? *)
           apply -
           apply (clarsimp simp: pop_heap_def)
           apply (erule WfHeap.cases)
           apply simp
-          apply (clarsimp simp: pop_heap_def)
+          apply rule
+          apply (clarsimp simp: )
+          apply (rule WfHeap_renv_mono)
+          apply (erule WfHeap_renv_restrict)
+          apply (erule restrict_mono)
+          done
+
+          
           apply (erule WfStack.cases)
           apply clarsimp
           apply (erule WfHeap.cases, simp_all)[1]
           apply rule
+          apply clarsimp
+          defer
+          apply clarsimp
 
           apply clarsimp
           apply (drule WfHeap_renv_restrict)
           apply (erule WfHeap_renv_mono)
           apply (rule restrict_mono)
           apply (simp add: subseteq_negate)
-          
+
 
           defer
           apply clarsimp
