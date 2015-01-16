@@ -194,100 +194,6 @@ lemma bij_betw_fun_upd:
   unfolding bij_betw_def
   by (auto intro: inj_on_fun_updI split: split_if_asm)
 
-
-lemma ran_restrict_subset:
-  "ran (m |` S) \<subseteq> ran m"
-  unfolding ran_def
-  by (auto simp: restrict_map_def)
-
-lemma WfWValue_renv_contained0:
-  assumes wfwv: "WfWValue \<Delta> \<Theta> v \<tau>"
-  and     wfhv: "WfHValue \<Delta> \<Theta> v' \<alpha>"
-  shows   "\<Delta> ` tfrees \<tau> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
-  and     "\<Delta> ` afrees \<alpha> \<subseteq> Some ` {0 .. length \<Theta> - 1}" 
-  using wfwv wfhv
-proof (induction \<tau> and \<alpha> rule: tfrees_afrees.induct)
-  case 1
-  thus ?case
-    apply clarsimp
-    apply (erule WfRefVE)
-    apply (simp add: lookup_heap_Some_iff)
-    apply rule
-    apply clarsimp
-    apply (rule "1.IH" [simplified] )
-    defer
-    apply assumption
-    
-  case Stored
-  thus ?case
-    apply clarsimp
-  case (wfRefV \<Delta> \<rho> region \<Theta> off \<tau>)
-  thus ?case
-    apply (simp add: lookup_heap_Some_iff)
-    apply clarsimp
-  apply simp+
-  
-
-
-lemma WfHValue_renv_contained:
-  assumes wfhv: "WfHValue \<Delta> \<Theta> v \<alpha>"
-  shows   "\<Delta> ` afrees \<alpha> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
-  using wfhv
-  apply induction
-  apply simp
-
-
-lemma WfHeap_renv_contained:
-  assumes wfh: "WfHeap \<Delta> H \<Theta>"
-  shows   "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
-  using wfh
-proof induction
-  case wfHeapNil
-  thus ?case by simp
-next
-  case (wfHeapCons \<Delta> H \<Theta> \<Sigma> R)
-  let ?S = "{0..length (\<Theta> @ [\<Sigma>]) - 1}"
-  
-  have "\<Delta> ` heap_frees (\<Theta> @ [\<Sigma>]) = \<Delta> ` heap_frees \<Theta> \<union> \<Delta> ` afrees_set (ran \<Sigma>)"
-    by (simp add: heap_frees_append image_Un)
-  also have "... \<subseteq> Some ` ?S"
-  proof (rule Un_least)
-    have "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` {0..length \<Theta> - 1}" by fact
-    thus "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` ?S" by fastforce
-
-    from `submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>]))`
-    have "\<forall>\<alpha> \<in> ran \<Sigma>. \<Delta> ` afrees \<alpha> \<subseteq> Some ` {0..length \<Theta>}"
-      apply (clarsimp simp: ran_def)
-      apply (erule (1) submap_stE)
-      
-      
-    have "\<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` {0..length \<Theta>}"
-      apply -
-      apply clarsimp
-      
-      
-    thus "\<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` ?S" by simp
-  qed
-
-  finally show ?case .
-qed
-      
-      
-    
-
-  
-  
-  apply simp
-  apply (simp add: heap_frees_append image_Un)
-  apply rule
-  apply fastforce
-  
-  apply (erule order_trans)
-  apply clarsimp
-  
-  
-proof - 
-
 (* We need an infinite set of fresh names here *)
   
 lemma Preservation: 
@@ -346,13 +252,15 @@ next
       ..
 
     let ?\<gamma> = "region_for \<Delta> (length (butlast \<Theta>) - 1)"
-
+    let ?\<Delta>' = "\<Delta> |` (- { region_for \<Delta> (length (butlast \<Theta>)) })"
+    
     from `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b` `stack S = (store', cont, ReturnFrame x) # stack'`
     obtain \<tau>' b' \<Delta>' \<Gamma>' where "WfStack \<Psi> \<Delta>' (butlast \<Theta>) stack' \<tau>' b'"
       "WfStore \<Delta>' (butlast \<Theta>) store' \<Gamma>'" 
       "\<Gamma>'(x \<mapsto> \<tau>), \<Psi>, ?\<gamma> \<turnstile> cont : \<tau>', b'"
+      "tfrees_set (ran (\<Gamma>'(x \<mapsto> \<tau>))) \<subseteq> dom \<Delta>"
       "region_for \<Delta> (length (butlast \<Theta>)) \<notin> tfrees_set (ran (\<Gamma>'(x \<mapsto> \<tau>)))"
-      and delta': "\<Delta>' = \<Delta> |` (- { region_for \<Delta> (length (butlast \<Theta>)) })"
+      and delta': "\<Delta>' = ?\<Delta>'"
       by (auto elim!: WfStackFunE simp: subseteq_negate)
 
     show ?thesis
@@ -372,59 +280,37 @@ next
               by (simp add: tfrees_set_fun_upd)
           qed fact+
         qed
-
-        from wff have "heap_frees \<Theta> \<subseteq> dom \<Delta>" ..
-        with delta' have "heap_frees (butlast \<Theta>) \<subseteq> dom \<Delta>'"
-          apply (clarsimp simp: butlast_conv_take)
-          apply rule
-           apply (erule order_trans [rotated])
-           apply (rule heap_frees_take)
-          apply (clarsimp simp: min_absorb2)
           
-          
-           apply (rule heap_frees_mono)
-          
-        with `WfHeap \<Delta> (heap S) \<Theta>` `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b` delta'
+        from `WfHeap \<Delta> (heap S) \<Theta>` `WfStack \<Psi> \<Delta> \<Theta> (stack S) \<tau> b` delta' wff
         show "WfHeap \<Delta>' (pop_heap (heap S)) (butlast \<Theta>)" (* This answers: Why can we remove the region and retain safety? *)
-          apply -
-          apply (clarsimp simp: pop_heap_def)
-          apply (erule WfHeap.cases)
-          apply simp
-          apply rule
-          apply (clarsimp simp: )
-          apply (rule WfHeap_renv_mono)
-          apply (erule WfHeap_renv_restrict)
-          apply (erule restrict_mono)
-          done
+        proof cases
+          case wfHeapNil thus ?thesis by (clarsimp simp: pop_heap_def) rule
+        next
+          case (wfHeapCons H \<Theta>' \<Sigma> R )
 
+          from `WfHeap \<Delta> H \<Theta>'` have "WfHeap ?\<Delta>' H \<Theta>'"
+          proof (rule WfHeap_renv_mono [OF WfHeap_renv_restrict restrict_mono])
+            from `WfHeap \<Delta> H \<Theta>'` have "\<Delta> ` heap_frees \<Theta>' \<subseteq> Some ` {0..length \<Theta>' - 1}"
+              by (rule WfHeap_bounded_frees)
+            moreover from `\<Theta> = \<Theta>' @ [\<Sigma>]` wff have "\<Delta> (region_for \<Delta> (length \<Theta>')) = Some (length \<Theta>')"
+              by (auto intro: region_for_is_same)
+            moreover from `WfStack \<Psi> \<Delta>' (butlast \<Theta>) stack' \<tau>' b'` `\<Theta> = \<Theta>' @ [\<Sigma>]`
+            have "length \<Theta>' > 0" 
+              apply -
+              apply (drule WfStack_heap_not_empty')
+              apply simp
+              done
+            ultimately show "heap_frees \<Theta>' \<subseteq> - {region_for \<Delta> (length (butlast \<Theta>))}" using  `\<Theta> = \<Theta>' @ [\<Sigma>]` 
+              apply (clarsimp simp: image_subset_iff)
+              apply (drule (1) bspec)
+              apply (auto dest: diff_le_is_0)
+              done
+          qed
+            
+          with wfHeapCons delta' show ?thesis
+            by (clarsimp simp: pop_heap_def)
+        qed
           
-          apply (erule WfStack.cases)
-          apply clarsimp
-          apply (erule WfHeap.cases, simp_all)[1]
-          apply rule
-          apply clarsimp
-          defer
-          apply clarsimp
-
-          apply clarsimp
-          apply (drule WfHeap_renv_restrict)
-          apply (erule WfHeap_renv_mono)
-          apply (rule restrict_mono)
-          apply (simp add: subseteq_negate)
-
-
-          defer
-          apply clarsimp
-          
- 
-          
-          apply (erule WfHeap_renv_mono)
-          apply (erule WfStack.cases)
-          apply clarsimp
-          apply (erule WfHeap_renv_mono)
-          
-          apply (auto simp: pop_heap_def elim!: WfHeap.cases)n
-*)
         from `WfStack \<Psi> \<Delta>' (butlast \<Theta>) stack' \<tau>' b'` 
         have "length \<Theta> > 1" 
           apply -
@@ -440,7 +326,7 @@ next
         let ?n = "length (butlast \<Theta>)"
         
         show "WfFrees \<Delta>' (\<Gamma>'(x \<mapsto> \<tau>)) (butlast \<Theta>)" 
-        proof (rule WfFrees [OF _ _ _ _ refl])
+        proof (rule WfFrees [OF _ _ _ refl])
           from wff have "bij_betw \<Delta> (dom \<Delta>) (Some ` { 0 .. length \<Theta> - Suc 0 })" ..
           hence "bij_betw \<Delta> (dom \<Delta> - {?\<rho>}) (Some ` { 0 .. ?n } - {\<Delta> ?\<rho>})"
             by (clarsimp dest!: bij_betw_remove [OF _ region_for_in_dom [OF wff order_refl]])
@@ -451,9 +337,12 @@ next
           ultimately show "bij_betw \<Delta>' (dom \<Delta>') (Some ` {0..length (butlast \<Theta>) - 1})"
             by (simp add: bij_betw_restrict' Diff_eq)
 
-          show "heap_frees (butlast \<Theta>) \<subseteq> dom \<Delta>'" sorry
-          show "tfrees_set (ran (\<Gamma>'(x \<mapsto> \<tau>))) \<subseteq> dom \<Delta>'" sorry
-          show "finite (dom \<Delta>')" sorry
+          from `tfrees_set (ran (\<Gamma>'(x \<mapsto> \<tau>))) \<subseteq> dom \<Delta>` `region_for \<Delta> (length (butlast \<Theta>)) \<notin> tfrees_set (ran (\<Gamma>'(x \<mapsto> \<tau>)))`
+          show "tfrees_set (ran (\<Gamma>'(x \<mapsto> \<tau>))) \<subseteq> dom \<Delta>'" using delta'
+            by (auto simp add: ran_map_upd)
+
+          from wff have "finite (dom \<Delta>)" ..            
+          with delta' show "finite (dom \<Delta>')" by simp
         qed 
           
       qed fact
@@ -714,14 +603,6 @@ next
           apply (rule ran_map_upds)
           apply (auto simp add: tfrees_set_tsubst)
           done
-
-        have "heap_frees (push_heap \<Theta>) = heap_frees \<Theta>"
-          unfolding heap_frees_def push_heap_def
-          by clarsimp
-        also from `WfFrees \<Delta> \<Gamma> \<Theta>` have "... \<subseteq> dom \<Delta>" ..
-        also have "... \<subseteq> dom (\<Delta>(fresh (dom \<Delta>) \<mapsto> length \<Theta>))"
-          by clarsimp
-        finally show "heap_frees (push_heap \<Theta>) \<subseteq> dom ?\<Delta>" .
                
         from `WfFrees \<Delta> \<Gamma> \<Theta>` have "bij_betw \<Delta> (dom \<Delta>) (Some ` {0..length \<Theta> - Suc 0})" ..
         with `length \<Theta> - Suc 0 < length \<Theta>`

@@ -50,6 +50,7 @@ lemma WfStore_lift_weak:
   apply (erule rl)
   done
 
+  
 subsection {* Returns tag weakening *}
 
 lemma WfStmt_weaken_returns:
@@ -168,12 +169,31 @@ lemma WfStore_renv_mono:
   using wfst sub
   by (auto elim!: WfStore.cases submap_st_weaken WfWValue_renv_mono intro!: WfStore.intros)
 
+lemma map_image_is_Some_dom:
+  assumes img: "m ` D \<subseteq> Some ` R"
+  shows   "D \<subseteq> dom m"
+  using img
+  by (fastforce simp: dom_def image_subset_iff)
+
 lemma WfHeap_renv_mono:
   assumes wfst: "WfHeap \<Delta> H \<Theta>"
   and     sub: "\<Delta> \<subseteq>\<^sub>m \<Delta>'"
   shows  "WfHeap \<Delta>' H \<Theta>"
   using wfst sub
-  by induction (auto elim!: WfHValue_renv_mono submap_st_weaken intro!: WfHeap.intros)
+  apply induction
+   apply rule
+  apply clarsimp
+  apply (erule WfHeap.intros)
+    apply (clarsimp elim!: WfHValue_renv_mono submap_st_weaken intro!: WfHeap.intros)
+   apply assumption
+  apply (rule order_trans [rotated], assumption)
+  apply (clarsimp simp add: image_subset_iff image_iff)
+  apply (drule (1) bspec)
+  apply (erule bexE)
+  apply (drule (1) map_leD)
+  apply (erule bexI [rotated])
+  apply simp
+  done
 
 lemma WfHeap_inversionE:
   assumes wfh: "WfHeap \<Delta> H \<Theta>"
@@ -333,6 +353,12 @@ next
       done
     
     show "finite (dom R)" by fact
+
+    have "\<Delta> ` afrees_set (ran \<Sigma>) = ?\<Delta> ` afrees_set (ran \<Sigma>)"
+      by (fastforce simp: heap_frees_def afrees_set_def image_iff intro!: bexI [rotated])
+      
+    moreover have "\<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` {0..length \<Theta>}" by fact
+    ultimately show  "?\<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` {0..length \<Theta>}" by simp
   qed
 qed
 
@@ -715,6 +741,177 @@ next
   qed (auto intro: WfWValue.intros)
 qed
 
+lemma lookup_heap_afrees:
+  assumes lup: "lookup_heap \<Theta> region n = Some \<tau>"
+  shows   "afrees \<tau> \<subseteq> heap_frees \<Theta>"
+  using lup
+  apply (clarsimp simp: lookup_heap_Some_iff heap_frees_def afrees_set_def)
+  apply (erule bexI [OF _ nth_mem, rotated])
+  apply (erule bexI [OF _ ranI, rotated])
+  apply assumption
+  done
+
+
+(* FIXME: move *) 
+lemma heap_frees_nil [simp]:
+  "heap_frees [] = {}"
+  unfolding heap_frees_def afrees_set_def by simp
+
+
+(* FIXME: move *) 
+lemma heap_frees_take:
+  "heap_frees (take n \<Theta>) \<subseteq> heap_frees \<Theta>"
+  unfolding heap_frees_def afrees_set_def 
+  by (intro image_mono Union_mono set_take_subset)
+
+(* FIXME: move *) 
+lemma heap_frees_singleton [simp]:
+  "heap_frees [\<Sigma>] = afrees_set (ran \<Sigma>)" unfolding heap_frees_def by simp
+
+(* FIXME: move *) 
+lemma afrees_set_mono:
+  assumes ss: "S \<subseteq> S'"
+  shows   "afrees_set S \<subseteq> afrees_set S'"
+  using ss unfolding afrees_set_def
+  by auto
+
+(* FIXME: move *) 
+lemma afrees_set_insert [simp]:
+  "afrees_set (insert \<rho> S) = afrees \<rho> \<union> afrees_set S"
+  unfolding afrees_set_def by simp
+
+(* FIXME: move *) 
+lemma afrees_set_empty [simp]:
+  "afrees_set {} = {}"
+  unfolding afrees_set_def by simp
+
+(* FIXME: move *) 
+lemma afrees_set_Un [simp]:
+  "afrees_set (S \<union> S') = afrees_set S \<union> afrees_set S'"
+  unfolding afrees_set_def by simp
+  
+(* FIXME: move *) 
+lemma afrees_set_heap_frees_nth:
+  assumes nl: "n < length \<Theta>"
+  shows "afrees_set (ran (\<Theta> ! n)) \<subseteq> heap_frees \<Theta>"
+  using nl unfolding heap_frees_def afrees_set_def
+  by fastforce
+
+(* FIXME: move *) 
+lemma region_for_is_same:
+  assumes wffr: "WfFrees \<Delta> \<Gamma> \<Theta>"
+  and       nv: "n \<le> length \<Theta> - 1"
+  shows "\<Delta> (region_for \<Delta> n) = Some n"
+  unfolding region_for_def
+proof (rule theI')
+  let ?m = "length \<Theta> - Suc 0"
+  from wffr have bb: "bij_betw \<Delta> (dom \<Delta>) (Some ` {0 .. ?m})" ..
+
+  have "\<exists>!x. x \<in> dom \<Delta> \<and> \<Delta> x = Some n" 
+  proof (rule bij_betw_inv)
+    show "Some n \<in> Some ` {0 .. ?m}" using nv by simp
+    from wffr show "finite (dom \<Delta>)" ..
+  qed fact
+
+  thus "\<exists>!x. \<Delta> x = Some n"
+    unfolding dom_def by (simp cong: rev_conj_cong)
+qed
+
+lemma ran_restrict_subset:
+  "ran (m |` S) \<subseteq> ran m"
+  unfolding ran_def
+  by (auto simp: restrict_map_def)
+
+lemma WfHeap_heap_frees:
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  shows "heap_frees \<Theta> \<subseteq> dom \<Delta>"
+  using wfh
+  apply induction
+   apply simp
+  apply (drule map_image_is_Some_dom)
+  apply (simp add: heap_frees_append)
+  done
+
+lemma WfHeap_bounded_frees:
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  shows   "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+  using wfh
+  apply induction
+   apply simp
+  apply (simp add: heap_frees_append image_Un)
+  apply (erule order_trans)
+  apply fastforce
+  done
+  
+lemma WfHeap_lookup_bounded_frees:
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  and     wfhv: "lookup_heap \<Theta> region n = Some \<tau>"
+  shows   "\<Delta> ` afrees \<tau> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+  using wfh wfhv
+proof (induction)
+  case wfHeapNil thus ?case by simp
+next
+  case (wfHeapCons \<Delta> H \<Theta> \<Sigma> R )
+
+  show ?case
+  proof (cases "region = length \<Theta>")
+    case True
+    
+    from `lookup_heap (\<Theta> @ [\<Sigma>]) region n = Some \<tau>`
+    have "afrees \<tau> \<subseteq> heap_frees (\<Theta> @ [\<Sigma>])"
+      by (rule lookup_heap_afrees)
+
+    moreover from `WfHeap \<Delta> H \<Theta>`
+    have "\<Delta> ` heap_frees \<Theta> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+      by (rule WfHeap_bounded_frees)
+    ultimately show ?thesis using wfHeapCons.prems wfHeapCons.hyps True
+      apply -
+      apply (clarsimp simp: heap_frees_append)
+      apply (drule (1) set_mp)
+      apply auto
+      done
+  next
+    case False
+
+    show ?thesis
+    proof (rule subset_trans [OF wfHeapCons.IH])
+      from False wfHeapCons.prems show "lookup_heap \<Theta> region n = Some \<tau>"
+        by (clarsimp simp: lookup_heap_Some_iff nth_append )
+
+      show "Some ` {0..length \<Theta> - 1} \<subseteq> Some ` {0..length (\<Theta> @ [\<Sigma>]) - 1}" by clarsimp
+    qed 
+  qed
+qed
+
+lemma WfWValue_bounded_frees:
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  and     wfhv: "WfWValue \<Delta> \<Theta> v \<tau>"
+  shows   "\<Delta> ` tfrees \<tau> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+  using wfhv wfh
+proof induction
+  case (wfRefV \<Delta> \<rho> region \<Theta> off \<tau>')
+  
+  from `WfHeap \<Delta> H \<Theta>` `lookup_heap \<Theta> region off = Some \<tau>'`
+  have "\<Delta> ` afrees \<tau>' \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+    by (rule WfHeap_lookup_bounded_frees)
+
+  moreover
+  from `lookup_heap \<Theta> region off = Some \<tau>'` have "region < length \<Theta>" by (simp add: lookup_heap_Some_iff)
+  with `\<Delta> \<rho> = Some region` have "\<Delta> \<rho> \<in> Some ` {0..length \<Theta> - Suc 0}" by simp
+  
+  ultimately show ?case by simp
+qed simp+
+
+lemma WfHValue_bounded_frees:
+  assumes wfh: "WfHeap \<Delta> H \<Theta>"
+  and     wfhv: "WfHValue \<Delta> \<Theta> v \<tau>"
+  shows   "\<Delta> ` afrees \<tau> \<subseteq> Some ` {0 .. length \<Theta> - 1}"
+  using wfhv wfh
+  apply induction
+  apply simp
+  apply (erule (1) WfWValue_bounded_frees [simplified])
+  done
+  
 (* x is usually fresh_in_heap *)
 lemma WfHeap_upd:
   assumes wfh: "WfHeap \<Delta> H \<Theta>"
@@ -732,14 +929,21 @@ next
   
   note heap_len = WfHeap_length [OF wfHeapCons.hyps(1)]
 
+  have bounded: "\<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` {0..length \<Theta>}" by fact
+
+  have "WfHeap \<Delta> (H @ [R]) (\<Theta> @ [\<Sigma>])" by rule fact+
+  with `WfHValue \<Delta> (\<Theta> @ [\<Sigma>]) v \<tau>` 
+  have bounded_t: "\<Delta> ` afrees \<tau> \<subseteq> Some ` {0 .. length \<Theta>}"
+    by - (drule (1) WfHValue_bounded_frees, simp_all) 
+  
   have "x \<notin> dom R" using wfHeapCons.prems by (simp add: lookup_heap_Some_iff)
   hence "x \<notin> dom \<Sigma>" using wfHeapCons.prems heap_len by auto
-  with `WfHeap \<Delta> H \<Theta>` `submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>]))` `finite (dom R)`
+  with `WfHeap \<Delta> H \<Theta>` `submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>]))` `finite (dom R)` bounded bounded_t
   show ?case using wfHeapCons.prems heap_len 
     unfolding update_heap_def
-    by (auto simp add: update_heap_def nth_append 
-      intro!: WfHeap.intros submap_st_update 
-       elim!: submap_st_weaken WfWValue_region_extend WfHValue_region_extend)
+    by (auto simp add: update_heap_def nth_append afrees_set_insert image_subset_iff 
+        intro!: WfHeap.intros submap_st_update 
+         elim!: submap_st_weaken WfWValue_region_extend WfHValue_region_extend)
 qed
 
 lemma lookup_heap_take:
@@ -897,6 +1101,7 @@ next
     ultimately show ?thesis by simp
   qed      
 qed
+
 
 
 end

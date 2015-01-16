@@ -143,7 +143,8 @@ inductive
   WfHeap :: "'r region_env \<Rightarrow> heap \<Rightarrow> 'r heapT \<Rightarrow> bool"
 where
   wfHeapNil: "WfHeap \<Delta> [] []"
-| wfHeapCons:"\<lbrakk> WfHeap \<Delta> H \<Theta>; submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>])); finite (dom R) \<rbrakk> \<Longrightarrow> WfHeap \<Delta> (H @ [R]) (\<Theta> @ [\<Sigma>])"
+| wfHeapCons:"\<lbrakk> WfHeap \<Delta> H \<Theta>; submap_st \<Sigma> R (WfHValue \<Delta> (\<Theta> @ [\<Sigma>]));
+                finite (dom R); \<Delta> ` afrees_set (ran \<Sigma>) \<subseteq> Some ` {0 .. length \<Theta>} \<rbrakk> \<Longrightarrow> WfHeap \<Delta> (H @ [R]) (\<Theta> @ [\<Sigma>])"
 
 inductive 
   WfFuns :: "('var, 'fun) funs \<Rightarrow> ('fun, 'r) funsT \<Rightarrow> bool"
@@ -160,7 +161,7 @@ inductive
   WfFrees :: "'r region_env \<Rightarrow> ('var, 'r) storeT \<Rightarrow> 'r heapT \<Rightarrow> bool"
 where
   WfFrees: "\<lbrakk> bij_betw \<Delta> (dom \<Delta>) (Some ` {0 .. n});
-              tfrees_set (ran \<Gamma>) \<subseteq> dom \<Delta>; heap_frees \<Theta> \<subseteq> dom \<Delta>; 
+              tfrees_set (ran \<Gamma>) \<subseteq> dom \<Delta>; 
               finite (dom \<Delta>); n = length \<Theta> - 1 \<rbrakk> \<Longrightarrow> WfFrees \<Delta> \<Gamma> \<Theta>"
 
 inductive_cases WfFreesE [elim?]: "WfFrees \<Delta> \<Gamma> \<Theta>"
