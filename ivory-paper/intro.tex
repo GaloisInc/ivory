@@ -11,3 +11,56 @@
   stand-alone compiler. In some sense, this is a follow-up to Stephanie's ICFP
   keynote showing what you can do with Haskell's dependent types (meaning
   decidable type inference in our usage).}
+
+In 2014, we published an experience report describing our approach to building
+high-assurance embedded systems, particularly focused on the use of
+EDSLs~\cite{smaccm}. In that paper, we briefly introduced a language called
+\emph{Ivory}. While we briefly discussed our user experience of Ivory there,
+here we describe the design and implementation of the language.
+
+Ivory follows in the footsteps of other ``safe C'' programming languages, such
+as Cyclone~\cite{}, Rust~\cite{}, \lee{others?}. By safe C languages, we mean
+languages that avoid many of the pitfalls of C, particularly related to memory
+safety and undefined behavior, that are suitable for writing low-level code
+(e.g., device drivers), and that provide low-level control over timing behavior
+and memory usage. Ivory, like other safe C languages, has a minimal runtime
+system.
+
+
+\paragraph{Contributions}
+The research contributions of this paper are as follows.
+
+In 2014, Stephanie Weirich gave a keynote address at the International
+Conference on Functional Programming describing dependent programming using the
+type-extensions of GHC's implementation of Haskell (which we will colloquially
+refer to as ``GHC'' in the remainder of this
+paper)~\cite{weirich-keynote}. Weirich describes how recent extensions to GHC
+provide much of the power of dependently-typed programming, such as found in
+Agda~\cite{}, Idris~\cite{}, or Coq~\cite{}. However, in GHC, a surprisingly
+powerful subset of dependent typing features can be used while still enjoying
+type-inference and decidable type-checking~\cite{dephaskell}.
+
+Ivory exemplifies the use of GHC dependent types in a large, fully-featured
+EDSL. A contribution of the language is to show that type checking for safe
+programming involving the use of pointers, arrays, loops and local memory
+allocation, can be embedded into GHC's type system.
+
+After providing a brief introduction to the Ivory language in
+Section~\ref{sec:ivory-overview}, we describe Ivory's embedding in GHC's type
+system in Section~\ref{sec:ivory-embedding}, obviating the need for a writing a
+custom type-checker or compiler for a safe C language.
+
+Ivory goes beyond ensuring memory safety, the focus on most other safe C
+programming languages, and also provides automated support for preventing errors
+that result from other undefined behaviors in C (e.g., division by zero, left
+bit-shifts by a negative value, etc.) as well as support for checking
+user-provided assertions. Toward this end, Ivory supports writing user-supplied
+assertions and pre- and post-conditions on functions, and includes a built-in
+symbolic simulator targeting an SMT solver (CVC4~\cite{}), as well as an
+theorem-prover back-end targeting ACL2~\cite{}. For automated testing, a
+QuickCheck-like property-based test-case generator is integrated into
+Ivory. These tools are described in Section~\ref{sec:tools}.
+
+
+
+
