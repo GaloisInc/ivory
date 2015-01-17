@@ -20,9 +20,11 @@
 
 Ivory is a monadic language, in which Ivory statements have effects in the Ivory
 monad. The Ivory monad has the type
+
 \begin{code}
 Ivory (eff :: Effects) a
 \end{code}
+
 \noindent
 and is a wrapper for a writer monad transformer over a state monad. The writer
 monad writes statements into the Ivory abstract syntax tree, and the
@@ -69,21 +71,48 @@ data type declarations to data kind declarations,
 data Effects = Effects ReturnEff BreakEff AllocEff
 \end{code}
 
-A type family~\cite{} is used to access and modify the types at each field of
-the tuple. Consider the return effects type, \cd{ReturnEff}.
-
-\lee{XXX finish}
+\noindent
+Consider the return effects type, \cd{ReturnEff}.  Again using the data kinds
+extension to define a new kind and its types, we define two types denoting
+whether returns are permitted or not.
 
 \begin{code}
--- | Retrieve any 'Return' effect present.
+data ReturnEff = forall t. Returns t | NoReturn
+\end{code}
+
+\noindent
+The type is existentially quantified, since in the case of permitted returns, we
+parameterize the type constructor with the type of the value being returned.
+
+A type family~\cite{} is used to access and modify the types at each field of
+the tuple. To access that field, a type family rewrites the \cd{Effects} type to
+the return effect type \cd{ReturnEff}.
+
+\begin{code}
 type family   GetReturn (effs :: Effects) :: ReturnEff
 type instance GetReturn ('Effects r b a) = r
 \end{code}
 
--- | Remove any 'Return' effects present.
+\noindent
+(The GHC convention is to precede a type with a tick (\cd{'}) to disambiguate a
+type constructor (with the tick) from the data constructor.)
+
+To modify the field, another type family rewrites it. For example,
+
 \begin{code}
 type family   ClearReturn (effs :: Effects) :: Effects
-type instance ClearReturn ('Effects r b a) = 'Effects 'NoReturn b a
+type instance ClearReturn ('Effects r b a) =
+  'Effects 'NoReturn b a
+\end{code}
+
+With this machinery, we can now use a type equality constraint to enforce
+particular effects in a context. For example, the type of \cd{ret}, the smart
+constructor for returning a value from a procedure, has the following type
+(additional type constraints are elided):
+
+\begin{code}
+ret :: (GetReturn eff ~ Returns r, ...)
+    => r -> Ivory eff ()
 \end{code}
 
 
@@ -200,3 +229,25 @@ the use of a type-class to ensure procedure calls in Ivory are type-correct.}
 
 \subsection{Module System}
 \lee{Lee: describe the module system, warts and all.}
+
+As seen in Section~\ref{sec:ivory-overview}, Ivory's module system packages up
+the collection of procedures, data declarations, etc. to be passed to a
+back-end, such as the C code generator. The module system is implemented simply
+as a writer monad that produces a list of abstract syntax values that are
+processed by the various back-ends.
+
+While the module system implementation is intuitive and simple, it is also one
+of the greatest weaknesses of Ivory as an EDSL. \lee{XXX finish}
+
+Values included in a module must be monomorphic; a type error results
+otherwise. 
+
+Because of our design decision 
+
+\lee{make sure Pat's section show the Ivory module system.}
+
+
+
+
+
+
