@@ -15,8 +15,12 @@
 In 2014, we published an experience report describing our approach to building
 high-assurance embedded systems, particularly focused on the use of
 EDSLs~\cite{smaccm}. In that paper, we briefly introduced a language called
-\emph{Ivory}. While we briefly discussed our user experience of Ivory there,
-here we describe the design and implementation of the language.
+\emph{Ivory} for programming high-assurance embedded systems. While we briefly
+discussed our user experience of Ivory there. Our main application with the
+language has been to write \emph{SMACCMPilot}, a full-featured autopilot for a
+small unpiloted air vehicle that was the subject of a ``penetration test'' by
+the U.S. Government. Here we describe the design and implementation of the
+language.
 
 Ivory follows in the footsteps of other ``safe C'' programming languages, such
 as Cyclone~\cite{}, Rust~\cite{}, \lee{others?}. By safe C languages, we mean
@@ -26,10 +30,7 @@ safety and undefined behavior, that are suitable for writing low-level code
 and memory usage. Ivory, like other safe C languages, has a minimal runtime
 system.
 
-
 \paragraph{Contributions}
-The research contributions of this paper are as follows.
-
 In 2014, Stephanie Weirich gave a keynote address at the International
 Conference on Functional Programming describing dependent programming using the
 type-extensions of GHC's implementation of Haskell (which we will colloquially
@@ -50,6 +51,14 @@ Section~\ref{sec:ivory-overview}, we describe Ivory's embedding in GHC's type
 system in Section~\ref{sec:ivory-embedding}, obviating the need for a writing a
 custom type-checker or compiler for a safe C language.
 
+Embedding a type system for a safe C language into GHC's type system is tricky
+business. To gain confidence that our embedding is correct, we have formalized a
+model of Ivory in the Isabelle theorem prover~\cite{}, and used the model to
+formally prove progress and preservation properties for Ivory. In the process,
+we have discovered extensions to Ivory that we initially were concerned may not
+be type-safe but in fact are safe. We describe the formalization, proofs, and
+extensions in Section~\ref{sec:semantics}.
+
 Ivory goes beyond ensuring memory safety, the focus on most other safe C
 programming languages, and also provides automated support for preventing errors
 that result from other undefined behaviors in C (e.g., division by zero, left
@@ -60,7 +69,4 @@ symbolic simulator targeting an SMT solver (CVC4~\cite{}), as well as an
 theorem-prover back-end targeting ACL2~\cite{}. For automated testing, a
 QuickCheck-like property-based test-case generator is integrated into
 Ivory. These tools are described in Section~\ref{sec:tools}.
-
-
-
 

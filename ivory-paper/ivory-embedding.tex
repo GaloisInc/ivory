@@ -18,7 +18,77 @@
 \lee{Also talk about the use of typeclasses \cd{IvoryVar}, \cd{IvoryExpr},
   etc. and how this allows the user to define custom data, safely.}
 
+Ivory is a monadic language, in which Ivory statements have effects in the Ivory
+monad. The Ivory monad has the type
+\begin{code}
+Ivory (eff :: Effects) a
+\end{code}
+\noindent
+and is a wrapper for a writer monad transformer over a state monad. The writer
+monad writes statements into the Ivory abstract syntax tree, and the
+state monad is used to generate fresh names for variables.
+
+\paragraph{Effects}
+The \cd{eff} type parameter of the Ivory monad is a phantom type that tracks
+effects in the Ivory monad at the type level. (These effects have no relation to
+the recent work on effects systems for monad transformers~\cite{}.) Currently,
+we track three classes of effects for a given monadic code block:
+
+\begin{itemize}
+\item \emph{Returns}: does the code block contain a \cd{return} statement?
+\item \emph{Breaks}: does the code block contain a \cd{break} statement?
+\item \emph{Allocation}: does the code block contain local memory allocation?
+\end{itemize}
+
+Intuitively, these effects matter because their safety depends on the context in
+which the monad is used. For example, a \cd{return} statement is safe when used
+within a procedure, to implement a function return. But an Ivory code block can
+also be used to implement an operating system task that should never
+return. Similarly in Ivory, \cd{break} statements are used to terminate
+execution of an enclosing loop (the other valid use of \cd{break} in C99 is to
+terminate execution in a \cd{switch} block; Ivory does not contain
+\cd{switch}). By tracking break effects, we can ensure that an Ivory block
+containing a \cd{break} statement is not used outside of a loop. Finally,
+allocation effects are used to guarantee that a reference to locally-allocated
+memory is not returned by a procedure, resulting in undefined behavior; see
+Section~\ref{sec:ref} for details. Moreover, from a code block's type alone, we
+can determine whether it allocates memory, simplifying tasks like stack usage
+analysis.
+
+The Ivory effects system is essentially implemented by a type-level tuple
+structure where each of the three effects correspond to a field of the
+tuple. Type equality constrains enforce that a particular effect is (or is not)
+allowed in a give function signature.
+
+The type-level tuple is implemented using data kinds~\cite{}. Effects have the
+kind \cd{Effects}, containing a single type constructor, \cd{Effects}. The type
+constructor \cd{Effects} is parameterized by the fields of the tuple,
+representing the respective effects. Using GHC's data kinds extension to lift
+data type declarations to data kind declarations,
+\begin{code}
+data Effects = Effects ReturnEff BreakEff AllocEff
+\end{code}
+
+A type family~\cite{} is used to access and modify the types at each field of
+the tuple. Consider the return effects type, \cd{ReturnEff}.
+
+\lee{XXX finish}
+
+\begin{code}
+-- | Retrieve any 'Return' effect present.
+type family   GetReturn (effs :: Effects) :: ReturnEff
+type instance GetReturn ('Effects r b a) = r
+\end{code}
+
+-- | Remove any 'Return' effects present.
+\begin{code}
+type family   ClearReturn (effs :: Effects) :: Effects
+type instance ClearReturn ('Effects r b a) = 'Effects 'NoReturn b a
+\end{code}
+
+
 \subsection{References and Allocation}
+\label{sec:ref}
 Ivory manages allocated data through the use of non-nullable references.
 References are represented using the \cd{Ref} type, which takes two parameters:
 the scope that it was allocated in, and the type of the memory area it points
