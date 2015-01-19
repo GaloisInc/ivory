@@ -16,6 +16,7 @@ import qualified Data.Map as Map
 import Data.Monoid
 import Ivory.Language.Area
 import Ivory.Language.Array
+import Ivory.Language.Effects
 import Ivory.Language.IBool
 import Ivory.Language.Module
 import Ivory.Language.Monad
@@ -36,7 +37,7 @@ import qualified MonadLib
 
 data Coroutine a = Coroutine
   { coroutineName :: String
-  , coroutineRun :: forall s eff. IBool -> ConstRef s a -> Ivory eff () -- FIXME: what constraints to use on eff?
+  , coroutineRun :: forall eff s s'. GetAlloc eff ~ Scope s' => IBool -> ConstRef s a -> Ivory eff ()
   , coroutineDef :: ModuleDef
   }
 
