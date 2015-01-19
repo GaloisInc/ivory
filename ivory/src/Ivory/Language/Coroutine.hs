@@ -56,7 +56,14 @@ coroutine fromYield = Coroutine { .. }
     , derefs = 0
     }
 
-  (((initBB, _), (localVars, resumes)), finalState) = MonadLib.runM (getBlock rawCode (resumeAt 0)) params initialState
+  -- Even the initial block needs a label, in case there's a yield or
+  -- return before any control flow statements. Otherwise, the resulting
+  -- resumeAt call will emit a 'break;' statement outside of the
+  -- forever-loop that the state machine runs in, which is invalid C.
+  initCode = do
+    label <- makeLabel $ extractLocals (resumeAt 0) rawCode
+    goto label
+  (((initBB, _), (localVars, resumes)), finalState) = MonadLib.runM (getBlock [] initCode) params initialState
 
   strName = name ++ "_continuation"
   strDef = AST.Struct strName $ AST.Typed stateType stateName : D.toList localVars
