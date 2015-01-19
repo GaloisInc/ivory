@@ -6,7 +6,7 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Ivory.Language.Coroutine (
-  Coroutine(..), coroutine
+  Coroutine(..), CoroutineBody(..), coroutine
 ) where
 
 import Control.Applicative
@@ -41,11 +41,12 @@ data Coroutine a = Coroutine
   , coroutineDef :: ModuleDef
   }
 
--- TODO: allow fromYield to have parameters and assumptions; forward those into coroutineInit.
-coroutine :: forall a. IvoryArea a => ((forall s eff. Ivory eff (Ref s a)) -> Def ('[] :-> ())) -> Coroutine a
-coroutine fromYield = Coroutine { .. }
+newtype CoroutineBody a = CoroutineBody (forall s1 s2. (forall eff. ClearBreak eff ~ ProcEffects s2 () => Ivory eff (Ref s1 a)) -> Ivory (ProcEffects s2 ()) ())
+
+coroutine :: forall a. IvoryArea a => String -> CoroutineBody a -> Coroutine a
+coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   where
-  DefProc (AST.Proc { AST.procSym = name, AST.procBody = rawCode }) = fromYield $ call (proc yieldName $ body $ return ())
+  ((), CodeBlock { blockStmts = rawCode }) = runIvory $ fromYield $ call (proc yieldName $ body $ return ())
 
   params = CoroutineParams
     { getCont = AST.ExpLabel strTy $ AST.ExpAddrOfGlobal $ AST.areaSym cont
