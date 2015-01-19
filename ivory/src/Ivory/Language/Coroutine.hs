@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Ivory.Language.Coroutine (
@@ -40,7 +39,7 @@ data Coroutine a = Coroutine
   }
 
 -- TODO: allow fromYield to have parameters and assumptions; forward those into coroutineInit.
-coroutine :: forall a. IvoryArea a => ((forall s eff. Ivory eff (Ref s a)) -> Def ('[] :-> ())) -> Coroutine a
+coroutine :: IvoryArea a => ((forall s eff. Ivory eff (Ref s a)) -> Def ('[] :-> ())) -> Coroutine a
 coroutine fromYield = Coroutine { .. }
   where
   DefProc (AST.Proc { AST.procSym = name, AST.procBody = rawCode }) = fromYield $ call (proc yieldName $ body $ return ())
