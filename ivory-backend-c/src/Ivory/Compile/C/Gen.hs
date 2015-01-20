@@ -273,10 +273,14 @@ toBody ens stmt =
                 = $init:(toInit inits); |]]
     -- Can't do a static check since we have local let bindings.
     I.RefCopy t vto vfrom  ->
-      [C.BlockStm [cstm| if( $exp:toRef != $exp:fromRef) {
-         memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); }
-                           else { COMPILER_ASSERTS(false); }
-      |]]
+      [C.BlockStm $ case t of
+        I.TyArr{} ->
+          [cstm| if( $exp:toRef != $exp:fromRef) {
+             memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); }
+                               else { COMPILER_ASSERTS(false); }
+          |]
+        _ -> [cstm| *$exp:toRef = *$exp:fromRef; |]
+      ]
       where
       toRef   = toExpr (I.TyRef t) vto
       fromRef = toExpr (I.TyRef t) vfrom
