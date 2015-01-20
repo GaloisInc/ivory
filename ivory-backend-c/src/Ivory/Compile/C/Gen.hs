@@ -255,18 +255,7 @@ toBody ens stmt =
     -- optimize away *& constructions on dereferncing structs and indexes into
     -- arrays.
     I.Deref t var exp      -> [C.BlockDecl
-      [cdecl| $ty:(toType t) $id:(toVar var) = $exp:deref; |]]
-      where
-      deref = case t of
-                I.TyArr _ _  -> [cexp| * $exp:e |]
-                I.TyCArray _ -> [cexp| * $exp:e |]
-                _            -> [cexp|   $exp:e |]
-      e = case exp of
-            I.ExpLabel t' e' field
-              -> [cexp| $exp:(toExpr (I.TyRef t') e') -> $id:field |]
-            I.ExpIndex t' e' ti i
-              -> [cexp| $exp:(toExpr (I.TyRef t') e') [$exp:(toExpr ti i)] |]
-            _ -> [cexp| * $exp:(toExpr (I.TyRef t) exp) |]
+      [cdecl| $ty:(toType t) $id:(toVar var) = $exp:(derefExp (toExpr (I.TyRef t) exp)); |]]
 
     I.Local t var inits    -> [C.BlockDecl
       [cdecl| $ty:(toType t) $id:(toVar var)
@@ -279,7 +268,7 @@ toBody ens stmt =
              memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); }
                                else { COMPILER_ASSERTS(false); }
           |]
-        _ -> [cstm| *$exp:toRef = *$exp:fromRef; |]
+        _ -> [cstm| $exp:(derefExp toRef) = $exp:(derefExp fromRef); |]
       ]
       where
       toRef   = toExpr (I.TyRef t) vto
@@ -343,7 +332,7 @@ toBody ens stmt =
 
     I.Break                       -> [C.BlockStm [cstm| break; |]]
     I.Store t ptr exp             -> [C.BlockStm
-      [cstm| * $exp:(toExpr (I.TyRef t) ptr) = $exp:(toExpr t exp); |]]
+      [cstm| $exp:(derefExp (toExpr (I.TyRef t) ptr)) = $exp:(toExpr t exp); |]]
 
     I.Comment (I.UserComment c)   -> [C.BlockStm
       [cstm| $comment:("/* " ++ c ++ " */"); |]]
@@ -369,6 +358,14 @@ fieldDes :: String -> C.Designation
 fieldDes n = C.Designation [ C.MemberDesignator (C.Id n noLoc) noLoc ] noLoc
 
 --------------------------------------------------------------------------------
+
+derefExp :: C.Exp -> C.Exp
+derefExp (C.UnOp C.AddrOf rhs _) = rhs
+derefExp e = [cexp| * $exp:e |]
+
+labelExp :: C.Exp -> String -> C.Exp
+labelExp (C.UnOp C.AddrOf lhs _) field = [cexp| $exp:lhs . $id:field |]
+labelExp lhs field = [cexp| $exp:lhs -> $id:field |]
 
 -- | Translate an expression.
 toExpr :: I.Type -> I.Expr -> C.Exp
@@ -405,8 +402,8 @@ toExpr t (I.ExpLabel t' e field) = case t of
   I.TyConstRef (I.TyArr _ _)  -> getField
   I.TyConstRef (I.TyCArray _) -> getField
   _                           ->
-    [cexp| &($exp:(toExpr (I.TyRef t') e) -> $id:field) |]
-  where getField = [cexp| ($exp:(toExpr t' e) -> $id:field) |]
+    [cexp| &($exp:(labelExp (toExpr (I.TyRef t') e) field)) |]
+  where getField = labelExp (toExpr t' e) field
 ----------------------------------------
 toExpr t (I.ExpIndex at a ti i) = case t of
   I.TyRef (I.TyArr _ _)       -> expIdx I.TyRef
