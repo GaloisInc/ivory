@@ -9,7 +9,7 @@ emit :: Def ('[Sint32] :-> ())
 emit = proc "emit" $ \ _ -> body $ retVoid
 
 sequenced :: Coroutine (Stored Sint32)
-sequenced = coroutine $ \ yield -> proc "sequenced" $ body $ do
+sequenced = coroutine "sequenced" $ CoroutineBody $ \ yield -> do
   forever $ do
     call_ emit 1
     v <- yield >>= deref
