@@ -51,6 +51,18 @@ executable ivory-fibtutorial
   else
     ghc-options:        -Wall
 
+executable ivory-coroutine-demo
+  main-is:              Coroutine.hs
+  hs-source-dirs:       examples
+  build-depends:        base >= 4.6,
+                        ivory,
+                        ivory-backend-c
+  default-language:     Haskell2010
+  if impl(ghc >= 7.8)
+    ghc-options:        -Wall -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opt=Ivory.Language.Plugin:kill-foreign-stubs
+  else
+    ghc-options:        -Wall
+
 executable ivory-c-clang-test
   main-is:              TestClang.hs
   other-modules:        PID,
