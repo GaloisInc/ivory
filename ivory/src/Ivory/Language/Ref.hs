@@ -69,7 +69,7 @@ instance IvoryRef ConstRef where
 
 -- | Dereferenceing.
 deref :: forall eff ref s a.
-         (IvoryVar a, IvoryVar (ref s (Stored a)), IvoryRef ref)
+         (IvoryStore a, IvoryVar a, IvoryVar (ref s (Stored a)), IvoryRef ref)
       => ref s (Stored a) -> Ivory eff a
 deref ref = do
   r <- freshVar "deref"
