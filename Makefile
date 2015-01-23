@@ -25,7 +25,7 @@ cabal.sandbox.config:
 .PHONY: build
 build: cabal.sandbox.config
 	cabal sandbox add-source $(PACKAGEDIR)
-	cabal install --force-reinstalls $(PACKAGEDIR)
+	cabal install $(PACKAGEDIR)
 
 # Can't do `cabal run` since there's no cabal file at the top level.
 .PHONY: test
