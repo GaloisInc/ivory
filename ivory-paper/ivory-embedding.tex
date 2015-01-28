@@ -151,8 +151,8 @@ data Area k = Array Nat (Area k)
 
 \paragraph{Stored values}
 The simplest type of memory area is a single base type, lifted to the \cd{Area}
-kind by the use of the \cd{Stored} type constructor.  For example, the type of
-a single stored \cd{Sint32} would simply be \cd{Stored Sint32}.
+kind by the use of the \cd{Stored} type constructor.  For example, the area type
+of a \cd{Sint32} would simply be \cd{Stored Sint32}.
 
 \paragraph{Structs}
 The struct type identifies an area of memory as being structured by the
@@ -200,21 +200,138 @@ Arrays in Ivory take two type parameters: the length of the array as a
 type-level natural number, and the area type of its elements.  For example, an
 array of 10 \cd{Sint32} would have the type \cd{Array 10 (Stored
 Sint32)}.  Indexing into arrays is accomplished through the use of the \cd{(!)}
-operator, and a valid index.
+operator, shown in figure \ref{array-support-functions}.
 
 An index into an array has the type \cd{Ix}, which is parameterized by the size
 of the array that it is indexing into.  The \cd{Ix n} type will only hold
-values between zero and \cd{n}, which allows us to avoid run-time array bounds
-checks, as in \ref{memareas}.
+values between zero and \cd{n-1}, which allows us to avoid run-time array bounds
+checks, as in \ref{memareas}.  One shortcoming of this approach is that the
+\cd{(!)} operator will only accept indexes that are parameterized by the length
+of the array being indexed, while it would be useful to allow indexes that have
+a maximum value that is less than the length of the target array.
 
-Additionally, we define a combinator \cd{arrayMap}, 
+As array indexes are parameterized by the length of arrays they can index into,
+they become an interesting target for new combinators.  In this vein, we
+introduce \cd{arrayMap}, whose signature is shown in figure
+\ref{array-support-functions}.  The intuition for the \cd{arrayMap} function is
+that it invokes the function provided for all indexes that lie between $0$ and
+$n - 1$.  As the index argument given to the function is most often used with an
+array, type information propagates out from uses of the \cd{(!)} operator, and
+it becomes unnecessary to give explicit bounds for the iteration.
 
-\lee{Trevor: Introduce the use of type-level nats here, and how they are used to
-  enforce read/write safety for arrays. I'd discuss \cd{arrayMap} and \cd{Ix}
-  here, too. (Maybe discuss possible extensions with decidable type-level
-  arithmetic). Maybe mention \cd{CArray}s, too.}
+\begin{figure}
+\begin{code}
+(!)      :: Ref s (Array n area) -> Ix n -> Ref s area
+arrayMap :: (Ix n -> Ivory eff a) -> Ivory eff a
+toCArray :: Ref s (Array n area) -> Ref s (CArray area)
+arrayLen :: Num len => Ref s (Array n area) -> len
+\end{code}
+\caption{Array support functions}
+\label{array-support-functions}
+\end{figure}
+
+For compatibility with C, we also introduce a type for arrays that are not
+parameterized by their length, \cd{CArray}.  There are no operations to work
+with references to \cd{CArray}s in Ivory, as the assumption is that they will
+only ever be used when interacting with external C functions.  As many C
+functions that consume arrays require both a pointer and a length, we also
+provide the \cd{arrayLen} function, which allows the length of an Ivory array to
+be demoted to a value.  When used in conjunction with \cd{toCArray}, this
+function allows for fairly seamless integration with external C code.
 
 \subsection{Procedures}
+Procedures in Ivory inhabit the \cd{Def} type which is parameterized by the
+signature of the function it names.  Procedure signatures inhabit the \cd{Proc}
+kind, which provides one type constructor: \cd{:->}.  The \cd{:->} type
+constructor takes two arguments: the types of the argument list, and the return
+type of the whole procedure.  To enable processing using type classes while
+easing the burden on the programmer, the argument list is specified as a
+type-level list of $*$-kinded types.  This enables the definition of three
+classes that are used in the definition and invocation of procedures.
+
+\paragraph{Definition} Procedures are defined through the use of the \cd{proc}
+function, which requires two arguments: a symbolic name for the function, and
+its implementation.  The implementation takes the form of a Haskell function
+that operates over Ivory language values, producing a function body result.
+Correct procedure definition is guarded by the \cd{IvoryProcDef} class, which
+constrains the use of the \cd{proc} function.
+
+\cd{IvoryProcDef} has two parameters: signature and implementation, which relate
+the \cd{proc} type of the resulting \cd{Def} and the haskell function given as
+the procedure's implementation.  There are only two instances for
+\cd{IvoryProcDef}: the case where the argument list is empty, and the case where
+the argument list is extended by one argument.  The latter case also requires
+that the argument added be an Ivory type (via the \cd{IvoryExpr} class), thus
+guaranteeing that values can be generated to pass to the implementation
+function.   As the signature of the resulting \cd{Def} is fully determined by
+the implementation function through the functional dependency from impl to proc
+in the class definition of \cd{IvoryProcDef}, users are only required to write
+signatures when the implementation given to \cd{proc} is ambiguous.
+
+The implementation function is required to produce a final value of the type
+\cd{Body r}, where \cd{r} is the return type of the function.  Values of type
+\cd{Body} are created through the use of three functions: \cd{requires},
+\cd{ensures}, and \cd{body}.  The \cd{requires} function allows the programmer
+to state requirements of the arguments to the function, while \cd{ensures}
+allows the programmer to state properties that the function should preserve. The
+third function \cd{body}, whose signature is shown in figure \ref{proc-defs},
+lifts an Ivory computation that returns a result \cd{r} and allocates data in a
+region \cd{s} into a value of type \cd{Body r}.  As the allocation scope
+expected by the Ivory computation given is quantified in a rank-2 context to the
+\cd{body} function, it is not permitted to show up in the type of the result,
+\cd{r}.  This behavior allows us to prevent anything allocated within the
+implementation function from being returned, a source of dangling pointer bugs.
+This is the same technique used by Launchbury and Peyton Jones in \cite{stmonad}
+to prevent mutable state from leaking out of the context of the run function for
+the \cd{ST} monad.
+
+\paragraph{Invocation} Procedures are invoked directly through the use of the
+\cd{call} function or indirectly through the \cd{invoke} function, both of which
+take a \cd{Def} as their first argument, using its signature to determine the
+rest of the arguments needed.  The arguments needed are determined by the
+\cd{IvoryCall} class, which uses the signature information to produce a
+continuation that requires parameters that match the type of the argument list
+from the signature of the \cd{Def}.  The \cd{IvoryCall} class mirrors the
+structure of the \cd{IvoryProcDef} class in instance structure, though it adds
+one additional parameter: \cd{eff}.  This additional parameter is required so
+that the containing effect context of the call can be connected to the result of
+the continuation generated by the instances of \cd{IvoryCall}.  For example,
+calling a procedure with type \cd{Def ('[Sint32] :-> Sint32)} will produce a
+continuation of the type, \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff}
+parameter is inherited from the current environment.
+
+\trevor{Is there something from Lennart that we can cite about the
+implementation of call, as it relates to printf?}
+
+\begin{figure}
+\begin{code}
+data Proc k = [k] :-> k
+
+class IvoryProcDef (sig :: Proc *) impl | impl -> sig
+instance IvoryProcDef ('[] :-> r) (Body r)
+instance IvoryProcDef (as :-> r) impl
+  => IvoryProcDef ((a ': as) :-> r) (a -> impl)
+
+class IvoryCall eff (sig :: Proc *) impl
+  | sig eff -> impl, impl -> eff
+instance IvoryCall eff ([] :-> r) (Ivory eff r)
+instance (IvoryExpr a, IvoryCall eff (as :-> r) impl)
+  => IvoryCall eff ((a ': as) :-> r) (a -> impl)
+
+body :: (forall s. Ivory (ProcEffects s r) () -> Body r
+
+data Def (sig :: Proc *)
+proc :: IvoryProcDef sig impl
+     => Sym -> impl -> Def sig
+
+call :: IvoryCall sig eff impl => Def sig -> impl
+\end{code}
+\caption{Function definition support}
+\label{proc-defs}
+\end{figure}
+
+
+
 \lee{Trevor: describe the use of type-level lists to define procedures. Describe
 the use of a type-class to ensure procedure calls in Ivory are type-correct.}
 
