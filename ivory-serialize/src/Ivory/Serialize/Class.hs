@@ -30,13 +30,13 @@ class SerializableRef t where
                     -> Uint32 -> Ref s2 t -> Ivory eff ()
   unpackRef from at to = unpack from at >>= store to
 
-instance (ANat len, IvoryArea a, SerializableRef a)
+instance (ANat len, IvorySizeOf a, SerializableRef a)
       => SerializableRef (Array len a) where
   packRef dst offs src = arrayMap $ \ix ->
-    packRef dst (offs + safeCast ix) (src ! ix)
+    packRef dst (offs + sizeOf (Proxy :: Proxy a) * safeCast ix) (src ! ix)
 
   unpackRef src offs dst = arrayMap $ \ix ->
-    unpackRef src (offs + safeCast ix) (dst ! ix)
+    unpackRef src (offs + sizeOf (Proxy :: Proxy a) * safeCast ix) (dst ! ix)
 
 class (IvoryVar t, SerializableRef (Stored t)) => Serializable t where
   pack     :: Ref s (CArray (Stored Uint8))      -> Uint32 -> t -> Ivory eff ()
