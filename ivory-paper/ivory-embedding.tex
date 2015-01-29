@@ -189,7 +189,7 @@ an ``a'' struct, with the \cd{field1} label, producing a new reference of type
 \begin{code}
 example :: Ref Global (Struct "a")
         -> Ref Global (Stored Sint32)
-example ref = ref \mytilde> field1
+example ref = ref %*\mytilde*)> field1
 \end{code}
 \caption{Struct field indexing}
 \label{example-struct-label}
