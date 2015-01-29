@@ -285,6 +285,22 @@ This is the same technique used by Launchbury and Peyton Jones in \cite{stmonad}
 to prevent mutable state from leaking out of the context of the run function for
 the \cd{ST} monad.
 
+For example, the procedure \cd{f} defined in figure \ref{proc-def}, will produce
+a type error, as it attempts to return a locally-allocated reference; as
+references have the scope they were allocated in as part of their type, the use
+of the \cd{Body} type prevents anything allocated within its context from
+escaping out.
+
+\begin{figure}[h]
+\begin{code}
+f = proc "f" $ body $ do
+  ref <- local (izero :: Init Sint32)
+  ret ref
+\end{code}
+\caption{Attempted creation of a dangling pointer}
+\label{proc-def}
+\end{figure}
+
 \paragraph{Invocation} Procedures are invoked directly through the use of the
 \cd{call} function or indirectly through the \cd{invoke} function, both of which
 take a \cd{Def} as their first argument, using its signature to determine the
