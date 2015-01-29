@@ -257,16 +257,16 @@ Correct procedure definition is guarded by the \cd{IvoryProcDef} class, which
 constrains the use of the \cd{proc} function.
 
 \cd{IvoryProcDef} has two parameters: signature and implementation, which relate
-the \cd{proc} type of the resulting \cd{Def} and the haskell function given as
-the procedure's implementation.  There are only two instances for
-\cd{IvoryProcDef}: the case where the argument list is empty, and the case where
-the argument list is extended by one argument.  The latter case also requires
-that the argument added be an Ivory type (via the \cd{IvoryExpr} class), thus
-guaranteeing that values can be generated to pass to the implementation
-function.   As the signature of the resulting \cd{Def} is fully determined by
-the implementation function through the functional dependency from impl to proc
-in the class definition of \cd{IvoryProcDef}, users are only required to write
-signatures when the implementation given to \cd{proc} is ambiguous.
+the \cd{proc} type of the Ivory procedure and the haskell function given as the
+its implementation.  There are only two instances for \cd{IvoryProcDef}: the
+case where the argument list is empty, and the case where the argument list is
+extended by one argument.  The latter case also requires that the argument added
+be an Ivory type (via the \cd{IvoryExpr} class), thus guaranteeing that values
+can be generated to pass to the implementation function.   As the signature of
+the resulting \cd{Def} is fully determined by the implementation function
+through the functional dependency from impl to proc in the class definition of
+\cd{IvoryProcDef}, users are only required to write signatures when the
+implementation given to \cd{proc} is ambiguous.
 
 The implementation function is required to produce a final value of the type
 \cd{Body r}, where \cd{r} is the return type of the function.  Values of type
