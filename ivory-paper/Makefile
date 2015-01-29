@@ -11,9 +11,9 @@ all: $(TGT).pdf
 
 $(TGT).pdf: $(WORK_DIR) *.tex
 	$(latex) $(TGT)
-#	bibtex $(WORK_DIR)/$(TGT).aux
+	bibtex $(WORK_DIR)/$(TGT).aux
 	$(latex) $(TGT)
-#	bibtex $(WORK_DIR)/$(TGT).aux
+	bibtex $(WORK_DIR)/$(TGT).aux
 	# echo "\balance" >> $(WORK_DIR)/$(TGT).bbl
 	$(latex) $(TGT)
 	cp $(WORK_DIR)/$(TGT).pdf .
