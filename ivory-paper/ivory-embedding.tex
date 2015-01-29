@@ -136,8 +136,8 @@ allocated, and freed as soon as the function returns.
 
 \subsection{Memory Areas}
 In Ivory, data pointed to by references and pointers is described by the {\tt
-Area} kind, following \cite{memareas}.  This kind contains four types: {\tt
-Stored}, \cd{Struct}, \cd{Array}, and \cd{CArray}.
+Area} kind, following Diatchki and Jones' work in \cite{memareas}.  This kind
+contains four types: {\tt Stored}, \cd{Struct}, \cd{Array}, and \cd{CArray}.
 
 \begin{figure}[h]
 \begin{code}
@@ -154,11 +154,11 @@ The simplest type of memory area is a single base type, lifted to the \cd{Area}
 kind by the use of the \cd{Stored} type constructor.  For example, the area type
 of a \cd{Sint32} would simply be \cd{Stored Sint32}.
 
-\paragraph{Structs}
-The struct type identifies an area of memory as being structured by the
-corresponding struct declaration from a use of the ivory quasiquoter.  For
-example, if a region of memory is typed using the struct definition from figure
-\ref{example-struct}, it would have type \cd{Struct "a"}.
+\paragraph{Structs} A reference that has an area-kind of type \cd{Struct "x"}
+will point to memory whose layout corresponds to the definition of the struct
+with name x.  Struct definitions are introduced through use of the ivory
+quasi-quoter.  For example, if a region of memory is typed using the struct
+definition from figure \ref{example-struct}, it would have type \cd{Struct "a"}.
 
 \begin{figure}[h]
 \begin{code}
@@ -219,7 +219,7 @@ $n - 1$.  As the index argument given to the function is most often used with an
 array, type information propagates out from uses of the \cd{(!)} operator, and
 it becomes unnecessary to give explicit bounds for the iteration.
 
-\begin{figure}
+\begin{figure}[h]
 \begin{code}
 (!)      :: Ref s (Array n area) -> Ix n -> Ref s area
 arrayMap :: (Ix n -> Ivory eff a) -> Ivory eff a
@@ -303,7 +303,7 @@ parameter is inherited from the current environment.
 \trevor{Is there something from Lennart that we can cite about the
 implementation of call, as it relates to printf?}
 
-\begin{figure}
+\begin{figure}[h]
 \begin{code}
 data Proc k = [k] :-> k
 
