@@ -41,6 +41,9 @@
 \usepackage{flushend}
 \usepackage{bold-extra}
 
+%% For inference rules
+\usepackage{mathpartir}
+
 % Language definition for both quasi-quoted Ivory, and Haskell.
 \lstdefinelanguage{Ivory}
 {morekeywords={struct,data,where,let,in,class,instance,type,family},
@@ -56,7 +59,7 @@
   \ifthenelse{\boolean{td}}
              {\newcommand{\pat}[1]{\textcolor{blue}{PH: #1}}
               \newcommand{\lee}[1]{\textcolor{blue}{LP: #1}}
-              \newcommand{\simon}[1]{\textcolor{blue}{SW: #1}}
+              \newcommand{\sjw}[1]{\textcolor{blue}{SW: #1}}
               \newcommand{\trevor}[1]{\textcolor{blue}{TE: #1}}
               \newcommand{\james}[1]{\textcolor{blue}{JB: #1}}
              }

@@ -1,9 +1,105 @@
 \section{Ivory Semantics}
 \label{sec:semantics}
 
-\lee{Simon: this is yours. Give the typing rules for Ivory, sketch the proofs of
-  progress and preservation, and describe this embedding in Isabelle. Also
-  describe the (work-in-progress) to extend Ivory with memory regions and
-  relaxed references. I'm expecting this'll be about 1-2 pages. Talk about a
-  little additional type-checking at value level (return statements), discovered
-from formal modeling.}
+In this section we discuss the more formal aspects of the Ivory
+language, in particular, its semantics, and how this semantics is
+modelled inside the Isabelle/HOL theorem prover\sjw{cite}.  We also
+discuss the proof of type safety.  This model is available under the
+\texttt{ivory-formal-model} directory in the ivory repository.
+
+\begin{figure}[t]
+
+\sjw{TODO}
+
+\label{fig:syntax}
+\caption{Concrete syntax of core Ivory \sjw{core?}}
+\end{figure}
+
+\sjw{more on why we want a model/motivations (?)}
+
+\subsection{Modeling Ivory}
+
+The formal model of Ivory concerns only the core language --- aspects
+of the embedding into Haskell are not treated.  The basis for this
+model is a typical typed imperative language with function calls,
+references, and memory allocation (but not memory freeing).  
+
+The heap is modeled as a list of \emph{regions}, each region a finite
+map from \emph{offsets} to \emph{heap values}; a \emph{reference} then
+contains both a \emph{region index} into the list of regions, and an
+offset with the region.  
+
+Operationally, the region list is extended on a function call, a
+region being added to the end of the list, and shrunk on function
+return, removing the last region.  Allocating an object extends the
+current (last) region.
+
+\sjw{don't really care?  maybe move to discussion}
+Variables are immutable, in keeping with the Haskell implementation,
+and thus variables are bound using a let-style statement.
+
+\sjw{stratification of values into ref/non-ref makes things easy}
+
+\subsection{Typing Ivory}
+
+\begin{figure*}[t]
+
+\sjw{TODO}
+
+\label{fig:rules}
+\caption{Selected semantic and typing rules.}
+\end{figure*}
+
+\begin{itemize}
+\item Regions everywhere
+\item type (region) schemas
+\item Ignore must-return annotation?
+\item Extra check on return type (frees in ret are in args) \sjw{is
+    this actually needed?}
+\item type substitutions (only on call?)
+\end{itemize}
+
+\subsection{Type Safety}
+
+\begin{itemize}
+\item Progress proof: pretty boring
+\item Preservation: necessary/interesting invariants
+\item other properties (obvious closure lemma/invariant?)
+\item G, p |- e : t ==> frees t \in frees G
+\item tsubst preserves well-formedness
+\end{itemize}
+
+\subsection{Nested Regions}
+
+\begin{itemize}
+\item Simpler syntax (no stratification)
+\item Much more complex proofs/invariants
+\item What are the main ideas (downward closed heap)?
+\end{itemize}
+
+\subsection{Discussion}
+
+\begin{itemize}
+\item modeling gap
+\item various bugs in Ivory but not in Isabelle model
+\item time estimate (approx 1 month?)
+\item future work: first-class regions?
+\item what have we gained?
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+
+% \lee{Simon: this is yours. Give the typing rules for Ivory, sketch the proofs of
+%   progress and preservation, and describe this embedding in Isabelle. Also
+%   describe the (work-in-progress) to extend Ivory with memory regions and
+%   relaxed references. I'm expecting this'll be about 1-2 pages. Talk about a
+%   little additional type-checking at value level (return statements), discovered
+% from formal modeling.}
