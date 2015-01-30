@@ -136,7 +136,7 @@ allocated, and freed as soon as the function returns.
 
 \subsection{Memory Areas}
 In Ivory, data pointed to by references and pointers is described by the {\tt
-Area} kind, following Diatchki and Jones' work in \cite{memareas}.  This kind
+Area} kind, following Diatchki and Jones' work in~\cite{memareas}.  This kind
 contains four types: {\tt Stored}, \cd{Struct}, \cd{Array}, and \cd{CArray}.
 
 \begin{figure}[h]
@@ -205,7 +205,7 @@ operator, shown in figure \ref{array-support-functions}.
 An index into an array has the type \cd{Ix}, which is parameterized by the size
 of the array that it is indexing into.  The \cd{Ix n} type will only hold
 values between zero and \cd{n-1}, which allows us to avoid run-time array bounds
-checks, as in \ref{memareas}.  One shortcoming of this approach is that the
+checks, as in~\cite{memareas}.  One shortcoming of this approach is that the
 \cd{(!)} operator will only accept indexes that are parameterized by the length
 of the array being indexed, while it would be useful to allow indexes that have
 a maximum value that is less than the length of the target array.
@@ -281,7 +281,7 @@ expected by the Ivory computation given is quantified in a rank-2 context to the
 \cd{body} function, it is not permitted to show up in the type of the result,
 \cd{r}.  This behavior allows us to prevent anything allocated within the
 implementation function from being returned, a source of dangling pointer bugs.
-This is the same technique used by Launchbury and Peyton Jones in \cite{stmonad}
+This is the same technique used by Launchbury and Peyton Jones in~\cite{stmonad}
 to prevent mutable state from leaking out of the context of the run function for
 the \cd{ST} monad.
 
