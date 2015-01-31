@@ -316,18 +316,18 @@ arguments to a procedure will often yield a monomorphic implementation function,
 which through the functional dependency will produce a monomorphic \cd{Def}
 type.
 
-\trevor{Describe why it's useful to have the Body type, and the ensures,
-	requires and body combinators.  Particularly, how they constrain the
-	location of ensures and requires, and the way that they constrain
-	effects in those combinators}
-The implementation function is required to produce a final value of the type
-\cd{Body r}, which is simply an Ivory monadic action with its allocation context
-hidden, and return type exposed as the type variable \cd{r}.  Values of type
-\cd{Body} can be modified through uses of the \cd{requires} and \cd{ensures}
-functions, and are created through the use of the \cd{body} function.  The
-\cd{requires} function allows the programmer to state requirements of the
-arguments to the function, while \cd{ensures} allows the programmer to state
-properties that the function should preserve. The third function \cd{body},
+The implementation function is required to produce a value of type \cd{Body r},
+which is simply a monadic action with its allocation context hidden, and return
+type exposed as the type variable \cd{r}.  The \cd{Body} type serves two
+purposes: it removes the need to write an instance of \cd{IvoryProcDef} that
+involves a rank-2 function, and it defines an extension point for modifying the
+body of the procedure.  Pre and post conditions can be added to a procedure body
+by the use of the \cd{requires} and \cd{ensures} functions, respectively.  Both
+functions allows arbitrary Ivory statements to be added, but disallows all
+effects.  The result of this restriction is that memory can be read and
+validated, but control flow and allocation effects are prohibited.
+
+The procedure body can be defined through the use of the \cd{body} function,
 whose signature is shown in figure~\ref{fig:proc-defs}, lifts an Ivory
 computation that returns a result \cd{r} and allocates data in a region \cd{s}
 into a value of type \cd{Body r}.  As the allocation scope expected by the Ivory
