@@ -317,8 +317,8 @@ which through the functional dependency will produce a monomorphic \cd{Def}
 type.
 
 The implementation function is required to produce a value of type \cd{Body r},
-which is simply a monadic action with its allocation context hidden, and return
-type exposed as the type variable \cd{r}.  The \cd{Body} type serves two
+which is simply an Ivory monadic action with its allocation context hidden, and
+return type exposed as the type variable \cd{r}.  The \cd{Body} type serves two
 purposes: it removes the need to write an instance of \cd{IvoryProcDef} that
 involves a rank-2 function, and it defines an extension point for modifying the
 body of the procedure.  Pre and post conditions can be added to a procedure body
