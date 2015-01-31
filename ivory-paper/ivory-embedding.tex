@@ -116,28 +116,40 @@ ret :: (GetReturn eff ~ Returns r, ...)
 \end{code}
 
 
-\subsection{References and Allocation}
+\subsection{Memory Management}
 \label{sec:ref}
-Ivory manages allocated data through the use of non-nullable references.
-References are represented using the \cd{Ref} type, which takes two parameters:
-the scope that it was allocated in, and the type of the memory area it points
-to.
 
-All references in Ivory are allocated in one of two scopes, \cd{Global}, or a
-fresh local scope, unique to the function that the allocation takes place
-within.  References with \cd{Global} scope are allocated through the use of the
-\cd{area} top-level declaration, and references allocated within a function are
-allocated through the use of the \cd{local} function.  Both can take
-initializers, defaulting to zero-initialization when they are omitted.
+Ivory uses regions for memory management.  When data is allocated, a reference
+to the resulting data is returned, and tagged at the type level by the region
+that it originates from.  Ivory guarantees that when execution leaves the scope
+of a region, all memory allocated in that region is freed, and no longer
+accessible.
+
+Memory in Ivory are allocated in one of two regions: \cd{Global} which holds
+data that is accessible by all functions, or a function-local scope, unique to
+the origin of the allocated data.  References with \cd{Global} scope are
+allocated through the use of the \cd{area} top-level declaration, and references
+allocated within a function are allocated through the use of the \cd{local}
+function.  Both can take initializers, defaulting to zero-initialization when
+they are omitted.
 
 While references allocated in the \cd{Global} scope are allocated when the
-program starts, references allocated in the local scope of a function are stack
-allocated, and freed as soon as the function returns.
+program starts and are never freed, references allocated in the local scope of a
+function are allocated on demand on the stack, and freed when the function
+returns.  As procedure definition introduces a fresh region, with the constraint
+that no reference allocated in that region should should up in the return type
+of that procedure, Ivory avoids the introduction of dangling pointers.  The
+embedding of this feature in Haskell will be described in more detail in
+section~\ref{sec:proc}
 
 \subsection{Memory Areas}
-In Ivory, data pointed to by references and pointers is described by the {\tt
-Area} kind, following Diatchki and Jones' work in~\cite{memareas}.  This kind
-contains four types: {\tt Stored}, \cd{Struct}, \cd{Array}, and \cd{CArray}.
+\label{sec:area}
+
+In addition to being parameterized on the region they are allocated in,
+references are parameterized by the layout of the memory they point to.
+We introduce area types through the new \cd{Area} kind, and the four types that
+inhabit it, as described in figure \ref{fig:area-def}.  This typing of memory is
+heavily inspired by the work of Diatchki and Jones in~\cite{memareas}.
 
 \begin{figure}[h]
 \begin{code}
@@ -147,6 +159,7 @@ data Area k = Array Nat (Area k)
             | Stored k
 \end{code}
 \caption{The definition of the \cd{Area} kind}
+\label{fig:area-def}
 \end{figure}
 
 \paragraph{Stored values}
@@ -166,6 +179,10 @@ definition from figure \ref{example-struct}, it would have type \cd{Struct "a"}.
                  , field2 :: Struct "b"
                  }
       |]
+
+-- Implicitly defined labels
+-- field1 :: Label "a" (Stored Sint32)
+-- field2 :: Label "a" (Struct "b")
 \end{code}
 \caption{An example struct definition}
 \label{example-struct}
@@ -240,56 +257,91 @@ be demoted to a value.  When used in conjunction with \cd{toCArray}, this
 function allows for fairly seamless integration with external C code.
 
 \subsection{Procedures}
+\label{sec:proc}
+
+Procedures in Ivory differ from Haskell functions in a few major ways: they are
+not first class in the language, they may not be partially applied, and they
+produce real functions in the generated code.  Contrasting that with functions
+in Haskell that produce values in the \cd{Ivory} monad, they are first class,
+they can be partially applied, and they will be expanded at compile time,
+causing them to behave more like macros for Ivory.  The question to answer when
+choosing between defining functionality as a Haskell function or an Ivory
+procedure is this: is the cost of expanding out the definition at the call site
+acceptable?
+
 Procedures in Ivory inhabit the \cd{Def} type which is parameterized by the
 signature of the function it names.  Procedure signatures inhabit the \cd{Proc}
 kind, which provides one type constructor: \cd{:->}.  The \cd{:->} type
 constructor takes two arguments: the types of the argument list, and the return
-type of the whole procedure.  To enable processing using type classes while
-easing the burden on the programmer, the argument list is specified as a
-type-level list of $*$-kinded types.  This enables the definition of three
-classes that are used in the definition and invocation of procedures.
+type of the whole procedure.  As the intent behind the use of the \cd{:->} type
+is to suggest that all of the arguments to the left of the arrow must be
+provided before a result may be produced.
 
-\paragraph{Definition} Procedures are defined through the use of the \cd{proc}
-function, which requires two arguments: a symbolic name for the function, and
-its implementation.  The implementation takes the form of a Haskell function
-that operates over Ivory language values, producing a function body result.
-Correct procedure definition is guarded by the \cd{IvoryProcDef} class, which
-constrains the use of the \cd{proc} function.
+To enable processing using type classes while easing the burden on the
+programmer, the argument list is specified as a type-level list of $*$-kinded
+types.  This enables the definition of functions for defining and invoking Ivory
+procedures.
+\trevor{I'm not a big fan of this paragraph, but I'm not sure how else to
+suggest that it's useful to have the argument lists be type-level lists}
+
+\paragraph{Definition}
+
+Procedures are defined through the use of the \cd{proc} function, which requires
+two arguments: a symbolic name for the generated procedure, and its
+implementation.  The implementation takes the form of a Haskell function that
+accepts Ivory value arguments, and produces a result in the Ivory monad.  Again,
+viewing Haskell functions that produce values in the Ivory monad as macros, the
+\cd{proc} function can be seen as operating at the meta-level, accepting a
+symbol name and macro as its arguments, and producing a procedure with the given
+name, and the fully-applied macro as its body.  Correct procedure definition is
+guarded by the \cd{IvoryProcDef} class, which constrains uses of the \cd{proc}
+function.
 
 \cd{IvoryProcDef} has two parameters: signature and implementation, which relate
-the \cd{proc} type of the Ivory procedure and the haskell function given as the
-its implementation.  There are only two instances for \cd{IvoryProcDef}: the
-case where the argument list is empty, and the case where the argument list is
-extended by one argument.  The latter case also requires that the argument added
-be an Ivory type (via the \cd{IvoryExpr} class), thus guaranteeing that values
-can be generated to pass to the implementation function.   As the signature of
-the resulting \cd{Def} is fully determined by the implementation function
-through the functional dependency from impl to proc in the class definition of
-\cd{IvoryProcDef}, users are only required to write signatures when the
-implementation given to \cd{proc} is ambiguous.
+the \cd{Proc} type of the resulting Ivory procedure and the haskell function
+given as the its implementation.  There are only two instances for
+\cd{IvoryProcDef}: the case where the argument list is empty, and the case where
+the argument list is extended by one argument, corresponding to the cases for
+the \cd{'[]} and \cd{(':)} type constructors.  The latter case also requires
+that the argument added be an Ivory type that is inhabited by a use of the
+\cd{IvoryVar} constraint.  In addition to ensuring that the argument type is
+acceptable as an argument to an Ivory function, the use of the \cd{IvoryVar}
+constraint also allows values to be manufactured from fresh names, allowing
+dummy values to be passed to the implementation function.
+
+Examining the functional dependencies for the \cd{IvoryProcDef} class, we see
+that the implementation function (\cd{impl}) fully determines the signature of
+the resulting procedure (\cd{sig}).  The effect of this dependency in the
+context of the \cd{proc} function is that the user will rarely need to write an
+accompanying \cd{Def} signature for Ivory procedures they define; uses of the
+arguments to a procedure will often yield a monomorphic implementation function,
+which through the functional dependency will produce a monomorphic \cd{Def}
+type.
 
 The implementation function is required to produce a final value of the type
-\cd{Body r}, where \cd{r} is the return type of the function.  Values of type
-\cd{Body} are created through the use of three functions: \cd{requires},
-\cd{ensures}, and \cd{body}.  The \cd{requires} function allows the programmer
-to state requirements of the arguments to the function, while \cd{ensures}
-allows the programmer to state properties that the function should preserve. The
-third function \cd{body}, whose signature is shown in figure \ref{proc-defs},
-lifts an Ivory computation that returns a result \cd{r} and allocates data in a
-region \cd{s} into a value of type \cd{Body r}.  As the allocation scope
-expected by the Ivory computation given is quantified in a rank-2 context to the
-\cd{body} function, it is not permitted to show up in the type of the result,
-\cd{r}.  This behavior allows us to prevent anything allocated within the
-implementation function from being returned, a source of dangling pointer bugs.
-This is the same technique used by Launchbury and Peyton Jones in~\cite{stmonad}
-to prevent mutable state from leaking out of the context of the run function for
-the \cd{ST} monad.
+\cd{Body r}, which is simply an Ivory monadic action with its allocation context
+hidden, and return type exposed as the type variable \cd{r}.  Values of type
+\cd{Body} can be modified through uses of the \cd{requires} and \cd{ensures}
+functions, and are created through the use of the \cd{body} function.  The
+\cd{requires} function allows the programmer to state requirements of the
+arguments to the function, while \cd{ensures} allows the programmer to state
+properties that the function should preserve. The third function \cd{body},
+whose signature is shown in figure~\ref{fig:proc-defs}, lifts an Ivory
+computation that returns a result \cd{r} and allocates data in a region \cd{s}
+into a value of type \cd{Body r}.  As the allocation scope expected by the Ivory
+computation given is quantified in a rank-2 context to the \cd{body} function,
+it is not permitted to show up in the type of the result, \cd{r}.  This behavior
+allows us to prevent anything allocated within the implementation function from
+being returned, a source of dangling pointer bugs.  This is the same technique
+used by Launchbury and Peyton Jones in~\cite{stmonad} to prevent mutable state
+from leaking out of the context of the run function for the \cd{ST} monad.
 
-For example, the procedure \cd{f} defined in figure \ref{proc-def}, will produce
-a type error, as it attempts to return a locally-allocated reference; as
-references have the scope they were allocated in as part of their type, the use
-of the \cd{Body} type prevents anything allocated within its context from
-escaping out.
+For example, the procedure \cd{f} defined in figure~\ref{fig:proc-def}, will
+produce a type error, as it attempts to return a locally-allocated reference;
+references are parameterized by the scope they were allocated in, and having
+that scope variable quantified in the rank-2 context of the argument to the
+\cd{body} function prevents anything allocated within that action from showing
+up in the return type \cd{r}.
 
 \begin{figure}[h]
 \begin{code}
@@ -298,7 +350,7 @@ f = proc "f" $ body $ do
   ret ref
 \end{code}
 \caption{Attempted creation of a dangling pointer}
-\label{proc-def}
+\label{fig:proc-def}
 \end{figure}
 
 \paragraph{Invocation} Procedures are invoked directly through the use of the
@@ -343,7 +395,7 @@ proc :: IvoryProcDef sig impl
 call :: IvoryCall sig eff impl => Def sig -> impl
 \end{code}
 \caption{Function definition support}
-\label{proc-defs}
+\label{fig:proc-defs}
 \end{figure}
 
 
