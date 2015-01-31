@@ -120,27 +120,24 @@ ret :: (GetReturn eff ~ Returns r, ...)
 \label{sec:ref}
 
 Ivory uses regions for memory management.  When data is allocated, a reference
-to the resulting data is returned, and tagged at the type level by the region
-that it originates from.  Ivory guarantees that when execution leaves the scope
-of a region, all memory allocated in that region is freed, and no longer
-accessible.
+to the resulting data is returned, and tagged by the containg region using a
+type variable.  Well-typed Ivory programs guarantee that references do no
+persist beyond the scope of their containing region.  Currently regions are
+allocated and freed on function entry/exit, though the language could be
+modified to separate the two.
 
-Memory in Ivory are allocated in one of two regions: \cd{Global} which holds
-data that is accessible by all functions, or a function-local scope, unique to
-the origin of the allocated data.  References with \cd{Global} scope are
-allocated through the use of the \cd{area} top-level declaration, and references
-allocated within a function are allocated through the use of the \cd{local}
-function.  Both can take initializers, defaulting to zero-initialization when
-they are omitted.
+\trevor{Maybe go into more detail about the allocation effects here}
 
-While references allocated in the \cd{Global} scope are allocated when the
-program starts and are never freed, references allocated in the local scope of a
-function are allocated on demand on the stack, and freed when the function
-returns.  As procedure definition introduces a fresh region, with the constraint
-that no reference allocated in that region should should up in the return type
-of that procedure, Ivory avoids the introduction of dangling pointers.  The
-embedding of this feature in Haskell will be described in more detail in
-section~\ref{sec:proc}
+There are two regions in Ivory: \cd{Global} which holds global data, and a
+function-local scope, unique to the function which is performing the allocation.
+References with \cd{Global} scope are allocated through the use of the \cd{area}
+top-level declaration, and references allocated within a function are allocated
+through the use of the \cd{local} function.  Both can take initializers,
+defaulting to zero-initialization when they are omitted.  As procedure
+definition introduces a fresh region, with the constraint that no reference
+allocated in that region should should up in the return type of that procedure,
+Ivory avoids the introduction of dangling pointers.  The embedding of this
+feature in Haskell will be described in more detail in section~\ref{sec:proc}
 
 \subsection{Memory Areas}
 \label{sec:area}
@@ -260,14 +257,15 @@ function allows for fairly seamless integration with external C code.
 \label{sec:proc}
 
 Procedures in Ivory differ from Haskell functions in a few major ways: they are
-not first class in the language, they may not be partially applied, and they
-produce real functions in the generated code.  Contrasting that with functions
-in Haskell that produce values in the \cd{Ivory} monad, they are first class,
-they can be partially applied, and they will be expanded at compile time,
-causing them to behave more like macros for Ivory.  The question to answer when
-choosing between defining functionality as a Haskell function or an Ivory
-procedure is this: is the cost of expanding out the definition at the call site
-acceptable?
+not first class in the language\footnote{Values of type \cd{Def} may not be used
+as an argument to Ivory procedures, but pointers to procedures are acceptable.},
+they may not be partially applied, and they produce real functions in the
+generated code.  Contrasting that with functions in Haskell that produce values
+in the \cd{Ivory} monad, they are first class, they can be partially applied,
+and they will be expanded at compile time, causing them to behave more like
+macros for Ivory.  The question to answer when choosing between defining
+functionality as a Haskell function or an Ivory procedure is this: is the cost
+of expanding out the definition at the call site acceptable?
 
 Procedures in Ivory inhabit the \cd{Def} type which is parameterized by the
 signature of the function it names.  Procedure signatures inhabit the \cd{Proc}
@@ -318,6 +316,10 @@ arguments to a procedure will often yield a monomorphic implementation function,
 which through the functional dependency will produce a monomorphic \cd{Def}
 type.
 
+\trevor{Describe why it's useful to have the Body type, and the ensures,
+	requires and body combinators.  Particularly, how they constrain the
+	location of ensures and requires, and the way that they constrain
+	effects in those combinators}
 The implementation function is required to produce a final value of the type
 \cd{Body r}, which is simply an Ivory monadic action with its allocation context
 hidden, and return type exposed as the type variable \cd{r}.  Values of type
@@ -356,15 +358,15 @@ f = proc "f" $ body $ do
 \paragraph{Invocation} Procedures are invoked directly through the use of the
 \cd{call} function or indirectly through the \cd{invoke} function, both of which
 take a \cd{Def} as their first argument, using its signature to determine the
-rest of the arguments needed.  The arguments needed are determined by the
-\cd{IvoryCall} class, which uses the signature information to produce a
-continuation that requires parameters that match the type of the argument list
-from the signature of the \cd{Def}.  The \cd{IvoryCall} class mirrors the
-structure of the \cd{IvoryProcDef} class in instance structure, though it adds
-one additional parameter: \cd{eff}.  This additional parameter is required so
-that the containing effect context of the call can be connected to the result of
-the continuation generated by the instances of \cd{IvoryCall}.  For example,
-calling a procedure with type \cd{Def ('[Sint32] :-> Sint32)} will produce a
+arguments needed.  The arguments needed are determined by the \cd{IvoryCall}
+class, which uses the signature information to produce a continuation that
+requires parameters that match the type of the argument list from the signature
+of the \cd{Def}.  The \cd{IvoryCall} class mirrors the structure of the
+\cd{IvoryProcDef} class in instance structure, though it adds one additional
+parameter: \cd{eff}.  This additional parameter is required so that the
+containing effect context of the call can be connected to the result of the
+continuation generated by the instances of \cd{IvoryCall}.  For example, calling
+a procedure with type \cd{Def ('[Sint32] :-> Sint32)} will produce a
 continuation of the type, \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff}
 parameter is inherited from the current environment.
 
