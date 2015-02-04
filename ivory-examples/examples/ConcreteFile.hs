@@ -51,9 +51,12 @@ printf  = importProc "printf" "stdio.h"
 printf2 :: Def ('[IString,Sint32] :-> Sint32)
 printf2  = importProc "printf" "stdio.h"
 
+toIx' :: ANat n => Uint32 -> Ix n
+toIx' ix = toIx (twosComplementCast ix)
 
-[ivoryFile|examples/file.ivory|]
-
-main :: IO ()
-main = runCompiler [examplesfile] []
-  initialOpts {outDir = Nothing, constFold = True}
+[ivory|
+uint8_t foo(*uint8_t[3] arr, uint32_t ix)
+{
+ return arr[$toIx'(ix)];
+}
+|]

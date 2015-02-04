@@ -7,6 +7,13 @@
   general enough that ML, Agda, etc. programmers can understand.
 }
 
+In this section, we describe the implementation of Ivory, focusing on embedding
+the Ivory type system in the GHC type system. We first present the Ivory
+monad. The Ivory monad has an effects system to control the use of effects, such
+as stack-based memory allocation, which we also describe. Next, we describe our
+implementation of references and allocation, which is at the heart of ensuring
+memory-safety. Next, we describe memory areas~\cite{}. \lee{finish}
+
 \subsection{The Ivory Monad}
 \label{sec:ivory-monad}
 
@@ -115,7 +122,6 @@ constructor for returning a value from a procedure, has the following type
 ret :: (GetReturn eff ~ Returns r, ...)
     => r -> Ivory eff ()
 \end{code}
-
 
 \subsection{Memory Management}
 \label{sec:ref}
@@ -557,9 +563,35 @@ allowing us to define these types in a single line each:
 
 As seen in Section~\ref{sec:ivory-overview}, Ivory's module system packages up
 the collection of procedures, data declarations, etc. to be passed to a
-back-end, such as the C code generator. The module system is implemented simply
-as a writer monad that produces a list of abstract syntax values that are
-processed by the various back-ends.
+back-end, such as the C code generator. The module system is implemented as a
+writer monad that produces a list of abstract syntax values that are processed
+by the various back-ends.
+
+Because our primary backend is C, Ivory modules respect some of the conventions
+of C modules in which header files are used to specify shared declarations. For
+example, declarations can be declared as either public or private, and modules
+can depend on other modules.
+
+While Ivory's type system is embedded in GHC's type system and Ivory's language
+in the Haskell term language, Ivory's module system cannot be embedded in
+Haskell's module system. Thus, the user must deal with both Haskell's module
+system and Ivory's orthogonal module system when programming.
+
+At best, doing so is an inconvenience. At worst, it can lead to safety
+violations. When a user forgets to include a dependency in a module
+\cd{mod}---e.g., that \cd{mod} depends on a struct definition provided by
+another module---so long as the struct definition is visible at the level of Haskell
+module imports, \cd{mod} compiles to C, and even the C~code compiles, but it
+does not link, since the declaration of struct is missing. For large programs,
+Ivory compilation and C compilation times can be substantial, making a simple
+mistake costly.
+
+More concerning is that in the current implementation of 
+
+
+
+
+
 
 While the module system implementation is intuitive and simple, it is also one
 of the greatest weaknesses of Ivory as an EDSL. \lee{XXX finish}
