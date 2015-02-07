@@ -129,8 +129,8 @@ instance IvoryInit Sint32
 instance IvoryInit Sint64
 instance IvoryInit IFloat
 instance IvoryInit IDouble
-instance ProcType proc => IvoryInit (ProcPtr proc)
-instance IvoryArea area => IvoryInit (Ptr Global area)
+instance ProcType proc  => IvoryInit (ProcPtr Global proc)
+instance IvoryArea area => IvoryInit (Ptr     Global area)
 instance ANat len => IvoryInit (Ix len)
 
 class (IvoryVar a) => IvoryZeroVal a where
@@ -159,6 +159,9 @@ instance (ANat n) => IvoryZeroVal (Ix n) where
 
 instance IvoryArea area => IvoryZeroVal (Ptr Global area) where
   izeroval = ival nullPtr
+
+instance ProcType proc => IvoryZeroVal (ProcPtr Global proc) where
+  izeroval = ival nullProcPtr
 
 instance IvoryZeroVal a => IvoryZero (Stored a) where
   izero = izeroval
