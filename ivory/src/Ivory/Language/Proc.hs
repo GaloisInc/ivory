@@ -14,6 +14,8 @@
 
 module Ivory.Language.Proc where
 
+import Ivory.Language.IBool
+import Ivory.Language.Init
 import Ivory.Language.Monad
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
@@ -44,9 +46,9 @@ instance (IvoryType a, ProcType (args :-> r))
 
 -- Function Pointers -----------------------------------------------------------
 
--- | Procedure pointers
+-- | Procedure pointers, pointing to a procedure or NULL (Nothing).
 newtype ProcPtr (s :: RefScope) (sig :: Proc *) =
-  ProcPtr { getProcPtr :: AST.Name }
+  ProcPtr { getProcPtr :: Maybe AST.Name }
 
 instance ProcType sig => IvoryType (ProcPtr s sig) where
   ivoryType _ = AST.TyProc r args
@@ -54,18 +56,31 @@ instance ProcType sig => IvoryType (ProcPtr s sig) where
     (r,args) = procType (Proxy :: Proxy sig)
 
 instance ProcType sig => IvoryVar (ProcPtr s sig) where
-  wrapVar        = ProcPtr . AST.NameVar
+  wrapVar        = ProcPtr . Just . AST.NameVar
   unwrapExpr ptr = case getProcPtr ptr of
-    AST.NameSym sym -> AST.ExpSym sym
-    AST.NameVar var -> AST.ExpVar var
+    Nothing                -> AST.ExpLit AST.LitNull
+    Just (AST.NameSym sym) -> AST.ExpSym sym
+    Just (AST.NameVar var) -> AST.ExpVar var
 
-instance ProcType sig => IvoryStore (ProcPtr Global sig)
+instance ProcType sig => IvoryExpr (ProcPtr s sig) where
+  wrapExpr exp = ProcPtr $ case exp of
+    AST.ExpLit AST.LitNull -> Nothing
+    AST.ExpSym sym         -> Just (AST.NameSym sym)
+    AST.ExpVar var         -> Just (AST.NameVar var)
+    _                      -> error "Impossible ProcType"
 
-procPtr :: ProcType sig => Def sig -> ProcPtr Global sig
-procPtr  = ProcPtr . defSymbol
+instance ProcType sig => IvoryEq      (ProcPtr s      sig)
+instance ProcType sig => IvoryStore   (ProcPtr Global sig)
+instance ProcType sig => IvoryInit    (ProcPtr Global sig)
+instance ProcType sig => IvoryZeroVal (ProcPtr Global sig) where
+  izeroval = ival nullProcPtr
 
 nullProcPtr :: ProcType sig => ProcPtr s sig
-nullProcPtr  = ProcPtr AST.NameNull
+nullProcPtr  = ProcPtr Nothing
+
+procPtr :: ProcType sig => Def sig -> ProcPtr Global sig
+procPtr  = ProcPtr . Just . defSymbol
+
 
 -- Function Symbols ------------------------------------------------------------
 
@@ -210,7 +225,7 @@ importProc sym file = DefImport AST.Import
   where
   (retTy, argTys) = procType (Proxy :: Proxy sig)
   args = zipWith AST.Typed argTys (closSupply initialClosure)
-  
+
 newtype ImportFrom r = ImportFrom
   { runImportFrom :: forall s . Ivory (E.ProcEffects s r) FilePath
   }
@@ -253,31 +268,33 @@ instance (IvoryVar a, IvoryVar r, IvoryCall (args :-> r) eff impl)
     rest  = Proxy :: Proxy (args :-> r)
     args' = typedExpr a : args
 
--- | Indirect calls.
+-- | Indirect calls. Takes a default value and a procedure pointer. Returns the
+-- default value if the pointer is null.
 indirect :: forall sig eff r impl. IndirectIvoryCall sig eff r impl
          => r -> ProcPtr Global sig -> impl
 indirect r ptr = indirectCallAux (getProcPtr ptr) (Proxy :: Proxy sig) r []
 
 class IndirectIvoryCall (sig :: Proc *) (eff :: E.Effects) r impl
     | sig eff -> impl, impl -> eff, impl -> r where
-  indirectCallAux :: AST.Name -> Proxy sig -> r -> [AST.Typed AST.Expr] -> impl
+  indirectCallAux
+    :: Maybe AST.Name -> Proxy sig -> r -> [AST.Typed AST.Expr] -> impl
 
-instance IvoryVar r => IndirectIvoryCall ('[] :-> r) eff r (Ivory eff r) where
-  indirectCallAux sym _ ret args = undefined
-    -- | sym == AST.NameNull
-    -- = return ret
-    -- | otherwise
-    -- = do
-    -- r <- local izero
-    -- ifte_ (nullProcPtr /=? procPtr (sym)
-    --   (c   >>= store r)
-    --   (ret >>= store r)
-    -- deref r
-    -- where
-    -- c = do
-    --   r <- freshVar "r"
-    --   emit (AST.Call (ivoryType (Proxy :: Proxy r)) (Just r) sym (reverse args))
-    --   return (wrapVar r)
+instance (GetAlloc eff ~ Scope s, IvoryVar r, IvoryStore r, IvoryZeroVal r)
+      => IndirectIvoryCall ('[] :-> r) eff r (Ivory eff r) where
+  indirectCallAux msym _ ret args
+    | Nothing <- msym
+    = return ret
+    | Just sym <- msym
+    = do
+    r <- local izero
+    ifte_ (nullProcPtr /=? (ProcPtr msym :: ProcPtr (s' :: RefScope) ('[] :-> r)))
+      (do cRet <- freshVar "r"
+          emit (AST.Call (ivoryType (Proxy :: Proxy r))
+               (Just cRet) sym (reverse args))
+          store r (wrapVar cRet)
+      )
+      (store r ret)
+    deref r
 
 instance (IvoryVar a, IvoryVar r, IndirectIvoryCall (args :-> r) eff r impl)
     => IndirectIvoryCall ((a ': args) :-> r) eff r (a -> impl) where
@@ -308,29 +325,37 @@ instance (IvoryVar a, IvoryType r, IvoryCall_ (args :-> r) eff impl)
     rest  = Proxy :: Proxy (args :-> r)
     args' = typedExpr a : args
 
--- | Indirect calls, ignoring the result.
+-- | Indirect calls, ignoring the result. Elides a function call if the
+-- procedure pointer is null.
 indirect_ :: forall sig eff impl. IndirectIvoryCall_ sig eff impl
           => ProcPtr Global sig -> impl
 indirect_ ptr = indirectCallAux_ (getProcPtr ptr) (Proxy :: Proxy sig) []
 
 class IndirectIvoryCall_ (sig :: Proc *) (eff :: E.Effects) impl
-    | sig eff -> impl, impl -> eff
-  where
-  indirectCallAux_ :: AST.Name -> Proxy sig -> [AST.Typed AST.Expr] -> impl
+    | sig eff -> impl, impl -> eff where
+  indirectCallAux_
+    :: Maybe AST.Name -> Proxy sig -> [AST.Typed AST.Expr] -> impl
 
 instance IvoryType r => IndirectIvoryCall_ ('[] :-> r) eff (Ivory eff ()) where
-  indirectCallAux_ sym _ args
-    | sym == AST.NameNull
+  indirectCallAux_ msym _ args
+    | Nothing <- msym
     = return ()
-    | otherwise
-    = emit (AST.Call (ivoryType (Proxy :: Proxy r)) Nothing sym (reverse args))
+    | Just sym <- msym
+    = do
+    ifte_ (nullProcPtr /=? (ProcPtr msym :: ProcPtr (s' :: RefScope) ('[] :-> r)))
+      (do cRet <- freshVar "r"
+          emit (AST.Call (ivoryType (Proxy :: Proxy r))
+               Nothing sym (reverse args))
+      )
+      (return ())
 
-instance (IvoryVar a, IvoryType r, IndirectIvoryCall_ (args :-> r) eff impl)
+instance (IvoryVar a, IvoryVar r, IndirectIvoryCall_ (args :-> r) eff impl)
     => IndirectIvoryCall_ ((a ': args) :-> r) eff (a -> impl) where
   indirectCallAux_ sym _ args a = indirectCallAux_ sym rest args'
     where
     rest  = Proxy :: Proxy (args :-> r)
     args' = typedExpr a : args
+
 
 -- Return ----------------------------------------------------------------------
 -- | Primitive return from function.

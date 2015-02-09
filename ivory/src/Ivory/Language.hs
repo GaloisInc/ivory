@@ -135,7 +135,7 @@ module Ivory.Language (
 
     -- ** Procedures
   , Def()
-  , ProcPtr(), procPtr
+  , ProcPtr(), procPtr, nullProcPtr
   , proc, externProc, importProc
   , Body(), body, importFrom
 

@@ -15,7 +15,6 @@ import Ivory.Language.Float
 import Ivory.Language.IBool
 import Ivory.Language.IChar
 import Ivory.Language.Monad
-import Ivory.Language.Proc
 import Ivory.Language.Proxy
 import Ivory.Language.Ptr
 import Ivory.Language.Ref
@@ -129,7 +128,6 @@ instance IvoryInit Sint32
 instance IvoryInit Sint64
 instance IvoryInit IFloat
 instance IvoryInit IDouble
-instance ProcType proc  => IvoryInit (ProcPtr Global proc)
 instance IvoryArea area => IvoryInit (Ptr     Global area)
 instance ANat len => IvoryInit (Ix len)
 
@@ -160,8 +158,6 @@ instance (ANat n) => IvoryZeroVal (Ix n) where
 instance IvoryArea area => IvoryZeroVal (Ptr Global area) where
   izeroval = ival nullPtr
 
-instance ProcType proc => IvoryZeroVal (ProcPtr Global proc) where
-  izeroval = ival nullProcPtr
 
 instance IvoryZeroVal a => IvoryZero (Stored a) where
   izero = izeroval

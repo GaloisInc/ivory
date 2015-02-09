@@ -222,7 +222,6 @@ data LoopIncr
 data Name
   = NameSym Sym
   | NameVar Var
-  | NameNull
     deriving (Show, Eq, Ord)
 
 data Comment = UserComment String
