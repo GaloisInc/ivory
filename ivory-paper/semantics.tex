@@ -1,28 +1,75 @@
+\newcommand{\coreivory}{Core Ivory}
+
 \section{Ivory Semantics}
 \label{sec:semantics}
 
 In this section we discuss the more formal aspects of the Ivory
 language, in particular, its semantics, and how this semantics is
-modelled inside the Isabelle/HOL theorem prover\sjw{cite}.  We also
+modelled within the Isabelle/HOL theorem prover\sjw{cite}.  We also
 discuss the proof of type safety.  This model is available under the
 \texttt{ivory-formal-model} directory in the ivory repository.
 
+\newcommand{\sep}{\ |\ }
+
+\newcommand{\syntaxtitle}[1]{\multicolumn{3}{l}{\textit{#1}}}
 \begin{figure}[t]
 
-\sjw{TODO}
+\[
+\begin{array}{crl}
+\syntaxtitle{pure expressions}\\
+e & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \sep{} x \sep{} 
+          e_1 \mathbin{\mathit{op}} e_2 \\
+\syntaxtitle{impure expressions}\\
+i & ::= & e \sep{} \texttt{alloc}(e) \sep{}
+          \texttt{read}(e) \sep{} \texttt{write}(e_1, e_2)\\
+\syntaxtitle{statements}\\
+s & ::= & \texttt{skip} \sep{} \texttt{return}(e) \sep{} s_1; s_2 \\ 
+  & |   & \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 \\
+  & |   & \texttt{for}(x = e_1; e_2; e_3) \{ s \} \\
+  & |   & \texttt{let\;} x = i \texttt{\;in\;} s \\
+  & |   & \texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s \\
+\syntaxtitle{procedure definitions}\\
+P & ::= & \texttt{proc\;} f(x_1, \ldots{}, x_n) \{ s \}
+\\
+\syntaxtitle{values}\\
+v & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \\
+w & ::= & v \sep{} \texttt{ref}(r, n) \\
+\syntaxtitle{environments}\\
+E & \in{} & x \to w \\
+\syntaxtitle{stacks}\\
+F & ::= & \texttt{rframe}(x, E, s) \sep{} \texttt{sframe}(E, s) \\
+S & ::= & F, S \sep{} \cdot{} \\
+\syntaxtitle{types}\\
+\alpha & ::= & \texttt{nat} \sep{} \texttt{bool} \sep{} \texttt{unit} \\
+\tau   & ::= & \alpha \sep{} \texttt{reft}(\rho, \alpha)
+\end{array}
+\]
+
+
+\sjw{values (in or out?)}
 
 \label{fig:syntax}
-\caption{Concrete syntax of core Ivory \sjw{core?}}
+\caption{Concrete syntax of \coreivory{}}
 \end{figure}
 
 \sjw{more on why we want a model/motivations (?)}
 
-\subsection{Modeling Ivory}
+\subsection{Syntax and Operational Semantics}
 
-The formal model of Ivory concerns only the core language --- aspects
-of the embedding into Haskell are not treated.  The basis for this
-model is a typical typed imperative language with function calls,
-references, and memory allocation (but not memory freeing).  
+We model a simplified version of the Ivory language inside
+Isabelle/HOL, henceforth \emph{\coreivory{}}.  In particular, we do
+not treat aspects of the embedding into Haskell.  \sjw{no
+  structs/arrays/function pointers}
+
+The syntax for \coreivory{} is given in \autoref{fig:syntax}.
+\coreivory{} is based upon a typical typed imperative language with
+function calls, references, and memory allocation (but not memory
+deallocation).  \coreivory{} attempts to stay faithful to Ivory
+wherever possible, and so variables are let-bound with forms for
+binding the result of expression evaluation and function
+calls. Furthermore, \coreivory{} expressions are stratified into
+\emph{pure} and \emph{impure}, the latter allowing operations on the
+heap: allocation, reading, and writing references.
 
 The heap is modeled as a list of \emph{regions}, each region a finite
 map from \emph{offsets} to \emph{heap values}; a \emph{reference} then
@@ -42,12 +89,111 @@ and thus variables are bound using a let-style statement.
 
 \subsection{Typing Ivory}
 
+\newcommand{\stepsX}[2]{\models #1 \longmapsto{} #2}
+\newcommand{\steps}[4]{\stepsX{#1; #2}{#3; #4}}
+
+\newcommand{\denoteexp}[2]{\llbracket{}#1\rrbracket{}#2}
+
+\newcommand{\stepsH}[2]{#1 \longmapsto_I #2}
+\newcommand{\hsteps}[5]{#1 \models \stepsH{#2; #3}{#4; #5}}
+
+\newcommand{\wfstmt}[5]{#1; #2; #3 \vdash_s #4 : #5}
+\newcommand{\wfexp}[3]{#1 \vdash_e #2 : #3}
+\newcommand{\wfimp}[4]{#1; #2 \vdash_i #3 : #4}
+
 \begin{figure*}[t]
 
-\sjw{TODO}
+\begin{mathpar}
+
+%% Pure expressions
+
+\denoteexp{e}{E} = \ldots
+
+\and
+%% Impure expression
+
+\inferrule{\denoteexp{e}{E} = w}{\hsteps{E}{H}{e}{H}{w}}
+\and
+\inferrule{\denoteexp{e}{E} = v}{\hsteps{E}{H, R}{\texttt{alloc}(e)}{H, R[p \mapsto{} v]}{\texttt{ref}(|H|, p)}}(p \notin{} \mathrm{dom}(R))
+\and
+\inferrule{\denoteexp{e}{E} = \texttt{ref}(r, n)}{ \hsteps{E}{H}{ \texttt{read}(e) }{H}{H_r(n)} }
+\and
+\inferrule{\denoteexp{e_1}{E} = \texttt{ref}(r, n) \\ \denoteexp{e_2}{E} = v}{ \hsteps{E}{H}{ \texttt{write}(e_1, e_2) }{H[(r, n) \mapsto v]}{()} }
+
+\\
+%% Statements
+
+\inferrule{ {} }{\steps{(H; \texttt{sframe}(E, s), S; \_)}{\texttt{skip}}{(H; S; E)}{s}}
+\and
+\inferrule{ {} }{\steps{(H; \texttt{sframe}(\_, \_), S; E)}{\texttt{return}(e)}{(H; S; E)}{\texttt{return}(e)}}
+\and
+\inferrule{ \denoteexp{e}{E_0} = w }{\steps{(H, \_; \texttt{rframe}(x, E, s), S; E_0)}{\texttt{return}(e)}{(H; S; E[x \mapsto{} w])}{s}}
+\and
+\inferrule{ \denoteexp{e}{E} = w }{ \stepsX{(\_; \cdot; E); \texttt{return}(e)}{\texttt{finished}(w)} }
+\and
+\inferrule{ {} }{\steps{(H; S; E)}{ (s_1; s_2) }{(H; \texttt{sframe}(E, s_2), S; E)}{s_1}}
+\and
+
+\inferrule{ \denoteexp{e}{E} = \texttt{true} }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_1}}
+\and
+\inferrule{ \denoteexp{e}{E} = \texttt{false} }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_2}}
+\and
+\inferrule{ \denoteexp{e_1}{E} = v }{\steps{(H; S; E)}{ \texttt{for}(x = e_1; e_2; e_3) \{ s \} }{(H, S, E[x \mapsto{} v])}%
+{\texttt{if}(e_2)\texttt{\;then\;} (s; \texttt{for}(x = e_3; e_2; e_3) \{ s \}) \texttt{\;else\;} \texttt{skip} }}
+\and
+\inferrule{ \hsteps{E}{H}{i}{H'}{w} }{\steps{(H; S; E)}{\texttt{let\;} x = i \texttt{\;in\;} s}{(H'; S; E[x \mapsto{} w])}{s}}
+\and
+\inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
+
+\\
+% wfimp
+\inferrule{ \wfexp{\Gamma}{e}{\tau} }{ \wfimp{\Gamma}{\rho}{e}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{alloc}(e)}{\texttt{reft}(\rho, \alpha)} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\texttt{reft}(\rho, \alpha)} }{ \wfimp{\Gamma}{\rho}{\texttt{read}(e)}{\alpha} }
+\and
+\inferrule{ \wfexp{\Gamma}{e_1}{\texttt{reft}(\rho, \alpha)} \\ \wfexp{\Gamma}{e_2}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{write}(e_1, e_2)}{\texttt{unit}} }
+
+\\
+%% wfstmt
+\inferrule{ }{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{skip}}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\tau}  }{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{return}(e)}{\tau} }
+\and
+\inferrule{ \wfstmt{\Gamma}{\Psi}{\rho}{s_1}{\tau} \\ \wfstmt{\Gamma}{\Psi}{\rho}{s_2}{\tau} }{ \wfstmt{\Gamma}{\Psi}{\rho}{s_1; s_2}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\texttt{bool}} \\ \wfstmt{\Gamma}{\Psi}{\rho}{s_1}{\tau} \\ \wfstmt{\Gamma}{\Psi}{\rho}{s_2}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e_1}{\sigma} \\ \wfexp{\Gamma[x \mapsto \sigma]}{e_2}{\texttt{bool}} \\ \wfexp{\Gamma[x \mapsto \sigma]}{e_3}{\sigma}
+\\ \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau}}%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{ \texttt{for}(x = e_1; e_2; e_3) \{ s \} }{\tau} }
+\and
+\inferrule{ \wfimp{\Gamma}{\rho}{i}{\sigma} \\  \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = i \texttt{\;in\;} s}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e_i}{\sigma_i} \\
+            \Psi(f) = \texttt{fun}(\sigma, (\sigma_1, \ldots, \sigma_n))\\
+            \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{\tau} }
+
+\\
+\inferrule{ \Psi(f) = \texttt{fun}(\tau, (\sigma_1, \ldots, \sigma_n))\\            
+            \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{s} \} \in \texttt{Procs} \\            
+            \texttt{frees}(\tau) \subseteq \texttt{frees}(\sigma_1) \cup \ldots \cup \texttt{frees}(\sigma_n) \\
+            \wfstmt{[x_1 \mapsto \sigma_1, \ldots, x_n \mapsto \sigma_n]}{\Psi}{\rho}{s}{\tau} }%
+{ \vdash \texttt{Procs} : \Psi }(\textrm{for all }f\textrm{ in }\textrm{dom}(\Psi), \rho \textrm{ fresh})
+
+
+%   & |   &  \\
+%   & |   & \texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s \\
+
+
+\end{mathpar}
 
 \label{fig:rules}
-\caption{Selected semantic and typing rules.}
+\caption{Selected semantic and typing rules. The semantics and typing rules for expressions ($\denoteexp{e}{E}$ and $\wfexp{\Gamma}{e}{\tau}$) are standard and are so omitted.}
 \end{figure*}
 
 \begin{itemize}
