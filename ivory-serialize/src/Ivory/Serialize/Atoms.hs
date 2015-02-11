@@ -1,50 +1,53 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Serialize.Atoms
   ( serializeHeader
   , serializeModule
   , serializeArtifacts
+  , Packable(..)
   ) where
 
 import Prelude hiding ((!!))
 
 import Ivory.Language
 import qualified Ivory.Language.Array as I
+import Ivory.Language.Proxy
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Type as I
 import qualified Ivory.Language.Uint as I
 import Ivory.Artifact
-import Ivory.Serialize.Class
+import Ivory.Serialize.PackRep
 import qualified Paths_ivory_serialize as P
 
+class Packable a where
+  packRep :: PackRep a
+
+instance (ANat len, IvoryArea area, Packable area) => Packable (Array len area) where
+  packRep = PackRep
+    { packGet = \ buf offs arr -> arrayMap $ \ ix -> packGet elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
+    , packSet = \ buf offs arr -> arrayMap $ \ ix -> packSet elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
+    , packSize = packSize elRep * fromTypeNat (aNat :: NatType len)
+    }
+    where
+    elRep = packRep :: PackRep area
 
 serializeModule :: Module
 serializeModule = package "ivory_serialize" $ do
   inclHeader serializeHeader
-  incl packU8
-  incl unpackU8
-  incl packS8
-  incl unpackS8
-  incl packU16
-  incl unpackU16
-  incl packS16
-  incl unpackS16
-  incl packU32
-  incl unpackU32
-  incl packS32
-  incl unpackS32
-  incl packU64
-  incl unpackU64
-  incl packS64
-  incl unpackS64
-  incl packF
-  incl unpackF
-  incl packD
-  incl unpackD
+  wrappedPackMod uint8
+  wrappedPackMod int8
+  wrappedPackMod uint16
+  wrappedPackMod int16
+  wrappedPackMod uint32
+  wrappedPackMod int32
+  wrappedPackMod float
+  wrappedPackMod uint64
+  wrappedPackMod int64
+  wrappedPackMod double
 
 serializeHeader :: String
 serializeHeader = "ivory_serialize_prim.h"
@@ -54,146 +57,72 @@ serializeArtifacts = [ a serializeHeader ]
   where
   a f = artifactCabalFile P.getDataDir ("support/" ++ f)
 
-instance SerializableRef (Stored Uint8)
-instance Serializable Uint8 where
-  pack dst offs src = call_ packU8 dst offs src
-  unpack src offs   = call unpackU8 src offs
+uint8 :: WrappedPackRep (Stored Uint8)
+uint8 = mkPackRep "uint8" 1
+instance Packable (Stored Uint8) where
+  packRep = wrappedPackRep uint8
 
-packU8 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint8] :-> ())
-packU8 = mkPack "ivory_serialize_pack_uint8"
+int8 :: WrappedPackRep (Stored Sint8)
+int8 = mkPackRep "int8" 1
+instance Packable (Stored Sint8) where
+  packRep = wrappedPackRep int8
 
-unpackU8 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint8)
-unpackU8 = mkUnpack "ivory_serialize_unpack_uint8"
+uint16 :: WrappedPackRep (Stored Uint16)
+uint16 = mkPackRep "uint16" 2
+instance Packable (Stored Uint16) where
+  packRep = wrappedPackRep uint16
 
+int16 :: WrappedPackRep (Stored Sint16)
+int16 = mkPackRep "int16" 2
+instance Packable (Stored Sint16) where
+  packRep = wrappedPackRep int16
 
-instance SerializableRef (Stored Sint8)
-instance Serializable Sint8 where
-  pack dst offs src = call_ packS8 dst offs src
-  unpack src offs   = call unpackS8 src offs
+uint32 :: WrappedPackRep (Stored Uint32)
+uint32 = mkPackRep "uint32" 4
+instance Packable (Stored Uint32) where
+  packRep = wrappedPackRep uint32
 
-packS8 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint8] :-> ())
-packS8 = mkPack "ivory_serialize_pack_int8"
+int32 :: WrappedPackRep (Stored Sint32)
+int32 = mkPackRep "int32" 4
+instance Packable (Stored Sint32) where
+  packRep = wrappedPackRep int32
 
-unpackS8 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint8)
-unpackS8 = mkUnpack "ivory_serialize_unpack_int8"
+float :: WrappedPackRep (Stored IFloat)
+float = mkPackRep "float" 4
+instance Packable (Stored IFloat) where
+  packRep = wrappedPackRep float
 
+uint64 :: WrappedPackRep (Stored Uint64)
+uint64 = mkPackRep "uint64" 8
+instance Packable (Stored Uint64) where
+  packRep = wrappedPackRep uint64
 
-instance SerializableRef (Stored Uint16)
-instance Serializable Uint16 where
-  pack dst offs src = call_ packU16 dst offs src
-  unpack src offs   = call unpackU16 src offs
+int64 :: WrappedPackRep (Stored Sint64)
+int64 = mkPackRep "int64" 8
+instance Packable (Stored Sint64) where
+  packRep = wrappedPackRep int64
 
-packU16 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint16] :-> ())
-packU16 = mkPack "ivory_serialize_pack_uint16"
-
-unpackU16 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint16)
-unpackU16 = mkUnpack "ivory_serialize_unpack_uint16"
-
-
-instance SerializableRef (Stored Sint16)
-instance Serializable Sint16 where
-  pack dst offs src = call_ packS16 dst offs src
-  unpack src offs   = call unpackS16 src offs
-
-packS16 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint16] :-> ())
-packS16 = mkPack "ivory_serialize_pack_int16"
-
-unpackS16 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint16)
-unpackS16 = mkUnpack "ivory_serialize_unpack_int16"
-
-
-instance SerializableRef (Stored Uint32)
-instance Serializable Uint32 where
-  pack dst offs src = call_ packU32 dst offs src
-  unpack src offs   = call unpackU32 src offs
-
-packU32 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint32] :-> ())
-packU32 = mkPack "ivory_serialize_pack_uint32"
-
-unpackU32 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint32)
-unpackU32 = mkUnpack "ivory_serialize_unpack_uint32"
+double :: WrappedPackRep (Stored IDouble)
+double = mkPackRep "double" 8
+instance Packable (Stored IDouble) where
+  packRep = wrappedPackRep double
 
 
-instance SerializableRef (Stored Sint32)
-instance Serializable Sint32 where
-  pack dst offs src = call_ packS32 dst offs src
-  unpack src offs   = call unpackS32 src offs
+mkPackRep :: forall a. (IvoryArea (Stored a), IvoryEq a) => String -> Integer -> WrappedPackRep (Stored a)
+mkPackRep ty sz = WrappedPackRep (PackRep { packGet = call_ doGet, packSet = call_ doSet, packSize = sz }) defs
+  where
+  doGet :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 (Stored a)] :-> ())
+  doGet = proc ("ivory_serialize_unpack_" ++ ty) $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
-packS32 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint32] :-> ())
-packS32 = mkPack "ivory_serialize_pack_int32"
+  doSet :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 (Stored a)] :-> ())
+  doSet = proc ("ivory_serialize_pack_" ++ ty) $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
-unpackS32 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint32)
-unpackS32 = mkUnpack "ivory_serialize_unpack_int32"
+  defs = do
+    incl doGet
+    incl doSet
 
-
-instance SerializableRef (Stored IFloat)
-instance Serializable IFloat where
-  pack dst offs src = call_ packF dst offs src
-  unpack src offs   = call unpackF src offs
-
-packF :: Def('[Ref s (CArray (Stored Uint8)), Uint32, IFloat] :-> ())
-packF = mkPack "ivory_serialize_pack_float"
-unpackF :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> IFloat)
-unpackF = mkUnpack "ivory_serialize_unpack_float"
-
-
-instance SerializableRef (Stored Uint64)
-instance Serializable Uint64 where
-  pack dst offs src = call_ packU64 dst offs src
-  unpack src offs   = call unpackU64 src offs
-
-packU64 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Uint64] :-> ())
-packU64 = mkPack "ivory_serialize_pack_uint64"
-
-unpackU64 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Uint64)
-unpackU64 = mkUnpack "ivory_serialize_unpack_uint64"
-
-
-instance SerializableRef (Stored Sint64)
-instance Serializable Sint64 where
-  pack dst offs src = call_ packS64 dst offs src
-  unpack src offs   = call unpackS64 src offs
-
-packS64 :: Def('[Ref s (CArray (Stored Uint8)), Uint32, Sint64] :-> ())
-packS64 = mkPack "ivory_serialize_pack_int64"
-
-unpackS64 :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> Sint64)
-unpackS64 = mkUnpack "ivory_serialize_unpack_int64"
-
-
-instance SerializableRef (Stored IDouble)
-instance Serializable IDouble where
-  pack dst offs src = call_ packD dst offs src
-  unpack src offs   = call unpackD src offs
-
-packD :: Def('[Ref s (CArray (Stored Uint8)), Uint32, IDouble] :-> ())
-packD = mkPack "ivory_serialize_pack_double"
-
-unpackD :: Def('[ConstRef s (CArray (Stored Uint8)), Uint32] :-> IDouble)
-unpackD = mkUnpack "ivory_serialize_unpack_double"
-
-
-
-mkPack
-  :: (IvoryArea area, IvoryEq a, IvoryRef ref,
-      IvoryExpr (ref s ('CArray area))) =>
-     I.Sym -> Def ('[ref s ('CArray area), Uint32, a] ':-> ())
-mkPack nm = proc nm
-          $ \arr ix v -> ensures_ ((arr !! ix) ==? v)
-          $ importFrom serializeHeader
-
-mkUnpack
-  :: (IvoryArea area, IvoryEq ret, IvoryRef ref,
-      IvoryExpr (ref s ('CArray area))) =>
-     I.Sym -> Def ('[ref s ('CArray area), Uint32] ':-> ret)
-mkUnpack nm = proc nm
-            $ \arr ix -> ensures (\r -> r ==? arr !! ix)
-            $ importFrom serializeHeader
-
-(!!) :: forall s area ref a.
-        ( IvoryArea area, IvoryRef ref
-        , IvoryExpr (ref s (CArray area)), IvoryExpr a)
-     => ref s (CArray area) -> Uint32 -> a
+(!!) :: (IvoryRef ref, IvoryExpr (ref s (CArray (Stored Uint8))), IvoryExpr a)
+     => ref s (CArray (Stored Uint8)) -> Uint32 -> a
 arr !! ix = I.wrapExpr (I.ExpIndex ty (I.unwrapExpr arr) I.ixRep (I.getUint32 ix))
   where
   ty    =  I.TyCArray (I.TyWord I.Word8)

@@ -10,11 +10,11 @@ license:             BSD3
 data-files: support/ivory_serialize_prim.h
 
 library
-  exposed-modules:      Ivory.Serialize,
-                        Ivory.Serialize.Array,
-                        Ivory.Serialize.Atoms,
-                        Ivory.Serialize.Class,
+  exposed-modules:      Ivory.Serialize
+  other-modules:        Ivory.Serialize.Atoms,
+                        Ivory.Serialize.PackRep,
                         Ivory.Serialize.Safe,
+                        Ivory.Serialize.Struct,
                         Paths_ivory_serialize
 
   build-depends:        base >= 4.6,
