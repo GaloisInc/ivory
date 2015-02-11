@@ -17,3 +17,167 @@ paper. It'll be more of an informal, almost tutorial style.}
   \url{http://community.haskell.org/~ndm/downloads/paper-shake_before_building-10_sep_2012.pdf}}
 
 \lee{Pat: maybe you could take a stab at this one?}
+
+
+\subsection{Ivory Statements}
+
+Ivory has a simple statement language embedded in a monad. Unlike in C, all
+reference reading and writing must explicitly take place in a statement, which
+eliminates large classes of unintuitive and undefined behaviors 
+
+\begin{code}
+incr_ref :: Ref s (Stored Sint32) -> Ivory eff ()
+incr_ref r = do
+    v <- deref r
+    store r (v + 1)
+\end{code}
+
+In addition to global memory areas, we can create memory areas on the stack.
+The first parameter to \cd{Ref} specifies the allocation scope, which is either
+\cd{Global} or \cd{Stack s}. The \cd{local} primitive permits allocating a value
+locally (on the stack associated with the parent procedure), and tags the
+\cd{Ref} with a type that prevents a pointer to the stack to escape the parent
+procedure scope, e.g. by being copied to a global memory area.
+
+To use allocation in an Ivory statement, the \cd{eff} parameter must be
+constrained to have a given allocation scope:
+
+\begin{code}
+local :: (IvoryArea a, GetAlloc eff ~ Scope s)
+      => Init a -> Ivory eff (Ref (Stack s) a)
+
+uses_allocation :: (GetAlloc eff ~ Scope s) => Ivory eff IBool
+uses_allocation = do
+  r <- local (ival (3 :: Uint8))
+  incr_ref r
+  v <- deref r
+  return (v ==? 4)
+
+\end{code}
+
+Ivory users can create global memory areas, just like in c:
+\begin{code}
+ex_global_area :: MemArea (Stored Sint32)
+ex_global_area = area "ex_global" (Just (ival 42))
+
+ex_global :: Ref Global (Stored Sint32)
+ex_global = addrOf ex_global_area
+\end{code}
+
+There is a separate concept of the memory area \cd{:: MemArea a}, which
+exists as part of a module def (as we'll explain below), and a reference
+to that area, which is a value that can be 
+
+\begin{code}
+ex_incr_proc :: Def ('[Sint32]:->IBool)
+ex_incr_proc = proc "ex_incr" $ \a -> body $ do
+  incr_ref ex_global
+  v <- deref ex_global
+  ret (v >? a)
+\end{code}
+
+we can wrap up statements into a procedure. Procedures can take arguments,
+as specified by the type level list, and return either a non-ref value or
+\cd{()}, which works just like C's \cd{void}. Arguments can be \cd{Ref}s, but
+the type system ensures the scope parameter of those refs is not the same type
+as refs created inside the \cd{body}.
+
+\begin{code}
+ex_module :: Module
+ex_module = package "example" $ do
+  incl ex_incr_proc
+  private $ do
+    defMemArea ex_global_area
+\end{code}
+
+and then collect procedures and memory areas into a module, which is then
+compiled to two files, \cd{example.h} containing the public interface and
+\cd{example.c} containing the implementation.
+
+\subsection{Data structures}
+
+Ivory provides a collection of atomic (\cd{Stored}) types which may be composed
+as product types. Arrays are specified by the type \cd{Array n a}, where \cd{n}
+is a type natural specifying the array length. Because length is specified in
+the type system, all arrays must have a known and finite length. Array
+members are accessed through the \cd{!} operator, which enforces that array
+offsets are specified by a special type \cd{Ix n}, which only permits expressing
+natural numbers in \cd{0 <= Ix n < n}.
+
+\begin{code}
+array_ex :: (GetAlloc eff ~ Scope s) => Ivory eff ()
+array_ex = do
+  (a :: Ref (Stack s) (Array 10 (Stored Sint32))) <- local (iarray [0..])
+  incr (a ! 5)
+  -- incr (a ! 10) -- Impossible to write, error caught at compile time
+  v <- deref (a ! 5)
+  assert (v ==? 6)
+
+\end{code}
+
+Traditional C structures are defined using a quasiquoter to specify the field
+names and their types. Each field name can be used with the \cd{~>} operator
+which takes a reference to a struct and a field name in that struct, and gives
+a ref of the field's type.
+
+\begin{code}
+[ivory|
+struct position
+  { latitude  :: Stored IFloat
+  ; longitude :: Stored IFloat
+  ; altitude  :: Stored Sint32
+  }
+|]
+
+struct_ex :: (GetAlloc eff ~ Scope s) => Ivory eff ()
+struct_ex = do
+  s <- local (istruct [ latitude .= ival 45.52
+                      , longitude .= ival (-122.68)
+                      , altitude .= ival 1524 ])
+  lat <- deref (s ~> latitude)
+  lon <- deref (s ~> longitude)
+  incr (s ~> altitude)
+\end{code}
+
+
+\subsection{Control structures}
+
+Ivory has a few simple control flow primitives. For boolean conditions,
+the \cd{ifte_} primitive is a statement that takes an \cd{IBool} and two
+branches of type \{Ivory eff ()}. For conditions that do not cause side
+effects, the \cd{?} operator gives an expression from an IBool and a tuple
+of two expressions.
+
+\begin{code}
+abs :: Def('[Sint16] :-> Sint16)
+abs = proc "abs" $ \v -> body $ do
+  ifte_ (v <? 0)
+    (ret (-1*v))
+    (ret v)
+
+abs2 :: Def('[Sint16] :-> Sint16)
+abs2 = proc "abs2" $ \v -> body $ do
+  ret $ (v <? 0) ? ((-1*v), v)
+\end{code}
+
+Ivory has two types of loops: unbounded loops, using the \cd{forever} primitive,
+are for control structures that should never terminate, such as OS tasks. All
+other loops must specify an upper bound at the type level, using the \cd{Ix n} type
+we used for array indexing. The \cd{arrayMap} loop is run once for every value
+in the range given by \cd{Ix n}. The following loop computes the sum of the
+numbers from 1 to 16:
+
+\begin{code}
+loop_ex :: (GetAlloc eff ~ Scope s) => Ivory eff Sint32
+loop_ex = do
+  a <- local (iarray [1..])
+  v <- local (ival 0)
+  arrayMap $ \(ix :: Ix 16) -> do
+    aix <- deref (a ! ix)
+    vv <- deref v
+    store v (vv + aix)
+  deref v
+\end{code}
+
+Loops may be terminated early using the \cd{break} statement.
+
