@@ -177,6 +177,7 @@ expFoldDefault asserter ty e = case e of
                                        expFoldOps asserter ty (op, args)
   I.ExpAddrOfGlobal{}            -> go e
   I.ExpMaxMin{}                  -> go e
+  I.ExpSizeOf{}                  -> go e
   where
   go = asserter ty
   expFold = expFoldDefault asserter

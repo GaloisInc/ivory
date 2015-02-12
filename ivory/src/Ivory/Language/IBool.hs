@@ -1,8 +1,4 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Ivory.Language.IBool where
 
@@ -11,8 +7,6 @@ import Ivory.Language.Proxy
 import Ivory.Language.Sint
 import Ivory.Language.Type
 import Ivory.Language.Uint
-import Ivory.Language.SizeOf
-import Ivory.Language.Area
 import qualified Ivory.Language.Syntax as AST
 
 
@@ -30,9 +24,6 @@ instance IvoryVar IBool where
 instance IvoryExpr IBool where
   wrapExpr = IBool
 
-instance IvorySizeOf (Stored IBool) where
-  sizeOfBytes _ = 1
-
 -- IfTE Support ----------------------------------------------------------------
 
 -- | If-then-else.
@@ -43,7 +34,7 @@ ifte_ cmp t f = do
   emit (AST.IfTE (unwrapExpr cmp) (blockStmts tb) (blockStmts fb))
 
 -- | Conditional expressions.
-(?) :: forall a. IvoryExpr a => IBool -> (a,a) -> a
+(?) :: IvoryExpr a => IBool -> (a,a) -> a
 cond ? (t,f) = wrapExpr
              $ AST.ExpOp AST.ExpCond [unwrapExpr cond,unwrapExpr t,unwrapExpr f]
 

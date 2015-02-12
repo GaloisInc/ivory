@@ -294,6 +294,9 @@ data Expr
   | ExpMaxMin Bool
     -- ^ True is max value, False is min value for the type.
 
+  | ExpSizeOf Type
+    -- ^ Return the allocation size of the given type.
+
     deriving (Show, Eq, Ord)
 
 

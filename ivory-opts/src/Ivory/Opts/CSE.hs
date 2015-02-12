@@ -83,6 +83,7 @@ instance MuRef AST.Expr where
     AST.ExpOp op args -> ExpOpF op <$> traverse child args
     AST.ExpAddrOfGlobal{} -> pure $ ExpSimpleF e
     AST.ExpMaxMin{} -> pure $ ExpSimpleF e
+    AST.ExpSizeOf{} -> pure $ ExpSimpleF e
 
 -- | Convert a flattened expression back to a real expression.
 toExpr :: ExprF AST.Expr -> AST.Expr

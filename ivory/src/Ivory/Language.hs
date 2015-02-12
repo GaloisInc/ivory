@@ -33,7 +33,7 @@ module Ivory.Language (
   , local
 
     -- ** SizeOf
-  , IvorySizeOf(..), sizeOf
+  , IvorySizeOf, sizeOf
 
     -- ** Nullable Pointers
   , Ptr(), nullPtr

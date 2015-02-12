@@ -171,6 +171,7 @@ cf copies ty e =
 
     I.ExpAddrOfGlobal{}   -> e
     I.ExpMaxMin{}         -> e
+    I.ExpSizeOf{}         -> e
 
 loopIncrFold :: (I.Expr -> I.Expr) -> I.LoopIncr -> I.LoopIncr
 loopIncrFold opt incr =

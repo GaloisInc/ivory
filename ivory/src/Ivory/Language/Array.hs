@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
@@ -15,7 +14,6 @@ import Ivory.Language.Ref
 import Ivory.Language.Sint
 import Ivory.Language.IIntegral
 import Ivory.Language.Type
-import Ivory.Language.SizeOf
 import Ivory.Language.Cast
 import qualified Ivory.Language.Syntax as I
 
@@ -59,9 +57,6 @@ instance (ANat n) => Num (Ix n) where
 
 instance (ANat n) => IvoryEq  (Ix n)
 instance (ANat n) => IvoryOrd (Ix n)
-
-instance (ANat n) => IvorySizeOf (Stored (Ix n)) where
-  sizeOfBytes _ = sizeOfBytes (Proxy :: Proxy (Stored IxRep))
 
 fromIx :: ANat n => Ix n -> IxRep
 fromIx = wrapExpr . unwrapExpr

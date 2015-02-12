@@ -348,6 +348,7 @@ toExpr t exp = case exp of
   I.ExpAddrOfGlobal s        -> var <$> lookupVar s
   I.ExpMaxMin True           -> return $ intLit $ fromJust $ I.toMaxSize t
   I.ExpMaxMin False          -> return $ intLit $ fromJust $ I.toMinSize t
+  I.ExpSizeOf _ty            -> error "Ivory.ModelCheck.Ivory2CVC4.toExpr: FIXME: handle sizeof expressions"
 
 --------------------------------------------------------------------------------
 
@@ -639,6 +640,7 @@ subst su = loop
     I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
     I.ExpAddrOfGlobal{}    -> e
     I.ExpMaxMin{}          -> e
+    I.ExpSizeOf{}          -> e
 
 queryEnsures :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 queryEnsures ens t retE = forM_ ens $ \e -> addQuery =<< toEnsure e

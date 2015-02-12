@@ -13,7 +13,6 @@ import Data.Monoid
 
 import qualified Ivory.Language.Area  as A
 import           Ivory.Language.Proxy
-import           Ivory.Language.SizeOf
 import qualified Ivory.Language.Struct as S
 import qualified Ivory.Language.String as S
 
@@ -26,7 +25,6 @@ import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 import           Language.Haskell.TH hiding (Type)
 import           Language.Haskell.TH.Quote()
-import qualified Language.Haskell.TH as T
 
 --------------------------------------------------------------------------------
 
@@ -35,8 +33,7 @@ fromStruct def = case def of
 #if __GLASGOW_HASKELL__ >= 709
   StructDef n fs srcloc -> do
     let sym = mkSym n
-    sizeOfDef <- mkIvorySizeOf n fs
-    defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
+    defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs)
     ln <- lnPragma srcloc
     return (ln ++ defs)
   StringDef name len srcloc -> mkStringDef name len
@@ -44,8 +41,7 @@ fromStruct def = case def of
 #else
   StructDef n fs _srcloc -> do
     let sym = mkSym n
-    sizeOfDef <- mkIvorySizeOf n fs
-    defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs ++ sizeOfDef)
+    defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs)
     return defs
   StringDef name len _srcloc -> mkStringDef name len
   AbstractDef n _hdr _srcloc -> sequence (mkIvoryStruct (mkSym n) def)
@@ -77,38 +73,6 @@ mkStructDef def = funD 'S.structDef
          , AST.tValue = $(stringE (fieldName f))
          }
     |]
-
-
--- IvorySizeOf -----------------------------------------------------------------
-
--- Create SizeOF instance for the struct.  Assumes that instances exist for the
--- fields.  Fails if this is not the case!
-
-mkIvorySizeOf :: String -> [Field] -> Q [DecQ]
-mkIvorySizeOf n fields = do
-  let sym = litT (strTyLit n)
-  szs <- mapM fieldSizeOfBytes fields
-  if null szs then error $ "Cannot construct a struct with no fields: " ++ n
-    else return (mkIvorySizeOfInst sym szs)
-
--- | Return a call to 'sizeOfBytes'.  May fail if no instance exists.
-fieldSizeOfBytes :: Field -> Q T.Type
-fieldSizeOfBytes field = mkType (fieldType field)
-
-mkIvorySizeOfInst :: TypeQ -> [T.Type] -> [DecQ]
-mkIvorySizeOfInst sym tys =
-  [ instanceD (cxt []) (appT (conT ''IvorySizeOf) struct) [mkSizeOfBytes tys]
-  ]
-  where
-  struct = [t| A.Struct $sym |]
-
-mkSizeOfBytes :: [T.Type] -> DecQ
-mkSizeOfBytes tys = funD 'sizeOfBytes
-  [ clause [wildP] (normalB (foldr1 add exprs)) []
-  ]
-  where
-  exprs   = [ [| sizeOfBytes (Proxy :: A.AProxy $(return ty)) |] | ty <- tys ]
-  add l r = [| $l + ($r :: Integer) |]
 
 -- Field Labels ----------------------------------------------------------------
 
@@ -159,7 +123,6 @@ mkStringDef ty_s len = do
   let struct_def = StructDef struct_s [data_f, len_f] mempty
 
   d1 <- fromStruct struct_def
---  sizeofDef <- mkIvorySizeOf struct_s
   d2 <- sequence
     [ tySynD ty_n [] struct_t
     , instanceD (cxt []) (appT (conT ''S.IvoryString) struct_t)

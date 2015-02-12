@@ -8,7 +8,6 @@ module Ivory.Language.Area where
 
 import Ivory.Language.Proxy
 import Ivory.Language.Type
-import Ivory.Language.Proxy
 import qualified Ivory.Language.Syntax as I
 
 import GHC.TypeLits (Nat, Symbol)

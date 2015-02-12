@@ -21,5 +21,6 @@ ensTrans retE = loop
     I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
     I.ExpAddrOfGlobal{}    -> e
     I.ExpMaxMin{}          -> e
+    I.ExpSizeOf{}          -> e
 
 --------------------------------------------------------------------------------
