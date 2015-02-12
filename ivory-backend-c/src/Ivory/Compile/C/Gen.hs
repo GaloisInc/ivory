@@ -460,7 +460,7 @@ toExpr ty (I.ExpMaxMin b) = [cexp| $id:macro |]
       _           -> err
   err = error $ "unexpected type " ++ show ty ++ " in ExpMaxMin."
 ----------------------------------------
-toExpr ty (I.ExpSizeOf ty') = [cexp| sizeof($ty:(toType ty')) |]
+toExpr ty (I.ExpSizeOf ty') = [cexp| ($ty:(toTypeCast ty)) sizeof($ty:(toType ty')) |]
 ----------------------------------------
 
 exp0 :: [C.Exp] -> C.Exp
