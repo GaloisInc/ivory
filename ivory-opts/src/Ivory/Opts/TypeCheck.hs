@@ -3,8 +3,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 --
--- Type check to ensure each control block ends in return statement and there
--- are no unreachable statements.
+-- Type check to ensure there are no empty blocks in procedures, for non-void
+-- procedures, a value is returned, there is no dead code (code after a return
+-- statement), no field in a struct is initialized twice.
 --
 -- Copyright (C) 2014, Galois, Inc.
 -- All rights reserved.
