@@ -1,5 +1,126 @@
 \section{Ivory Tools}
 \label{sec:tools}
 
-\lee{Lee: describe the model-checker, QC, opts (mostly focusing on runtime
-  assertions). Describe the small number of value-level type-checks. About 1 page.}
+Ivory contains built-in tools to support high-assurance software
+development. These tools include a correctness condition generator, a SMT-based
+symbolic simulator, a theorem-prover translator, and a QuickCheck engine. We
+describe each of them briefly below.
+
+None of these tools specifically depend on Ivory being an EDSL, and their
+implementations are straight-forward.
+
+\subsection{Correctness Conditions}
+Some correctness properties (e.g., arithmetic underflow and overflow properties)
+cannot be embedded in the Haskell type system. For these kind of properties, the
+Ivory AST is instrumented with appropriate assertions. For example, for the
+function
+
+\begin{code}
+main :: Def ('[Sint32, Sint32] :-> Sint32)
+main = proc ``main'' $ \ x y -> body $
+  ret (x + y)
+\end{code}
+\noindent
+The following function is generated, which contains an overflow check before the
+expression is evaluated:
+\begin{code}
+int32_t main(int32_t var0, int32_t var1)
+{
+    bool i_ovf0 = add_ovf_i32(var0, var1);
+    COMPILER_ASSERTS(i_ovf0);
+    return (int32_t) (var0 + var1);
+}
+\end{code}
+\noindent
+The overflow check is computed by the function
+\cd{add\_ovf\_i32}. \cd{COMPILER\_ASSERTS} is a C macro; what action is taken if a
+property is violated is platform-dependent (e.g., logging, do-nothing, run a
+recovery procedure, etc.).
+
+Ivory inserts correctness condition checks for the following, as requested by
+the user:
+\begin{itemize}
+\item no arithmetic underflow and overflow,
+\item no division-by-zero,
+\item no bit-shifts are greater than or equal to the value's width,
+  (bit-shifts on signed integers is prevented statically by the type system)
+\item no floating-point operations resulting in \cd{inf} or \cd{NaN} values.
+\end{itemize}
+
+The implementation is mostly straightforward; the two aspects that require some
+care of are sharing and control-flow expressions. As an EDSL, Ivory encourages
+the use of macros which can result in large expressions. In this case, each
+subexpression must be checked. Standard common subexpression elimination can
+dramatically reduce the number of instrumented assertions. Second, Ivory contains
+the short-cutting expressions of conjunctions, disjunctions, and conditionals,
+analogs of C's \cd{\&\&}, \cd{||}, and \cd{\_ ? \_:\_}, respectively. For these
+expressions, the generated assertions must contain as a precondition that
+short-cutting has not occurred so as not to be overly pessimistic. For example,
+for the expression
+\noindent
+\begin{code}
+x != 0 ? 3/x : 0
+\end{code}
+\noindent
+the assertion
+\begin{code}
+(x == 0) || (x != 0)
+\end{code}
+\noindent
+is generated (and in this case, subsequently discharged by the constant folder).
+
+Generated correctness conditions as well as general user assertions can be
+discharged via testing or using model-checking or theorem-proving. We describe
+Ivory's tooling for these approaches below.
+
+\paragraph{Symbolic Simulation}
+Ivory contains a symbolic simulator built over CVC4~\cite{} for verifying
+programs. Ivory programs are typically amenable to formal analysis since they
+guarantee the absence of memory-safety errors, there is no pointer arithmetic,
+there is no heap, and they are not concurrent. Given a set of preconditions, the
+simulator attempts to verify any inline assertions and postconditions. The
+simulator ensures that the collection of preconditions are satisfiable.
+
+The symbolic simulator abstracts various domains. Floating point types are
+abstracted as reals. However, fixed-width values are modeled precisely as are
+arrays. We have not yet incorporated a theory of bit-vectors yet,
+however. Non-linear operators are abstracted with linear contracts. Loops are
+unrolled (all loops in Ivory have a constant upper bound).
+
+During analysis, inter-procedural calls are inlined or abstracted based a on
+user-supplied option. If they are abstracted, then the callee's precondition is
+added as a verification condition at the call site. The callee's postcondition
+is added to the set of invariants following the call. For imported procedures
+hand-written in C, Ivory allows them to be augmented with pre- and
+postconditions to abstract them.
+
+The simulator is simple compared to other software
+model-checkers\cite{cbmc,cpachecker,ultiautomizer}, providing only bounded
+model-checking, no support for concurrency, and no counter-example guided
+refinement, matching the simplicity of the language.
+
+We have used the symbolic simulator to analyze various Ivory programs, having
+found an off-by-one bug in a ring buffer and verifying the correctness of a
+safety state-machine in SMACCMPilot~\cite{}.
+
+\paragraph{Theorem Proving}
+
+Eakman~et~al. has implemented a theorem-prover back-end for
+Ivory~\cite{ivory-acl2} that targets ACL2~\cite{acl2}. The theorem-prover
+performs inter-procedural analysis, abstracting procedure calls by their
+contracts, like the symbolic simulator. However, the theorem prover has the
+ability to scale more substantially, at the price of doing interactive
+proofs. Eakman~et~al. provide examples of the use of the theorem-proving
+back-end.
+
+\paragraph{Property-Based Testing}
+
+Finally, we have implemented a QuickCheck~\cite{} like property-based testing
+framework for Ivory. The framework tests procedures by randomly generating
+values both for their formal arguments as well as for global values referenced
+by the procedure. Ivory is primarily a compiled language, so tests are compiled
+to C to be executed. Only values that satisfy procedure preconditions should be
+generated, so the framework contains an interpreter for evaluating values before
+code generation.
+
+

@@ -555,16 +555,12 @@ allowing us to define these types in a single line each:
 \subsection{Bit-Data}
 \lee{James: talk about using TH to define bitdata.}
 
-\subsection{Maybe Types}
-\lee{James: not sure, but maybe this would be useful to have?}
-
 \subsection{Module System}
-\lee{Lee: describe the module system, warts and all.}
 
 As seen in Section~\ref{sec:ivory-overview}, Ivory's module system packages up
-the collection of procedures, data declarations, etc. to be passed to a
-back-end, such as the C code generator. The module system is implemented as a
-writer monad that produces a list of abstract syntax values that are processed
+the collection of procedures, data declarations, and dependencies to be passed
+to a back-end, such as the C code generator. The module system is implemented as
+a writer monad that produces a list of abstract syntax values that are processed
 by the various back-ends.
 
 Because our primary backend is C, Ivory modules respect some of the conventions
@@ -577,31 +573,57 @@ in the Haskell term language, Ivory's module system cannot be embedded in
 Haskell's module system. Thus, the user must deal with both Haskell's module
 system and Ivory's orthogonal module system when programming.
 
-At best, doing so is an inconvenience. At worst, it can lead to safety
-violations. When a user forgets to include a dependency in a module
-\cd{mod}---e.g., that \cd{mod} depends on a struct definition provided by
-another module---so long as the struct definition is visible at the level of Haskell
-module imports, \cd{mod} compiles to C, and even the C~code compiles, but it
-does not link, since the declaration of struct is missing. For large programs,
-Ivory compilation and C compilation times can be substantial, making a simple
-mistake costly.
+At best, forgetting to include an Ivory dependency is an inconvenience. The
+inconvenience can be substantial in the case that an inter-module dependency is
+omitted. In this case, The Ivory program type-checks. If the dependency missing
+is a C~function implementation, for example, C~code is generated and compiles,
+but fails during link time. The error does not result in a safety violation, but
+in large projects, such as the SMACCMPilot autopilot written in Ivory~\cite{},
+the error can take several minutes to detect.
 
-More concerning is that in the current implementation of 
+\begin{figure}[h]
+\begin{code}
+foo :: Def ('[Sint32] :-> Sint32)
+foo = proc ``foo'' $ \_ -> body $ ret 0
 
+fooInternal :: Def ('[Ref s (Stored Sint32)] :-> Sint32)
+fooInternal = proc ``foo'' $ \ref -> body $ do
+ x <- deref ref
+ ret x
 
+main :: Def ('[] :-> Sint32)
+main = proc ``main'' $ body $ do
+ x <- call foo 0
+ ret x
 
+cmodule :: Module
+cmodule = package ``Evil'' $ do
+ incl fooInternal
+ incl main
+\end{code}
+\caption{Unsafe module usage}
+\label{fig:unsafe-module}
+\end{figure}
 
+Worse, a naive implementation of the module system can lead to safety
+violations. For example, consider the program in
+Figure~\ref{fig:unsafe-module}. Two procedures, \cd{foo} and \cd{fooInternal}
+are defined but given the same string used as the procedure name, used in the
+generated C. The Ivory program is type-correct and safe, but by passing
+\cd{fooInternal} into the module, it is compiled rather than \cd{foo}. And given
+the C99 specification, the program compiles without warnings or errors, since
+\cd{0} can be implicitly cast to a pointer to a signed 32-bit
+integer.\footnote{In practice, the C we generate does contain a warning, since
+  the C we generate contains additional type annotations.} The result is a
+null-pointer dereference.
 
+To ensure this does not happen, a simple type-check pass over the Ivory AST is
+performed before compilation. The type-check pass ensures that the prototype of
+a function matches the types of the arguments.
 
-While the module system implementation is intuitive and simple, it is also one
-of the greatest weaknesses of Ivory as an EDSL. \lee{XXX finish}
+We describe other approaches to compilation that do not involve an embedded
+module system in Section~\ref{sec:conclusion}.
 
-Values included in a module must be monomorphic; a type error results
-otherwise. 
-
-Because of our design decision 
-
-\lee{make sure Pat's section show the Ivory module system.}
 
 
 
