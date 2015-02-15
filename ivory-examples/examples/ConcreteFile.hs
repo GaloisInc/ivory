@@ -15,7 +15,7 @@
 -- All rights reserved.
 --
 
-module ConcreteFile where
+module Main where
 
 import Ivory.Language
 import Ivory.Stdlib.String
@@ -54,9 +54,8 @@ printf2  = importProc "printf" "stdio.h"
 toIx' :: ANat n => Uint32 -> Ix n
 toIx' ix = toIx (twosComplementCast ix)
 
-[ivory|
-uint8_t foo(*uint8_t[3] arr, uint32_t ix)
-{
- return arr[$toIx'(ix)];
-}
-|]
+[ivoryFile|examples/file.ivory|]
+
+main :: IO ()
+main = runCompiler [examplesfile] []
+  initialOpts {outDir = Nothing, constFold = True}
