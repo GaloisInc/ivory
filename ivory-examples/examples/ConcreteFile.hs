@@ -15,7 +15,7 @@
 -- All rights reserved.
 --
 
-module Main where
+module ConcreteFile where
 
 import Ivory.Language
 import Ivory.Stdlib.String
