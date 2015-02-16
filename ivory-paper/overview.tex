@@ -60,7 +60,7 @@ ex_incr_proc = proc "ex_incr" $ \a -> body $ do
   ret (v >? a)
 \end{code}
 
-we can wrap up statements into a procedure. Procedures can take arguments,
+We can wrap up statements into a procedure. Procedures can take arguments,
 as specified by the type level list, and return either a non-ref value or
 \cd{()}, which works just like C's \cd{void}. Arguments can be \cd{Ref}s, but
 the type system ensures the scope parameter of those refs is not the same type
