@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
+module Coroutine where
+
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 

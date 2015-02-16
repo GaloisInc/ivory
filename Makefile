@@ -1,5 +1,6 @@
-all: build
+all: test-compile
 
+IVORY_EX_TEST_DIR=ivory_examples
 BIN=.cabal-sandbox/bin
 
 PACKAGE= \
@@ -27,15 +28,20 @@ build: cabal.sandbox.config
 	cabal sandbox add-source $(PACKAGEDIR)
 	cabal install $(PACKAGEDIR)
 
-# Can't do `cabal run` since there's no cabal file at the top level.
+# Can't do `cabal run` since there's no cabal file at the top level. Also,
+# binaries are built in the top-level .cabal file, but not tests.
 .PHONY: test
 test: build
-	./$(BIN)/ivory-c-clang-test clang-test-dir
-	./$(BIN)/ivory-fibtutorial
-	./$(BIN)/ivory-concrete
-	# Created from ivory-model-check
+	./$(BIN)/ivory-c-clang-test $(IVORY_EX_TEST_DIR)
+
+	# The following are cabal "test" targets
 	./$(shell find ivory-model-check/dist/ -path "*/test/test")
 	./$(shell find ivory-eval/dist/ -path "*/test/test")
+	./$(shell find ivory-quickcheck/dist/ -path "*/test/test")
+
+.PHONY: test-compile
+test-compile: test
+	cd $(IVORY_EX_TEST_DIR) && gcc -Wall -Wextra -I. -std=c99 -c *.c *.h -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-variable -DIVORY_TEST
 
 .PHONY: veryclean
 veryclean:

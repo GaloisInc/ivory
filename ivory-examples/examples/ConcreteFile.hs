@@ -15,7 +15,7 @@
 -- All rights reserved.
 --
 
-module Main where
+module ConcreteFile where
 
 import Ivory.Language
 import Ivory.Stdlib.String
@@ -54,8 +54,14 @@ printf2  = importProc "printf" "stdio.h"
 toIx' :: ANat n => Uint32 -> Ix n
 toIx' ix = toIx (twosComplementCast ix)
 
+concreteIvory :: Module
+concreteIvory = package "concreteIvory" $ do
+  incl printf
+  incl printf2
+  inclHeader "stdio.h" -- so the header isn't just in the .c file
+
 [ivoryFile|examples/file.ivory|]
 
 main :: IO ()
-main = runCompiler [examplesfile] []
-  initialOpts {outDir = Nothing, constFold = True}
+main = runCompiler [concreteIvory, examplesfile, stdlibStringModule] stdlibStringArtifacts
+  initialOpts {outDir = Just "concrete-ivory", constFold = True}

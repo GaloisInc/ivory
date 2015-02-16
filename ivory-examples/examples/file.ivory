@@ -1,5 +1,8 @@
 -- # -*- mode: haskell -*-
 
+include concreteIvory --for printf definitions in ConcreteFile.hs
+include stdlibStringModule
+
 -- A top level definition.
 bar = 3 + 2;
 
@@ -44,8 +47,8 @@ r* struct ivory_string_FooStr foostr(r* struct ivory_string_FooStr s) {
   return s;
 }
 
--- Abstract structs
-abstract struct fooStruct "foobar/foo.h"
+-- Declaring abstract structs
+-- abstract struct fooStruct "foobar/foo.h"
 
 -- Struct declared with C-like types
 struct Goo
@@ -240,7 +243,7 @@ void fizzbuzz() {
       } else {
         if (i % 3 == 0) {
           printf("Buzz");
-        } else { printf2("",i); }
+        } else { printf2("%i\n",i); }
       }
     }
   }
