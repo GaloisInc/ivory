@@ -4,10 +4,24 @@
 \label{sec:semantics}
 
 In this section we discuss the more formal aspects of the Ivory
-language, in particular, its semantics, and how this semantics is
-modelled within the Isabelle/HOL theorem prover\sjw{cite}.  We also
-discuss the proof of type safety.  This model is available under the
-\texttt{ivory-formal-model} directory in the ivory repository.
+language, including its static and dynamic semantics.  We modeled a
+simplified version of the Ivory language inside
+Isabelle/HOL\sjw{cite}, henceforth \emph{\coreivory{}}; this
+development is available under the \texttt{ivory-formal-model}
+directory in the Ivory repository.  We present in this section a
+semantics based upon the Isabelle/HOL development.
+
+Developing This model provides a number of benefits for a modest
+investment --- we developed the model in under a person month, albeit
+one of the authors has significant experience with Isabelle.  In
+addition to the basic benefits formalisation provides, we can
+experiment with extensions to Ivory.
+
+In one such experiment, we extended the model to allow references in
+the heap, a feature we avoided in the development of Ivory due to
+soundness concerns.  While a simple extension to the syntax and
+semantics of Ivory, the effort involved in extending the soundness
+proofs was almost as much as developing the initial model.  
 
 \newcommand{\sep}{\ |\ }
 
@@ -20,7 +34,7 @@ discuss the proof of type safety.  This model is available under the
 e & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \sep{} x \sep{} 
           e_1 \mathbin{\mathit{op}} e_2 \\
 \syntaxtitle{impure expressions}\\
-i & ::= & e \sep{} \texttt{alloc}(e) \sep{}
+i & ::= & \texttt{pure}(e) \sep{} \texttt{alloc}(e) \sep{}
           \texttt{read}(e) \sep{} \texttt{write}(e_1, e_2)\\
 \syntaxtitle{statements}\\
 s & ::= & \texttt{skip} \sep{} \texttt{return}(e) \sep{} s_1; s_2 \\ 
@@ -33,20 +47,25 @@ P & ::= & \texttt{proc\;} f(x_1, \ldots{}, x_n) \{ s \}
 \\
 \syntaxtitle{values}\\
 v & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \\
-w & ::= & v \sep{} \texttt{ref}(r, n) \\
+w & ::= & \texttt{stored}(v) \sep{} \texttt{ref}(r, n) \\
 \syntaxtitle{environments}\\
 E & \in{} & x \to w \\
+\syntaxtitle{regions and heaps}\\
+R & \in{} & \mathbb{N} \to w\\
+H & ::=   & H, R \sep{} \cdot{}\\
 \syntaxtitle{stacks}\\
 F & ::= & \texttt{rframe}(x, E, s) \sep{} \texttt{sframe}(E, s) \\
 S & ::= & F, S \sep{} \cdot{} \\
+\syntaxtitle{configurations}\\
+C & \in & H \times S \times E \times s\\
 \syntaxtitle{types}\\
+\rho   & \in & \textit{region variables}\\
 \alpha & ::= & \texttt{nat} \sep{} \texttt{bool} \sep{} \texttt{unit} \\
-\tau   & ::= & \alpha \sep{} \texttt{reft}(\rho, \alpha)
+\tau   & ::= & \texttt{storedt}(\alpha) \sep{} \texttt{reft}(\rho, \alpha)
 \end{array}
 \]
 
-
-\sjw{values (in or out?)}
+\sjw{values (in or out?), $\in$ or $\subseteq$?}
 
 \label{fig:syntax}
 \caption{Concrete syntax of \coreivory{}}
@@ -54,12 +73,8 @@ S & ::= & F, S \sep{} \cdot{} \\
 
 \sjw{more on why we want a model/motivations (?)}
 
-\subsection{Syntax and Operational Semantics}
+\subsection{Syntax}
 
-We model a simplified version of the Ivory language inside
-Isabelle/HOL, henceforth \emph{\coreivory{}}.  In particular, we do
-not treat aspects of the embedding into Haskell.  \sjw{no
-  structs/arrays/function pointers}
 
 The syntax for \coreivory{} is given in \autoref{fig:syntax}.
 \coreivory{} is based upon a typical typed imperative language with
@@ -71,23 +86,18 @@ calls. Furthermore, \coreivory{} expressions are stratified into
 \emph{pure} and \emph{impure}, the latter allowing operations on the
 heap: allocation, reading, and writing references.
 
-The heap is modeled as a list of \emph{regions}, each region a finite
-map from \emph{offsets} to \emph{heap values}; a \emph{reference} then
-contains both a \emph{region index} into the list of regions, and an
-offset with the region.  
+Ivory uses regions to manage memory.  Thus, the heap is modeled as a
+list of \emph{regions}, each region a finite map from \emph{offsets},
+modeled as natural numbers, to \emph{stored values}; Ivory does not
+allow references in heap allocated values, and so a stored value is
+any value which is not a reference. A \emph{reference} contains both a
+\emph{region index} into the list of regions, and an offset with the
+region.  To simplify the presentation, we will use $H(r, n)$ to denote
+the value at offset $n$ in the $r$th region of $H$, and similarly with
+updates.
 
-Operationally, the region list is extended on a function call, a
-region being added to the end of the list, and shrunk on function
-return, removing the last region.  Allocating an object extends the
-current (last) region.
+\subsection{Operational Semantics}
 
-\sjw{don't really care?  maybe move to discussion}
-Variables are immutable, in keeping with the Haskell implementation,
-and thus variables are bound using a let-style statement.
-
-\sjw{stratification of values into ref/non-ref makes things easy}
-
-\subsection{Typing Ivory}
 
 \newcommand{\stepsX}[2]{\models #1 \longmapsto{} #2}
 \newcommand{\steps}[4]{\stepsX{#1; #2}{#3; #4}}
@@ -101,24 +111,25 @@ and thus variables are bound using a let-style statement.
 \newcommand{\wfexp}[3]{#1 \vdash_e #2 : #3}
 \newcommand{\wfimp}[4]{#1; #2 \vdash_i #3 : #4}
 
-\begin{figure*}[t]
+\begin{figure*}[ht]
 
 \begin{mathpar}
 
 %% Pure expressions
 
+\sjw{all but var lookup return stored(x)}
 \denoteexp{e}{E} = \ldots
 
 \and
 %% Impure expression
 
-\inferrule{\denoteexp{e}{E} = w}{\hsteps{E}{H}{e}{H}{w}}
+\inferrule{\denoteexp{e}{E} = w}{\hsteps{E}{H}{\texttt{pure}(e)}{H}{w}}
 \and
-\inferrule{\denoteexp{e}{E} = v}{\hsteps{E}{H, R}{\texttt{alloc}(e)}{H, R[p \mapsto{} v]}{\texttt{ref}(|H|, p)}}(p \notin{} \mathrm{dom}(R))
+\inferrule{\denoteexp{e}{E} = \texttt{stored}(v)}{\hsteps{E}{H, R}{\texttt{alloc}(e)}{H, R[p \mapsto{} v]}{\texttt{ref}(|H|, p)}}(p \notin{} \mathrm{dom}(R))
 \and
-\inferrule{\denoteexp{e}{E} = \texttt{ref}(r, n)}{ \hsteps{E}{H}{ \texttt{read}(e) }{H}{H_r(n)} }
+\inferrule{\denoteexp{e}{E} = \texttt{ref}(r, n)}{ \hsteps{E}{H}{ \texttt{read}(e) }{H}{\texttt{stored}(H(r, n))} }
 \and
-\inferrule{\denoteexp{e_1}{E} = \texttt{ref}(r, n) \\ \denoteexp{e_2}{E} = v}{ \hsteps{E}{H}{ \texttt{write}(e_1, e_2) }{H[(r, n) \mapsto v]}{()} }
+\inferrule{\denoteexp{e_1}{E} = \texttt{ref}(r, n) \\ \denoteexp{e_2}{E} = \texttt{stored}(v)}{ \hsteps{E}{H}{ \texttt{write}(e_1, e_2) }{H[(r, n) \mapsto v]}{\texttt{stored}(())} }
 
 \\
 %% Statements
@@ -134,26 +145,26 @@ and thus variables are bound using a let-style statement.
 \inferrule{ {} }{\steps{(H; S; E)}{ (s_1; s_2) }{(H; \texttt{sframe}(E, s_2), S; E)}{s_1}}
 \and
 
-\inferrule{ \denoteexp{e}{E} = \texttt{true} }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_1}}
+\inferrule{ \denoteexp{e}{E} = \texttt{stored}(\texttt{true}) }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_1}}
 \and
-\inferrule{ \denoteexp{e}{E} = \texttt{false} }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_2}}
+\inferrule{ \denoteexp{e}{E} = \texttt{stored}(\texttt{false}) }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_2}}
 \and
-\inferrule{ \denoteexp{e_1}{E} = v }{\steps{(H; S; E)}{ \texttt{for}(x = e_1; e_2; e_3) \{ s \} }{(H, S, E[x \mapsto{} v])}%
+\inferrule{ \denoteexp{e_1}{E} = w }{\steps{(H; S; E)}{ \texttt{for}(x = e_1; e_2; e_3) \{ s \} }{(H, S, E[x \mapsto{} w])}%
 {\texttt{if}(e_2)\texttt{\;then\;} (s; \texttt{for}(x = e_3; e_2; e_3) \{ s \}) \texttt{\;else\;} \texttt{skip} }}
 \and
 \inferrule{ \hsteps{E}{H}{i}{H'}{w} }{\steps{(H; S; E)}{\texttt{let\;} x = i \texttt{\;in\;} s}{(H'; S; E[x \mapsto{} w])}{s}}
 \and
-\inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
+\inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H, \emptyset; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
 
 \\
 % wfimp
-\inferrule{ \wfexp{\Gamma}{e}{\tau} }{ \wfimp{\Gamma}{\rho}{e}{\tau} }
+\inferrule{ \wfexp{\Gamma}{e}{\tau} }{ \wfimp{\Gamma}{\rho}{\texttt{pure}(e)}{\tau} }b
 \and
 \inferrule{ \wfexp{\Gamma}{e}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{alloc}(e)}{\texttt{reft}(\rho, \alpha)} }
 \and
-\inferrule{ \wfexp{\Gamma}{e}{\texttt{reft}(\rho, \alpha)} }{ \wfimp{\Gamma}{\rho}{\texttt{read}(e)}{\alpha} }
+\inferrule{ \wfexp{\Gamma}{e}{\texttt{reft}(\rho, \alpha)} }{ \wfimp{\Gamma}{\rho}{\texttt{read}(e)}{\texttt{storedt}(\alpha)} }
 \and
-\inferrule{ \wfexp{\Gamma}{e_1}{\texttt{reft}(\rho, \alpha)} \\ \wfexp{\Gamma}{e_2}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{write}(e_1, e_2)}{\texttt{unit}} }
+\inferrule{ \wfexp{\Gamma}{e_1}{\texttt{reft}(\rho, \alpha)} \\ \wfexp{\Gamma}{e_2}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{write}(e_1, e_2)}{\texttt{storedt}(\texttt{unit})} }
 
 \\
 %% wfstmt
@@ -185,16 +196,50 @@ and thus variables are bound using a let-style statement.
             \wfstmt{[x_1 \mapsto \sigma_1, \ldots, x_n \mapsto \sigma_n]}{\Psi}{\rho}{s}{\tau} }%
 { \vdash \texttt{Procs} : \Psi }(\textrm{for all }f\textrm{ in }\textrm{dom}(\Psi), \rho \textrm{ fresh})
 
-
-%   & |   &  \\
-%   & |   & \texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s \\
-
-
 \end{mathpar}
 
 \label{fig:rules}
 \caption{Selected semantic and typing rules. The semantics and typing rules for expressions ($\denoteexp{e}{E}$ and $\wfexp{\Gamma}{e}{\tau}$) are standard and are so omitted.}
 \end{figure*}
+
+
+
+\sjw{mention missing rules in the figure} \coreivory{}'s semantics,
+presented in \autoref{fig:semantics}, is modeled as an abstract
+machine\sjw{cite?} over configurations consisting of a heap, a stack,
+an environment, and a statement. The stack contains continuations for
+both function calls and statement sequences; the environment maps
+variables to values. The semantics of sequencing is slightly
+non-standard as variables are let-bound rather than assigned, and so
+statement sequencing preserves the environment across execution of the
+first statement.
+
+The judgement
+\[
+\stepsX{C}{C'}
+\]
+states that configuration $C$ transitions to configuration $C'$ and
+relies on the denotation of expressions (not shown) $\denoteexp{e}{E}$
+and the semantics of impure expressions
+\[
+\hsteps{E}{H}{i}{H'}{w}
+\]
+stating that execution of the impure expression $i$ in environment $E$
+and heap $H$ yields a new heap $H'$ and value $w$.
+
+
+Operationally, the heap is extended on a function call, a
+region being added to the end of the list, and shrunk on function
+return, removing the last region.  Allocating an object extends the
+current (last) region.
+
+\sjw{don't really care?  maybe move to discussion}
+Variables are immutable, in keeping with the Haskell implementation,
+and thus variables are bound using a let-style statement.
+
+\sjw{stratification of values into ref/non-ref makes things easy}
+
+\subsection{Typing Ivory}
 
 \begin{itemize}
 \item Regions everywhere
