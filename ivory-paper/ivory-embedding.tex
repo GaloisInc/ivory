@@ -23,9 +23,6 @@ memory-safety. Next, we describe memory areas~\cite{}. \lee{finish}
   \url{http://www.doc.ic.ac.uk/~wlj05/files/Deconstraining.pdf}, but didn't
   follow implementation.}
 
-\lee{Also talk about the use of typeclasses \cd{IvoryVar}, \cd{IvoryExpr},
-  etc. and how this allows the user to define custom data, safely.}
-
 Ivory is a monadic language, in which Ivory statements have effects in the Ivory
 monad. The Ivory monad has the type
 
@@ -123,6 +120,7 @@ ret :: (GetReturn eff ~ Returns r, ...)
     => r -> Ivory eff ()
 \end{code}
 
+
 \subsection{Memory Management}
 \label{sec:ref}
 
@@ -159,6 +157,28 @@ context of the Ivory monad using the \cd{store} and \cd{deref} commands.  The
 Ivory monad does not track effects for manipulating specific references, and
 instead allows reading and writing to any reference that is in scope, within the
 context of the Ivory monad.
+
+\subsection{Types}
+\label{sec:types}
+
+Ivory uses two type classes to define its domain: \cd{IvoryType} and
+\cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
+programs.  As Ivory programs build up the AST of the program they represent when
+they are run, this class describes the set of types that contain fragments of
+the Ivory AST.  The \cd{IvoryArea} class serves to ensure that primitive types
+that are stored in references also have an instance of \cd{IvoryType}.
+
+The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
+have values.  The \cd{IvoryVar} class describes all types that can have an Ivory
+expression extracted from them, as well as be created from a single variable.
+This roughly corresponds to types that can be used as an L-value in assigments,
+but also includes types that are to be used as arguments to functions.
+The \cd{IvoryExpr} class includes types that can be constructed from full
+expressions, and corresponds to the set of types whose values can be used in the
+position of an R-value.  It might be tempting to say that the functionality of
+the \cd{IvoryVar} belongs in the \cd{IvoryType} class, however as Ivory has a
+void type, \cd{()}, we do require this distinction so that we can prevent void
+values from being created.
 
 \subsection{Memory Areas}
 \label{sec:area}
@@ -208,7 +228,7 @@ to do so.
 
 \paragraph{Structs} A reference that has an area-kind of type \cd{Struct "x"}
 will point to memory whose layout corresponds to the definition of the struct
-with name x.  Struct definitions are introduced through use of the ivory
+with name ``x''.  Struct definitions are introduced through use of the ivory
 quasi-quoter.  For example, if a region of memory is typed using the struct
 definition from figure \ref{example-struct}, it would have type \cd{Struct "a"}.
 
