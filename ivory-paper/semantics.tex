@@ -57,7 +57,7 @@ H & ::=   & H, R \sep{} \cdot{}\\
 F & ::= & \texttt{rframe}(x, E, s) \sep{} \texttt{sframe}(E, s) \\
 S & ::= & F, S \sep{} \cdot{} \\
 \syntaxtitle{configurations}\\
-C & \in & H \times S \times E \times s\\
+C & \in & H \times S \times E \times s \sep{} \texttt{finished}(v) \\
 \syntaxtitle{types}\\
 \rho   & \in & \textit{region variables}\\
 \alpha & ::= & \texttt{nat} \sep{} \texttt{bool} \sep{} \texttt{unit} \\
@@ -74,7 +74,6 @@ C & \in & H \times S \times E \times s\\
 \sjw{more on why we want a model/motivations (?)}
 
 \subsection{Syntax}
-
 
 The syntax for \coreivory{} is given in \autoref{fig:syntax}.
 \coreivory{} is based upon a typical typed imperative language with
@@ -96,10 +95,18 @@ region.  To simplify the presentation, we will use $H(r, n)$ to denote
 the value at offset $n$ in the $r$th region of $H$, and similarly with
 updates.
 
+As with values, types classifying values in \coreivory{} are
+stratified into storable and reference types; a reference type
+$\texttt{reft}(\rho, \alpha)$ is a reference to an object of type
+$\alpha$ in region $\rho$, where $\alpha$ is not a reference.
+
+\sjw{talk about structs and arrays?}
+
 \subsection{Operational Semantics}
 
 
 \newcommand{\stepsX}[2]{\models #1 \longmapsto{} #2}
+\newcommand{\stepsXX}[3]{\models #2 \longmapsto^{#1} #3}
 \newcommand{\steps}[4]{\stepsX{#1; #2}{#3; #4}}
 
 \newcommand{\denoteexp}[2]{\llbracket{}#1\rrbracket{}#2}
@@ -202,19 +209,9 @@ updates.
 \caption{Selected semantic and typing rules. The semantics and typing rules for expressions ($\denoteexp{e}{E}$ and $\wfexp{\Gamma}{e}{\tau}$) are standard and are so omitted.}
 \end{figure*}
 
-
-
 \sjw{mention missing rules in the figure} \coreivory{}'s semantics,
 presented in \autoref{fig:semantics}, is modeled as an abstract
-machine\sjw{cite?} over configurations consisting of a heap, a stack,
-an environment, and a statement. The stack contains continuations for
-both function calls and statement sequences; the environment maps
-variables to values. The semantics of sequencing is slightly
-non-standard as variables are let-bound rather than assigned, and so
-statement sequencing preserves the environment across execution of the
-first statement.
-
-The judgement
+machine\sjw{cite?} over configurations.  The judgement
 \[
 \stepsX{C}{C'}
 \]
@@ -227,38 +224,122 @@ and the semantics of impure expressions
 stating that execution of the impure expression $i$ in environment $E$
 and heap $H$ yields a new heap $H'$ and value $w$.
 
+A configuration consists of a heap, a stack, an environment, and a
+statement. The stack contains continuations for both function calls
+and statement sequences; the environment maps variables to values. The
+semantics of sequencing is slightly non-standard as variables are
+let-bound rather than assigned, and so statement sequencing preserves
+the environment across execution of the first statement.
 
-Operationally, the heap is extended on a function call, a
+Operationally, the heap is extended on a function call, an empty
 region being added to the end of the list, and shrunk on function
 return, removing the last region.  Allocating an object extends the
 current (last) region.
 
-\sjw{don't really care?  maybe move to discussion}
-Variables are immutable, in keeping with the Haskell implementation,
-and thus variables are bound using a let-style statement.
+A configuration is stuck if there is no available transition.  For
+instance, an attempted heap access or update where the region index
+does not exist or at an offset which has not been allocated will
+result in a stuck configuration.  In particular, accessing a region
+after it has been removed will result in a stuck state.  
 
-\sjw{stratification of values into ref/non-ref makes things easy}
+\sjw{make stuc states more explicit?}
+% \sjw{stratification of values into ref/non-ref makes things easy}
 
 \subsection{Typing Ivory}
 
-\begin{itemize}
-\item Regions everywhere
-\item type (region) schemas
-\item Ignore must-return annotation?
-\item Extra check on return type (frees in ret are in args) \sjw{is
-    this actually needed?}
-\item type substitutions (only on call?)
-\end{itemize}
+The typing rules for \coreivory{} statements is given in
+\autoref{fig:semantics}.  The typing judgement 
+\[
+\wfstmt{\Gamma}{\Psi}{\rho}{s}{\tau}
+\]
+holds when the statement $s$ is well-formed under the variable
+environment $\Gamma$, procedure environment $\Psi$, current region
+$\rho$, with any return statements returning values of type $\tau$.
+
+The region variable $\rho$ represents the current region and is used
+when checking memory allocation.  In particular, we may derive the
+following typing rule
+\[
+\inferrule{ 
+\wfexp{\Gamma}{e}{\alpha} \\
+\wfstmt{\Gamma[x \mapsto \texttt{reft}(\rho, \alpha)]}{\Psi}{\rho}{s}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = \texttt{alloc}(e) \texttt{\;in\;} s}{\tau} }
+\]
+where the body of the let statement is checked under the additional
+assumption that the variable $x$ has reference type
+$\texttt{reft}(\rho, \alpha)$.  
+
+The typing rule for procedure bodies ensures that this region variable
+is fresh; this constraint, together with the constraint that region
+variables in the procedure's return type must occur in an argument
+type, ensures that references cannot escape the scope in which they
+were allocated.  These constraints are then fundamental to the type
+safety of \coreivory{} programs.
 
 \subsection{Type Safety}
 
-\begin{itemize}
-\item Progress proof: pretty boring
-\item Preservation: necessary/interesting invariants
-\item other properties (obvious closure lemma/invariant?)
-\item G, p |- e : t ==> frees t : frees G
-\item tsubst preserves well-formedness
-\end{itemize}
+We prove type safety, that is, well-typed programs do not get stuck,
+by proving the usual progress and preservation lemmas.  As is
+common\sjw{cite?}  with type safety for imperative languages, we
+define auxiliary well-formedness invariants on configurations.  The
+progress lemma then states that well-formed configurations are not
+stuck, and preservation states that well-formed configurations
+transition to well-formed configurations.
+
+\sjw{name this?}
+Formally, we prove, assuming $\vdash \texttt{Procs} : \Psi$ and
+$\Psi(\texttt{main}) = \texttt{fun}(\texttt{nat}, ())$ then, for some
+number of steps $n$ and $v \in \mathbb{N}$, 
+\[
+\stepsXX{n}{(\cdot; \cdot; \cdot); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{\texttt{finished}(v)}
+\]
+or, for all $n$ there is a well-formed configuration $C$ such that
+\[
+\stepsXX{n}{(\cdot; \cdot; \cdot); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{C}
+\]
+Informally, a well-formed program, when called via the \texttt{main}
+procedure, will either terminate in a finite number of steps, or will
+diverge through well-formed configurations.
+
+The well-formedness invariants are typical, and are based upon a
+well-formed value judgement.  For our purposes, the interesting rule
+here is for references
+\[
+\inferrule{\Delta(\rho) = r \\ \Theta(r, n) = \alpha }%
+{\Theta; \Delta \vdash \texttt{ref}(r, n) : \texttt{reft}(\rho, \alpha)}
+\]
+which links reference types to reference values through the region
+environment $\Delta$, mapping region variables to region indices, and
+heap type $\Theta$, mapping region indices and offsets to types.
+Well-formed heaps and environments then follow point-wise from this
+judgement.  Well-formedness of stacks follows, ensuring that each
+continuation on the stack is well-formed.
+
+A well-formed configuration, in addition to the well-formedness of the
+heap, stack, variable environment, and current statement, constrains
+the region environment ($\Delta$).  In particular, the variable
+representing the current region must be mapped to the length of the
+current heap, every region index in the range of $\Delta$ must be
+below this length, and the type variables occurring in the variable
+environment $\Gamma$ must be mapped by $\Delta$.
+
+The progress lemma follows from well-formedness.  The preservation
+proof, as usual, is the trickier of the two proofs.  In particular,
+the case for return involves showing that the various configuration
+members are well-formed under a heap where the last region has been
+removed from the heap.  This involves showing that references are
+well-formed under this smaller heap which follows from the stack and
+region environment well-formedness invariants.  The case for function
+calls is also involved, although this is primarily due to the
+instantiation of the type variables in the type of the called
+function.
+
+The type safety proofs are greatly simplified by the restriction of
+heap values to non-references: it is trivially true, for example, that
+the heap is well-formed after a return as the well-formedness of
+non-reference values does not depend on the type of other heap
+elements.  In the next section we discuss the relaxation of this
+restriction.
 
 \subsection{Nested Regions}
 
