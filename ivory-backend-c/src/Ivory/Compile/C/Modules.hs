@@ -169,7 +169,7 @@ compileModule I.Module { I.modName        = nm
 --------------------------------------------------------------------------------
 
 fromImport :: I.Import -> Compile
-fromImport p = putSrcInc (SysInclude (I.importFile p))
+fromImport p = putHdrInc (SysInclude (I.importFile p))
 
 --------------------------------------------------------------------------------
 
