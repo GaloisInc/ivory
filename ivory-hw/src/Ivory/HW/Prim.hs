@@ -11,6 +11,15 @@ module Ivory.HW.Prim where
 
 import Ivory.Language
 
+hw_moduledef :: ModuleDef
+hw_moduledef = do
+  incl ioRegReadU8
+  incl ioRegWriteU8
+  incl ioRegReadU16
+  incl ioRegWriteU16
+  incl ioRegReadU32
+  incl ioRegWriteU32
+
 class IvoryBits a => IvoryIOReg a where
   ioRegSize  :: a -> Integer
   ioRegRead  :: Def ('[Uint32] :-> a)
