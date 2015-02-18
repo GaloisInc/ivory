@@ -17,18 +17,13 @@ incr_ref r = do
 \end{code}
 
 In addition to global memory areas, we can create memory areas on the stack.
-The first parameter to \cd{Ref} specifies the allocation scope, which is either
-\cd{Global} or \cd{Stack s}. The \cd{local} primitive permits allocating a value
-locally (on the stack associated with the parent procedure), and tags the
-\cd{Ref} with a type that prevents a pointer to the stack to escape the parent
-procedure scope, e.g. by being copied to a global memory area.
+The \cd{local} primitive permits allocating a value
+locally, on the stack associated with the parent procedure.
 
 To use allocation in an Ivory statement, the \cd{eff} parameter must be
-constrained to have a given allocation scope:
+constrained to have a given allocation scope.
 
 \begin{code}
-local :: (IvoryArea a, GetAlloc eff ~ Scope s)
-      => Init a -> Ivory eff (Ref (Stack s) a)
 
 uses_allocation :: (GetAlloc eff ~ Scope s) => Ivory eff IBool
 uses_allocation = do
@@ -60,11 +55,9 @@ ex_incr_proc = proc "ex_incr" $ \a -> body $ do
   ret (v >? a)
 \end{code}
 
-We can wrap up statements into a procedure. Procedures can take arguments,
-as specified by the type level list, and return either a non-ref value or
-\cd{()}, which works just like C's \cd{void}. Arguments can be \cd{Ref}s, but
-the type system ensures the scope parameter of those refs is not the same type
-as refs created inside the \cd{body}.
+We can wrap up statements into a procedure. Procedures can take arguments
+passed in as a lambda, and optionally return an ivory value with the \cd{ret}
+statement.
 
 \begin{code}
 ex_module :: Module
@@ -89,13 +82,10 @@ offsets are specified by a special type \cd{Ix n}, which only permits expressing
 natural numbers in \cd{0 <= Ix n < n}.
 
 \begin{code}
-array_ex :: (GetAlloc eff ~ Scope s) => Ivory eff ()
-array_ex = do
-  (a :: Ref (Stack s) (Array 10 (Stored Sint32))) <- local (iarray [0..])
+array_ex :: Ref s (Array 10 (Stored Sint32)) -> Ivory eff ()
+array_ex a = do
   incr (a ! 5)
   -- incr (a ! 10) -- Impossible to write, error caught at compile time
-  v <- deref (a ! 5)
-  assert (v ==? 6)
 
 \end{code}
 
@@ -165,8 +155,48 @@ loop_ex = do
 
 Loops may be terminated early using the \cd{break} statement.
 
-\lee{requires/ensures example}
-\lee{small importProc example, maybe with requires/ensures}
-\lee{toolchain usage overview}
+\begin{code}
+predicates_ex :: Def('[ IFloat ] :-> IFloat)
+predicates_ex = proc "predicates_ex" $
+    \i -> requires (i >? 0)
+        $ ensures (\r -> r >? 0)
+        $ body
+        $ do (assert (i /=? 0))
+             ret (i + 1))
+\end{code}
+
+Procedures may also specify preconditions and postconditions, and users may
+specify assertions as statements. The Ivory compiler can emit run-time
+assertions to enforce these conditions, or use a model checker backend to
+statically verify they are satisified.
+
+\begin{code}
+
+print_ex_module :: Module
+print_ex_module = package $ do
+  inclHeader "stdio.h"
+  incl print_proc
+
+printf_none :: Def('[IString] :-> Sint32)
+printf_none  = importProc "printf" "stdio.h"
+
+printf_sint32 :: Def('[IString, Sint32] :-> Sint32)
+printf_sint32  = importProc "printf" "stdio.h"
+
+print_proc = Def('[]:->())
+print_proc = proc "print_example" $ body $ do
+  _ <- call printf_none "hello, world!"
+  _ <- call printf_sint32 "print an integer: \%d" 42
+  return ()
+\end{code}
+
+Ivory can interact with externally defined C functions and global
+variables. However, it can only import and use functions that have a
+valid Ivory type signature. Some polymorphic C functions may have multiple
+valid Ivory types.
+
+\subsection{Toolchain Use}
+\pat{todo}
+
 \lee{Describe briefly that Ivory generates an untyped AST. We assume this in
   later discussions.}
