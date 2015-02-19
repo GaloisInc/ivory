@@ -10,8 +10,9 @@ language: haskell
 before_install:
   - CVC4=cvc4-2014-11-22-i386-linux-opt
   - wget www.galois.com/~leepike/$CVC4
+  - mv $CVC4 cvc4
   - export PATH=$PATH:./
-  - chmod u+x /usr/local/bin/cvc4
+  - chmod u+x cvc4
   - cvc4 --version
 install:
   - cabal install alex
