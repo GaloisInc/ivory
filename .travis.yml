@@ -10,18 +10,17 @@ language: haskell
 before_install:
   - CVC4=cvc4-2014-11-22-i386-linux-opt
   - wget www.galois.com/~leepike/$CVC4
-  - sudo mv $CVC4 /usr/local/bin/cvc4
-  - sudo chmod a+x /usr/local/bin/cvc4
+  - export PATH=$PATH:./
+  - chmod u+x /usr/local/bin/cvc4
   - cvc4 --version
 install:
   - cabal install alex
   - cabal install happy
 script:
-  - make test
+  - make test-compile
 ghc:
   - 7.6
   - 7.8
 
-# notifications:
-#   email:
-#     - leepike@galois.com
+# Allow (faster) Docker builds
+sudo: false
