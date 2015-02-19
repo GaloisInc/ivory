@@ -1,4 +1,4 @@
-all: test-compile
+all: test
 
 IVORY_EX_TEST_DIR=ivory_examples
 BIN=.cabal-sandbox/bin
