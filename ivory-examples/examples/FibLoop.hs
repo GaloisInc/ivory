@@ -26,7 +26,7 @@ fib_rec_aux  = proc "fib_rec_aux" $ \ a b n -> body $ do
 fib_loop :: Def ('[Ix 1000] :-> Uint32)
 fib_loop  = proc "fib_loop" $ \ n -> body $ do
   a <- local (ival 0)
-  b <- local (ival 0)
+  b <- local (ival 1)
   comment "before loop"
   n `times` \ _ix -> do
     comment "inside top of loop"
