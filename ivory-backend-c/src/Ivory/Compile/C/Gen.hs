@@ -626,7 +626,7 @@ signumSym ty = case ty of
   I.TyFloat  -> "signum_float"
   I.TyDouble -> "signum_double"
   I.TyInt i  -> "signum_i" ++ showInt i
-  I.TyWord w -> "signum_w" ++ showWord w
+  I.TyWord w -> "signum_u" ++ showWord w
   I.TyChar   -> "signum_char"
   _          -> error ("signum " ++ "unimplemented for type " ++ show ty)
 ----------------------------------------
