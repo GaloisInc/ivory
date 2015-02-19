@@ -11,7 +11,7 @@ development is available under the \texttt{ivory-formal-model}
 directory in the Ivory repository.  We present in this section a
 semantics based upon the Isabelle/HOL development.
 
-Developing This model provides a number of benefits for a modest
+Developing this model provides a number of benefits for a modest
 investment --- we developed the model in under a person month, albeit
 one of the authors has significant experience with Isabelle.  In
 addition to the basic benefits formalisation provides, we can
@@ -118,13 +118,16 @@ $\alpha$ in region $\rho$, where $\alpha$ is not a reference.
 \newcommand{\wfexp}[3]{#1 \vdash_e #2 : #3}
 \newcommand{\wfimp}[4]{#1; #2 \vdash_i #3 : #4}
 
+\newcommand{\rulestitle}[1]{\textnormal{#1}\hspace*{\fill}}
+
 \begin{figure*}[ht]
 
 \begin{mathpar}
 
 %% Pure expressions
 
-\sjw{all but var lookup return stored(x)}
+% \sjw{all but var lookup return stored(x)}
+\rulestitle{Semantics}\\
 \denoteexp{e}{E} = \ldots
 
 \and
@@ -164,6 +167,8 @@ $\alpha$ in region $\rho$, where $\alpha$ is not a reference.
 \inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H, \emptyset; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
 
 \\
+\rulestitle{Typing rules}\\
+
 % wfimp
 \inferrule{ \wfexp{\Gamma}{e}{\tau} }{ \wfimp{\Gamma}{\rho}{\texttt{pure}(e)}{\tau} }b
 \and
@@ -197,11 +202,12 @@ $\alpha$ in region $\rho$, where $\alpha$ is not a reference.
 { \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{\tau} }
 
 \\
-\inferrule{ \Psi(f) = \texttt{fun}(\tau, (\sigma_1, \ldots, \sigma_n))\\            
+\inferrule{ \forall{}f \in \textrm{dom}(\Psi), \\\\ \Psi(f) = \texttt{fun}(\tau, (\sigma_1, \ldots, \sigma_n))\\      
+           \rho \textrm{ fresh} \\     
             \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{s} \} \in \texttt{Procs} \\            
             \texttt{frees}(\tau) \subseteq \texttt{frees}(\sigma_1) \cup \ldots \cup \texttt{frees}(\sigma_n) \\
             \wfstmt{[x_1 \mapsto \sigma_1, \ldots, x_n \mapsto \sigma_n]}{\Psi}{\rho}{s}{\tau} }%
-{ \vdash \texttt{Procs} : \Psi }(\textrm{for all }f\textrm{ in }\textrm{dom}(\Psi), \rho \textrm{ fresh})
+{ \vdash \texttt{Procs} : \Psi }
 
 \end{mathpar}
 
@@ -287,9 +293,14 @@ stuck, and preservation states that well-formed configurations
 transition to well-formed configurations.
 
 \sjw{name this?}
-Formally, we prove, assuming $\vdash \texttt{Procs} : \Psi$ and
-$\Psi(\texttt{main}) = \texttt{fun}(\texttt{nat}, ())$ then, for some
-number of steps $n$ and $v \in \mathbb{N}$, 
+Formally, we prove, assuming 
+\[
+\begin{array}{l}
+\vdash \texttt{Procs} : \Psi \\
+\Psi(\texttt{main}) = \texttt{fun}(\texttt{nat}, ())
+\end{array}
+\]
+that there exists some number of steps $n$ and value $v \in \mathbb{N}$ such that
 \[
 \stepsXX{n}{(\cdot; \cdot; \cdot); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{\texttt{finished}(v)}
 \]
@@ -334,39 +345,55 @@ calls is also involved, although this is primarily due to the
 instantiation of the type variables in the type of the called
 function.
 
+\subsection{Discussion}
+
 The type safety proofs are greatly simplified by the restriction of
 heap values to non-references: it is trivially true, for example, that
 the heap is well-formed after a return as the well-formedness of
 non-reference values does not depend on the type of other heap
-elements.  In the next section we discuss the relaxation of this
-restriction.
+elements.
 
-\subsection{Nested Regions}
+We extended the Isabelle model to remove the stratification of values,
+allowing references to appear in the heap.  Syntactically, this
+simplifies the language, at the expense of more complicated proofs.
+For example, we extend the well-formedness of heaps to require that
+heaps are downward closed with respect to region references: that is,
+references in the heap refer only to regions up to and including the
+containing region.  This work extended the proof development from
+approximately 2500 lines of proof to 3300 lines of proof, and took
+approximately 2 person weeks to finish.
 
-\begin{itemize}
-\item Simpler syntax (no stratification)
-\item Much more complex proofs/invariants
-\item What are the main ideas (downward closed heap)?
-\end{itemize}
+\sjw{move to end?}
+Develop0ing this model uncovered a bug in the Ivory embedding into
+Haskell, namely that the Haskell erroneously allowed functions to
+end without encountering a return statement.  Thus, a program could
+claim to return, say, a valid index but in reality return an
+out-of-bounds index, breaking memory safety.  In the model these
+check is part of the type checking rules (although elided for clarity
+in this paper) but is implemented as a post-processing check in the
+Haskell implementation.  
 
-\subsection{Discussion}
+The existence of the formal model is not a guarantee that the Ivory
+implementation is sound, however: there is no formal link between the
+implementation and the model.  For example, we discovered a number of
+bugs due to the way in which references are initialized: these bugs
+are impossible in the model, but allowed in the implementation.  
 
-\begin{itemize}
-\item modeling gap
-\item various bugs in Ivory but not in Isabelle model
-\item time estimate (approx 1 month?)
-\item future work: first-class regions?
-\item what have we gained?
-\end{itemize}
+In addition, \coreivory{} covers a subset of the Ivory language,
+currently missing data structures and arrays.  We are working to
+reduce this gap; furthermore, in future, we plan to investigate making
+the core of the implementation more closely resemble \coreivory{}.
+Doing so would have the additional benefit of allowing us to verify
+the correctness of operations performed over the core AST.
 
-
-
-
-
-
-
-
-
+We plan on investigating first-class regions as a further extension to
+the model.  This feature would allow programmers to name and pass
+around allocation contexts, allowing helper functions to, for example,
+allocate and return objects in a parent functions region.  While we
+are confident that this extension is sound, \emph{proving} it sound
+allows a much greater confidence in the implementation: memory
+deallocation is notoriously easy to get wrong, so having a formal
+proof of soundness would be greatly comforting. \sjw{comforting?}
 
 
 % \lee{Simon: this is yours. Give the typing rules for Ivory, sketch the proofs of
