@@ -18,7 +18,7 @@ install:
   - cabal install alex
   - cabal install happy
 script:
-  - make test-compile
+  - make test
 ghc:
   - 7.6
   - 7.8
