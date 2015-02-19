@@ -1,6 +1,24 @@
 \section{A Safe-C EDSL}
 \label{sec:edsl}
 
+Here, we remark briefly on some of the advantages and disadvantages---and
+mitigations that we have explored to them---in using an EDSL in our domain. In a
+previous short paper, we explored some of the benefits of using an EDSL for
+embedded system development~\cite{smaccm}. We will not repeat those claims here,
+but rather describe new problems we have observed as well as their mitigations.
+
+A benefit of the EDSL approach is that it relieves the developer from having to
+define and implement a front-end syntax. However, that also generally means that
+only users of the host language will be attracted to using the
+EDSL. We want C/C++ developers to use Ivory! Consequently, we implemented a
+C-like concrete syntax for Ivory. We have particularly used the concrete syntax
+in our work with Boeing, mentioned in Section~\ref{sec:introduction}.
+
+Implementing a concrete syntax does not mean we have to abandon our EDSL. Using
+Template Haskell~\cite{} and quasiquotation~\cite{}, 
+
+
+
 \lee{Focus on some of the benefits/detriments of an EDSL for a safe-C
   language. Try not to overlap too much with last year's paper.}
 
