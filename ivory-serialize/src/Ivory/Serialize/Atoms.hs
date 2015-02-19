@@ -37,7 +37,6 @@ instance (ANat len, IvoryArea area, Packable area) => Packable (Array len area) 
 
 serializeModule :: Module
 serializeModule = package "ivory_serialize" $ do
-  inclHeader serializeHeader
   wrappedPackMod uint8
   wrappedPackMod int8
   wrappedPackMod uint16
