@@ -275,8 +275,6 @@ strncpy_uint8 = importProc "ivory_stdlib_strncpy_uint8" "ivory_stdlib_string_pri
 -- | Ivory module definition.
 stdlibStringModule :: Module
 stdlibStringModule = package "ivory_stdlib_string" $ do
-  inclHeader "ivory_stdlib_string_prim.h"
-  inclHeader "string.h"
   incl copy_istring
   incl strncmp
   incl memcmp
