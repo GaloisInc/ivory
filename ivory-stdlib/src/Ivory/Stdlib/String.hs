@@ -116,12 +116,14 @@ stringData :: ( IvoryString str
            => ref s str -> ref s (CArray (Stored Uint8))
 stringData x = toCArray (x ~> stringDataL)
 
+-- XXX don't export
 -- | Binding to the C "memcmp" function.
 memcmp :: Def ('[ ConstRef s1 (CArray (Stored Uint8))
                 , ConstRef s2 (CArray (Stored Uint8))
                 , Len] :-> Len)
 memcmp = importProc "memcmp" "string.h"
 
+-- XXX don't export
 -- | Binding to the C "memcpy" function.
 memcpy :: Def ('[ Ref      s1 (CArray (Stored Uint8))
                 , ConstRef s2 (CArray (Stored Uint8))
