@@ -139,9 +139,16 @@ data BlockF t
   | StmtStore AST.Type t t
   | StmtAssign AST.Type AST.Var t
   | StmtCall AST.Type (Maybe AST.Var) AST.Name [AST.Typed t]
-  | StmtLocalExpr AST.Type AST.Var t -- XXX: only handle InitExpr for now
+  | StmtLocal AST.Type AST.Var (InitF t)
   | StmtForever t
   | Block [t]
+  deriving (Show, Eq, Ord, Functor)
+
+data InitF t
+  = InitZero
+  | InitExpr AST.Type t
+  | InitStruct [(String, InitF t)]
+  | InitArray [InitF t]
   deriving (Show, Eq, Ord, Functor)
 
 instance MuRef AST.Stmt where
@@ -152,9 +159,14 @@ instance MuRef AST.Stmt where
     AST.Store ty lhs rhs -> StmtStore ty <$> child lhs <*> child rhs
     AST.Assign ty var ex -> StmtAssign ty var <$> child ex
     AST.Call ty mv nm args -> StmtCall ty mv nm <$> traverse (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> child argEx) args
-    AST.Local ty var (AST.InitExpr ty' ex) | ty == ty' -> StmtLocalExpr ty var <$> child ex
+    AST.Local ty var initex -> StmtLocal ty var <$> mapInit initex
     AST.Forever lb -> StmtForever <$> child lb
     s -> pure $ StmtSimple s
+    where
+    mapInit AST.InitZero = pure InitZero
+    mapInit (AST.InitExpr ty ex) = InitExpr ty <$> child ex
+    mapInit (AST.InitStruct fields) = InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> mapInit i) fields
+    mapInit (AST.InitArray elements) = InitArray <$> traverse mapInit elements
 
 instance (MuRef a, DeRef [a] ~ DeRef a) => MuRef [a] where
   type DeRef [a] = CSE
@@ -172,11 +184,15 @@ toBlock expr block b = case b of
   StmtStore ty lhs rhs -> stmt $ AST.Store ty <$> expr lhs (AST.TyRef ty) <*> expr rhs ty
   StmtAssign ty var ex -> stmt $ AST.Assign ty var <$> expr ex ty
   StmtCall ty mv nm args -> stmt $ AST.Call ty mv nm <$> mapM (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> expr argEx argTy) args
-  StmtLocalExpr ty var ex -> stmt $ (AST.Local ty var . AST.InitExpr ty) <$> expr ex ty
+  StmtLocal ty var initex -> stmt $ AST.Local ty var <$> toInit initex
   StmtForever lb -> stmt $ AST.Forever <$> genBlock (block lb)
   Block stmts -> mapM_ block stmts
   where
   stmt stmtM = fmap D.singleton stmtM >>= put
+  toInit InitZero = pure AST.InitZero
+  toInit (InitExpr ty ex) = AST.InitExpr ty <$> expr ex ty
+  toInit (InitStruct fields) = AST.InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> toInit i) fields
+  toInit (InitArray elements) = AST.InitArray <$> traverse toInit elements
 
 -- | When a statement contains a block, we need to propagate the
 -- available expressions into that block. However, on exit from that
