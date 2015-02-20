@@ -13,7 +13,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Fix
 import qualified Data.DList as D
-import qualified Data.IntSet as IntSet
+import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
 import Data.Monoid
 import Ivory.Language.Area
@@ -30,7 +30,7 @@ import Ivory.Language.Type
 import qualified MonadLib
 
 -- Optimizations TODO:
--- TODO: inline single-use blocks that aren't resume targets
+-- TODO: if every block yields, don't generate a loop
 -- TODO: re-use continuation variables that have gone out of scope
 -- TODO: full liveness analysis to maximize re-use
 -- TODO: only extract a variable to the continuation if it is live across a suspend
@@ -138,18 +138,23 @@ doInline inlineLabel blocks = do
   return $ if label == inlineLabel then (label, bb) else (label, inlineBlock bb)
 
 keepUsedBlocks :: Goto -> [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
-keepUsedBlocks root blocks = sweep $ snd $ MonadLib.runM (mark root) IntSet.empty
+keepUsedBlocks root blocks = sweep $ snd $ MonadLib.runM (mark root >> ref root) IntMap.empty
   where
-  mark :: Goto -> MonadLib.StateT IntSet.IntSet MonadLib.Id ()
+  mark :: Goto -> MonadLib.StateT (IntMap.IntMap Int) MonadLib.Id ()
   mark label = do
     seen <- MonadLib.get
-    unless (label `IntSet.member` seen) $ do
-      MonadLib.sets_ $ IntSet.insert label
+    ref label
+    unless (label `IntMap.member` seen) $ do
       let Just b = lookup label blocks
       markBlock b
-  markBlock (BasicBlock _ (BranchTo _ label)) = mark label
+  ref label = MonadLib.sets_ $ IntMap.insertWith (+) label 1
+  markBlock (BasicBlock _ (BranchTo suspend label)) = do
+    mark label
+    -- add an extra reference for yield targets
+    when suspend $ ref label
   markBlock (BasicBlock _ (CondBranchTo _ tb fb)) = markBlock tb >> markBlock fb
-  sweep used = filter (\ (label, _) -> label `IntSet.member` used) blocks
+  sweep used = filter (\ (label, _) -> IntMap.findWithDefault 0 label used > 1) $
+    foldr doInline blocks [ label | (label, 1) <- IntMap.assocs used ]
 
 data CoroutineParams = CoroutineParams
   { getCont :: String -> AST.Expr
