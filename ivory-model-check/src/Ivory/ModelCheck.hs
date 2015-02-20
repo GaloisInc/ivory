@@ -1,9 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns      #-}
---XXX testing
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Ivory.ModelCheck where
 
@@ -51,8 +47,8 @@ initArgs = Args
 --------------------------------------------------------------------------------
 
 data Result = Safe
-            | Unsafe [String] FilePath 
-            | Inconsistent FilePath 
+            | Unsafe [String] FilePath
+            | Inconsistent FilePath
             | Error String FilePath
             deriving (Show, Eq)
 
