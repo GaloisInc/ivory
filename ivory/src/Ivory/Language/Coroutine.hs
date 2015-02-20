@@ -215,7 +215,7 @@ extractLocals next (AST.Loop var initEx incr b : rest) = do
     cond <- runUpdateExpr $ updateExpr $ AST.ExpOp (condOp False ty) [AST.ExpVar var, limitEx]
     CondBranchTo cond <$> getBlock [] (goto after) <*> do
       setBreakLabel after $ getBlock b $ do
-        stmt $ AST.Store ty cont $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)]
+        stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)])
         goto loop
   goto loop
 extractLocals next (AST.Forever b : rest) = do
