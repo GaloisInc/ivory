@@ -138,6 +138,7 @@ data BlockF t
   | StmtDeref AST.Type AST.Var t
   | StmtStore AST.Type t t
   | StmtAssign AST.Type AST.Var t
+  | StmtCall AST.Type (Maybe AST.Var) AST.Name [AST.Typed t]
   | StmtLocalExpr AST.Type AST.Var t -- XXX: only handle InitExpr for now
   | StmtForever t
   | Block [t]
@@ -150,6 +151,7 @@ instance MuRef AST.Stmt where
     AST.Deref ty var ex -> StmtDeref ty var <$> child ex
     AST.Store ty lhs rhs -> StmtStore ty <$> child lhs <*> child rhs
     AST.Assign ty var ex -> StmtAssign ty var <$> child ex
+    AST.Call ty mv nm args -> StmtCall ty mv nm <$> traverse (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> child argEx) args
     AST.Local ty var (AST.InitExpr ty' ex) | ty == ty' -> StmtLocalExpr ty var <$> child ex
     AST.Forever lb -> StmtForever <$> child lb
     s -> pure $ StmtSimple s
@@ -169,6 +171,7 @@ toBlock expr block b = case b of
   -- XXX: The LHS of a store must not have been const.
   StmtStore ty lhs rhs -> stmt $ AST.Store ty <$> expr lhs (AST.TyRef ty) <*> expr rhs ty
   StmtAssign ty var ex -> stmt $ AST.Assign ty var <$> expr ex ty
+  StmtCall ty mv nm args -> stmt $ AST.Call ty mv nm <$> mapM (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> expr argEx argTy) args
   StmtLocalExpr ty var ex -> stmt $ (AST.Local ty var . AST.InitExpr ty) <$> expr ex ty
   StmtForever lb -> stmt $ AST.Forever <$> genBlock (block lb)
   Block stmts -> mapM_ block stmts
