@@ -91,7 +91,7 @@ data Value
   | Array  (Seq.Seq Value)
   | Struct (Map.Map I.Sym Value)
   | Ref    I.Sym
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 eq :: Value -> Value -> Value
 eq x y = Bool (x == y)
@@ -277,13 +277,15 @@ evalStmt stmt = case stmt of
   I.Loop var expr incr body
     -> do val <- evalExpr I.ixRep expr
           writeStore (varSym var) val
-          let (stepFn, doneExpr) = case incr of
-                I.IncrTo expr -> ((`add` Sint32 1), expr) -- XXX: don't hard-code ixrep
-                I.DecrTo expr -> ((`sub` Sint32 1), expr)
+          let (stepFn, doneCmp, doneExpr) = case incr of
+                I.IncrTo True expr -> ((`add` Sint32 1), (<=), expr) -- XXX: don't hard-code ixrep
+                I.IncrTo False expr -> ((`add` Sint32 1), (<), expr) -- XXX: don't hard-code ixrep
+                I.DecrTo True expr -> ((`sub` Sint32 1), (>=), expr)
+                I.DecrTo False expr -> ((`sub` Sint32 1), (>), expr)
           let step = modifyStore (varSym var) stepFn
           let done = do curVal  <- readStore (varSym var)
                         doneVal <- evalExpr I.ixRep doneExpr
-                        return (curVal == doneVal)
+                        return (curVal `doneCmp` doneVal)
           untilM done (evalBlock body >> step)
   I.Return (I.Typed  _ty expr)
     -> void $ evalExpr _ty expr

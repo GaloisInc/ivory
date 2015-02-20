@@ -171,9 +171,9 @@ extractLocals next (AST.Loop var initEx incr b : rest) = do
   after <- makeLabel $ extractLocals next rest
   loop <- mfix $ \ loop -> makeLabel $ do
     let (condOp, incOp, limitEx) = case incr of
-          AST.IncrTo ex -> (AST.ExpGt, AST.ExpAdd, ex)
-          AST.DecrTo ex -> (AST.ExpLt, AST.ExpSub, ex)
-    cond <- updateExpr $ AST.ExpOp (condOp False ty) [AST.ExpVar var, limitEx]
+          AST.IncrTo b ex -> (AST.ExpGt b, AST.ExpAdd, ex)
+          AST.DecrTo b ex -> (AST.ExpLt b, AST.ExpSub, ex)
+    cond <- updateExpr $ AST.ExpOp (condOp ty) [AST.ExpVar var, limitEx]
     CondBranchTo cond <$> getBlock [] (goto after) <*> do
       setBreakLabel after $ getBlock b $ do
         stmt $ AST.Store ty cont $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)]

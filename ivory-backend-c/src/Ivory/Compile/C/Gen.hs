@@ -313,11 +313,17 @@ toBody ens stmt =
       ty = I.ixRep
       (test,incExp)  = toIncr incr
       ix = toVar var
-      toIncr (I.IncrTo to) =
+      toIncr (I.IncrTo True to) =
         ( [cexp| $id:ix <= $exp:(toExpr ty to) |]
         , [cexp| $id:ix++ |] )
-      toIncr (I.DecrTo to) =
+      toIncr (I.IncrTo False to) =
+        ( [cexp| $id:ix < $exp:(toExpr ty to) |]
+        , [cexp| $id:ix++ |] )
+      toIncr (I.DecrTo True to) =
         ( [cexp| $id:ix >= $exp:(toExpr ty to) |]
+        , [cexp| $id:ix-- |] )
+      toIncr (I.DecrTo False to) =
+        ( [cexp| $id:ix > $exp:(toExpr ty to) |]
         , [cexp| $id:ix-- |] )
 
     I.Forever blk ->

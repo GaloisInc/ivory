@@ -147,8 +147,8 @@ data BlockF t
   deriving (Show, Eq, Ord, Functor)
 
 data LoopIncrF t
-  = IncrTo t
-  | DecrTo t
+  = IncrTo Bool t
+  | DecrTo Bool t
   deriving (Show, Eq, Ord, Functor)
 
 data InitF t
@@ -184,8 +184,8 @@ instance MuRef AST.Stmt where
     mapInit (AST.InitExpr ty ex) = InitExpr ty <$> child ex
     mapInit (AST.InitStruct fields) = InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> mapInit i) fields
     mapInit (AST.InitArray elements) = InitArray <$> traverse mapInit elements
-    mapIncr (AST.IncrTo ex) = IncrTo <$> child ex
-    mapIncr (AST.DecrTo ex) = DecrTo <$> child ex
+    mapIncr (AST.IncrTo b ex) = IncrTo b <$> child ex
+    mapIncr (AST.DecrTo b ex) = DecrTo b <$> child ex
 
 instance (MuRef a, DeRef [a] ~ DeRef a) => MuRef [a] where
   type DeRef [a] = CSE
@@ -219,8 +219,8 @@ toBlock expr block b = case b of
   toInit (InitExpr ty ex) = AST.InitExpr ty <$> expr ex ty
   toInit (InitStruct fields) = AST.InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> toInit i) fields
   toInit (InitArray elements) = AST.InitArray <$> traverse toInit elements
-  toIncr (IncrTo ex) = AST.IncrTo <$> expr ex ixRep
-  toIncr (DecrTo ex) = AST.DecrTo <$> expr ex ixRep
+  toIncr (IncrTo b ex) = AST.IncrTo b <$> expr ex ixRep
+  toIncr (DecrTo b ex) = AST.DecrTo b <$> expr ex ixRep
 
 -- | When a statement contains a block, we need to propagate the
 -- available expressions into that block. However, on exit from that
