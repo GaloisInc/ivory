@@ -30,7 +30,8 @@ import Ivory.Language.Type
 import qualified MonadLib
 
 -- Optimizations TODO:
--- TODO: inline empty blocks (preferably, allow comments)
+-- TODO: if both CondBranchTo blocks have the same terminator, convert to IfTE
+-- TODO: inline single-use blocks that aren't resume targets
 -- TODO: re-use continuation variables that have gone out of scope
 -- TODO: full liveness analysis to maximize re-use
 -- TODO: only extract a variable to the continuation if it is live across a suspend
@@ -84,7 +85,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   coroutineRun doInit arg = do
     ifte_ doInit (emits mempty { blockStmts = genBB initBB }) (return ())
     emit $ AST.Forever $ (AST.Deref stateType (AST.VarName stateName) $ getCont params stateName) : do
-      (label, block) <- keepUsedBlocks initLabel $ zip [0..] $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
+      (label, block) <- keepUsedBlocks initLabel $ inlineBlocks $ zip [0..] $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
       let cond = AST.ExpOp (AST.ExpEq stateType) [AST.ExpVar (AST.VarName stateName), litLabel label]
       let b' = Map.findWithDefault (const []) label resumes (unwrapExpr arg) ++ genBB block
       return $ AST.IfTE cond b' []
@@ -110,6 +111,24 @@ type Goto = Int
 data Terminator
   = BranchTo Bool Goto
   | CondBranchTo AST.Expr BasicBlock BasicBlock
+
+inlineBlocks :: [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
+inlineBlocks blocks = foldr doInline blocks emptyBlocks
+  where
+  isComment (AST.Comment{}) = True
+  isComment _ = False
+  emptyBlocks = [ label | (label, BasicBlock b (BranchTo _ _)) <- blocks, all isComment b ]
+
+doInline :: Goto -> [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
+doInline inlineLabel blocks = do
+  let Just (BasicBlock newStmts tgt) = lookup inlineLabel blocks
+  let inlineBlock (BasicBlock b (BranchTo False dst))
+        | dst == inlineLabel = BasicBlock (b ++ newStmts) tgt
+      inlineBlock (BasicBlock b (CondBranchTo cond tb fb))
+        = BasicBlock b $ CondBranchTo cond (inlineBlock tb) (inlineBlock fb)
+      inlineBlock bb = bb
+  (label, bb) <- blocks
+  return $ if label == inlineLabel then (label, bb) else (label, inlineBlock bb)
 
 keepUsedBlocks :: Goto -> [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
 keepUsedBlocks root blocks = sweep $ snd $ MonadLib.runM (mark root) IntSet.empty
