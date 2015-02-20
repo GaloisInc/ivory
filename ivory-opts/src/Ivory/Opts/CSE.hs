@@ -140,8 +140,14 @@ data BlockF t
   | StmtAssign AST.Type AST.Var t
   | StmtCall AST.Type (Maybe AST.Var) AST.Name [AST.Typed t]
   | StmtLocal AST.Type AST.Var (InitF t)
+  | StmtLoop AST.Var t (LoopIncrF t) t
   | StmtForever t
   | Block [t]
+  deriving (Show, Eq, Ord, Functor)
+
+data LoopIncrF t
+  = IncrTo t
+  | DecrTo t
   deriving (Show, Eq, Ord, Functor)
 
 data InitF t
@@ -160,6 +166,7 @@ instance MuRef AST.Stmt where
     AST.Assign ty var ex -> StmtAssign ty var <$> child ex
     AST.Call ty mv nm args -> StmtCall ty mv nm <$> traverse (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> child argEx) args
     AST.Local ty var initex -> StmtLocal ty var <$> mapInit initex
+    AST.Loop var ex incr lb -> StmtLoop var <$> child ex <*> mapIncr incr <*> child lb
     AST.Forever lb -> StmtForever <$> child lb
     s -> pure $ StmtSimple s
     where
@@ -167,6 +174,8 @@ instance MuRef AST.Stmt where
     mapInit (AST.InitExpr ty ex) = InitExpr ty <$> child ex
     mapInit (AST.InitStruct fields) = InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> mapInit i) fields
     mapInit (AST.InitArray elements) = InitArray <$> traverse mapInit elements
+    mapIncr (AST.IncrTo ex) = IncrTo <$> child ex
+    mapIncr (AST.DecrTo ex) = DecrTo <$> child ex
 
 instance (MuRef a, DeRef [a] ~ DeRef a) => MuRef [a] where
   type DeRef [a] = CSE
@@ -185,6 +194,7 @@ toBlock expr block b = case b of
   StmtAssign ty var ex -> stmt $ AST.Assign ty var <$> expr ex ty
   StmtCall ty mv nm args -> stmt $ AST.Call ty mv nm <$> mapM (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> expr argEx argTy) args
   StmtLocal ty var initex -> stmt $ AST.Local ty var <$> toInit initex
+  StmtLoop var ex incr lb -> stmt $ AST.Loop var <$> expr ex ixRep <*> toIncr incr <*> genBlock (block lb)
   StmtForever lb -> stmt $ AST.Forever <$> genBlock (block lb)
   Block stmts -> mapM_ block stmts
   where
@@ -193,6 +203,8 @@ toBlock expr block b = case b of
   toInit (InitExpr ty ex) = AST.InitExpr ty <$> expr ex ty
   toInit (InitStruct fields) = AST.InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> toInit i) fields
   toInit (InitArray elements) = AST.InitArray <$> traverse toInit elements
+  toIncr (IncrTo ex) = AST.IncrTo <$> expr ex ixRep
+  toIncr (DecrTo ex) = AST.DecrTo <$> expr ex ixRep
 
 -- | When a statement contains a block, we need to propagate the
 -- available expressions into that block. However, on exit from that
