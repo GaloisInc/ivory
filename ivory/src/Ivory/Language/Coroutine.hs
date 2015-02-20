@@ -30,7 +30,6 @@ import Ivory.Language.Type
 import qualified MonadLib
 
 -- Optimizations TODO:
--- TODO: if both CondBranchTo blocks have the same terminator, convert to IfTE
 -- TODO: inline single-use blocks that aren't resume targets
 -- TODO: re-use continuation variables that have gone out of scope
 -- TODO: full liveness analysis to maximize re-use
@@ -85,7 +84,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   coroutineRun doInit arg = do
     ifte_ doInit (emits mempty { blockStmts = genBB initBB }) (return ())
     emit $ AST.Forever $ (AST.Deref stateType (AST.VarName stateName) $ getCont params stateName) : do
-      (label, block) <- keepUsedBlocks initLabel $ inlineBlocks $ zip [0..] $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
+      (label, block) <- keepUsedBlocks initLabel $ inlineBlocks $ zip [0..] $ map joinTerminators $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
       let cond = AST.ExpOp (AST.ExpEq stateType) [AST.ExpVar (AST.VarName stateName), litLabel label]
       let b' = Map.findWithDefault (const []) label resumes (unwrapExpr arg) ++ genBB block
       return $ AST.IfTE cond b' []
@@ -111,6 +110,14 @@ type Goto = Int
 data Terminator
   = BranchTo Bool Goto
   | CondBranchTo AST.Expr BasicBlock BasicBlock
+
+joinTerminators :: BasicBlock -> BasicBlock
+joinTerminators (BasicBlock b (CondBranchTo cond t f)) =
+  case (joinTerminators t, joinTerminators f) of
+  (BasicBlock bt (BranchTo yt lt), BasicBlock bf (BranchTo yf lf))
+    | yt == yf && lt == lf -> BasicBlock (b ++ [AST.IfTE cond bt bf]) (BranchTo yt lt)
+  (t', f') -> BasicBlock b (CondBranchTo cond t' f')
+joinTerminators bb = bb
 
 inlineBlocks :: [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
 inlineBlocks blocks = foldr doInline blocks emptyBlocks
