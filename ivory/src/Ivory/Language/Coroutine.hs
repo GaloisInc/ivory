@@ -10,8 +10,10 @@ module Ivory.Language.Coroutine (
 ) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Fix
 import qualified Data.DList as D
+import qualified Data.IntSet as IntSet
 import qualified Data.Map as Map
 import Data.Monoid
 import Ivory.Language.Area
@@ -28,7 +30,6 @@ import Ivory.Language.Type
 import qualified MonadLib
 
 -- Optimizations TODO:
--- TODO: remove blocks that are not reached
 -- TODO: inline empty blocks (preferably, allow comments)
 -- TODO: re-use continuation variables that have gone out of scope
 -- TODO: full liveness analysis to maximize re-use
@@ -62,10 +63,9 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   -- return before any control flow statements. Otherwise, the resulting
   -- resumeAt call will emit a 'break;' statement outside of the
   -- forever-loop that the state machine runs in, which is invalid C.
-  initCode = do
-    label <- makeLabel $ extractLocals (resumeAt 0) rawCode
-    goto label
-  (((initBB, _), (localVars, resumes)), finalState) = MonadLib.runM (getBlock [] initCode) params initialState
+  initCode = makeLabel $ extractLocals (resumeAt 0) rawCode
+  (((initLabel, _), (localVars, resumes)), finalState) = MonadLib.runM initCode params initialState
+  initBB = BasicBlock [] $ BranchTo False initLabel
 
   strName = name ++ "_continuation"
   strDef = AST.Struct strName $ AST.Typed stateType stateName : D.toList localVars
@@ -84,7 +84,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   coroutineRun doInit arg = do
     ifte_ doInit (emits mempty { blockStmts = genBB initBB }) (return ())
     emit $ AST.Forever $ (AST.Deref stateType (AST.VarName stateName) $ getCont params stateName) : do
-      (label, block) <- zip [0..] $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
+      (label, block) <- keepUsedBlocks initLabel $ zip [0..] $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
       let cond = AST.ExpOp (AST.ExpEq stateType) [AST.ExpVar (AST.VarName stateName), litLabel label]
       let b' = Map.findWithDefault (const []) label resumes (unwrapExpr arg) ++ genBB block
       return $ AST.IfTE cond b' []
@@ -110,6 +110,20 @@ type Goto = Int
 data Terminator
   = BranchTo Bool Goto
   | CondBranchTo AST.Expr BasicBlock BasicBlock
+
+keepUsedBlocks :: Goto -> [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
+keepUsedBlocks root blocks = sweep $ snd $ MonadLib.runM (mark root) IntSet.empty
+  where
+  mark :: Goto -> MonadLib.StateT IntSet.IntSet MonadLib.Id ()
+  mark label = do
+    seen <- MonadLib.get
+    unless (label `IntSet.member` seen) $ do
+      MonadLib.sets_ $ IntSet.insert label
+      let Just b = lookup label blocks
+      markBlock b
+  markBlock (BasicBlock _ (BranchTo _ label)) = mark label
+  markBlock (BasicBlock _ (CondBranchTo _ tb fb)) = markBlock tb >> markBlock fb
+  sweep used = filter (\ (label, _) -> label `IntSet.member` used) blocks
 
 data CoroutineParams = CoroutineParams
   { getCont :: String -> AST.Expr
