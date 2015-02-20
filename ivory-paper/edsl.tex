@@ -22,7 +22,7 @@ Template Haskell~\cite{} and quasiquotation~\cite{},
 \lee{Focus on some of the benefits/detriments of an EDSL for a safe-C
   language. Try not to overlap too much with last year's paper.}
 
-
+\paragraph{Error Reporting}
 A great strength of EDSLs is that you get to reuse the host language's parser,
 type-checker, code-generator, etc. However, these benefits come at a cost to
 error reporting, both static and dynamic. 
@@ -31,43 +31,42 @@ Statically, the use of advanced type-system features, e.g.\ higher-rank
 polymorphism to track memory regions, can in practice produce elaborate and
 confusing type-error messages. Idris~\cite{christiansen2014reflect} allows the
 programmer to supply error handlers, which are given a data structure
-representing the compiler's error message and can rewrite it by inserting
+representing the compiler's error message and can rewrite it to insert
 domain-specific knowledge. Thus, the EDSL author can provide custom type-error
-messages using language the application programmers will
-understand. Unfortunately, GHC Haskell does not currently support such a
-feature.
+messages using language the application programmers will understand.
+Unfortunately, GHC Haskell does not currently support such a feature.
 
 Dynamically reporting errors in an EDSL is also made difficult by the lack of
-source locations. Consider the Ivory statement
-\begin{code}
-z <- assign (x / y)
-\end{code}
-which induces a runtime assertion \cd{y != 0}. If the assertion fails, we would
-like to include a source location in the error message to direct the programmer
-to the source of the error. But how are we to obtain the source location in the
-first place? Ivory programs are comprised of Haskell expressions, and Haskell is
-pure -- functions cannot depend on their call-site -- so we must look outside
-the language proper to obtain source locations. A common approach for writing
+source locations. Consider the Ivory expression \hbox{\cd{x / y},} which induces a
+runtime assertion \cd{y != 0}. If the assertion fails, we would like to include
+a source location in the error message to direct the programmer to the source of
+the error. But how are we to obtain the source location in the first place?
+Ivory programs are comprised of Haskell expressions and Haskell is pure --
+functions cannot depend on their call-site -- so we must look outside the
+language proper to obtain source locations. A common approach for writing
 location-aware functions in Haskell, epitomized by the \cd{file-location}
-package~\cite{} is to use a Template Haskell splice to query the compiler for
-the current source location and insert it into the AST. This approach did not
-appeal to us as Template Haskell incurs considerable syntactic overhead, and we
-already had 10+ KLoC of Ivory which would all need to be rewritten.
+package~\cite{file-location}, is to use a Template Haskell splice to query the
+compiler for the current source location and insert it into the AST. This
+approach did not appeal to us as Template Haskell incurs considerable syntactic
+overhead, and we already had 10+ KLoC of Ivory which would all need to be
+rewritten.
 
-Instead we opted to write a compiler plugin~\cite{} that rewrites GHC's
-intermediate representation to add the source locations. The implementation was
+Instead we opted to write a compiler plugin that rewrites GHC's intermediate
+representation to add the source locations. The implementation was
 straightforward, we first extended the \cd{Ivory} statement type with a new
 \cd{Location} constructor that just contains a location in the Haskell source,
-essentially a special type of comment. The plugin then wraps all actions in the
-\cd{Ivory} monad with a \cd{withLocation} function that emits a \cd{Location}
-statement before executing the wrapped action. Our approach required only modest
-changes to the Ivory compiler and -- importantly -- no changes to Ivory code. As
-the plugin itself requires little knowledge of Ivory, we have abstracted it out
-into a separate package~\cite{} that can be reused by other projects.
+essentially a special type of comment. The plugin then extracts the source
+locations from GHC and wraps all actions in the \cd{Ivory} monad with a
+\cd{withLocation} function that emits a \cd{Location} statement before executing
+the wrapped action. While this effectively limits the location granularity to
+lines rather than columns, our approach required only modest changes to the
+Ivory compiler and -- importantly -- no changes to Ivory code. As the plugin
+itself requires little knowledge of Ivory, we have abstracted it out into a
+separate package~\cite{ghc-srcspan-plugin} that can be reused by other projects.
 Furthermore, we have since submitted a lightweight extension to GHC that allows
 functions to request their call-site by taking a special implicit
-parameter~\cite{} as an argument, which should become available in the 7.12
-release.
+parameter~\cite{lewis2000implicit} as an argument, which should become available
+in the 7.12 release.
 
 \lee{Lee: describe line number insertions (overcoming a bad thing), module
   system (hack), the use of TH to make a concrete syntax, macros (e.g., standard
