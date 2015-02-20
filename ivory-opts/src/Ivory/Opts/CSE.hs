@@ -140,6 +140,7 @@ data BlockF t
   | StmtAssign AST.Type AST.Var t
   | StmtCall AST.Type (Maybe AST.Var) AST.Name [AST.Typed t]
   | StmtLocal AST.Type AST.Var (InitF t)
+  | StmtRefCopy AST.Type t t
   | StmtLoop AST.Var t (LoopIncrF t) t
   | StmtForever t
   | Block [t]
@@ -166,6 +167,7 @@ instance MuRef AST.Stmt where
     AST.Assign ty var ex -> StmtAssign ty var <$> child ex
     AST.Call ty mv nm args -> StmtCall ty mv nm <$> traverse (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> child argEx) args
     AST.Local ty var initex -> StmtLocal ty var <$> mapInit initex
+    AST.RefCopy ty dst src -> StmtRefCopy ty <$> child dst <*> child src
     AST.Loop var ex incr lb -> StmtLoop var <$> child ex <*> mapIncr incr <*> child lb
     AST.Forever lb -> StmtForever <$> child lb
     s -> pure $ StmtSimple s
@@ -194,6 +196,8 @@ toBlock expr block b = case b of
   StmtAssign ty var ex -> stmt $ AST.Assign ty var <$> expr ex ty
   StmtCall ty mv nm args -> stmt $ AST.Call ty mv nm <$> mapM (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> expr argEx argTy) args
   StmtLocal ty var initex -> stmt $ AST.Local ty var <$> toInit initex
+  -- XXX: See deref and store comments above.
+  StmtRefCopy ty dst src -> stmt $ AST.RefCopy ty <$> expr dst (AST.TyRef ty) <*> expr src (AST.TyConstRef ty)
   StmtLoop var ex incr lb -> stmt $ AST.Loop var <$> expr ex ixRep <*> toIncr incr <*> genBlock (block lb)
   StmtForever lb -> stmt $ AST.Forever <$> genBlock (block lb)
   Block stmts -> mapM_ block stmts
