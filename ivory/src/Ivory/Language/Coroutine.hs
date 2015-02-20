@@ -30,7 +30,6 @@ import qualified MonadLib
 -- Optimizations TODO:
 -- TODO: remove blocks that are not reached
 -- TODO: inline empty blocks (preferably, allow comments)
--- TODO: run variable rewrite side effects only once per expression
 -- TODO: re-use continuation variables that have gone out of scope
 -- TODO: full liveness analysis to maximize re-use
 -- TODO: only extract a variable to the continuation if it is live across a suspend
@@ -133,7 +132,7 @@ extractLocals :: CoroutineMonad Terminator -> AST.Block -> CoroutineMonad Termin
 extractLocals next [] = next
 extractLocals next (AST.IfTE cond tb fb : rest) = do
   after <- makeLabel $ extractLocals next rest
-  CondBranchTo <$> updateExpr cond <*> getBlock tb (goto after) <*> getBlock fb (goto after)
+  CondBranchTo <$> runUpdateExpr (updateExpr cond) <*> getBlock tb (goto after) <*> getBlock fb (goto after)
 extractLocals _next (AST.Return {} : _) = error "Ivory.Language.Coroutine: can't return a value from the coroutine body"
 -- XXX: this discards any code after a return. is that OK?
 extractLocals _next (AST.ReturnVoid : _) = resumeAt 0
@@ -142,7 +141,7 @@ extractLocals next (AST.Call ty mvar name args : rest)
     let (Just var, []) = (mvar, args) -- XXX: yield takes no arguments and always returns something
     addYield ty var rest next
   | otherwise = do
-    stmt =<< AST.Call ty mvar name <$> mapM updateTypedExpr args
+    stmt =<< AST.Call ty mvar name <$> runUpdateExpr (mapM updateTypedExpr args)
     case mvar of
       Nothing -> return ()
       Just var -> do
@@ -153,7 +152,7 @@ extractLocals next (AST.Local ty var initex : rest) = do
   cont <- addLocal ty var
   let AST.VarName varStr = var
   let ref = AST.VarName $ varStr ++ "_ref"
-  initex' <- updateInit initex
+  initex' <- runUpdateExpr $ updateInit initex
   stmts
     [ AST.Local ty var initex'
     , AST.AllocRef ty ref $ AST.NameVar var
@@ -167,13 +166,13 @@ extractLocals next (AST.AllocRef _ty refvar name : rest) = do
 extractLocals next (AST.Loop var initEx incr b : rest) = do
   let ty = ivoryType (Proxy :: Proxy IxRep)
   cont <- addLocal ty var
-  stmt =<< AST.Store ty cont <$> updateExpr initEx
+  stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr initEx)
   after <- makeLabel $ extractLocals next rest
   loop <- mfix $ \ loop -> makeLabel $ do
     let (condOp, incOp, limitEx) = case incr of
           AST.IncrTo ex -> (AST.ExpGt, AST.ExpAdd, ex)
           AST.DecrTo ex -> (AST.ExpLt, AST.ExpSub, ex)
-    cond <- updateExpr $ AST.ExpOp (condOp False ty) [AST.ExpVar var, limitEx]
+    cond <- runUpdateExpr $ updateExpr $ AST.ExpOp (condOp False ty) [AST.ExpVar var, limitEx]
     CondBranchTo cond <$> getBlock [] (goto after) <*> do
       setBreakLabel after $ getBlock b $ do
         stmt $ AST.Store ty cont $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)]
@@ -190,11 +189,11 @@ extractLocals next (AST.Forever b : rest) = do
 extractLocals _next (AST.Break : _) = goto =<< MonadLib.asks getBreakLabel
 extractLocals next (s : rest) = do
   stmt =<< case s of
-    AST.Assert cond -> AST.Assert <$> updateExpr cond
-    AST.CompilerAssert cond -> AST.CompilerAssert <$> updateExpr cond
-    AST.Deref ty var ex -> AST.RefCopy ty <$> addLocal ty var <*> updateExpr ex
-    AST.Store ty lhs rhs -> AST.Store ty <$> updateExpr lhs <*> updateExpr rhs
-    AST.Assign ty var ex -> AST.Store ty <$> addLocal ty var <*> updateExpr ex
+    AST.Assert cond -> AST.Assert <$> runUpdateExpr (updateExpr cond)
+    AST.CompilerAssert cond -> AST.CompilerAssert <$> runUpdateExpr (updateExpr cond)
+    AST.Deref ty var ex -> AST.RefCopy ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)
+    AST.Store ty lhs rhs -> runUpdateExpr $ AST.Store ty <$> updateExpr lhs <*> updateExpr rhs
+    AST.Assign ty var ex -> AST.Store ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)
     _ -> return s
   extractLocals next rest
 
@@ -259,8 +258,21 @@ stmts = MonadLib.put . D.fromList
 rewriteTo :: AST.Var -> CoroutineMonad AST.Expr -> CoroutineMonad ()
 rewriteTo var repl = MonadLib.sets_ $ \ state -> state { rewrites = Map.insert var repl $ rewrites state }
 
-updateExpr :: AST.Expr -> CoroutineMonad AST.Expr
-updateExpr ex@(AST.ExpVar var) = Map.findWithDefault (return ex) var =<< fmap rewrites MonadLib.get
+type UpdateExpr a = MonadLib.StateT (Map.Map AST.Var AST.Expr) CoroutineMonad a
+
+runUpdateExpr :: UpdateExpr a -> CoroutineMonad a
+runUpdateExpr = fmap fst . MonadLib.runStateT Map.empty
+
+updateExpr :: AST.Expr -> UpdateExpr AST.Expr
+updateExpr ex@(AST.ExpVar var) = do
+  updated <- MonadLib.get
+  case Map.lookup var updated of
+    Just ex' -> return ex'
+    Nothing -> do
+      ex' <- MonadLib.lift $ do
+        Map.findWithDefault (return ex) var =<< fmap rewrites MonadLib.get
+      MonadLib.sets_ $ Map.insert var ex'
+      return ex'
 updateExpr (AST.ExpLabel ty ex label) = AST.ExpLabel ty <$> updateExpr ex <*> pure label
 updateExpr (AST.ExpIndex ty1 ex1 ty2 ex2) = AST.ExpIndex <$> pure ty1 <*> updateExpr ex1 <*> pure ty2 <*> updateExpr ex2
 updateExpr (AST.ExpToIx ex bound) = AST.ExpToIx <$> updateExpr ex <*> pure bound
@@ -268,11 +280,11 @@ updateExpr (AST.ExpSafeCast ty ex) = AST.ExpSafeCast ty <$> updateExpr ex
 updateExpr (AST.ExpOp op args) = AST.ExpOp op <$> mapM updateExpr args
 updateExpr ex = return ex
 
-updateInit :: AST.Init -> CoroutineMonad AST.Init
+updateInit :: AST.Init -> UpdateExpr AST.Init
 updateInit AST.InitZero = return AST.InitZero
 updateInit (AST.InitExpr ty ex) = AST.InitExpr ty <$> updateExpr ex
 updateInit (AST.InitStruct fields) = AST.InitStruct <$> mapM (\ (name, ex) -> (,) name <$> updateInit ex) fields
 updateInit (AST.InitArray elems) = AST.InitArray <$> mapM updateInit elems
 
-updateTypedExpr :: AST.Typed AST.Expr -> CoroutineMonad (AST.Typed AST.Expr)
+updateTypedExpr :: AST.Typed AST.Expr -> UpdateExpr (AST.Typed AST.Expr)
 updateTypedExpr (AST.Typed ty ex) = AST.Typed ty <$> updateExpr ex
