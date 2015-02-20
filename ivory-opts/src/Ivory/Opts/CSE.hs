@@ -135,6 +135,9 @@ data BlockF t
   = StmtSimple AST.Stmt
     -- ^ For statements that cannot contain any expressions, or that we don't want to CSE.
   | StmtIfTE t t t
+  | StmtAssert t
+  | StmtCompilerAssert t
+  | StmtAssume t
   | StmtDeref AST.Type AST.Var t
   | StmtStore AST.Type t t
   | StmtAssign AST.Type AST.Var t
@@ -162,6 +165,9 @@ instance MuRef AST.Stmt where
   type DeRef AST.Stmt = CSE
   mapDeRef child stmt = CSEBlock <$> case stmt of
     AST.IfTE cond tb fb -> StmtIfTE <$> child cond <*> child tb <*> child fb
+    AST.Assert cond -> StmtAssert <$> child cond
+    AST.CompilerAssert cond -> StmtCompilerAssert <$> child cond
+    AST.Assume cond -> StmtAssume <$> child cond
     AST.Deref ty var ex -> StmtDeref ty var <$> child ex
     AST.Store ty lhs rhs -> StmtStore ty <$> child lhs <*> child rhs
     AST.Assign ty var ex -> StmtAssign ty var <$> child ex
@@ -188,6 +194,9 @@ toBlock :: (k -> AST.Type -> BlockM AST.Expr) -> (k -> BlockM ()) -> BlockF k ->
 toBlock expr block b = case b of
   StmtSimple s -> stmt $ return s
   StmtIfTE ex tb fb -> stmt $ AST.IfTE <$> expr ex AST.TyBool <*> genBlock (block tb) <*> genBlock (block fb)
+  StmtAssert cond -> stmt $ AST.Assert <$> expr cond AST.TyBool
+  StmtCompilerAssert cond -> stmt $ AST.CompilerAssert <$> expr cond AST.TyBool
+  StmtAssume cond -> stmt $ AST.Assume <$> expr cond AST.TyBool
   -- XXX: The AST does not preserve whether the RHS of a deref was for a
   -- const ref, but it's safe to assume it's const.
   StmtDeref ty var ex -> stmt $ AST.Deref ty var <$> expr ex (AST.TyConstRef ty)
