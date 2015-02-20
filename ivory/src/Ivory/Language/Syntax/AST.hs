@@ -214,9 +214,10 @@ data Stmt
     -- ^ User comment, can be used to output a comment in the backend.
     deriving (Show, Eq, Ord)
 
+-- Bool argument determines inclusivity, analagous to ExpGt and ExpLt's args
 data LoopIncr
-  = IncrTo Expr
-  | DecrTo Expr
+  = IncrTo Bool Expr
+  | DecrTo Bool Expr
     deriving (Show, Eq, Ord)
 
 data Name

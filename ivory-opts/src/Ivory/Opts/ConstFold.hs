@@ -176,8 +176,8 @@ cf copies ty e =
 loopIncrFold :: (I.Expr -> I.Expr) -> I.LoopIncr -> I.LoopIncr
 loopIncrFold opt incr =
   case incr of
-    I.IncrTo e0 -> I.IncrTo (opt e0)
-    I.DecrTo e0 -> I.DecrTo (opt e0)
+    I.IncrTo b e0 -> I.IncrTo b (opt e0)
+    I.DecrTo b e0 -> I.DecrTo b (opt e0)
 
 --------------------------------------------------------------------------------
 

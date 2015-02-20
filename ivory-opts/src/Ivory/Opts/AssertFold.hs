@@ -148,8 +148,8 @@ stmtFold ef stmt = case stmt of
   where
   efTyped (I.Typed ty e) = ef ty e
   efIncr incr = case incr of
-    I.IncrTo e -> ef ty e
-    I.DecrTo e -> ef ty e
+    I.IncrTo b e -> ef ty e
+    I.DecrTo b e -> ef ty e
     where ty = I.ixRep
   efInit init' = case init' of
     I.InitZero          -> return ()

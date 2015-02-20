@@ -3,8 +3,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Ivory.Language.Loop where
+
 
 import Ivory.Language.IIntegral
 import Ivory.Language.IBool
@@ -45,11 +47,11 @@ loop incr fromIdx toIdx body = do
 
 upTo :: ANat n
      => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-upTo = loop AST.IncrTo
+upTo = loop (AST.IncrTo False)
 
 downTo :: ANat n
        => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-downTo = loop AST.DecrTo
+downTo = loop (AST.DecrTo False)
 
 -- | Run the computation n times, where
 -- @
@@ -58,7 +60,7 @@ downTo = loop AST.DecrTo
 -- Indexes increment from 0 to n-1 incluseively.
 for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-for n f = upTo 0 (n-1) f
+for n f = upTo 0 n f
 
 -- | Run the computation n times, where
 -- @
@@ -67,13 +69,13 @@ for n f = upTo 0 (n-1) f
 -- Indexes decrement from n-1 to 0 inclusively.
 times :: forall eff n a. ANat n
       => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-times n f = downTo (n-1) 0 f
+times n f = downTo n 0 $ f . \x -> x - 1
 
 arrayMap :: forall eff n a . ANat n
          => (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 arrayMap = upTo 0 hi
   where
-  hi = fromInteger ((fromTypeNat (aNat :: NatType n)) - 1)
+  hi = fromInteger ((fromTypeNat (aNat :: NatType n)))
 
 forever :: Ivory (E.AllowBreak eff) () -> Ivory eff ()
 forever body = do

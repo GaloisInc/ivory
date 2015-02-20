@@ -298,11 +298,17 @@ toLoop ens v start end blk =
 
   loopData = loopIterations start end
 
-  ixs | loopOp loopData == Incr
+  ixs | loopOp loopData == Incr && incl loopData == True
       = takeWhile (<= endVal loopData) $
           iterate (+ 1) (startVal loopData)
-      | otherwise -- loopOp loopData == Decr
+      | loopOp loopData == Incr && incl loopData == False
+      = takeWhile (< endVal loopData) $
+          iterate (+ 1) (startVal loopData)
+      | loopOp loopData == Decr && incl loopData == True
       = takeWhile (>= endVal loopData) $
+          iterate (flip (-) 1) (startVal loopData)
+      | otherwise -- loopOp loopData == Decr && incl loopData == False 
+      = takeWhile (> endVal loopData) $
           iterate (flip (-) 1) (startVal loopData)
 
 toIfTE :: [I.Ensure] -> I.Expr -> [I.Stmt] -> [I.Stmt] -> ModelCheck ()
@@ -517,6 +523,7 @@ toStoreRef t ref =
 data LoopOp = Incr | Decr deriving (Show, Read, Eq)
 data Loop = Loop
   { startVal :: Integer
+  , incl     :: Bool
   , endVal   :: Integer
   , loopOp   :: LoopOp
   } deriving (Show, Read, Eq)
@@ -524,7 +531,7 @@ data Loop = Loop
 -- Compute the number of iterations in a loop.  Assume the constant folder has
 -- run.
 loopIterations :: I.Expr -> I.LoopIncr -> Loop
-loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
+loopIterations start end = Loop (getLit start) incl endlit step  
   where
   getLit e = case e of
     I.ExpLit l   -> case l of
@@ -539,9 +546,9 @@ loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
 
     _            -> err "loopIterations" (show e)
 
-  fromIncr = case end of
-               I.IncrTo e -> (Incr, getLit e)
-               I.DecrTo e -> (Decr, getLit e)
+  (step, incl, endlit) = case end of
+               I.IncrTo b e -> (Incr, b, getLit e)
+               I.DecrTo b e -> (Decr, b, getLit e)
 
 --------------------------------------------------------------------------------
 -- Language construction helpers
