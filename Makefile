@@ -33,7 +33,7 @@ build: cabal.sandbox.config
 .PHONY: test
 test: build
 	./$(BIN)/ivory-c-clang-test $(IVORY_EX_TEST_DIR)
-	cd $(IVORY_EX_TEST_DIR) && gcc -Wall -Wextra -I. -std=c99 -c *.c *.h -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-variable -DIVORY_DEPLOY
+	cd $(IVORY_EX_TEST_DIR) && gcc -Wall -Wextra -I. -std=c99 -c *.c *.h -Wno-missing-field-initializer# s -Wno-unused-parameter -Wno-unused-variable -DIVORY_DEPLOY
 
 	# The following are cabal "test" targets
 	./$(shell find ivory-model-check/dist/ -path "*/test/test")
