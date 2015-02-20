@@ -17,7 +17,7 @@ function
 
 \begin{code}
 main :: Def ('[Sint32, Sint32] :-> Sint32)
-main = proc ``main'' $ \ x y -> body $
+main = proc "main" $ \ x y -> body $
   ret (x + y)
 \end{code}
 \noindent
@@ -32,8 +32,8 @@ int32_t main(int32_t var0, int32_t var1)
 }
 \end{code}
 \noindent
-The overflow check is computed by the function
-\cd{add\_ovf\_i32}. \cd{COMPILER\_ASSERTS} is a C macro; what action is taken if a
+The overflow check is performed by the function
+\cd{add\_ovf\_i32}. \cd{COMPILER\_ASSERTS} is a C macro; the appropriate response when
 property is violated is platform-dependent (e.g., logging, do-nothing, run a
 recovery procedure, etc.).
 
@@ -44,7 +44,7 @@ the user:
 \item no division-by-zero,
 \item no bit-shifts are greater than or equal to the value's width,
   (bit-shifts on signed integers is prevented statically by the type system)
-\item no floating-point operations resulting in \cd{inf} or \cd{NaN} values.
+\item no floating-point operations result in \cd{inf} or \cd{NaN} values.
 \end{itemize}
 
 The implementation is mostly straightforward; the two aspects that require some
@@ -84,7 +84,7 @@ simulator ensures that the collection of preconditions are satisfiable.
 The symbolic simulator abstracts various domains. Floating point types are
 abstracted as reals. However, fixed-width values are modeled precisely as are
 arrays. We have not yet incorporated a theory of bit-vectors yet,
-however. Non-linear operators are abstracted with linear contracts. Loops are
+however. \eric{The last two sentences may be a bit confusing, since you'd usually expect a precise encoding of fixed-width integers to use bit-vectors. Of course we get away with using integers since we strictly disallow overflow. Perhaps we should clarify here?} Non-linear operators are abstracted with linear contracts. Loops are
 unrolled (all loops in Ivory have a constant upper bound).
 
 During analysis, inter-procedural calls are inlined or abstracted based a on
