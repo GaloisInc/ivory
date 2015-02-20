@@ -127,17 +127,14 @@ labelTypes ty (ExpOpF op args) = ExpOpF op $ case op of
 -- Note that we treat statements as a kind of block, because extracting
 -- assignments for the common subexpressions in a statement can result
 -- in multiple statements, which looks much like a block.
---
--- We're not performing CSE on all recursive references yet. Unsupported
--- statement types should generate correct, but unoptimized, code. This
--- list can be extended as needed, though.
 data BlockF t
   = StmtSimple AST.Stmt
-    -- ^ For statements that cannot contain any expressions, or that we don't want to CSE.
+    -- ^ For statements that cannot contain any other statements or expressions.
   | StmtIfTE t t t
   | StmtAssert t
   | StmtCompilerAssert t
   | StmtAssume t
+  | StmtReturn (AST.Typed t)
   | StmtDeref AST.Type AST.Var t
   | StmtStore AST.Type t t
   | StmtAssign AST.Type AST.Var t
@@ -168,6 +165,7 @@ instance MuRef AST.Stmt where
     AST.Assert cond -> StmtAssert <$> child cond
     AST.CompilerAssert cond -> StmtCompilerAssert <$> child cond
     AST.Assume cond -> StmtAssume <$> child cond
+    AST.Return (AST.Typed ty ex) -> StmtReturn <$> (AST.Typed ty <$> child ex)
     AST.Deref ty var ex -> StmtDeref ty var <$> child ex
     AST.Store ty lhs rhs -> StmtStore ty <$> child lhs <*> child rhs
     AST.Assign ty var ex -> StmtAssign ty var <$> child ex
@@ -176,7 +174,11 @@ instance MuRef AST.Stmt where
     AST.RefCopy ty dst src -> StmtRefCopy ty <$> child dst <*> child src
     AST.Loop var ex incr lb -> StmtLoop var <$> child ex <*> mapIncr incr <*> child lb
     AST.Forever lb -> StmtForever <$> child lb
-    s -> pure $ StmtSimple s
+    -- These kinds of statements can't contain other statements or expressions.
+    AST.ReturnVoid -> pure $ StmtSimple stmt
+    AST.AllocRef{} -> pure $ StmtSimple stmt
+    AST.Break -> pure $ StmtSimple stmt
+    AST.Comment{} -> pure $ StmtSimple stmt
     where
     mapInit AST.InitZero = pure InitZero
     mapInit (AST.InitExpr ty ex) = InitExpr ty <$> child ex
@@ -197,6 +199,7 @@ toBlock expr block b = case b of
   StmtAssert cond -> stmt $ AST.Assert <$> expr cond AST.TyBool
   StmtCompilerAssert cond -> stmt $ AST.CompilerAssert <$> expr cond AST.TyBool
   StmtAssume cond -> stmt $ AST.Assume <$> expr cond AST.TyBool
+  StmtReturn (AST.Typed ty ex) -> stmt $ AST.Return <$> (AST.Typed ty <$> expr ex ty)
   -- XXX: The AST does not preserve whether the RHS of a deref was for a
   -- const ref, but it's safe to assume it's const.
   StmtDeref ty var ex -> stmt $ AST.Deref ty var <$> expr ex (AST.TyConstRef ty)
