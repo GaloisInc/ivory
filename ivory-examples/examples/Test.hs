@@ -32,7 +32,6 @@ main = do
        (error "Binary takes a path to srcs and headers as an argument")
   let path = head args
   let opts = initialOpts { outDir = Just path, srcLocs = True }
-
   compileExample opts modules
 
 compileExample :: Opts -> [Module] -> IO ()

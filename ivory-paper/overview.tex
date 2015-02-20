@@ -173,8 +173,9 @@ statically verify they are satisified.
 \begin{code}
 
 print_ex_module :: Module
-print_ex_module = package $ do
-  inclHeader "stdio.h"
+print_ex_module = package "print_ex" $ do
+  incl printf_none
+  incl printf_sint32
   incl print_proc
 
 printf_none :: Def('[IString] :-> Sint32)
@@ -184,19 +185,43 @@ printf_sint32 :: Def('[IString, Sint32] :-> Sint32)
 printf_sint32  = importProc "printf" "stdio.h"
 
 print_proc = Def('[]:->())
-print_proc = proc "print_example" $ body $ do
-  _ <- call printf_none "hello, world!"
+print_proc = proc "print_proc" $ body $ do
+  _ <- call printf_none "hello, world!\n"
   _ <- call printf_sint32 "print an integer: \%d" 42
   return ()
 \end{code}
 
 Ivory can interact with externally defined C functions and global
-variables. However, it can only import and use functions that have a
-valid Ivory type signature. Some polymorphic C functions may have multiple
-valid Ivory types.
+variables. The \cd{importProc} primitive allows the user to declare an external
+procedure, and ensures the correct header file is included by the generated
+code.
+
+Ivory can only import and use functions that have a valid Ivory type signature.
+Some polymorphic C functions may have multiple valid Ivory types.
 
 \subsection{Toolchain Use}
-\pat{todo}
+The Ivory compiler is a haskell function that takes a list of \cd{Module}s,
+parses command line options, and writes generated C source and header files to
+a directory given by those options.
 
-\lee{Describe briefly that Ivory generates an untyped AST. We assume this in
-  later discussions.}
+The compiler's second argument is a list of \cd{Artifact}s. Artifacts are a
+datatype for an arbitrary haskell string and a filename, indicating the contents
+of a non-Ivory-generated file to be written to the output directory. In
+practice, this is used to write Makefiles, linker scripts, and debug output
+specified by the user.
+
+There are also related functions exposed to the user that allow the parsing
+of command line options to be separated from the compile step, where desired.
+
+\begin{code}
+import Ivory.Compile.C (compile)
+
+main :: IO ()
+main = compile [ ex_module, print_ex_module ] []
+\end{code}
+
+
+
+
+
+
