@@ -25,7 +25,8 @@ constrained to have a given allocation scope.
 
 \begin{code}
 
-uses_allocation :: (GetAlloc eff ~ Scope s) => Ivory eff IBool
+uses_allocation :: (GetAlloc eff ~ Scope s)
+                => Ivory eff IBool
 uses_allocation = do
   r <- local (ival (3 :: Uint8))
   incr_ref r
@@ -82,7 +83,8 @@ offsets are specified by a special type \cd{Ix n}, which only permits expressing
 natural numbers in \cd{0 <= Ix n < n}.
 
 \begin{code}
-array_ex :: Ref s (Array 10 (Stored Sint32)) -> Ivory eff ()
+array_ex :: Ref s (Array 10 (Stored Sint32))
+         -> Ivory eff ()
 array_ex a = do
   incr (a ! 5)
   -- incr (a ! 10) -- Impossible to write, error caught at compile time
