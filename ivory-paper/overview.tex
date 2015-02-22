@@ -30,6 +30,9 @@ The \cd{local} primitive allocates a value on the stack:
 To use allocation in an Ivory statement, the \cd{eff} parameter must be
 constrained to have a given allocation scope.
 
+\lee{Fix all the tildes in this section! You can use \mytilde in the style that
+  in the following sec.}
+
 \begin{code}
 
 uses_allocation :: (GetAlloc eff ~ Scope s)

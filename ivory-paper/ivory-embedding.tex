@@ -174,17 +174,27 @@ values from being created.
 \subsection{Memory Areas}
 \label{sec:area}
 
+\lee{What about moving this section above the types section, just under ``memory
+management?}
+
 In addition to being parameterized on the region they are allocated in,
 references are parameterized by the layout of the memory they point to.  We
 introduce area types through the \cd{Area} kind, and the four types that
 inhabit it (Figure~\ref{fig:area-def}).  This typing of memory is
-heavily inspired by the work of Diatchki and Jones~\cite{memareas}.  The type
+heavily inspired by the work of Diatchki and Jones~\cite{memareas}. Ivory
+supports four kinds of areas that we explain below: arrays with statically known
+size, ``C'' arrays without statically known size (for communicating with external
+C functions), structs, and stored atomic values.
+
+\lee{discuss lack of sum types somewhere?}
+
+\lee{The following is a detail that I'd elide or put in a footnote} The type
 parameter on the \cd{Area} kind is present so that when giving kind-signatures,
-we can fix the kind of stored-values as being star (\cd{*})-kinded. \lee{I think this is a detail
-  that I'd elide} As Haskell currently lacks a
-construct for defining kinds without data, this parameterization is necessary,
-as kinds are specified with a syntax that is invalid where a type is expected.
-This technique was described by Magalh\~{a}es~\cite{jpm:trkgp:12}.
+we can fix the kind of stored-values as being star (\cd{*})-kinded.  As Haskell
+currently lacks a construct for defining kinds without data, this
+parameterization is necessary, as kinds are specified with a syntax that is
+invalid where a type is expected.  This technique was described by
+Magalh\~{a}es~\cite{jpm:trkgp:12}.
 
 \begin{figure}[h]
 \begin{code}
@@ -200,41 +210,47 @@ data Area k = Array Nat (Area k)
 \paragraph{Stored values}
 The simplest type of memory area is a single base type, lifted to the \cd{Area}
 kind by the use of the \cd{Stored} type constructor.  For example, the area type
-of a \cd{Sint32} would simply be \cd{Stored Sint32}.  The \cd{store} and
-\cd{deref} will only operate over references that point to \cd{Stored} areas,
-again mirroring the operations from~\cite{memareas}.
+of a \cd{Sint32} would simply be \cd{Stored Sint32}. The \cd{store} and
+\cd{deref} operators will only operate over references that point to \cd{Stored} areas,
+again mirroring the operations from~\cite{memareas}.\lee{Explain why here. Show
+  the types--- it takes a \cd{Ref s (a::Area)} ...}
 
 As the \cd{Stored} area-type allows the lifting of any star-kinded type to a
 memory area, we constrain the operations on references to restrict what is
 storable.  This constraint is enforced via the \cd{IvoryStore} class.  While the
 \cd{IvoryStore} constraint is used to rule out most types from being stored in a
 reference, it is worth noting that it is used to prohibit the storing of other
-references.  The reason for this restriction is twofold: (1)we don't have a good
-way of requiring initializers when a reference-to-reference is allocated, and
-(2) we cannot statically know the lifetime of a reference when it can be
-communicated out via a reference-to-reference procedure argument.  Point (1)
-could most likely be addressed by adding a concept of a minimal initializer for
-each area-type, while point (2) could be addressed in multiple ways, such as
-rust's borrow-checker~\cite{rust}, or cyclone's region inference~\cite{cyclone},
-though we may give up detection of region errors at Haskell type-checking time
-to do so.
+references.  The reason for this restriction is twofold:
+\begin{enumerate}
+\item   There is no good
+way of requiring initializers when a reference-to-reference is allocated.
+\lee{I'd explain this problem in more detail. It's because of nested structures
+  and our use of default initializers}
+\item The lifetime of a reference is not known when it can be
+communicated out via a reference-to-reference procedure argument.
+\end{enumerate}
+
+\lee{Perhaps the following fits best in a discussion later in the paper
+  (wherever Simon's stuff lives)}
+Point (1) could most likely be addressed by adding a concept of a minimal
+initializer for each area-type, while point (2) could be addressed in multiple
+ways, such as rust's borrow-checker~\cite{rust}, or cyclone's region
+inference~\cite{cyclone}, though we may give up detection of region errors at
+Haskell type-checking time to do so.
 
 \paragraph{Structs} A reference that has an area-kind of type \cd{Struct "x"}
 will point to memory whose layout corresponds to the definition of the struct
 with name ``x''.  Struct definitions are introduced through use of the ivory
-quasi-quoter.  For example, if a region of memory is typed using the struct
-definition from figure \ref{example-struct}, it would have type \cd{Struct "a"}.
+quasi-quoter~\cite{quoted}.  For example, if a region of memory is typed using
+the struct definition from figure \ref{example-struct}, it would have type
+\cd{Struct "a"}.
 
 \begin{figure}[h]
 \begin{code}
 [ivory| struct a { field1 :: Stored Sint32
                  , field2 :: Struct "b"
                  }
-      |]
-
--- Implicitly defined labels
--- field1 :: Label "a" (Stored Sint32)
--- field2 :: Label "a" (Struct "b")
+|]
 \end{code}
 \caption{An example struct definition}
 \label{example-struct}
@@ -243,9 +259,13 @@ definition from figure \ref{example-struct}, it would have type \cd{Struct "a"}.
 Also introduced by the struct declaration are field labels.  Field labels allow
 for indexing into a memory area, producing a reference to the value contained
 within the struct.  For example, using the struct definition from figure
-\ref{example-struct}, there would be two labels introduced: \cd{field1}, and
-\cd{field2}, for accessing those fields given a reference to an ``\cd{a}''
-struct.
+\ref{example-struct}, quasi-quoter generates two labels introduced: \cd{field1}, and
+\cd{field2}, for accessing those fields given a reference to an ``\cd{a}'':
+struct
+\begin{code}
+field1 :: Label "a" (Stored Sint32)
+field2 :: Label "a" (Struct "b")
+\end{code}
 
 Using a struct label to select the field of a structure requires the use of the
 \cd{(\mytilde>)} operator, which expects a reference to a structure as its first
@@ -259,11 +279,11 @@ is an effectful operation.
 
 \begin{figure}[h]
 \begin{code}
+(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
+
 example :: Ref Global (Struct "a")
         -> Ref Global (Stored Sint32)
 example ref = ref %*\mytilde*)> field1
-
-(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
 \end{code}
 \caption{Struct field indexing}
 \label{example-struct-label}
@@ -279,7 +299,7 @@ operator, shown in figure \ref{array-support-functions}.
 An index into an array has the type \cd{Ix}, which is parameterized by the size
 of the array that it is indexing into.  The \cd{Ix n} type will only hold
 values between zero and \cd{n-1}, which allows us to avoid run-time array bounds
-checks, as in~\cite{memareas}.  One shortcoming of this approach is that the
+checks~\cite{memareas}.  One shortcoming of this approach is that the
 \cd{(!)} operator will only accept indexes that are parameterized by the length
 of the array being indexed, while it would be useful to allow indexes that have
 a maximum value that is less than the length of the target array.
@@ -316,6 +336,7 @@ function allows for fairly seamless integration with external C code.
 \subsection{Procedures}
 \label{sec:proc}
 
+\lee{I'd cut this entire paragraph, and just explain what they are.}
 Procedures in Ivory differ from Haskell functions in a few major ways: they are
 not first class in the language\footnote{Values of type \cd{Def} may not be used
 as an argument to Ivory procedures, but pointers to procedures are acceptable.},
@@ -341,11 +362,14 @@ types.  This enables the definition of functions for defining and invoking Ivory
 procedures.
 \trevor{I'm not a big fan of this paragraph, but I'm not sure how else to
 suggest that it's useful to have the argument lists be type-level lists}
+\lee{I think this misses the point: the cool thing is that since mem areas
+  aren't star-kinded, you can't pass them directly! You need to ``wrap'' them in
+a reference, and this is enforced by the type system.}
 
 \paragraph{Definition}
 
 Procedures are defined through the use of the \cd{proc} function, which requires
-two arguments: a symbolic name for the generated procedure, and its
+two arguments: a symbolic name for the generated procedure and its
 implementation.  The implementation takes the form of a Haskell function that
 accepts Ivory value arguments, and produces a result in the Ivory monad.  Again,
 viewing Haskell functions that produce values in the Ivory monad as macros, the
@@ -353,7 +377,8 @@ viewing Haskell functions that produce values in the Ivory monad as macros, the
 symbol name and macro as its arguments, and producing a procedure with the given
 name, and the fully-applied macro as its body.  Correct procedure definition is
 guarded by the \cd{IvoryProcDef} class, which constrains uses of the \cd{proc}
-function.
+function. \lee{maybe show the class definition? This is hard to follow without
+  something concrete.}
 
 \cd{IvoryProcDef} has two parameters: signature and implementation, which relate
 the \cd{Proc} type of the resulting Ivory procedure and the haskell function
@@ -367,6 +392,7 @@ acceptable as an argument to an Ivory function, the use of the \cd{IvoryVar}
 constraint also allows values to be manufactured from fresh names, allowing
 dummy values to be passed to the implementation function.
 
+\lee{\cd{imp}, \cd{sig}, \cd{Body r} etc. were never introduced before mentioning them here.}
 Examining the functional dependencies for the \cd{IvoryProcDef} class, we see
 that the implementation function (\cd{impl}) fully determines the signature of
 the resulting procedure (\cd{sig}).  The effect of this dependency in the
@@ -395,7 +421,7 @@ computation given is quantified in a rank-2 context to the \cd{body} function,
 it is not permitted to show up in the type of the result, \cd{r}.  This behavior
 allows us to prevent anything allocated within the implementation function from
 being returned, a source of dangling pointer bugs.  This is the same technique
-used by Launchbury and Peyton Jones in~\cite{stmonad} to prevent mutable state
+used by Launchbury and Peyton Jones~\cite{stmonad} to prevent mutable state
 from leaking out of the context of the run function for the \cd{ST} monad.
 
 For example, the procedure \cd{f} defined in figure~\ref{fig:proc-def}, will
