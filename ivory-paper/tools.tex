@@ -74,7 +74,7 @@ discharged via testing or using model-checking or theorem-proving. We describe
 Ivory's tooling for these approaches below.
 
 \paragraph{Symbolic Simulation}
-Ivory contains a symbolic simulator built over CVC4~\cite{} for verifying
+Ivory contains a symbolic simulator built over CVC4~\cite{cvc4} for verifying
 programs. Ivory programs are typically amenable to formal analysis since they
 guarantee the absence of memory-safety errors, there is no pointer arithmetic,
 there is no heap, and they are not concurrent. Given a set of preconditions, the
@@ -94,19 +94,18 @@ is added to the set of invariants following the call. For imported procedures
 hand-written in C, Ivory allows them to be augmented with pre- and
 postconditions to abstract them.
 
-The simulator is simple compared to other software
-model-checkers\cite{cbmc,cpachecker,ultiautomizer}, providing only bounded
-model-checking, no support for concurrency, and no counter-example guided
-refinement, matching the simplicity of the language.
+The simulator is simple, providing only bounded model-checking, no support for
+concurrency, and no counter-example guided refinement, matching the simplicity
+of the language.
 
 We have used the symbolic simulator to analyze various Ivory programs, having
 found an off-by-one bug in a ring buffer and verifying the correctness of a
-safety state-machine in SMACCMPilot~\cite{}.
+safety state-machine in SMACCMPilot~\cite{smaccm}.
 
 \paragraph{Theorem Proving}
 
 Eakman~et~al. has implemented a theorem-prover back-end for
-Ivory~\cite{ivory-acl2} that targets ACL2~\cite{acl2}. The theorem-prover
+Ivory~\cite{ivory-acl2} that targets ACL2~\cite{acl}. The theorem-prover
 performs inter-procedural analysis, abstracting procedure calls by their
 contracts, like the symbolic simulator. However, the theorem prover has the
 ability to scale more substantially, at the price of doing interactive
@@ -115,7 +114,7 @@ back-end.
 
 \paragraph{Property-Based Testing}
 
-Finally, we have implemented a QuickCheck~\cite{} like property-based testing
+Finally, we have implemented a QuickCheck~\cite{qc} like property-based testing
 framework for Ivory. The framework tests procedures by randomly generating
 values both for their formal arguments as well as for global values referenced
 by the procedure. Ivory is primarily a compiled language, so tests are compiled

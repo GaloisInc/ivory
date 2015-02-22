@@ -1,27 +1,11 @@
 \section{Ivory Embedding}
 \label{sec:ivory-embedding}
 
-\lee{This section will be the heart of the paper, focusing on how we have
-  embedded Ivory in Haskell's type system. I expect this to be 3-5 pages and
-  probably the most technical. We want to be detailed, but describe things
-  general enough that ML, Agda, etc. programmers can understand.
-}
-
 In this section, we describe the implementation of Ivory, focusing on embedding
-the Ivory type system in the GHC type system. We first present the Ivory
-monad. The Ivory monad has an effects system to control the use of effects, such
-as stack-based memory allocation, which we also describe. Next, we describe our
-implementation of references and allocation, which is at the heart of ensuring
-memory-safety. Next, we describe memory areas~\cite{}. \lee{finish}
+the Ivory type system in the GHC type system.
 
 \subsection{The Ivory Monad}
 \label{sec:ivory-monad}
-
-\lee{Lee: describe the Ivory monad (not too much to say), then describe
-  effects. Make sure to make clear these are monad effects like are popular in
-  the literature. Mention inspiration from
-  \url{http://www.doc.ic.ac.uk/~wlj05/files/Deconstraining.pdf}, but didn't
-  follow implementation.}
 
 Ivory is a monadic language, in which Ivory statements have effects in the Ivory
 monad. The Ivory monad has the type
@@ -35,14 +19,16 @@ and is a wrapper for a writer monad transformer over a state monad. The writer
 monad writes statements into the Ivory abstract syntax tree, and the
 state monad is used to generate fresh names for variables.
 
+\lee{note in particular that effects can be ``turned on'' and ``turned off''}
 \paragraph{Effects}
 The \cd{eff} type parameter of the Ivory monad is a phantom type that tracks
 effects in the Ivory monad at the type level. (These effects have no relation to
-the recent work on effects systems for monad transformers~\cite{}.) Currently,
-we track three classes of effects for a given monadic code block:
+the recent work on effects systems for monad transformers~\cite{effects}.)
+Currently, we track three classes of effects for a given monadic code block:
 
 \begin{itemize}
-\item \emph{Returns}: does the code block contain a \cd{return} statement?
+\item \emph{Returns}: does the code block contain a \cd{return} statement, and
+  is the type of the returned value corect?
 \item \emph{Breaks}: does the code block contain a \cd{break} statement?
 \item \emph{Allocation}: does the code block contain local memory allocation?
 \end{itemize}
@@ -89,7 +75,7 @@ data ReturnEff = forall t. Returns t | NoReturn
 The type is existentially quantified, since in the case of permitted returns, we
 parameterize the type constructor with the type of the value being returned.
 
-A type family~\cite{} is used to access and modify the types at each field of
+A type family~\cite{typefamilies} is used to access and modify the types at each field of
 the tuple. To access that field, a type family rewrites the \cd{Effects} type to
 the return effect type \cd{ReturnEff}.
 
@@ -120,25 +106,28 @@ ret :: (GetReturn eff ~ Returns r, ...)
     => r -> Ivory eff ()
 \end{code}
 
-
 \subsection{Memory Management}
 \label{sec:ref}
 
 Ivory uses regions for memory management.  When data is allocated, a reference
 to the resulting data is returned, and tagged by the containing region using a
 type variable.  Well-typed Ivory programs guarantee that references do no
-persist beyond the scope of their containing region.  Currently regions are
-allocated and freed on function entry/exit, though the language could be
-modified to separate the two.  The effect of this restriction is that allocation
-within the scope of a function definition can be translated to stack allocation,
-when generating C.
+persist beyond the scope of their containing region.  Currently, regions are
+either global or allocated and freed on function entry/exit (the back-end relies
+on stack-based allocation in C), although the language could be modified to
+separate the two concepts.
 
-There are two regions in Ivory: \cd{Global} which holds global data, and a
+\lee{in the following, we need to give some type examples with Global/Scope, and
+maybe the type of \cd{local}. and particularly, describe how \cd{local} is
+implemented using the ST monad trick. Also, some more detailed description of
+initializers is warranted.}
+
+Corresponding to these two kinds of regions, \cd{Global} which holds global data, and a
 function-local scope, unique to the function which is performing the allocation.
 References with \cd{Global} scope are allocated through the use of the \cd{area}
 top-level declaration, and references allocated within a function are allocated
 through the use of the \cd{local} function.  Both can take initializers,
-defaulting to zero-initialization when they are omitted.  As procedure
+defaulting to zero-initialization when they are omitted.  Since a procedure
 definition introduces a fresh region, with the constraint that no reference
 allocated in that region should should up in the return type of that procedure,
 Ivory avoids the introduction of dangling pointers.  The embedding of this
@@ -160,6 +149,8 @@ context of the Ivory monad.
 
 \subsection{Types}
 \label{sec:types}
+
+\lee{we need to sketch which concrete types belong to these type classes}
 
 Ivory uses two type classes to define its domain: \cd{IvoryType} and
 \cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
@@ -185,14 +176,15 @@ values from being created.
 
 In addition to being parameterized on the region they are allocated in,
 references are parameterized by the layout of the memory they point to.  We
-introduce area types through the new \cd{Area} kind, and the four types that
-inhabit it, as described in figure \ref{fig:area-def}.  This typing of memory is
-heavily inspired by the work of Diatchki and Jones in~\cite{memareas}.  The type
+introduce area types through the \cd{Area} kind, and the four types that
+inhabit it (Figure~\ref{fig:area-def}).  This typing of memory is
+heavily inspired by the work of Diatchki and Jones~\cite{memareas}.  The type
 parameter on the \cd{Area} kind is present so that when giving kind-signatures,
-we can fix the kind of stored-values to \cd{*}.  As Haskell currently lacks a
+we can fix the kind of stored-values as being star (\cd{*})-kinded. \lee{I think this is a detail
+  that I'd elide} As Haskell currently lacks a
 construct for defining kinds without data, this parameterization is necessary,
 as kinds are specified with a syntax that is invalid where a type is expected.
-This technique was described by Magalh\~{a}es in~\cite{jpm:trkgp:12}.
+This technique was described by Magalh\~{a}es~\cite{jpm:trkgp:12}.
 
 \begin{figure}[h]
 \begin{code}
@@ -219,7 +211,7 @@ storable.  This constraint is enforced via the \cd{IvoryStore} class.  While the
 reference, it is worth noting that it is used to prohibit the storing of other
 references.  The reason for this restriction is twofold: (1)we don't have a good
 way of requiring initializers when a reference-to-reference is allocated, and
-(2)we can't statically know the lifetime of a reference when it can be
+(2) we cannot statically know the lifetime of a reference when it can be
 communicated out via a reference-to-reference procedure argument.  Point (1)
 could most likely be addressed by adding a concept of a minimal initializer for
 each area-type, while point (2) could be addressed in multiple ways, such as

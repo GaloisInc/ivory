@@ -1,8 +1,22 @@
-\section{Conclusion}
+\section{Conclusions and Future Work}
 \label{sec:conlusion}
 
-\lee{Ivory, yay.}
+In this paper, we have described a full-featured EDSL language for
+high-assurance embedded systems programming. Ivory's type system enforces safe C
+development, but as an EDSL, the programmer still has the flexibility to create
+high-level constructs.
 
-\lee{Other approaches to a module system}
+We have demonstrated the feasibility of developing large embedded systems in
+Ivory ourselves, and there is a growing developer community.\footnote{Ivory is the
+second most popular Galois-owned repository on Github, after Cryptol~\cite{}.}
+
+That said, there are a variety of improvements we have considered for the
+language. For one, there are plans to integrate SMT solving into GHC's
+type-checking, allowing us to generalize Ivory. For example, the correctness of
+array slicing can be guaranteed statically.
+
+Our implementation of modules
+
+
 
 \lee{unions}

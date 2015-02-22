@@ -1,13 +1,19 @@
 \section{Ivory Overview}
 \label{sec:ivory-overview}
 
+\lee{need lead-in here. What does Ivory do? What's the motivation for it's
+  design (I like to motivate it with the JPL's Power of 10 rules).}
 
 
 \subsection{Ivory Statements}
 
+\lee{I'd suggest we elide types in this section, to the extent possible.}
+
 Ivory has a simple statement language embedded in a monad. Unlike in C, all
 reference reading and writing must explicitly take place in a statement, which
 eliminates large classes of unintuitive and undefined behaviors.
+
+\lee{explain references}
 
 \begin{code}
 incr_ref :: Ref s (Stored Sint32) -> Ivory eff ()
@@ -16,9 +22,10 @@ incr_ref r = do
     store r (v + 1)
 \end{code}
 
+\lee{You have to explain in English whatever code you write.}
+
 In addition to global memory areas, we can create memory areas on the stack.
-The \cd{local} primitive permits allocating a value
-locally, on the stack associated with the parent procedure.
+The \cd{local} primitive allocates a value on the stack:
 
 To use allocation in an Ivory statement, the \cd{eff} parameter must be
 constrained to have a given allocation scope.
@@ -35,7 +42,7 @@ uses_allocation = do
 
 \end{code}
 
-Ivory users can create global memory areas, just like in c:
+Ivory users can create global memory areas, like in C:
 \begin{code}
 ex_global_area :: MemArea (Stored Sint32)
 ex_global_area = area "ex_global" (Just (ival 42))
@@ -55,6 +62,8 @@ ex_incr_proc = proc "ex_incr" $ \a -> body $ do
   v <- deref ex_global
   ret (v >? a)
 \end{code}
+
+\lee{You need to put the English description before the program.}
 
 We can wrap up statements into a procedure. Procedures can take arguments
 passed in as a lambda, and optionally return an ivory value with the \cd{ret}
@@ -85,11 +94,14 @@ natural numbers in \cd{0 <= Ix n < n}.
 \begin{code}
 array_ex :: Ref s (Array 10 (Stored Sint32))
          -> Ivory eff ()
-array_ex a = do
-  incr (a ! 5)
-  -- incr (a ! 10) -- Impossible to write, error caught at compile time
-
+array_ex a = incr (a ! 5)
 \end{code}
+
+\lee{\cd{incr} was never defined}
+
+\noindent
+Trying to write the statement \cd{incr (a ! 10)} results in a Haskell type
+error.
 
 Traditional C structures are defined using a quasiquoter to specify the field
 names and their types. Each field name can be used with the \cd{~>} operator

@@ -1,19 +1,7 @@
 \section{Introduction}
 \label{sec:introduction}
 
-\sjw{Lee: Add LOC 'we have written a large amount of Ivory code (1
-  million dollars)' }
-
-\lee{Lee will take a stab at this. The main point of this paper is that there
-  has been a long history of ``safe C'' languages that involved building new
-  compilers. They allow low-level programming while ensuring type-safety. We
-  show that with a modest set of generic type-level features, such a language
-  can be built as an EDSL in which the safe-C type system is embedded in
-  Haskell's type system, with a small number of exceptions. We'll also talk
-  about some of the benefits and detriments of a safe C EDSL as opposed to a
-  stand-alone compiler. In some sense, this is a follow-up to Stephanie's ICFP
-  keynote showing what you can do with Haskell's dependent types (meaning
-  decidable type inference in our usage).}
+\lee{also mention in contributions that we've worked on edsl usability?}
 
 In 2014, we published an experience report describing our approach to building
 high-assurance embedded systems, particularly focused on the use of
@@ -24,8 +12,8 @@ language has been to write \emph{SMACCMPilot}, a full-featured high-assurance
 autopilot for a small unpiloted air vehicle. Here we describe the design and
 implementation of the language itself.
 
-Ivory follows in the footsteps of other ``safe C'' programming languages, such
-as Cyclone~\cite{}, Rust~\cite{}, \lee{others?}. By safe C languages, we mean
+Ivory follows in the footsteps of other ``safe C'' programming languages, like
+Cyclone~\cite{cyclone} and Rust~\cite{rust}. By safe C languages, we mean
 languages that avoid many of the pitfalls of C, particularly related to memory
 safety and undefined behavior, that are suitable for writing low-level code
 (e.g., device drivers), and that provide low-level control over timing behavior
@@ -39,7 +27,7 @@ recent type and language extensions of GHC's implementation of Haskell (which we
 will colloquially refer to as ``GHC'' in the remainder of this
 paper)~\cite{weirich-keynote}. Weirich describes how recent extensions to GHC
 provide much of the power of dependently-typed programming, such as found in
-Agda~\cite{}, Idris~\cite{}, or Coq~\cite{}. However, in GHC, a surprisingly
+Agda~\cite{agda}, Idris~\cite{idris}, or Coq~\cite{coq}. However, in GHC, a surprisingly
 powerful subset of dependent typing features can be used while still enjoying
 type-inference and decidable type-checking~\cite{dephaskell}.
 
@@ -57,7 +45,7 @@ custom type-checker or compiler for a safe C language.
 
 Embedding a type system for a safe C language into GHC's type system is tricky
 business. To gain confidence that our embedding is correct, we have formalized a
-model of Ivory in the Isabelle theorem prover~\cite{}, and used the model to
+model of Ivory in the Isabelle theorem prover~\cite{isabelle}, and used the model to
 formally prove progress and preservation properties for Ivory. In the process,
 we have discovered minor bugs in Ivory's type embedding in GHC as well as
 generalizations to Ivory that still preserve safety. We describe the
@@ -69,14 +57,14 @@ that result from other undefined behaviors in C (e.g., division by zero, left
 bit-shifts by a negative value, etc.) as well as support for checking
 user-provided assertions. Toward this end, Ivory supports writing user-supplied
 assertions and pre- and post-conditions on functions, and includes a built-in
-symbolic simulator targeting an SMT solver (CVC4~\cite{}), as well as an
-theorem-prover back-end targeting ACL2~\cite{}. For automated testing, a
+symbolic simulator targeting an SMT solver (CVC4~\cite{cvc4}), as well as an
+theorem-prover back-end targeting ACL2~\cite{acl2}. For automated testing, a
 QuickCheck-like property-based test-case generator is integrated into
 Ivory. These tools are described in Section~\ref{sec:tools}.
 
 Ivory is open-source (BSD3 license) and available at \url{ivory-lang.org}. It is
 a ``real'' language, with well over 100k lines of code written in it. In
 addition to the SMACCMPilot autopilot written in Ivory, Boeing has implemented a
-level-of-interoperability for Stanag~4586~\cite{}, a unpiloted air vehicle
+level-of-interoperability for Stanag~4586~\cite{stanag}, a unpiloted air vehicle
 communications standard. We know of a few additional small projects by other
 developers in Ivory, as well.
