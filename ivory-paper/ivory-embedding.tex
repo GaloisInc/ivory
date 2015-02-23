@@ -592,7 +592,119 @@ allowing us to define these types in a single line each:
 \end{code}
 
 \subsection{Bit-Data}
-\lee{James: talk about using TH to define bitdata.}
+
+\paragraph{Motivation}
+Describe scenarios in which we need bit data like features. Low level network
+and hardware programming, for example. Outline how Ivory implements a data
+definition language at the bit level based on the paper by Iavor et al.
+
+\paragraph{BitRep}
+Ivory's type system supports a set of unsigned integer types with
+specific bit sizes (8, 16, 32, and 64 bits), as in the C language.
+In order to support bit data of arbitrary width (up to the maximum
+supported length of 64 bits), we use a type family
+\cd{BitRep n} to map an integer size in bits to the smallest
+concrete Ivory type that can hold an integer of that size:
+
+\begin{code}
+type family BitRep (n :: Nat) :: *
+type instance BitRep 1 = Uint8
+type instance BitRep 2 = Uint8
+{- ... -}
+type instance BitRep 9 = Uint16
+type instance BitRep 10 = Uint16
+{- ... -}
+type instance BitRep 64 = Uint64
+\end{code}
+
+\paragraph{The "Bits" Type}
+Ivory adds additional type safety to arbitrary width integers by
+wrapping these values in an opaque type \cd{Bits n}.
+Haskell's module system is used to hide the raw constructor for
+these values, only permitting valid values to be created via the
+use of smart constructors:
+
+\begin{code}
+newtype Bits (n :: Nat) = {- Bits (BitRep n) -}
+
+-- | Return a bit value of all zeros.
+zeroBits :: Bits n
+-- | Convert an Ivory integer to a bit value.
+repToBits :: BitRep n -> Bits n
+-- | Convert a bit value to an Ivory value.
+bitsToRep :: Bits n -> BitRep n
+\end{code}
+
+Smart constructors that are partial due to narrowing,
+such as \cd{repToBits}, automatically mask out any bits that are
+out of range. It is also possible to define runtime-checked versions
+of these functions that treat such "junk values" as an error.
+
+\paragraph{BitData Type Class}
+To support combining multiple bit fields into a single value, we
+generalize the "bit data" concept with a type class \cd{BitData}
+that captures the interface of a value that may be converted to
+and from its representation as raw bits:
+
+\begin{code}
+class BitData a where
+  -- | The base 'Bits n' type for this data.
+  type BitType a :: *
+  -- | Convert a bit data type to its raw bit value.
+  toBits :: a -> BitType a
+  -- | Convert a raw bit value to this bit data type.
+  fromBits :: BitType a -> a
+
+-- | A 'Bits n' value is a trivial instance of 'BitData'.
+instance BitData (Bits n) where
+  type BitType (Bits n) = Bits n
+  toBits   = id
+  fromBits = id
+\end{code}
+
+\paragraph{BitData Sum Types}
+Show how we can define a bit data type as a sum type with specific
+bit patterns for each value.
+
+\begin{code}
+[ivory|
+  bitdata BaudRate :: Bits 2
+    = baud_9600    as 0b00
+    | baud_19200   as 0b01
+    | baud_38400   as 0b10
+    -- bit pattern 0b11 is invalid
+|]
+\end{code}
+
+\paragraph{BitData Product Types}
+Show how to assemble a larger bit data type from a set of primitive
+and user-defined bit data types.  We'll use an explicit layout clause
+as well to show that off.
+
+TODO: Can we include a figure of what this register might look like
+in a datasheet here?
+
+%\begin{bytefield}{8}
+%  \bitheader{0-8} \\
+%  \bitbox{4}{Reserved} & \bitbox{1}{TX\_ENABLE} &
+%   \bitbox{1}{RX\_ENABLE} & \bitbox{2}{BAUD\_RATE}
+%\end{bytefield}
+
+\begin{code}
+[ivory|
+  bitdata CtrlReg :: Bits 8 = ctrl_reg
+    { ctrl_tx_enable  :: Bit
+    , ctrl_rx_enable  :: Bit
+    , ctrl_baud_rate  :: BaudRate
+    } as 0b0000 # ctrl_tx_enable # ctrl_rx_enable
+                # ctrl_baud_rate
+|]
+\end{code}
+
+\paragraph{Using Bit Data}
+Show an example of how to play with individual bits in a register, and how
+to set nested/multi-bit fields. Also tackle the issue of converting the
+bit data value to/from its representation.
 
 \subsection{Module System}
 
