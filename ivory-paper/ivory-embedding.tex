@@ -546,8 +546,7 @@ class IvoryString a where
 \end{figure}
 
 The \cd{IvoryString} type class ties together the type-level natural
-number containing the array's capacity % (using an associated type \cite{})
-along with structure field accessors
+number containing the array's capacity along with structure field accessors
 for the data array and length field. The instance declarations for \cd{Name}
 and \cd{Phone} are trivial, as shown in figure \ref{ivory-string-instances}.
 
@@ -578,6 +577,7 @@ example, to return the length of any Ivory string, we define the
 -- Return the length of any Ivory string.
 istr_len :: IvoryString a
          => ConstRef s a -> Ivory eff Sint32
+istr_len s = deref (s %*\mytilde*)> stringLengthL)
 \end{code}
 
 The process of defining string types that only differ
