@@ -112,26 +112,58 @@ ret :: (GetReturn eff ~ Returns r, ...)
 Ivory uses regions for memory management.  When data is allocated, a reference
 to the resulting data is returned, and tagged by the containing region using a
 type variable.  Well-typed Ivory programs guarantee that references do no
-persist beyond the scope of their containing region.  Currently, regions are
-either global or allocated and freed on function entry/exit (the back-end relies
-on stack-based allocation in C), although the language could be modified to
-separate the two concepts.
+persist beyond the scope of their containing region.  Regions in Ivory classify
+global data, and data allocated and freed on procedure entry/exit (the back-end
+relies on stack-based allocation in C), through the language could be modified
+to separate the two concepts, as discussed in section~\ref{sec:sem-discuss}.
+Corresponding to these two kinds of regions are the region tags that Ivory
+supports: \cd{Global} which holds statically-allocated global data that is
+available for the lifetime of the program, and a local region unique to each
+procedure whose lifetime is tied to that of the procedure.
 
-\lee{in the following, we need to give some type examples with Global/Scope, and
-maybe the type of \cd{local}. and particularly, describe how \cd{local} is
-implemented using the ST monad trick. Also, some more detailed description of
-initializers is warranted.}
+Data with \cd{Global} scope is allocated through the use of the \cd{area}
+top-level declaration, then converted to a reference through the use of the
+\cd{addrOf} function.  As the \cd{area} function produces a top-level
+declaration, it also requires a symbol to use as the name of the allocated
+memory.  Data allocated within a procedure is allocated through the use of the
+\cd{local} function, and are tagged with the region of that function.  Since
+procedure definition introduces a fresh region, with the constraint that no
+reference allocated in that region should should up in the return type of that
+procedure, Ivory avoids the introduction of dangling pointers.  The embedding of
+this feature in Haskell will be described in more detail in
+section~\ref{sec:proc}.
 
-Corresponding to these two kinds of regions, \cd{Global} which holds global data, and a
-function-local scope, unique to the function which is performing the allocation.
-References with \cd{Global} scope are allocated through the use of the \cd{area}
-top-level declaration, and references allocated within a function are allocated
-through the use of the \cd{local} function.  Both can take initializers,
-defaulting to zero-initialization when they are omitted.  Since a procedure
-definition introduces a fresh region, with the constraint that no reference
-allocated in that region should should up in the return type of that procedure,
-Ivory avoids the introduction of dangling pointers.  The embedding of this
-feature in Haskell will be described in more detail in section~\ref{sec:proc}
+Both forms of allocation take initializers, though \cd{Global} allocation
+through \cd{area} will default to zero-initialization if it is omitted.
+Initializers are functions that embed values into a structure that mirrors that
+of a memory area.  As an example, the \cd{example} value in
+figure~\ref{sec:mem-alloc} defines an initializer for an array of three
+\cd{Uint8} values.  The types of the allocation functions, as well as a sample
+of the initializers available are given in figure~\ref{fig:mem-alloc}.
+
+\begin{figure}
+\begin{code}
+local  :: (GetAlloc eff ~ 'Scope s, IvoryArea area)
+       => Init area -> Ivory eff (Ref s area)
+
+data MemArea (area :: Area *)
+area   :: (IvoryArea area)
+       => Sym -> Maybe (Init area) -> MemArea area
+addrOf :: (IvoryArea area)
+       => MemArea area -> Ref Global area
+
+data Init (area :: Area *)
+izero  :: IvoryZero area => Init area
+ival   :: IvoryType val  => val -> Init (Stored val)
+iarray :: IvoryArea area
+       => [Init area] -> Init (Array n area)
+
+example :: Init (Array 3 (Stored Uint8))
+example  = iarray (map ival [1,2,3])
+\end{code}
+\caption{Memory allocation and initialization functions}
+\label{fig:mem-alloc}
+\end{figure}
 
 As noted in section \ref{sec:ivory-monad}, allocation is tracked through an
 effect in the effect context of the Ivory monad.  The result of this is that
@@ -176,6 +208,8 @@ data Area k = Array Nat (Area k)
 \caption{The definition of the \cd{Area} kind}
 \label{fig:area-def}
 \end{figure}
+
+
 
 \paragraph{Stored values}
 The simplest type of memory area is a single base type, lifted to the \cd{Area}
@@ -369,16 +403,6 @@ constructor takes two arguments: the types of the argument list, and the return
 type of the whole procedure.  As the intent behind the use of the \cd{:->} type
 is to suggest that all of the arguments to the left of the arrow must be
 provided before a result may be produced.
-
-To enable processing using type classes while easing the burden on the
-programmer, the argument list is specified as a type-level list of $*$-kinded
-types.  This enables the definition of functions for defining and invoking Ivory
-procedures.
-\trevor{I'm not a big fan of this paragraph, but I'm not sure how else to
-suggest that it's useful to have the argument lists be type-level lists}
-\lee{I think this misses the point: the cool thing is that since mem areas
-  aren't star-kinded, you can't pass them directly! You need to ``wrap'' them in
-a reference, and this is enforced by the type system.}
 
 \paragraph{Definition}
 
