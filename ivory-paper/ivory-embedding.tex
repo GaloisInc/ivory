@@ -204,20 +204,29 @@ data Area k = Array Nat (Area k)
             | CArray (Area k)
             | Struct Symbol
             | Stored k
+
+
+store :: IvoryStore a
+      => Ref s (Stored a) -> a -> Ivory eff ()
+deref :: IvoryStore a
+      => Ref s (Stored a) -> Ivory eff a
+
+data Label (struct :: Symbol) (area :: Area *)
+(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
+(!)  :: Ref s (Array n area) -> Ix n -> Ref s area
 \end{code}
-\caption{The definition of the \cd{Area} kind}
+\caption{The definition of the \cd{Area} kind, and associated operations}
 \label{fig:area-def}
 \end{figure}
-
-
 
 \paragraph{Stored values}
 The simplest type of memory area is a single base type, lifted to the \cd{Area}
 kind by the use of the \cd{Stored} type constructor.  For example, the area type
 of a \cd{Sint32} would simply be \cd{Stored Sint32}. The \cd{store} and
 \cd{deref} operators will only operate over references that point to \cd{Stored} areas,
-again mirroring the operations from~\cite{memareas}.\lee{Explain why here. Show
-  the types--- it takes a \cd{Ref s (a::Area)} ...}
+mirroring the operations from~\cite{memareas}, as this allows us to never deal
+directly with a value of type \cd{Array}, or \cd{Struct}; we only ever read and
+write references to values, never references to aggregate values.
 
 As the \cd{Stored} area-type allows the lifting of any star-kinded type to a
 memory area, we constrain the operations on references to restrict what is
@@ -246,26 +255,21 @@ Haskell type-checking time to do so.
 will point to memory whose layout corresponds to the definition of the struct
 with name ``x''.  Struct definitions are introduced through use of the ivory
 quasi-quoter~\cite{quoted}.  For example, if a region of memory is typed using
-the struct definition from figure \ref{example-struct}, it would have type
-\cd{Struct "a"}.
+the following struct declaration, it would have type \cd{Struct "a"}.
 
-\begin{figure}[h]
 \begin{code}
 [ivory| struct a { field1 :: Stored Sint32
                  , field2 :: Struct "b"
                  }
 |]
 \end{code}
-\caption{An example struct definition}
-\label{example-struct}
-\end{figure}
 
 Also introduced by the struct declaration are field labels.  Field labels allow
 for indexing into a memory area, producing a reference to the value contained
-within the struct.  For example, using the struct definition from figure
-\ref{example-struct}, quasi-quoter generates two labels introduced: \cd{field1}, and
-\cd{field2}, for accessing those fields given a reference to an ``\cd{a}'':
-struct
+within the struct.  For example, using the previous struct definition, the
+quasi-quoter introduces two labels: \cd{field1}, and \cd{field2}, for accessing
+those fields given a reference to an ``\cd{a}'' struct:
+
 \begin{code}
 field1 :: Label "a" (Stored Sint32)
 field2 :: Label "a" (Struct "b")
@@ -273,25 +277,21 @@ field2 :: Label "a" (Struct "b")
 
 Using a struct label to select the field of a structure requires the use of the
 \cd{(\mytilde>)} operator, which expects a reference to a structure as its first
-argument, and a compatible label as its second.  In figure
-\ref{example-struct-label}, the \cd{(\mytilde>)} operator is used with a
-reference to an ``\cd{a}'' struct, with the \cd{field1} label, producing a new
-reference of type \cd{Ref Global (Stored Sint32)}.  Operations for indexing are
-pure in Ivory, as they only manipulate a base pointer; the value of a reference
-is never dereferenced until an explicit use of the \cd{deref} primitive, which
-is an effectful operation.
+argument, and a compatible label as its second.  The type of the
+\cd{(\mytilde>)} operator is given in figure~\ref{fig:area-def}.  In the
+following example, the \cd{(\mytilde>)} operator is used with a reference to an
+``\cd{a}'' struct, with the \cd{field1} label, producing a new reference of type
+\cd{Ref Global (Stored Sint32)}.
 
-\begin{figure}[h]
 \begin{code}
-(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
-
 example :: Ref Global (Struct "a")
         -> Ref Global (Stored Sint32)
 example ref = ref %*\mytilde*)> field1
 \end{code}
-\caption{Struct field indexing}
-\label{example-struct-label}
-\end{figure}
+
+Operations for indexing are pure in Ivory, as they only manipulate a base
+pointer; the value of a reference is never dereferenced until an explicit use of
+the \cd{deref} primitive, which is an effectful operation.
 
 \paragraph{Arrays}
 Arrays in Ivory take two type parameters: the length of the array as a
@@ -319,7 +319,6 @@ it becomes unnecessary to give explicit bounds for the iteration.
 
 \begin{figure}[h]
 \begin{code}
-(!)      :: Ref s (Array n area) -> Ix n -> Ref s area
 arrayMap :: (Ix n -> Ivory eff a) -> Ivory eff a
 toCArray :: Ref s (Array n area) -> Ref s (CArray area)
 arrayLen :: Num len => Ref s (Array n area) -> len
