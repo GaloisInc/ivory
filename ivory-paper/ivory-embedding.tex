@@ -147,54 +147,24 @@ Ivory monad does not track effects for manipulating specific references, and
 instead allows reading and writing to any reference that is in scope, within the
 context of the Ivory monad.
 
-\subsection{Types}
-\label{sec:types}
-
-\lee{we need to sketch which concrete types belong to these type classes}
-
-Ivory uses two type classes to define its domain: \cd{IvoryType} and
-\cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
-programs.  As Ivory programs build up the AST of the program they represent when
-they are run, this class describes the set of types that contain fragments of
-the Ivory AST.  The \cd{IvoryArea} class serves to ensure that primitive types
-that are stored in references also have an instance of \cd{IvoryType}.
-
-The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
-have values.  The \cd{IvoryVar} class describes all types that can have an Ivory
-expression extracted from them, as well as be created from a single variable.
-This roughly corresponds to types that can be used as an L-value in assigments,
-but also includes types that are to be used as arguments to functions.
-The \cd{IvoryExpr} class includes types that can be constructed from full
-expressions, and corresponds to the set of types whose values can be used in the
-position of an R-value.  It might be tempting to say that the functionality of
-the \cd{IvoryVar} belongs in the \cd{IvoryType} class, however as Ivory has a
-void type, \cd{()}, we do require this distinction so that we can prevent void
-values from being created.
-
 \subsection{Memory Areas}
 \label{sec:area}
 
-\lee{What about moving this section above the types section, just under ``memory
-management?}
-
 In addition to being parameterized on the region they are allocated in,
 references are parameterized by the layout of the memory they point to.  We
-introduce area types through the \cd{Area} kind, and the four types that
-inhabit it (Figure~\ref{fig:area-def}).  This typing of memory is
-heavily inspired by the work of Diatchki and Jones~\cite{memareas}. Ivory
-supports four kinds of areas that we explain below: arrays with statically known
-size, ``C'' arrays without statically known size (for communicating with external
-C functions), structs, and stored atomic values.
+introduce area types through the \cd{Area} \footnote{ The type parameter on the
+\cd{Area} kind is present so that when giving kind-signatures, we can fix the
+kind of stored-values as being star (\cd{*})-kinded.  As Haskell currently lacks
+a construct for defining kinds without data, this parameterization is necessary,
+as kinds are specified with a syntax that is invalid where a type is expected.
+This technique was described by Magalh\~{a}es~\cite{jpm:trkgp:12}.} kind, and
+the four types that inhabit it (Figure~\ref{fig:area-def}).  This typing of
+memory is heavily inspired by the work of Diatchki and Jones~\cite{memareas}.
+Ivory supports four kinds of areas that we explain below: arrays with statically
+known size, ``C'' arrays without statically known size (for communicating with
+external C functions), structs, and stored atomic values.
 
 \lee{discuss lack of sum types somewhere?}
-
-\lee{The following is a detail that I'd elide or put in a footnote} The type
-parameter on the \cd{Area} kind is present so that when giving kind-signatures,
-we can fix the kind of stored-values as being star (\cd{*})-kinded.  As Haskell
-currently lacks a construct for defining kinds without data, this
-parameterization is necessary, as kinds are specified with a syntax that is
-invalid where a type is expected.  This technique was described by
-Magalh\~{a}es~\cite{jpm:trkgp:12}.
 
 \begin{figure}[h]
 \begin{code}
@@ -332,6 +302,32 @@ functions that consume arrays require both a pointer and a length, we also
 provide the \cd{arrayLen} function, which allows the length of an Ivory array to
 be demoted to a value.  When used in conjunction with \cd{toCArray}, this
 function allows for fairly seamless integration with external C code.
+
+\subsection{Types}
+\label{sec:types}
+
+Ivory uses two type classes to define its domain: \cd{IvoryType} and
+\cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
+programs.  As Ivory programs build up the AST of the program they represent when
+they are run, this class describes the set of types that contain fragments of
+the Ivory AST.  The \cd{IvoryArea} class serves to ensure that primitive types
+that are stored in references also have an instance of \cd{IvoryType}.  Types
+that have \cd{IvoryType} instances include signed and unsigned integers, the
+void type \cd{()}, and references, while types that have an \cd{IvoryArea}
+instance are limited to those that have kind \cd{Area}, defined in
+section~\ref{sec:area}.
+
+The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
+have values.  The \cd{IvoryVar} class describes all types that can have an Ivory
+expression extracted from them, as well as be created from a single variable.
+This roughly corresponds to types that can be used as an L-value in assigments,
+but also includes types that are to be used as arguments to functions.
+The \cd{IvoryExpr} class includes types that can be constructed from full
+expressions, and corresponds to the set of types whose values can be used in the
+position of an R-value.  It might be tempting to say that the functionality of
+the \cd{IvoryVar} belongs in the \cd{IvoryType} class, however as Ivory has a
+void type, \cd{()}, we do require this distinction so that we can prevent void
+values from being created.
 
 \subsection{Procedures}
 \label{sec:proc}
