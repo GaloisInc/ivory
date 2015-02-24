@@ -3,22 +3,38 @@
 
 \lee{also mention in contributions that we've worked on edsl usability?}
 
-In 2014, we published an experience report describing our approach to building
-high-assurance embedded systems, particularly focused on the use of
-EDSLs~\cite{smaccm}. In that paper, we briefly introduced a language called
-\emph{Ivory} for programming high-assurance embedded systems. While we briefly
-discussed our user experience of Ivory there, our main application with the
-language has been to write \emph{SMACCMPilot}, a full-featured high-assurance
-autopilot for a small unpiloted air vehicle. Here we describe the design and
-implementation of the language itself.
+There is still a clear need for minimally-managed low-level languages
+which provide fine-grained control over memory usage and timing
+behavior.  For example, embedded systems typically require a small
+resource footprint and predictable interaction with external devices.
+Furthermore, such applications also require high levels of assurance,
+operating, for example, in environments where human intervention is
+undesirable or impossible, or where failure is catastrophic.
 
-Ivory follows in the footsteps of other ``safe C'' programming languages, like
-Cyclone~\cite{cyclone} and Rust~\cite{rust}. By safe C languages, we mean
-languages that avoid many of the pitfalls of C, particularly related to memory
-safety and undefined behavior, that are suitable for writing low-level code
-(e.g., device drivers), and that provide low-level control over timing behavior
-and memory usage. Ivory, like other safe C languages, has a minimal runtime
-system.
+In this paper we present the language \emph{Ivory}.  Ivory follows in
+the footsteps of other ``safe C'' programming languages, like
+Cyclone~\cite{cyclone} and Rust~\cite{rust}. By safe C languages, we
+mean languages that avoid many of the pitfalls of C, particularly
+related to memory safety and undefined behavior, that are suitable for
+writing low-level code (e.g., device drivers). Ivory, like other safe
+C languages, has a minimal runtime system.
+
+Ivory is not a toy language: we have used Ivory to write
+\emph{SMACCMPilot}~\cite{smaccm}, a full-featured high-assurance
+autopilot for a small unpiloted air vehicle.  Furthermore, Boeing has
+used Ivory to implement a level-of-interoperability for
+Stanag~4586~\cite{stanag}, a unpiloted air vehicle communications
+standard. We know of a few additional small projects by other
+developers in Ivory, as well.  There are well over 100 KLoC of Ivory.
+
+%% maybe remove?  I wanted to talk briefly about the EDSL aspect, etc.
+%% Question this answers: why should I care?  Might be answered in the
+%% next bit ...
+\sjw{more of a summary paragraph, probably rephrase or remove?}
+Ivory is implemented as an EDSL~\cite{edsl} inside the Haskell
+language.  Ivory uses advanced features of the GHC implementation of
+Haskell to ensure properties such as memory safety.  Ivory supports a
+number of reasoning tools.
 
 \paragraph{Contributions}
 In 2014, Stephanie Weirich gave a keynote address at the International
@@ -62,9 +78,4 @@ theorem-prover back-end targeting ACL2~\cite{acl2}. For automated testing, a
 QuickCheck-like property-based test-case generator is integrated into
 Ivory. These tools are described in Section~\ref{sec:tools}.
 
-Ivory is open-source (BSD3 license) and available at \url{ivory-lang.org}. It is
-a ``real'' language, with well over 100k lines of code written in it. In
-addition to the SMACCMPilot autopilot written in Ivory, Boeing has implemented a
-level-of-interoperability for Stanag~4586~\cite{stanag}, a unpiloted air vehicle
-communications standard. We know of a few additional small projects by other
-developers in Ivory, as well.
+Ivory is open-source (BSD3 license) and available at \url{ivory-lang.org}. 
