@@ -315,7 +315,25 @@ that are stored in references also have an instance of \cd{IvoryType}.  Types
 that have \cd{IvoryType} instances include signed and unsigned integers, the
 void type \cd{()}, and references, while types that have an \cd{IvoryArea}
 instance are limited to those that have kind \cd{Area}, defined in
-section~\ref{sec:area}.
+section~\ref{sec:area}.  See figure~\ref{fig:types} for a sample of the
+instances present for these two classes.
+
+\begin{figure}
+\begin{code}
+class IvoryType a
+instance IvoryType Uint32
+instance IvoryType Sint32
+instance IvoryType ...
+instance IvoryArea area => IvoryType (Ref s area)
+
+class IvoryArea (area :: Area *)
+instance IvoryType a => IvoryArea (Stored a)
+instance IvoryArea e => IvoryArea (Array n e)
+instance IvoryArea ...
+\end{code}
+\caption{Sample instances for \cd{IvoryType} and \cd{IvoryArea}}
+\label{fig:types}
+\end{figure}
 
 The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
 have values.  The \cd{IvoryVar} class describes all types that can have an Ivory
