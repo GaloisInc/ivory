@@ -177,7 +177,7 @@ that takes place at the top-level is implicitly in the \cd{Global} region, there
 is no need to involve the Ivory monad.
 
 Once a reference has been acquired, it may be stored to and read from in the
-context of the Ivory monad using the \cd{store} and \cd{deref} commands.  The
+context of the Ivory monad using the \cd{store} and \cd{deref} functions.  The
 Ivory monad does not track effects for manipulating specific references, and
 instead allows reading and writing to any reference that is in scope, within the
 context of the Ivory monad.
@@ -237,22 +237,16 @@ storable.  This constraint is enforced via the \cd{IvoryStore} class.  While the
 \cd{IvoryStore} constraint is used to rule out most types from being stored in a
 reference, it is worth noting that it is used to prohibit the storing of other
 references.  The reason for this restriction is twofold:
-\begin{enumerate}
-\item   There is no good
-way of requiring initializers when a reference-to-reference is allocated.
-\lee{I'd explain this problem in more detail. It's because of nested structures
-  and our use of default initializers}
-\item The lifetime of a reference is not known when it can be
-communicated out via a reference-to-reference procedure argument.
-\end{enumerate}
 
-\lee{Perhaps the following fits best in a discussion later in the paper
-  (wherever Simon's stuff lives)}
-Point (1) could most likely be addressed by adding a concept of a minimal
-initializer for each area-type, while point (2) could be addressed in multiple
-ways, such as Rust's borrow-checker~\cite{rust}, or Cyclone's region
-inference~\cite{cyclone}, though we may give up detection of region errors at
-Haskell type-checking time to do so.
+\begin{enumerate}
+\item We allow the use of default initializers during allocation, but don't have
+  a good way to say what parts of a structure are required, thus potentially
+  introducing a null reference when initializing structures that contain
+  references.
+\item As there is currently no connection between the region of a reference, and
+  the region of any references it points to, it would be possible to persist a
+  reference beyond its lifetime by storing it in a longer-lived reference.
+\end{enumerate}
 
 \paragraph{Structs} A reference that has an area-kind of type \cd{Struct "x"}
 will point to memory whose layout corresponds to the definition of the struct
