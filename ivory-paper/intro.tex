@@ -3,21 +3,34 @@
 
 \lee{also mention in contributions that we've worked on edsl usability?}
 
-There is still a clear need for minimally-managed low-level languages
-which provide fine-grained control over memory usage and timing
-behavior.  For example, embedded systems typically require a small
-resource footprint and predictable interaction with external devices.
-Furthermore, such applications also require high levels of assurance,
-operating, for example, in environments where human intervention is
-undesirable or impossible, or where failure is catastrophic.
+Recent reports of car-hacking via software flaws~\cite{}, unsafe software
+safety-critical software~\cite{}, and bugs in internet-of-things
+devices~\cite{}, all point toward the need for safe low-level programming
+languages. Languages like C or C++ are still the golden standard in embedded
+system development given the low-level control they provide in terms of memory
+usage and timing behavior. But C/C++ is wrought with undefined behavior with
+poor support for formal analysis.
 
-In this paper we present the language \emph{Ivory}.  Ivory follows in
-the footsteps of other ``safe C'' programming languages, like
-Cyclone~\cite{cyclone} and Rust~\cite{rust}. By safe C languages, we
-mean languages that avoid many of the pitfalls of C, particularly
+In this paper we present the language \emph{Ivory}.  Ivory follows in the
+footsteps of other ``safe C'' programming languages, like
+Cyclone~\cite{cyclone}, BitC~\cite{bitc}, and Rust~\cite{rust}. By safe C
+languages, we mean languages that avoid many of the pitfalls of C, particularly
 related to memory safety and undefined behavior, while being suitable for
-writing low-level code (e.g., device drivers). Ivory, like other safe
-C languages, has a minimal runtime system.
+writing low-level code (e.g., device drivers). Ivory, like other safe C
+languages, has a minimal runtime system.
+
+Ivory's implementation, however, is unique compared to previous safe C
+languages. Ivory is implemented as an embedded domain-specific langauge
+(EDSL)~\cite{edsl} within Haskell. Ivory's type system is (shallowly) embedded
+within Haskell's type system, including dependently-typed extensions provided by
+GHC~~\cite{dephaskell}. Without writing a stand-alone type-checker, Ivory types
+guarantee memory safety of Ivory programs at \emph{Haskell} compile time.
+
+However, the Ivory language itself is deeply embedded within Haskell, easing the
+ability to develop various back-ends and verification tools. Not only does Ivory
+generate embedded C, it contains an integrated SMT-based symbolic simulator, and
+a theorem-prover back-end. The combination of a shallowly-embedded types and
+deeply embedded values is novel and pragmatic.
 
 Ivory is not a toy language: we have used Ivory to write
 \emph{SMACCMPilot}~\cite{smaccm}, a full-featured high-assurance
@@ -25,16 +38,12 @@ autopilot for a small unpiloted air vehicle.  Furthermore, Boeing has
 used Ivory to implement a level-of-interoperability for
 Stanag~4586~\cite{stanag}, a unpiloted air vehicle communications
 standard. We know of a few additional small projects by other
-developers in Ivory, as well.  There are well over 100 KLoC of Ivory.
+developers in Ivory, as well.  There are well over 100 KLoC of Ivory in existence.
 
 %% maybe remove?  I wanted to talk briefly about the EDSL aspect, etc.
 %% Question this answers: why should I care?  Might be answered in the
 %% next bit ...
 \sjw{more of a summary paragraph, probably rephrase or remove?}
-Ivory is implemented as an EDSL~\cite{edsl} inside the Haskell
-language.  Ivory uses advanced features of the GHC implementation of
-Haskell to ensure properties such as memory safety.  Ivory supports a
-number of reasoning tools.
 
 \paragraph{Contributions}
 In 2014, Stephanie Weirich gave a keynote address at the International
