@@ -130,6 +130,7 @@ struct_ex = do
 
 
 \subsection{Control structures}
+\label{sec:control}
 
 Ivory has a few simple control flow primitives. For boolean conditions,
 the \cd{ifte\_} primitive is a statement that takes an \cd{IBool} and two
@@ -155,6 +156,17 @@ other loops must specify an upper bound at the type level, using the \cd{Ix n} t
 we used for array indexing. The \cd{arrayMap} loop is run once for every value
 in the range given by \cd{Ix n}. The following loop computes the sum of the
 numbers from 1 to 16:
+
+\lee{Use the following example instead (I want to refer to exactly the following
+code later in the paper):}
+\begin{code}
+mapProc = proc ``mapProc''
+        $ \arr x -> body
+        $ arrayMap
+        $ \ix -> do
+        ￼￼v <- deref (arr ! ix)
+          store (arr ! ix) (v + x)
+\end{code}
 
 \begin{code}
 loop_ex :: (GetAlloc eff %*\mytilde*) Scope s) => Ivory eff Sint32
