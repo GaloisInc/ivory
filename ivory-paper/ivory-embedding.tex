@@ -105,7 +105,7 @@ constructor for returning a value from a procedure, has the following type
 (additional type constraints are elided):
 
 \begin{code}
-ret :: (GetReturn eff ~ Returns r, ...)
+ret :: (GetReturn eff %*\mytilde*) Returns r, ...)
     => r -> Ivory eff ()
 \end{code}
 
@@ -140,13 +140,13 @@ Both forms of allocation take initializers, though \cd{Global} allocation
 through \cd{area} will default to zero-initialization if it is omitted.
 Initializers are functions that embed values into a structure that mirrors that
 of a memory area.  As an example, the \cd{example} value in
-figure~\ref{sec:mem-alloc} defines an initializer for an array of three
+Figure~\ref{sec:mem-alloc} defines an initializer for an array of three
 \cd{Uint8} values.  The types of the allocation functions, as well as a sample
-of the initializers available are given in figure~\ref{fig:mem-alloc}.
+of the initializers available are given in Figure~\ref{fig:mem-alloc}.
 
 \begin{figure}
 \begin{code}
-local  :: (GetAlloc eff ~ 'Scope s, IvoryArea area)
+local  :: (GetAlloc eff %*\mytilde*) 'Scope s, IvoryArea area)
        => Init area -> Ivory eff (Ref s area)
 
 data MemArea (area :: Area *)
@@ -177,7 +177,7 @@ that takes place at the top-level is implicitly in the \cd{Global} region, there
 is no need to involve the Ivory monad.
 
 Once a reference has been acquired, it may be stored to and read from in the
-context of the Ivory monad using the \cd{store} and \cd{deref} commands.  The
+context of the Ivory monad using the \cd{store} and \cd{deref} functions.  The
 Ivory monad does not track effects for manipulating specific references, and
 instead allows reading and writing to any reference that is in scope, within the
 context of the Ivory monad.
@@ -237,22 +237,16 @@ storable.  This constraint is enforced via the \cd{IvoryStore} class.  While the
 \cd{IvoryStore} constraint is used to rule out most types from being stored in a
 reference, it is worth noting that it is used to prohibit the storing of other
 references.  The reason for this restriction is twofold:
-\begin{enumerate}
-\item   There is no good
-way of requiring initializers when a reference-to-reference is allocated.
-\lee{I'd explain this problem in more detail. It's because of nested structures
-  and our use of default initializers}
-\item The lifetime of a reference is not known when it can be
-communicated out via a reference-to-reference procedure argument.
-\end{enumerate}
 
-\lee{Perhaps the following fits best in a discussion later in the paper
-  (wherever Simon's stuff lives)}
-Point (1) could most likely be addressed by adding a concept of a minimal
-initializer for each area-type, while point (2) could be addressed in multiple
-ways, such as Rust's borrow-checker~\cite{rust}, or Cyclone's region
-inference~\cite{cyclone}, though we may give up detection of region errors at
-Haskell type-checking time to do so.
+\begin{enumerate}
+\item We allow the use of default initializers during allocation, but don't have
+  a good way to say what parts of a structure are required, thus potentially
+  introducing a null reference when initializing structures that contain
+  references.
+\item As there is currently no connection between the region of a reference, and
+  the region of any references it points to, it would be possible to persist a
+  reference beyond its lifetime by storing it in a longer-lived reference.
+\end{enumerate}
 
 \paragraph{Structs} A reference that has an area-kind of type \cd{Struct "x"}
 will point to memory whose layout corresponds to the definition of the struct
@@ -281,7 +275,7 @@ field2 :: Label "a" (Struct "b")
 Using a struct label to select the field of a structure requires the use of the
 \cd{(\mytilde>)} operator, which expects a reference to a structure as its first
 argument, and a compatible label as its second.  The type of the
-\cd{(\mytilde>)} operator is given in figure~\ref{fig:area-def}.  In the
+\cd{(\mytilde>)} operator is given in Figure~\ref{fig:area-def}.  In the
 following example, the \cd{(\mytilde>)} operator is used with a reference to an
 ``\cd{a}'' struct, with the \cd{field1} label, producing a new reference of type
 \cd{Ref Global (Stored Sint32)}.
@@ -301,7 +295,7 @@ Arrays in Ivory take two type parameters: the length of the array as a
 type-level natural number, and the area type of its elements.  For example, an
 array of 10 \cd{Sint32} would have the type \cd{Array 10 (Stored
 Sint32)}.  Indexing into arrays is accomplished through the use of the \cd{(!)}
-operator, shown in figure \ref{array-support-functions}.
+operator, shown in Figure \ref{array-support-functions}.
 
 An index into an array has the type \cd{Ix}, which is parameterized by the size
 of the array that it is indexing into.  The \cd{Ix n} type will only hold
@@ -313,8 +307,7 @@ a maximum value that is less than the length of the target array.
 
 As array indexes are parameterized by the length of arrays they can index into,
 they become an interesting target for new combinators.  In this vein, we
-introduce \cd{arrayMap}, whose signature is shown in figure
-\ref{array-support-functions}.  The intuition for the \cd{arrayMap} function is
+introduce \cd{arrayMap}, whose signature is shown in Figure~\ref{array-support-functions}.  The intuition for the \cd{arrayMap} function is
 that it invokes the function provided for all indexes that lie between $0$ and
 $n - 1$.  As the index argument given to the function is most often used with an
 array, type information propagates out from uses of the \cd{(!)} operator, and
@@ -351,62 +344,57 @@ that are stored in references also have an instance of \cd{IvoryType}.  Types
 that have \cd{IvoryType} instances include signed and unsigned integers, the
 void type \cd{()}, and references, while types that have an \cd{IvoryArea}
 instance are limited to those that have kind \cd{Area}, defined in
-section~\ref{sec:area}.  See figure~\ref{fig:types} for a sample of the
-instances present for these two classes.
+section~\ref{sec:area}.  All types used in Ivory programs will have an
+\cd{IvoryType} or \cd{IvoryArea} instance.
 
-\begin{figure}
+\begin{figure}[h]
 \begin{code}
-class IvoryType a
-instance IvoryType Uint32
-instance IvoryType Sint32
-instance IvoryType ...
-instance IvoryArea area => IvoryType (Ref s area)
+class IvoryType t
+class IvoryType t => IvoryVar a where
+  unwrapExpr :: t -> Expr
+  wrapVar    :: Var -> t
+class IvoryVar t => IvoryExpr t
+  wrapExpr   :: Expr -> t
 
-class IvoryArea (area :: Area *)
-instance IvoryType a => IvoryArea (Stored a)
-instance IvoryArea e => IvoryArea (Array n e)
+class    IvoryArea (area :: Area *)
+instance IvoryType t => IvoryArea (Stored t)
 instance IvoryArea ...
 \end{code}
-\caption{Sample instances for \cd{IvoryType} and \cd{IvoryArea}}
+\caption{Classes used to define Ivory's domain}
 \label{fig:types}
 \end{figure}
 
 The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
-have values.  The \cd{IvoryVar} class describes all types that can have an Ivory
-expression extracted from them, as well as be created from a single variable.
-This roughly corresponds to types that can be used as an L-value in assigments,
-but also includes types that are to be used as arguments to functions.
-The \cd{IvoryExpr} class includes types that can be constructed from full
-expressions, and corresponds to the set of types whose values can be used in the
-position of an R-value.  It might be tempting to say that the functionality of
-the \cd{IvoryVar} belongs in the \cd{IvoryType} class, however as Ivory has a
-void type, \cd{()}, we do require this distinction so that we can prevent void
-values from being created.
+have values.  The \cd{IvoryVar} class, which is a superclass of \cd{IvoryExpr}
+describes all types that can have an Ivory expression extracted from them, as
+well as be created from a fresh name.  This roughly corresponds to types that
+can be used as an L-value in assigments, but also includes types that are to be
+used as arguments to functions.  The \cd{IvoryExpr} class includes types that
+can be constructed from full expressions, and corresponds to the set of types
+whose values can be used in the position of an R-value.  It might be tempting to
+say that the functionality of the \cd{IvoryVar} belongs in the \cd{IvoryType}
+class, however as Ivory has a void type, \cd{()}, we do require this distinction
+so that we can prevent void values from being created.  Most types used in Ivory
+provide instances for all three classes, \cd{IvoryType}, \cd{IvoryVar}, and
+\cd{IvoryExpr}, with only a few exceptions like \cd{()} defining a subset.  See
+Figure~\ref{fig:types} for the relationship between these classes.
 
 \jamey{What's the distinction between \cd{IvoryVar} and \cd{IvoryExpr}?}
 
 \subsection{Procedures}
 \label{sec:proc}
 
-\lee{I'd cut this entire paragraph, and just explain what they are.}
-Procedures in Ivory differ from Haskell functions in a few major ways: they are
-not first class in the language\footnote{Values of type \cd{Def} may not be used
-as an argument to Ivory procedures, but pointers to procedures are acceptable.},
-they may not be partially applied, and they produce real functions in the
-generated code.  Contrasting that with functions in Haskell that produce values
-in the \cd{Ivory} monad, they are first class, they can be partially applied,
-and they will be expanded at compile time, causing them to behave more like
-macros for Ivory.  The question to answer when choosing between defining
-functionality as a Haskell function or an Ivory procedure is this: is the cost
-of expanding out the definition at the call site acceptable?
-
-Procedures in Ivory inhabit the \cd{Def} type which is parameterized by the
-signature of the function it names.  Procedure signatures inhabit the \cd{Proc}
-kind, which provides one type constructor: \cd{:->}.  The \cd{:->} type
-constructor takes two arguments: the types of the argument list, and the return
-type of the whole procedure.  As the intent behind the use of the \cd{:->} type
-is to suggest that all of the arguments to the left of the arrow must be
-provided before a result may be produced.
+Ivory procedures differ from Haskell functions in that they behave as compiled
+procedures, not macros; Haskell functions that produce \cd{Ivory} values will be
+expanded at compile time, while Ivory procedures will be translated into
+procedures in the target language.  Procedures in Ivory inhabit the \cd{Def}
+type which is parameterized by the signature of the function it names.
+Procedure signatures inhabit the \cd{Proc} kind, which provides one type
+constructor: \cd{:->}.  The \cd{:->} type constructor takes two arguments: the
+types of the argument list, and the return type of the whole procedure.  As the
+intent behind the use of the \cd{:->} type is to suggest that all of the
+arguments to the left of the arrow must be provided before a result may be
+produced.
 
 \paragraph{Definition}
 
@@ -418,9 +406,8 @@ viewing Haskell functions that produce values in the Ivory monad as macros, the
 \cd{proc} function can be seen as operating at the meta-level, accepting a
 symbol name and macro as its arguments, and producing a procedure with the given
 name, and the fully-applied macro as its body.  Correct procedure definition is
-guarded by the \cd{IvoryProcDef} class, which constrains uses of the \cd{proc}
-function. \lee{maybe show the class definition? This is hard to follow without
-  something concrete.}
+guarded by the \cd{IvoryProcDef} class, shown in Figure~\ref{fig:proc-defs},
+which constrains uses of the \cd{proc} function.
 
 \cd{IvoryProcDef} has two parameters: signature and implementation, which relate
 the \cd{Proc} type of the resulting Ivory procedure and the Haskell function
@@ -434,15 +421,14 @@ acceptable as an argument to an Ivory function, the use of the \cd{IvoryVar}
 constraint also allows values to be manufactured from fresh names, allowing
 dummy values to be passed to the implementation function.
 
-\lee{\cd{imp}, \cd{sig}, \cd{Body r} etc. were never introduced before mentioning them here.}
-Examining the functional dependencies for the \cd{IvoryProcDef} class, we see
-that the implementation function (\cd{impl}) fully determines the signature of
-the resulting procedure (\cd{sig}).  The effect of this dependency in the
-context of the \cd{proc} function is that the user will rarely need to write an
-accompanying \cd{Def} signature for Ivory procedures they define; uses of the
-arguments to a procedure will often yield a monomorphic implementation function,
-which through the functional dependency will produce a monomorphic \cd{Def}
-type.
+Examining the functional dependencies for the \cd{IvoryProcDef} class from
+Figure~\ref{fig:proc-defs}, we see that the implementation function (\cd{impl})
+determines the signature of the resulting procedure (\cd{sig}).  The effect of
+this dependency in the context of the \cd{proc} function is that the user will
+rarely need to write an accompanying \cd{Def} signature for Ivory procedures
+they define; uses of the arguments to a procedure will often yield a monomorphic
+implementation function, which through the functional dependency will produce a
+monomorphic \cd{Def} type.
 
 The implementation function is required to produce a value of type \cd{Body r},
 which is simply an Ivory monadic action with its allocation context hidden, and
@@ -456,7 +442,7 @@ effects.  The result of this restriction is that memory can be read and
 validated, but control flow and allocation effects are prohibited.
 
 The procedure body can be defined through the use of the \cd{body} function,
-whose signature is shown in figure~\ref{fig:proc-defs}, lifts an Ivory
+whose signature is shown in Figure~\ref{fig:proc-defs}, lifts an Ivory
 computation that returns a result \cd{r} and allocates data in a region \cd{s}
 into a value of type \cd{Body r}.  As the allocation scope expected by the Ivory
 computation given is quantified in a rank-2 context to the \cd{body} function,
@@ -466,12 +452,12 @@ being returned, a source of dangling pointer bugs.  This is the same technique
 used by Launchbury and Peyton Jones~\cite{stmonad} to prevent mutable state
 from leaking out of the context of the run function for the \cd{ST} monad.
 
-For example, the procedure \cd{f} defined in figure~\ref{fig:proc-def}, will
+For example, the procedure \cd{f} defined in Figure~\ref{fig:proc-def}, will
 produce a type error, as it attempts to return a locally-allocated reference;
-references are parameterized by the scope they were allocated in, and having
-that scope variable quantified in the rank-2 context of the argument to the
-\cd{body} function prevents anything allocated within that action from showing
-up in the return type \cd{r}.
+references are parameterized by the scope they were allocated in, and as that
+scope variable is quantified in the rank-2 context of the argument to the
+\cd{body} function that reference is prevented from showing up in the return
+type of the procedure, \cd{r}.
 
 \begin{figure}[h]
 \begin{code}
@@ -497,9 +483,6 @@ continuation generated by the instances of \cd{IvoryCall}.  For example, calling
 a procedure with type \cd{Def ('[Sint32] :-> Sint32)} will produce a
 continuation of the type, \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff}
 parameter is inherited from the current environment.
-
-\trevor{Is there something from Lennart that we can cite about the
-implementation of call, as it relates to printf?}
 
 \begin{figure}[h]
 \begin{code}
@@ -528,110 +511,6 @@ call :: IvoryCall sig eff impl => Def sig -> impl
 \label{fig:proc-defs}
 \end{figure}
 
-
-
-\lee{Trevor: describe the use of type-level lists to define procedures. Describe
-the use of a type-class to ensure procedure calls in Ivory are type-correct.}
-
-\subsection{Strings}
-Ivory's support for character strings builds upon the fixed-size array
-data type to implement an "array with fill pointer" mechanism, as opposed
-to traditional C-style null-terminated strings.
-
-A string value is a structure containing two fields: the data array
-with its type-level natural number parameter indicating the maximum
-capacity of the string, and an integer field containing the number of
-valid characters in the string, up to the capacity.
-
-In figure \ref{ivory-string-type-defn}, we define two example
-string types: \cd{Name} is defined with a capacity of 40
-characters, and \cd{Phone} with a capacity of 10 characters.
-
-\begin{figure}[h]
-\begin{code}
-[ivory| struct name
-    { name_data   :: Array 40 (Stored Uint8)
-    ; name_length :: Stored Sint32
-    }
-
-  struct phone
-    { phone_data   :: Array 10 (Stored Uint8)
-    ; phone_length :: Stored Sint32
-    }
-|]
-
-type Name  = Struct "name"
-type Phone = Struct "phone"
-\end{code}
-\caption{Definition of two Ivory string types}
-\label{ivory-string-type-defn}
-\end{figure}
-
-Despite their common structure, the \cd{Name} and \cd{Phone} types
-are completely distinct. In order to provide standard library
-functions that operate over strings with different capacities in a generic
-way, we capture this common structure in the \cd{IvoryString} type
-class, defined here in figure \ref{ivory-string-class}.
-
-\begin{figure}[h]
-\begin{code}
-class IvoryString a where
-  type Capacity a :: Nat
-  stringDataL   :: Label (StructName a)
-                         (Array (Capacity a)
-                                (Stored Uint8))
-  stringLengthL :: Label (StructName a)
-                         (Stored Sint32)
-\end{code}
-\caption{The \cd{IvoryString} type class}
-\label{ivory-string-class}
-\end{figure}
-
-The \cd{IvoryString} type class ties together the type-level natural
-number containing the array's capacity along with structure field accessors
-for the data array and length field. The instance declarations for \cd{Name}
-and \cd{Phone} are trivial, as shown in figure \ref{ivory-string-instances}.
-
-\begin{figure}[h]
-\begin{code}
-instance IvoryString Name where
-  type Capacity Name = 40
-  stringDataL = name_data
-  stringLengthL = name_length
-
-instance IvoryString Phone where
-  type Capacity Phone = 10
-  stringDataL = phone_data
-  stringLengthL = phone_length
-\end{code}
-\caption{\cd{IvoryString} instances for the \cd{Name} and \cd{Phone}
-string types.}
-\label{ivory-string-instances}
-\end{figure}
-
-With these instances in place, we are able to provide standard library
-functions that operate on strings of any capacity, without losing any
-type-level information about the capacity of the internal array. For
-example, to return the length of any Ivory string, we define the
-\cd{istr\_len} function as follows:
-
-\begin{code}
--- Return the length of any Ivory string.
-istr_len :: IvoryString a
-         => ConstRef s a -> Ivory eff Sint32
-istr_len s = deref (s %*\mytilde*)> stringLengthL)
-\end{code}
-
-The process of defining string types that only differ
-in their maximum capacity can be automated by the Ivory quasiquoter,
-allowing us to define these types in a single line each:
-
-\begin{code}
-[ivory|
-  string struct Name 40
-  string struct Phone 10
-|]
-\end{code}
 
 \subsection{Bit-Data}
 
@@ -762,17 +641,17 @@ example, declarations can be declared as either public or private, and modules
 can depend on other modules.
 
 While Ivory's type system is embedded in GHC's type system and Ivory's language
-in the Haskell term language, Ivory's module system cannot be embedded in
+is the Haskell term language, Ivory's module system cannot be embedded in
 Haskell's module system. Thus, the user must deal with both Haskell's module
 system and Ivory's orthogonal module system when programming.
 
-At best, forgetting to include an Ivory dependency is an inconvenience. The
+At best, forgetting to include an Ivory dependency is an inconvenience. This
 inconvenience can be substantial in the case that an inter-module dependency is
-omitted. In this case, The Ivory program type-checks. If the dependency missing
-is a C~function implementation, for example, C~code is generated and compiles,
-but fails during link time. The error does not result in a safety violation, but
-in large projects, such as the SMACCMPilot autopilot written in Ivory~\cite{},
-the error can take several minutes to detect.
+omitted, which still permits the Ivory program to type-check. If the dependency
+missing is a C~function implementation, for example, C~code is generated and
+compiles, but fails during link time. The error does not result in a safety
+violation, but in large projects, such as the SMACCMPilot autopilot written in
+Ivory~\cite{}, the error can take several minutes to detect.
 
 \begin{figure}[h]
 \begin{code}
@@ -816,10 +695,3 @@ a function matches the types of the arguments.
 
 We describe other approaches to compilation that do not involve an embedded
 module system in Section~\ref{sec:conclusion}.
-
-
-
-
-
-
-

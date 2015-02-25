@@ -1,11 +1,6 @@
 \section{Related Work}
 \label{sec:related-work}
 
-\sjw{lee: BitC}
-
-\lee{Trevor/Lee: Describe other safe-C languages, particularly Mark Jones/Yav's work, which
-  is an inspiration for Ivory.}
-
 The general idea of safe C languages is not new; our main contribution is
 embedding a type system into GHC as well as our support of verification
 tools.
@@ -23,17 +18,22 @@ tools. Unfortunately, Cyclone is not actively maintained.
 Bit-data and memory areas in Ivory borrow heavily from Diatchki~et~al.'s
 previous work~\cite{high-level, memareas}. Indeed, one can consider the present
 work as demonstrating the feasibility of embedding this language into Haskell
-and GHC types.
+and GHC types. BitC is another language deprecated research language that
+explored a similar design space~\cite{bitc}.
+
+Spark/Ada is a mature language for high-assurance embedded
+programming, with a contract language and verification tools to
+prove invariants~\cite{spark}. To support verification, the language is
+very restrictive; in particular, there are no references in the language.
 
 Rust is an actively-developed safe C language, originating from
-Mozilla~\cite{rust}. The Rust concurrency model is similar to Erlang's~\cite{}
-containing lightweight threads. There is a powerful type system to enforce
-safely using heap-based data structures. An affine type system prevents pointer
-aliasing errors. Rust provides reference counting garbage collection as a
-library (so other garbage collection strategies can be used instead). Rust has
-hygenic macros. The language has a property-based testing framework, but no
-mature support for verification, or even static checks for undefined behavior
-(e.g., division by a constant zero expression).
+Mozilla~\cite{rust}. Rust has a powerful type system to enforce safely using
+heap-based data structures. An affine type system prevents pointer aliasing
+errors. Rust provides reference counting garbage collection as a library (so
+other garbage collection strategies can be used instead). Rust has hygenic
+macros. The language has a property-based testing framework, but no mature
+support for verification, or even static checks for undefined behavior (e.g.,
+division by a constant zero expression).
 
 EDSLs for safe C programming also exist. Examples include Atom, a language for
 lock-free embedded programs~\cite{atom}; Copilot, a stream-oriented synchronous
