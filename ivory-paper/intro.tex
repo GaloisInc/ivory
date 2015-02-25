@@ -15,7 +15,7 @@ In this paper we present the language \emph{Ivory}.  Ivory follows in
 the footsteps of other ``safe C'' programming languages, like
 Cyclone~\cite{cyclone} and Rust~\cite{rust}. By safe C languages, we
 mean languages that avoid many of the pitfalls of C, particularly
-related to memory safety and undefined behavior, that are suitable for
+related to memory safety and undefined behavior, while being suitable for
 writing low-level code (e.g., device drivers). Ivory, like other safe
 C languages, has a minimal runtime system.
 
@@ -48,11 +48,11 @@ powerful subset of dependent typing features can be used while still enjoying
 type-inference and decidable type-checking~\cite{dephaskell}.
 
 Ivory exemplifies the use of GHC dependent types in a large, fully-featured
-EDSL. A contribution of the language is demonstrating that type checking for
-safe programming involving the use of pointers, arrays, loops and local memory
-allocation, can be embedded into GHC's type system. Indeed, Ivory's type system
-goes beyond mere safety and tracks effects, such as memory allocation and
-control flow operators (e.g., \cd{break} and \cd{return} statements).
+EDSL. The language demonstrates that type checking for safe systems programming
+can be embedded into GHC's type system, verifying properties involving
+pointers, arrays, loops and local memory allocation. Indeed, Ivory's type
+system goes beyond mere safety and tracks effects, such as control flow
+operators like \cd{break} and \cd{return} statements.
 
 After providing a brief introduction to the Ivory language in
 Section~\ref{sec:ivory-overview}, we describe Ivory's embedding in GHC's type

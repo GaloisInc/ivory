@@ -28,7 +28,7 @@ Currently, we track three classes of effects for a given monadic code block:
 
 \begin{itemize}
 \item \emph{Returns}: does the code block contain a \cd{return} statement, and
-  is the type of the returned value corect?
+  is the type of the returned value correct?
 \item \emph{Breaks}: does the code block contain a \cd{break} statement?
 \item \emph{Allocation}: does the code block contain local memory allocation?
 \end{itemize}
@@ -38,19 +38,22 @@ which the monad is used. For example, a \cd{return} statement is safe when used
 within a procedure, to implement a function return. But an Ivory code block can
 also be used to implement an operating system task that should never
 return. Similarly in Ivory, \cd{break} statements are used to terminate
-execution of an enclosing loop (the other valid use of \cd{break} in C99 is to
-terminate execution in a \cd{switch} block; Ivory does not contain
-\cd{switch}). By tracking break effects, we can ensure that an Ivory block
+execution of an enclosing loop. (The other valid use of \cd{break} in C99 is to
+terminate execution in a \cd{switch} block, but Ivory does not contain
+\cd{switch}.) By tracking break effects, we can ensure that an Ivory block
 containing a \cd{break} statement is not used outside of a loop. Finally,
 allocation effects are used to guarantee that a reference to locally-allocated
-memory is not returned by a procedure, resulting in undefined behavior; see
+memory is not returned by a procedure, which would result in undefined behavior; see
 Section~\ref{sec:ref} for details. Moreover, from a code block's type alone, we
 can determine whether it allocates memory, simplifying tasks like stack usage
 analysis.
+\jamey{We don't have a coherent story for stack usage analysis as far as I can
+tell. Can we give a more compelling example of the value of tracking local
+allocation effects?}
 
 The Ivory effects system is essentially implemented by a type-level tuple
 structure where each of the three effects correspond to a field of the
-tuple. Type equality constrains enforce that a particular effect is (or is not)
+tuple. Type equality constraints enforce that a particular effect is (or is not)
 allowed in a give function signature.
 
 The type-level tuple is implemented using data kinds~\cite{data-kinds}. Effects have the
@@ -85,8 +88,8 @@ type instance GetReturn ('Effects r b a) = r
 \end{code}
 
 \noindent
-(The GHC convention is to precede a type with a tick (\cd{'}) to disambiguate a
-type constructor (with the tick) from the data constructor.)
+(The GHC syntax is to precede a data kind type constructor with a tick (\cd{'})
+to disambiguate it from the corresponding data constructor.)
 
 To modify the field, another type family rewrites it. For example,
 
@@ -111,9 +114,9 @@ ret :: (GetReturn eff ~ Returns r, ...)
 
 Ivory uses regions for memory management.  When data is allocated, a reference
 to the resulting data is returned, and tagged by the containing region using a
-type variable.  Well-typed Ivory programs guarantee that references do no
+type variable.  Well-typed Ivory programs guarantee that references do not
 persist beyond the scope of their containing region.  Currently, regions are
-either global or allocated and freed on function entry/exit (the back-end relies
+either global, or allocated and freed on function entry/exit (the back-end relies
 on stack-based allocation in C), although the language could be modified to
 separate the two concepts.
 
@@ -121,6 +124,7 @@ separate the two concepts.
 maybe the type of \cd{local}. and particularly, describe how \cd{local} is
 implemented using the ST monad trick. Also, some more detailed description of
 initializers is warranted.}
+\jamey{come back to this section for deeper editing}
 
 Corresponding to these two kinds of regions, \cd{Global} which holds global data, and a
 function-local scope, unique to the function which is performing the allocation.
@@ -133,13 +137,13 @@ allocated in that region should should up in the return type of that procedure,
 Ivory avoids the introduction of dangling pointers.  The embedding of this
 feature in Haskell will be described in more detail in section~\ref{sec:proc}
 
-As noted in section \ref{sec:ivory-monad}, allocation is tracked through an
+As noted in section~\ref{sec:ivory-monad}, allocation is tracked through an
 effect in the effect context of the Ivory monad.  The result of this is that
 each call to the \cd{local} allocation function produces references that are
 tied to that specific context.  Conversely, if the current effect context has
 no allocation scope, there is no way to produce a new reference.  As allocation
 that takes place at the top-level is implicitly in the \cd{Global} region, there
-is no need involve the Ivory monad.
+is no need to involve the Ivory monad.
 
 Once a reference has been acquired, it may be stored to and read from in the
 context of the Ivory monad using the \cd{store} and \cd{deref} commands.  The
@@ -170,6 +174,8 @@ position of an R-value.  It might be tempting to say that the functionality of
 the \cd{IvoryVar} belongs in the \cd{IvoryType} class, however as Ivory has a
 void type, \cd{()}, we do require this distinction so that we can prevent void
 values from being created.
+
+\jamey{What's the distinction between \cd{IvoryVar} and \cd{IvoryExpr}?}
 
 \subsection{Memory Areas}
 \label{sec:area}
@@ -234,7 +240,7 @@ communicated out via a reference-to-reference procedure argument.
   (wherever Simon's stuff lives)}
 Point (1) could most likely be addressed by adding a concept of a minimal
 initializer for each area-type, while point (2) could be addressed in multiple
-ways, such as rust's borrow-checker~\cite{rust}, or cyclone's region
+ways, such as Rust's borrow-checker~\cite{rust}, or Cyclone's region
 inference~\cite{cyclone}, though we may give up detection of region errors at
 Haskell type-checking time to do so.
 
@@ -259,9 +265,9 @@ the struct definition from figure \ref{example-struct}, it would have type
 Also introduced by the struct declaration are field labels.  Field labels allow
 for indexing into a memory area, producing a reference to the value contained
 within the struct.  For example, using the struct definition from figure
-\ref{example-struct}, quasi-quoter generates two labels introduced: \cd{field1}, and
-\cd{field2}, for accessing those fields given a reference to an ``\cd{a}'':
-struct
+\ref{example-struct}, quasi-quoter generates two labels, \cd{field1} and
+\cd{field2}, for accessing those fields given a reference to an ``\cd{a}''
+struct:
 \begin{code}
 field1 :: Label "a" (Stored Sint32)
 field2 :: Label "a" (Struct "b")
@@ -381,7 +387,7 @@ function. \lee{maybe show the class definition? This is hard to follow without
   something concrete.}
 
 \cd{IvoryProcDef} has two parameters: signature and implementation, which relate
-the \cd{Proc} type of the resulting Ivory procedure and the haskell function
+the \cd{Proc} type of the resulting Ivory procedure and the Haskell function
 given as the its implementation.  There are only two instances for
 \cd{IvoryProcDef}: the case where the argument list is empty, and the case where
 the argument list is extended by one argument, corresponding to the cases for

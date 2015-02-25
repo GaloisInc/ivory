@@ -43,7 +43,7 @@ over Ivory types that give a boolean result - for example, Ivory cannot
 implement the `Eq` class for Sint8 (`(==) :: Sint8 -> Sint8 -> Bool`), but
 instead an `IvoryEq` class with an operator `(==?) :: Sint8 -> Sint8 -> IBool`.
 Other comparisons, e.g. those in `IvoryOrd`, are also given their ordinary
-haskell names postfixed with a `?`.
+Haskell names postfixed with a `?`.
 
 ### Array types
 

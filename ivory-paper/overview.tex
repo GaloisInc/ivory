@@ -105,6 +105,9 @@ array_ex a = incr (a ! 5)
 \noindent
 Trying to write the statement \cd{incr (a ! 10)} results in a Haskell type
 error.
+\jamey{No, it doesn't currently; I accidentally made this error the other day
+and only noticed because I read the generated C. It would be nice if it were a
+type error, certainly...}
 
 Traditional C structures are defined using a quasiquoter to specify the field
 names and their types. Each field name can be used with the \cd{~>} operator
@@ -215,16 +218,18 @@ code.
 
 Ivory can only import and use functions that have a valid Ivory type signature.
 Some polymorphic C functions may have multiple valid Ivory types.
+\jamey{The printf\_proc example illustrates this, but does it pass the sanity
+checker? I don't think so...?}
 
 \subsection{Toolchain Use}
-The Ivory compiler is a haskell function that takes a list of \cd{Module}s,
+The Ivory compiler is a Haskell function that takes a list of \cd{Module}s,
 parses command line options, and writes generated C source and header files to
 a directory given by those options.
 
 The compiler's second argument is a list of \cd{Artifact}s. Artifacts are a
-datatype for an arbitrary haskell string and a filename, indicating the contents
+datatype for an arbitrary Haskell string and a filename, indicating the contents
 of a non-Ivory-generated file to be written to the output directory. In
-practice, this is used to write Makefiles, linker scripts, and debug output
+practice, this is used to write Makefiles, native C sources, linker scripts, and debug output
 specified by the user.
 
 There are also related functions exposed to the user that allow the parsing

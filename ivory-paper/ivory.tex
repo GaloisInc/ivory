@@ -45,9 +45,12 @@
 \usepackage{stmaryrd} %sjw, for oxford brackets (\llbracket, \rrbracket)
 \usepackage{amssymb}  %sjw, mainly for mathbb
 %% \usepackage{bytefield} %jjb, for bit data, not used yet
+\usepackage{hyphenat} %js to control hyphenation
 
 %% For inference rules
 \usepackage{mathpartir}
+
+\hyphenation{SMACCM-Pilot}
 
 % Language definition for both quasi-quoted Ivory, and Haskell.
 \lstdefinelanguage{Ivory}
@@ -71,6 +74,7 @@
               \newcommand{\trevor}[1]{\textcolor{blue}{TE: #1}}
               \newcommand{\james}[1]{\textcolor{blue}{JB: #1}}
               \newcommand{\eric}[1]{\textcolor{blue}{ES: #1}}
+              \newcommand{\jamey}[1]{\textcolor{blue}{JS: #1}}
              }
              {\newcommand{\pat}[1]{}
               \newcommand{\lee}[1]{}
@@ -78,6 +82,7 @@
               \newcommand{\trevor}[1]{}
               \newcommand{\james}[1]{}
               \newcommand{\eric}[1]{}
+              \newcommand{\jamey}[1]{}
              }
 
 \newcommand{\mytilde}{\raise.17ex\hbox{$\scriptstyle\mathtt{\sim}$}}
@@ -134,7 +139,7 @@ Ivory is a ``safe C'' language, enforcing memory safety and removing most
 undefined behaviors, while providing low-level control of memory-manipulation
 and timing. Ivory is embedded in a modern variant of Haskell, as implemented by
 the GHC compiler. The main contributions of the paper are two-fold. First, we
-demonstrate how to embedded type type-system of a safe-c language into the
+demonstrate how to embedded type type-system of a safe-C language into the
 dependent-type extensions of GHC. Second, Ivory is of interest in its own right,
 as a powerful language for writing high-assurance embedded programs. Beyond
 invariants enforced by its type-system, Ivory has direct support for
