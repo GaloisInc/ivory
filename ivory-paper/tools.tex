@@ -21,6 +21,7 @@ main = proc "main" $ \ x y -> body $
   ret (x + y)
 \end{code}
 \noindent
+\jamey{I suggest not naming this ``main''; its type will confuse C programmers.}
 The following function is generated, which contains an overflow check before the
 expression is evaluated:
 \begin{code}
@@ -68,6 +69,8 @@ the assertion
 \end{code}
 \noindent
 is generated (and in this case, subsequently discharged by the constant folder).
+\jamey{I this this expression is too complicated for the constant folder. An
+SMT solver could sort it out, of course.}
 
 Generated correctness conditions as well as general user assertions can be
 discharged via testing or using model-checking or theorem-proving. We describe

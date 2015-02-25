@@ -41,8 +41,8 @@ source locations. Consider the Ivory expression \hbox{\cd{x / y},} which induces
 runtime assertion \cd{y != 0}. If the assertion fails, we would like to include
 a source location in the error message to direct the programmer to the source of
 the error. But how are we to obtain the source location in the first place?
-Ivory programs are comprised of Haskell expressions and Haskell is pure --
-functions cannot depend on their call-site -- so we must look outside the
+Ivory programs are comprised of Haskell expressions and Haskell is
+pure--functions cannot depend on their call-site--so we must look outside the
 language proper to obtain source locations. A common approach for writing
 location-aware functions in Haskell, epitomized by the \cd{file-location}
 package~\cite{file-location}, is to use a Template Haskell splice to query the
@@ -60,7 +60,7 @@ locations from GHC and wraps all actions in the \cd{Ivory} monad with a
 \cd{withLocation} function that emits a \cd{Location} statement before executing
 the wrapped action. While this effectively limits the location granularity to
 lines rather than columns, our approach required only modest changes to the
-Ivory compiler and -- importantly -- no changes to Ivory code. As the plugin
+Ivory compiler and--importantly--no changes to Ivory code. As the plugin
 itself requires little knowledge of Ivory, we have abstracted it out into a
 separate package~\cite{ghc-srcspan-plugin} that can be reused by other projects.
 Furthermore, we have since submitted a lightweight extension to GHC that allows
