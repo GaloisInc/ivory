@@ -21,21 +21,28 @@ writing low-level code (e.g., device drivers). Ivory, like other safe C
 languages, has a minimal runtime system.
 
 Ivory's implementation, however, is unique compared to previous safe C
-languages. Ivory is implemented as an embedded domain-specific langauge
-(EDSL)~\cite{edsl} within Haskell. Ivory's type system is shallowly embedded
-within Haskell's type system, taking advantage of the dependently-typed extensions provided by
-GHC~~\cite{dephaskell}. Without writing a stand-alone type-checker, Ivory types
-guarantee memory safety of Ivory programs at \emph{Haskell} compile time.
+languages: Ivory is implemented as an embedded domain-specific
+language (EDSL)~\cite{edsl} within Haskell.  In addition to the
+benefits of rapid language development, this gives Ivory a powerful
+templating system --- the language Haskell --- allowing low-level
+programs to be written in a high-level style.
 
-The Ivory language itself is deeply embedded within Haskell.  This
-novel combination of shallowly-embedded types and deeply-embedded
-values permits ease of development without sacrificing the ability to
-develop various back-ends and verification tools.  In addition to the
-generation of embedded C for compilation, the Ivory language suite
-includes an integrated SMT-based symbolic simulator and a
-theorem-prover back-end.  All these back-ends share the same AST:
+Ivory's type system is shallowly embedded within Haskell's type
+system, taking advantage of the dependently-typed extensions provided
+by GHC~\cite{dephaskell}. Thus, well-typed Ivory programs are
+guaranteed to produce memory safe executables, all without writing a
+stand-alone type-checker.
+
+In contrast, the Ivory syntax is \emph{deeply} embedded within
+Haskell.  This novel combination of shallowly-embedded types and
+deeply-embedded syntax permits ease of development without sacrificing
+the ability to develop various back-ends and verification tools: in
+addition to the generation of embedded C for compilation, the Ivory
+language suite includes an integrated SMT-based symbolic simulator and
+a theorem-prover back-end.  All these back-ends share the same AST:
 Ivory verifies what it compiles.
 
+\sjw{move to contributions bit?}
 Ivory is not a toy language: we have used Ivory to write
 \emph{SMACCMPilot}~\cite{smaccm}, a full-featured high-assurance
 autopilot for a small unpiloted air vehicle.  Furthermore, Boeing has
@@ -88,7 +95,7 @@ theorem-prover back-end targeting ACL2~\cite{acl2}. For automated testing, a
 QuickCheck-like property-based test-case generator is integrated into
 Ivory. These tools are described in Section~\ref{sec:tools}.
 
-We describe related work, in safe C language and EDSLs in
+We describe related work in safe C language and EDSLs in
 Section~\ref{sec:related-work} and provide concluding remarks in
 Section~\ref{sec:conclusion}.
 
