@@ -105,7 +105,7 @@ constructor for returning a value from a procedure, has the following type
 (additional type constraints are elided):
 
 \begin{code}
-ret :: (GetReturn eff ~ Returns r, ...)
+ret :: (GetReturn eff %*\mytilde*) Returns r, ...)
     => r -> Ivory eff ()
 \end{code}
 
@@ -146,7 +146,7 @@ of the initializers available are given in figure~\ref{fig:mem-alloc}.
 
 \begin{figure}
 \begin{code}
-local  :: (GetAlloc eff ~ 'Scope s, IvoryArea area)
+local  :: (GetAlloc eff %*\mytilde*) 'Scope s, IvoryArea area)
        => Init area -> Ivory eff (Ref s area)
 
 data MemArea (area :: Area *)
