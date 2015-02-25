@@ -49,7 +49,7 @@ value is equal to 4.
 
 \begin{code}
 
-uses_allocation :: (GetAlloc eff \mytilde Scope s)
+uses_allocation :: (GetAlloc eff %*\mytilde*) Scope s)
                 => Ivory eff IBool
 uses_allocation = do
   r <- local (ival (3 :: Sint32))
@@ -118,14 +118,14 @@ struct position
   }
 |]
 
-struct_ex :: (GetAlloc eff \mytilde Scope s) => Ivory eff ()
+struct_ex :: (GetAlloc eff %*\mytilde*) Scope s) => Ivory eff ()
 struct_ex = do
   s <- local (istruct [ latitude .= ival 45.52
                       , longitude .= ival (-122.68)
                       , altitude .= ival 1524 ])
-  lat <- deref (s \mytilde> latitude)
-  lon <- deref (s \mytilde> longitude)
-  incr (s \mytilde> altitude)
+  lat <- deref (s %*\mytilde*)> latitude)
+  lon <- deref (s %*\mytilde*)> longitude)
+  incr (s %*\mytilde*)> altitude)
 \end{code}
 
 
@@ -157,7 +157,7 @@ in the range given by \cd{Ix n}. The following loop computes the sum of the
 numbers from 1 to 16:
 
 \begin{code}
-loop_ex :: (GetAlloc eff \mytilde Scope s) => Ivory eff Sint32
+loop_ex :: (GetAlloc eff %*\mytilde*) Scope s) => Ivory eff Sint32
 loop_ex = do
   a <- local (iarray [1..])
   v <- local (ival 0)
