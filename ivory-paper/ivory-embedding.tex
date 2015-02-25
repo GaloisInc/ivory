@@ -365,7 +365,7 @@ instance IvoryArea ...
 \end{figure}
 
 The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
-have values.  The \cd{IvoryVar} class, which is a superclass of \cd{IvoryExpr}
+have values.  The \cd{IvoryVar} class, which is a superclass of \cd{IvoryExpr},
 describes all types that can have an Ivory expression extracted from them, as
 well as be created from a fresh name.  This roughly corresponds to types that
 can be used as an L-value in assigments, but also includes types that are to be
@@ -373,13 +373,11 @@ used as arguments to functions.  The \cd{IvoryExpr} class includes types that
 can be constructed from full expressions, and corresponds to the set of types
 whose values can be used in the position of an R-value.  It might be tempting to
 say that the functionality of the \cd{IvoryVar} belongs in the \cd{IvoryType}
-class, however as Ivory has a void type, \cd{()}, we do require this distinction
-so that we can prevent void values from being created.  Most types used in Ivory
+class. However, Ivory has a void type (\cd{()}) so we do require this distinction
+to prevent void values from being created.  Most types used in Ivory
 provide instances for all three classes, \cd{IvoryType}, \cd{IvoryVar}, and
 \cd{IvoryExpr}, with only a few exceptions like \cd{()} defining a subset.  See
 Figure~\ref{fig:types} for the relationship between these classes.
-
-\jamey{What's the distinction between \cd{IvoryVar} and \cd{IvoryExpr}?}
 
 \subsection{Procedures}
 \label{sec:proc}
