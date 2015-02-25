@@ -388,25 +388,17 @@ values from being created.
 \subsection{Procedures}
 \label{sec:proc}
 
-\lee{I'd cut this entire paragraph, and just explain what they are.}
-Procedures in Ivory differ from Haskell functions in a few major ways: they are
-not first class in the language\footnote{Values of type \cd{Def} may not be used
-as an argument to Ivory procedures, but pointers to procedures are acceptable.},
-they may not be partially applied, and they produce real functions in the
-generated code.  Contrasting that with functions in Haskell that produce values
-in the \cd{Ivory} monad, they are first class, they can be partially applied,
-and they will be expanded at compile time, causing them to behave more like
-macros for Ivory.  The question to answer when choosing between defining
-functionality as a Haskell function or an Ivory procedure is this: is the cost
-of expanding out the definition at the call site acceptable?
-
-Procedures in Ivory inhabit the \cd{Def} type which is parameterized by the
-signature of the function it names.  Procedure signatures inhabit the \cd{Proc}
-kind, which provides one type constructor: \cd{:->}.  The \cd{:->} type
-constructor takes two arguments: the types of the argument list, and the return
-type of the whole procedure.  As the intent behind the use of the \cd{:->} type
-is to suggest that all of the arguments to the left of the arrow must be
-provided before a result may be produced.
+Ivory procedures differ from Haskell functions in that they behave as compiled
+procedures, not macros; Haskell functions that produce \cd{Ivory} values will be
+expanded at compile time, while Ivory procedures will be translated into
+procedures in the target language.  Procedures in Ivory inhabit the \cd{Def}
+type which is parameterized by the signature of the function it names.
+Procedure signatures inhabit the \cd{Proc} kind, which provides one type
+constructor: \cd{:->}.  The \cd{:->} type constructor takes two arguments: the
+types of the argument list, and the return type of the whole procedure.  As the
+intent behind the use of the \cd{:->} type is to suggest that all of the
+arguments to the left of the arrow must be provided before a result may be
+produced.
 
 \paragraph{Definition}
 
@@ -418,9 +410,8 @@ viewing Haskell functions that produce values in the Ivory monad as macros, the
 \cd{proc} function can be seen as operating at the meta-level, accepting a
 symbol name and macro as its arguments, and producing a procedure with the given
 name, and the fully-applied macro as its body.  Correct procedure definition is
-guarded by the \cd{IvoryProcDef} class, which constrains uses of the \cd{proc}
-function. \lee{maybe show the class definition? This is hard to follow without
-  something concrete.}
+guarded by the \cd{IvoryProcDef} class, shown in figure~\ref{fig:proc-defs},
+which constrains uses of the \cd{proc} function.
 
 \cd{IvoryProcDef} has two parameters: signature and implementation, which relate
 the \cd{Proc} type of the resulting Ivory procedure and the Haskell function
@@ -434,15 +425,14 @@ acceptable as an argument to an Ivory function, the use of the \cd{IvoryVar}
 constraint also allows values to be manufactured from fresh names, allowing
 dummy values to be passed to the implementation function.
 
-\lee{\cd{imp}, \cd{sig}, \cd{Body r} etc. were never introduced before mentioning them here.}
-Examining the functional dependencies for the \cd{IvoryProcDef} class, we see
-that the implementation function (\cd{impl}) fully determines the signature of
-the resulting procedure (\cd{sig}).  The effect of this dependency in the
-context of the \cd{proc} function is that the user will rarely need to write an
-accompanying \cd{Def} signature for Ivory procedures they define; uses of the
-arguments to a procedure will often yield a monomorphic implementation function,
-which through the functional dependency will produce a monomorphic \cd{Def}
-type.
+Examining the functional dependencies for the \cd{IvoryProcDef} class from
+figure~\ref{fig:proc-defs}, we see that the implementation function (\cd{impl})
+determines the signature of the resulting procedure (\cd{sig}).  The effect of
+this dependency in the context of the \cd{proc} function is that the user will
+rarely need to write an accompanying \cd{Def} signature for Ivory procedures
+they define; uses of the arguments to a procedure will often yield a monomorphic
+implementation function, which through the functional dependency will produce a
+monomorphic \cd{Def} type.
 
 The implementation function is required to produce a value of type \cd{Body r},
 which is simply an Ivory monadic action with its allocation context hidden, and
@@ -468,10 +458,10 @@ from leaking out of the context of the run function for the \cd{ST} monad.
 
 For example, the procedure \cd{f} defined in figure~\ref{fig:proc-def}, will
 produce a type error, as it attempts to return a locally-allocated reference;
-references are parameterized by the scope they were allocated in, and having
-that scope variable quantified in the rank-2 context of the argument to the
-\cd{body} function prevents anything allocated within that action from showing
-up in the return type \cd{r}.
+references are parameterized by the scope they were allocated in, and as that
+scope variable is quantified in the rank-2 context of the argument to the
+\cd{body} function that reference is prevented from showing up in the return
+type of the procedure, \cd{r}.
 
 \begin{figure}[h]
 \begin{code}
@@ -497,9 +487,6 @@ continuation generated by the instances of \cd{IvoryCall}.  For example, calling
 a procedure with type \cd{Def ('[Sint32] :-> Sint32)} will produce a
 continuation of the type, \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff}
 parameter is inherited from the current environment.
-
-\trevor{Is there something from Lennart that we can cite about the
-implementation of call, as it relates to printf?}
 
 \begin{figure}[h]
 \begin{code}
@@ -527,11 +514,6 @@ call :: IvoryCall sig eff impl => Def sig -> impl
 \caption{Function definition support}
 \label{fig:proc-defs}
 \end{figure}
-
-
-
-\lee{Trevor: describe the use of type-level lists to define procedures. Describe
-the use of a type-class to ensure procedure calls in Ivory are type-correct.}
 
 \subsection{Strings}
 Ivory's support for character strings builds upon the fixed-size array
