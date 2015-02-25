@@ -748,13 +748,13 @@ is the Haskell term language, Ivory's module system cannot be embedded in
 Haskell's module system. Thus, the user must deal with both Haskell's module
 system and Ivory's orthogonal module system when programming.
 
-At best, forgetting to include an Ivory dependency is an inconvenience. The
+At best, forgetting to include an Ivory dependency is an inconvenience. This
 inconvenience can be substantial in the case that an inter-module dependency is
-omitted. In this case, The Ivory program type-checks. If the dependency missing
-is a C~function implementation, for example, C~code is generated and compiles,
-but fails during link time. The error does not result in a safety violation, but
-in large projects, such as the SMACCMPilot autopilot written in Ivory~\cite{},
-the error can take several minutes to detect.
+omitted, which still permits the Ivory program to type-check. If the dependency
+missing is a C~function implementation, for example, C~code is generated and
+compiles, but fails during link time. The error does not result in a safety
+violation, but in large projects, such as the SMACCMPilot autopilot written in
+Ivory~\cite{}, the error can take several minutes to detect.
 
 \begin{figure}[h]
 \begin{code}
@@ -798,10 +798,3 @@ a function matches the types of the arguments.
 
 We describe other approaches to compilation that do not involve an embedded
 module system in Section~\ref{sec:conclusion}.
-
-
-
-
-
-
-
