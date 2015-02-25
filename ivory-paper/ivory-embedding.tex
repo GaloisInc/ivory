@@ -114,28 +114,59 @@ ret :: (GetReturn eff ~ Returns r, ...)
 
 Ivory uses regions for memory management.  When data is allocated, a reference
 to the resulting data is returned, and tagged by the containing region using a
-type variable.  Well-typed Ivory programs guarantee that references do not
-persist beyond the scope of their containing region.  Currently, regions are
-either global, or allocated and freed on function entry/exit (the back-end relies
-on stack-based allocation in C), although the language could be modified to
-separate the two concepts.
+type variable.  Well-typed Ivory programs guarantee that references do no
+persist beyond the scope of their containing region.  Regions in Ivory classify
+global data, and data allocated and freed on procedure entry/exit (the back-end
+relies on stack-based allocation in C), through the language could be modified
+to separate the two concepts, as discussed in section~\ref{sec:sem-discuss}.
+Corresponding to these two kinds of regions are the region tags that Ivory
+supports: \cd{Global} which holds statically-allocated global data that is
+available for the lifetime of the program, and a local region unique to each
+procedure whose lifetime is tied to that of the procedure.
 
-\lee{in the following, we need to give some type examples with Global/Scope, and
-maybe the type of \cd{local}. and particularly, describe how \cd{local} is
-implemented using the ST monad trick. Also, some more detailed description of
-initializers is warranted.}
-\jamey{come back to this section for deeper editing}
+Data with \cd{Global} scope is allocated through the use of the \cd{area}
+top-level declaration, then converted to a reference through the use of the
+\cd{addrOf} function.  As the \cd{area} function produces a top-level
+declaration, it also requires a symbol to use as the name of the allocated
+memory.  Data allocated within a procedure is allocated through the use of the
+\cd{local} function, and are tagged with the region of that function.  Since
+procedure definition introduces a fresh region, with the constraint that no
+reference allocated in that region should should up in the return type of that
+procedure, Ivory avoids the introduction of dangling pointers.  The embedding of
+this feature in Haskell will be described in more detail in
+section~\ref{sec:proc}.
 
-Corresponding to these two kinds of regions, \cd{Global} which holds global data, and a
-function-local scope, unique to the function which is performing the allocation.
-References with \cd{Global} scope are allocated through the use of the \cd{area}
-top-level declaration, and references allocated within a function are allocated
-through the use of the \cd{local} function.  Both can take initializers,
-defaulting to zero-initialization when they are omitted.  Since a procedure
-definition introduces a fresh region, with the constraint that no reference
-allocated in that region should should up in the return type of that procedure,
-Ivory avoids the introduction of dangling pointers.  The embedding of this
-feature in Haskell will be described in more detail in section~\ref{sec:proc}
+Both forms of allocation take initializers, though \cd{Global} allocation
+through \cd{area} will default to zero-initialization if it is omitted.
+Initializers are functions that embed values into a structure that mirrors that
+of a memory area.  As an example, the \cd{example} value in
+figure~\ref{sec:mem-alloc} defines an initializer for an array of three
+\cd{Uint8} values.  The types of the allocation functions, as well as a sample
+of the initializers available are given in figure~\ref{fig:mem-alloc}.
+
+\begin{figure}
+\begin{code}
+local  :: (GetAlloc eff ~ 'Scope s, IvoryArea area)
+       => Init area -> Ivory eff (Ref s area)
+
+data MemArea (area :: Area *)
+area   :: (IvoryArea area)
+       => Sym -> Maybe (Init area) -> MemArea area
+addrOf :: (IvoryArea area)
+       => MemArea area -> Ref Global area
+
+data Init (area :: Area *)
+izero  :: IvoryZero area => Init area
+ival   :: IvoryType val  => val -> Init (Stored val)
+iarray :: IvoryArea area
+       => [Init area] -> Init (Array n area)
+
+example :: Init (Array 3 (Stored Uint8))
+example  = iarray (map ival [1,2,3])
+\end{code}
+\caption{Memory allocation and initialization functions}
+\label{fig:mem-alloc}
+\end{figure}
 
 As noted in section~\ref{sec:ivory-monad}, allocation is tracked through an
 effect in the effect context of the Ivory monad.  The result of this is that
@@ -151,56 +182,24 @@ Ivory monad does not track effects for manipulating specific references, and
 instead allows reading and writing to any reference that is in scope, within the
 context of the Ivory monad.
 
-\subsection{Types}
-\label{sec:types}
-
-\lee{we need to sketch which concrete types belong to these type classes}
-
-Ivory uses two type classes to define its domain: \cd{IvoryType} and
-\cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
-programs.  As Ivory programs build up the AST of the program they represent when
-they are run, this class describes the set of types that contain fragments of
-the Ivory AST.  The \cd{IvoryArea} class serves to ensure that primitive types
-that are stored in references also have an instance of \cd{IvoryType}.
-
-The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
-have values.  The \cd{IvoryVar} class describes all types that can have an Ivory
-expression extracted from them, as well as be created from a single variable.
-This roughly corresponds to types that can be used as an L-value in assigments,
-but also includes types that are to be used as arguments to functions.
-The \cd{IvoryExpr} class includes types that can be constructed from full
-expressions, and corresponds to the set of types whose values can be used in the
-position of an R-value.  It might be tempting to say that the functionality of
-the \cd{IvoryVar} belongs in the \cd{IvoryType} class, however as Ivory has a
-void type, \cd{()}, we do require this distinction so that we can prevent void
-values from being created.
-
-\jamey{What's the distinction between \cd{IvoryVar} and \cd{IvoryExpr}?}
-
 \subsection{Memory Areas}
 \label{sec:area}
 
-\lee{What about moving this section above the types section, just under ``memory
-management?}
-
 In addition to being parameterized on the region they are allocated in,
 references are parameterized by the layout of the memory they point to.  We
-introduce area types through the \cd{Area} kind, and the four types that
-inhabit it (Figure~\ref{fig:area-def}).  This typing of memory is
-heavily inspired by the work of Diatchki and Jones~\cite{memareas}. Ivory
-supports four kinds of areas that we explain below: arrays with statically known
-size, ``C'' arrays without statically known size (for communicating with external
-C functions), structs, and stored atomic values.
+introduce area types through the \cd{Area} \footnote{ The type parameter on the
+\cd{Area} kind is present so that when giving kind-signatures, we can fix the
+kind of stored-values as being star (\cd{*})-kinded.  As Haskell currently lacks
+a construct for defining kinds without data, this parameterization is necessary,
+as kinds are specified with a syntax that is invalid where a type is expected.
+This technique was described by Magalh\~{a}es~\cite{jpm:trkgp:12}.} kind, and
+the four types that inhabit it (Figure~\ref{fig:area-def}).  This typing of
+memory is heavily inspired by the work of Diatchki and Jones~\cite{memareas}.
+Ivory supports four kinds of areas that we explain below: arrays with statically
+known size, ``C'' arrays without statically known size (for communicating with
+external C functions), structs, and stored atomic values.
 
 \lee{discuss lack of sum types somewhere?}
-
-\lee{The following is a detail that I'd elide or put in a footnote} The type
-parameter on the \cd{Area} kind is present so that when giving kind-signatures,
-we can fix the kind of stored-values as being star (\cd{*})-kinded.  As Haskell
-currently lacks a construct for defining kinds without data, this
-parameterization is necessary, as kinds are specified with a syntax that is
-invalid where a type is expected.  This technique was described by
-Magalh\~{a}es~\cite{jpm:trkgp:12}.
 
 \begin{figure}[h]
 \begin{code}
@@ -208,8 +207,18 @@ data Area k = Array Nat (Area k)
             | CArray (Area k)
             | Struct Symbol
             | Stored k
+
+
+store :: IvoryStore a
+      => Ref s (Stored a) -> a -> Ivory eff ()
+deref :: IvoryStore a
+      => Ref s (Stored a) -> Ivory eff a
+
+data Label (struct :: Symbol) (area :: Area *)
+(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
+(!)  :: Ref s (Array n area) -> Ix n -> Ref s area
 \end{code}
-\caption{The definition of the \cd{Area} kind}
+\caption{The definition of the \cd{Area} kind, and associated operations}
 \label{fig:area-def}
 \end{figure}
 
@@ -218,8 +227,9 @@ The simplest type of memory area is a single base type, lifted to the \cd{Area}
 kind by the use of the \cd{Stored} type constructor.  For example, the area type
 of a \cd{Sint32} would simply be \cd{Stored Sint32}. The \cd{store} and
 \cd{deref} operators will only operate over references that point to \cd{Stored} areas,
-again mirroring the operations from~\cite{memareas}.\lee{Explain why here. Show
-  the types--- it takes a \cd{Ref s (a::Area)} ...}
+mirroring the operations from~\cite{memareas}, as this allows us to never deal
+directly with a value of type \cd{Array}, or \cd{Struct}; we only ever read and
+write references to values, never references to aggregate values.
 
 As the \cd{Stored} area-type allows the lifting of any star-kinded type to a
 memory area, we constrain the operations on references to restrict what is
@@ -248,26 +258,21 @@ Haskell type-checking time to do so.
 will point to memory whose layout corresponds to the definition of the struct
 with name ``x''.  Struct definitions are introduced through use of the ivory
 quasi-quoter~\cite{quoted}.  For example, if a region of memory is typed using
-the struct definition from figure \ref{example-struct}, it would have type
-\cd{Struct "a"}.
+the following struct declaration, it would have type \cd{Struct "a"}.
 
-\begin{figure}[h]
 \begin{code}
 [ivory| struct a { field1 :: Stored Sint32
                  , field2 :: Struct "b"
                  }
 |]
 \end{code}
-\caption{An example struct definition}
-\label{example-struct}
-\end{figure}
 
 Also introduced by the struct declaration are field labels.  Field labels allow
 for indexing into a memory area, producing a reference to the value contained
-within the struct.  For example, using the struct definition from figure
-\ref{example-struct}, quasi-quoter generates two labels, \cd{field1} and
-\cd{field2}, for accessing those fields given a reference to an ``\cd{a}''
-struct:
+within the struct.  For example, using the previous struct definition, the
+quasi-quoter introduces two labels, \cd{field1} and \cd{field2}, for accessing
+those fields given a reference to an ``\cd{a}'' struct:
+
 \begin{code}
 field1 :: Label "a" (Stored Sint32)
 field2 :: Label "a" (Struct "b")
@@ -275,25 +280,21 @@ field2 :: Label "a" (Struct "b")
 
 Using a struct label to select the field of a structure requires the use of the
 \cd{(\mytilde>)} operator, which expects a reference to a structure as its first
-argument, and a compatible label as its second.  In figure
-\ref{example-struct-label}, the \cd{(\mytilde>)} operator is used with a
-reference to an ``\cd{a}'' struct, with the \cd{field1} label, producing a new
-reference of type \cd{Ref Global (Stored Sint32)}.  Operations for indexing are
-pure in Ivory, as they only manipulate a base pointer; the value of a reference
-is never dereferenced until an explicit use of the \cd{deref} primitive, which
-is an effectful operation.
+argument, and a compatible label as its second.  The type of the
+\cd{(\mytilde>)} operator is given in figure~\ref{fig:area-def}.  In the
+following example, the \cd{(\mytilde>)} operator is used with a reference to an
+``\cd{a}'' struct, with the \cd{field1} label, producing a new reference of type
+\cd{Ref Global (Stored Sint32)}.
 
-\begin{figure}[h]
 \begin{code}
-(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
-
 example :: Ref Global (Struct "a")
         -> Ref Global (Stored Sint32)
 example ref = ref %*\mytilde*)> field1
 \end{code}
-\caption{Struct field indexing}
-\label{example-struct-label}
-\end{figure}
+
+Operations for indexing are pure in Ivory, as they only manipulate a base
+pointer; the value of a reference is never dereferenced until an explicit use of
+the \cd{deref} primitive, which is an effectful operation.
 
 \paragraph{Arrays}
 Arrays in Ivory take two type parameters: the length of the array as a
@@ -321,7 +322,6 @@ it becomes unnecessary to give explicit bounds for the iteration.
 
 \begin{figure}[h]
 \begin{code}
-(!)      :: Ref s (Array n area) -> Ix n -> Ref s area
 arrayMap :: (Ix n -> Ivory eff a) -> Ivory eff a
 toCArray :: Ref s (Array n area) -> Ref s (CArray area)
 arrayLen :: Num len => Ref s (Array n area) -> len
@@ -338,6 +338,52 @@ functions that consume arrays require both a pointer and a length, we also
 provide the \cd{arrayLen} function, which allows the length of an Ivory array to
 be demoted to a value.  When used in conjunction with \cd{toCArray}, this
 function allows for fairly seamless integration with external C code.
+
+\subsection{Types}
+\label{sec:types}
+
+Ivory uses two type classes to define its domain: \cd{IvoryType} and
+\cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
+programs.  As Ivory programs build up the AST of the program they represent when
+they are run, this class describes the set of types that contain fragments of
+the Ivory AST.  The \cd{IvoryArea} class serves to ensure that primitive types
+that are stored in references also have an instance of \cd{IvoryType}.  Types
+that have \cd{IvoryType} instances include signed and unsigned integers, the
+void type \cd{()}, and references, while types that have an \cd{IvoryArea}
+instance are limited to those that have kind \cd{Area}, defined in
+section~\ref{sec:area}.  See figure~\ref{fig:types} for a sample of the
+instances present for these two classes.
+
+\begin{figure}
+\begin{code}
+class IvoryType a
+instance IvoryType Uint32
+instance IvoryType Sint32
+instance IvoryType ...
+instance IvoryArea area => IvoryType (Ref s area)
+
+class IvoryArea (area :: Area *)
+instance IvoryType a => IvoryArea (Stored a)
+instance IvoryArea e => IvoryArea (Array n e)
+instance IvoryArea ...
+\end{code}
+\caption{Sample instances for \cd{IvoryType} and \cd{IvoryArea}}
+\label{fig:types}
+\end{figure}
+
+The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
+have values.  The \cd{IvoryVar} class describes all types that can have an Ivory
+expression extracted from them, as well as be created from a single variable.
+This roughly corresponds to types that can be used as an L-value in assigments,
+but also includes types that are to be used as arguments to functions.
+The \cd{IvoryExpr} class includes types that can be constructed from full
+expressions, and corresponds to the set of types whose values can be used in the
+position of an R-value.  It might be tempting to say that the functionality of
+the \cd{IvoryVar} belongs in the \cd{IvoryType} class, however as Ivory has a
+void type, \cd{()}, we do require this distinction so that we can prevent void
+values from being created.
+
+\jamey{What's the distinction between \cd{IvoryVar} and \cd{IvoryExpr}?}
 
 \subsection{Procedures}
 \label{sec:proc}
@@ -361,16 +407,6 @@ constructor takes two arguments: the types of the argument list, and the return
 type of the whole procedure.  As the intent behind the use of the \cd{:->} type
 is to suggest that all of the arguments to the left of the arrow must be
 provided before a result may be produced.
-
-To enable processing using type classes while easing the burden on the
-programmer, the argument list is specified as a type-level list of $*$-kinded
-types.  This enables the definition of functions for defining and invoking Ivory
-procedures.
-\trevor{I'm not a big fan of this paragraph, but I'm not sure how else to
-suggest that it's useful to have the argument lists be type-level lists}
-\lee{I think this misses the point: the cool thing is that since mem areas
-  aren't star-kinded, you can't pass them directly! You need to ``wrap'' them in
-a reference, and this is enforced by the type system.}
 
 \paragraph{Definition}
 
