@@ -84,7 +84,7 @@ we have discovered minor bugs in Ivory's type embedding in GHC as well as
 generalizations to Ivory that still preserve safety. We describe the
 formalization, proofs, and extensions in Section~\ref{sec:semantics}.
 
-Ivory goes beyond ensuring memory safety, the focus on most other safe C
+Ivory goes beyond ensuring memory safety, the focus of most other safe C
 programming languages, and also provides automated support for preventing errors
 that result from other undefined behaviors in C (e.g., division by zero, left
 bit-shifts by a negative value, etc.) as well as support for checking
@@ -94,6 +94,8 @@ symbolic simulator targeting an SMT solver (CVC4~\cite{cvc4}), as well as an
 theorem-prover back-end targeting ACL2~\cite{acl2}. For automated testing, a
 QuickCheck-like property-based test-case generator is integrated into
 Ivory. These tools are described in Section~\ref{sec:tools}.
+
+\eric{add a blurb about section 6, unless we're dropping it for space?}
 
 We describe related work in safe C language and EDSLs in
 Section~\ref{sec:related-work} and provide concluding remarks in

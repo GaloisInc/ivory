@@ -56,31 +56,33 @@ structure where each of the three effects correspond to a field of the
 tuple. Type equality constraints enforce that a particular effect is (or is not)
 allowed in a give function signature.
 
-The type-level tuple is implemented using data kinds~\cite{data-kinds}. Effects have the
-kind \cd{Effects}, containing a single type constructor, \cd{Effects}. The type
-constructor \cd{Effects} is parameterized by the fields of the tuple,
-representing the respective effects. Using GHC's data kinds extension to lift
-data type declarations to data kind declarations,
+The type-level tuple is implemented using data kinds~\cite{data-kinds}. Effects
+must have the kind \cd{Effects}, for which there is a single constructor,
+\cd{Effects}, that contains the three effect types as fields.  We use GHC's data
+kinds extension to lift the following type declaration to a \emph{kind} declaration.
+
 \begin{code}
 data Effects = Effects ReturnEff BreakEff AllocEff
 \end{code}
 
 \noindent
-Consider the return effects type, \cd{ReturnEff}.  Again using the data kinds
-extension to define a new kind and its types, we define two types denoting
-whether returns are permitted or not.
+The individual effect types are implemented similarly, using GHC to derive a
+kind from the type definition. For example, the \cd{ReturnEff} type/kind
+describes whether or not a block may return a value.
 
 \begin{code}
 data ReturnEff = forall t. Returns t | NoReturn
 \end{code}
 
 \noindent
-The type is existentially quantified, since in the case of permitted returns, we
-parameterize the type constructor with the type of the value being returned.
+This type is existentially quantified, since in the case of permitted returns we
+must track the type of value being returned.
 
-A type family~\cite{typefamilies} is used to access and modify the types at each field of
-the tuple. To access that field, a type family rewrites the \cd{Effects} type to
-the return effect type \cd{ReturnEff}.
+Type families~\cite{typefamilies} are used to access and modify the types at each field of
+the tuple. For example, the \cd{GetReturn} family extracts the \cd{ReturnEff}
+field of an \cd{Effects} tuple.
+\footnote{The GHC syntax is to precede a data kind type constructor with a tick (\cd{'})
+to disambiguate it from the corresponding data constructor.}
 
 \begin{code}
 type family   GetReturn (effs :: Effects) :: ReturnEff
@@ -88,10 +90,7 @@ type instance GetReturn ('Effects r b a) = r
 \end{code}
 
 \noindent
-(The GHC syntax is to precede a data kind type constructor with a tick (\cd{'})
-to disambiguate it from the corresponding data constructor.)
-
-To modify the field, another type family rewrites it. For example,
+Similarly, the \cd{ClearReturn} family sets the \cd{ReturnEff} field to \cd{NoReturn}.
 
 \begin{code}
 type family   ClearReturn (effs :: Effects) :: Effects
@@ -100,7 +99,7 @@ type instance ClearReturn ('Effects r b a) =
 \end{code}
 
 With this machinery, we can now use a type equality constraint to enforce
-particular effects in a context. For example, the type of \cd{ret}, the smart
+particular effects in a context. For example, \cd{ret}, the smart
 constructor for returning a value from a procedure, has the following type
 (additional type constraints are elided):
 
@@ -140,7 +139,7 @@ Both forms of allocation take initializers, though \cd{Global} allocation
 through \cd{area} will default to zero-initialization if it is omitted.
 Initializers are functions that embed values into a structure that mirrors that
 of a memory area.  As an example, the \cd{example} value in
-Figure~\ref{sec:mem-alloc} defines an initializer for an array of three
+Figure~\ref{fig:mem-alloc} defines an initializer for an array of three
 \cd{Uint8} values.  The types of the allocation functions, as well as a sample
 of the initializers available are given in Figure~\ref{fig:mem-alloc}.
 
@@ -233,7 +232,7 @@ As the \cd{Stored} area-type allows the lifting of any star-kinded type to a
 memory area, we constrain the operations on references to restrict what is
 storable.  This constraint is enforced via the \cd{IvoryStore} class.  While the
 \cd{IvoryStore} constraint is used to rule out most types from being stored in a
-reference, it is worth noting that it is used to prohibit the storing of other
+reference, it is worth noting that it is also used to prohibit the storing of other
 references.  The reason for this restriction is twofold:
 
 \begin{enumerate}
@@ -320,6 +319,11 @@ arrayLen :: Num len => Ref s (Array n area) -> len
 \caption{Array support functions}
 \label{array-support-functions}
 \end{figure}
+\eric{When I read this, being somewhat out of the loop, I was certain that
+  arrayMap was missing the array parameter. But it actually isn't since the
+  bound is inferred by the usage inside the loop body. You should be more
+  explicit about not needing the array as a parameter because it's both odd and
+  very neat!}
 
 For compatibility with C, we also introduce a type for arrays that are not
 parameterized by their length, \cd{CArray}.  There are no operations to work
@@ -387,7 +391,7 @@ procedures in the target language.  Procedures in Ivory inhabit the \cd{Def}
 type which is parameterized by the signature of the function it names.
 Procedure signatures inhabit the \cd{Proc} kind, which provides one type
 constructor: \cd{:->}.  The \cd{:->} type constructor takes two arguments: the
-types of the argument list, and the return type of the whole procedure.  As the
+types of the argument list, and the return type of the whole procedure.  The
 intent behind the use of the \cd{:->} type is to suggest that all of the
 arguments to the left of the arrow must be provided before a result may be
 produced.
@@ -431,28 +435,28 @@ which is simply an Ivory monadic action with its allocation context hidden, and
 return type exposed as the type variable \cd{r}.  The \cd{Body} type serves two
 purposes: it removes the need to write an instance of \cd{IvoryProcDef} that
 involves a rank-2 function, and it defines an extension point for modifying the
-body of the procedure.  Pre and post conditions can be added to a procedure body
+body of the procedure.  Pre- and post-conditions can be added to a procedure body
 by the use of the \cd{requires} and \cd{ensures} functions, respectively.  Both
-functions allows arbitrary Ivory statements to be added, but disallows all
+functions allow arbitrary Ivory statements to be added, but disallow all
 effects.  The result of this restriction is that memory can be read and
 validated, but control flow and allocation effects are prohibited.
 
 The procedure body can be defined through the use of the \cd{body} function,
-whose signature is shown in Figure~\ref{fig:proc-defs}, lifts an Ivory
+whose signature is shown in Figure~\ref{fig:proc-defs}, which lifts an Ivory
 computation that returns a result \cd{r} and allocates data in a region \cd{s}
-into a value of type \cd{Body r}.  As the allocation scope expected by the Ivory
-computation given is quantified in a rank-2 context to the \cd{body} function,
-it is not permitted to show up in the type of the result, \cd{r}.  This behavior
-allows us to prevent anything allocated within the implementation function from
-being returned, a source of dangling pointer bugs.  This is the same technique
+into a value of type \cd{Body r}.  As the allocation scope expected by the given
+Ivory computation is quantified over in a rank-2 context by the \cd{body} function,
+it \emph{cannot} appear in the type of the result, \cd{r}.  This
+prevents anything allocated within the implementation function from
+being returned, a source of dangling pointer bugs.  The same technique was
 used by Launchbury and Peyton Jones~\cite{stmonad} to prevent mutable state
 from leaking out of the context of the run function for the \cd{ST} monad.
 
-For example, the procedure \cd{f} defined in Figure~\ref{fig:proc-def}, will
+For example, the procedure \cd{f} defined in Figure~\ref{fig:proc-def} will
 produce a type error, as it attempts to return a locally-allocated reference;
 references are parameterized by the scope they were allocated in, and as that
-scope variable is quantified in the rank-2 context of the argument to the
-\cd{body} function that reference is prevented from showing up in the return
+scope variable is quantified over in the rank-2 context of the argument to the
+\cd{body} function, that reference is prevented from showing up in the return
 type of the procedure, \cd{r}.
 
 \begin{figure}[h]
@@ -503,7 +507,10 @@ proc :: IvoryProcDef sig impl
 
 call :: IvoryCall sig eff impl => Def sig -> impl
 \end{code}
-\caption{Function definition support}
+\caption{Function definition support.\eric{nitpicky: People like to skim through
+  papers and just look at the figures, so the captions should be much more
+  descriptive. Ideally, you could get the gist of the paper just be looking at
+  the figures and reading the captions.}}
 \label{fig:proc-defs}
 \end{figure}
 
@@ -512,9 +519,10 @@ call :: IvoryCall sig eff impl => Def sig -> impl
 \label{sec:bitdata}
 
 \paragraph{Motivation}
+\eric{This is not actual paper text!\\
 Describe scenarios in which we need bit data like features. Low level network
 and hardware programming, for example. Outline how Ivory implements a data
-definition language at the bit level based on the paper by Iavor et al.
+definition language at the bit level based on the paper by Iavor et al.}
 
 \paragraph{BitRep}
 Ivory's type system supports a set of unsigned integer types with
@@ -581,8 +589,9 @@ instance BitData (Bits n) where
 \end{code}
 
 \paragraph{BitData Sum Types}
+\eric{Not paper text\\
 Show how we can define a bit data type as a sum type with specific
-bit patterns for each value.
+bit patterns for each value.}
 
 \begin{code}
 [ivory|
@@ -595,12 +604,12 @@ bit patterns for each value.
 \end{code}
 
 \paragraph{BitData Product Types}
+\eric{Not paper text\\
 Show how to assemble a larger bit data type from a set of primitive
 and user-defined bit data types.  We'll use an explicit layout clause
-as well to show that off.
-
+as well to show that off.\\
 TODO: Can we include a figure of what this register might look like
-in a datasheet here?
+in a datasheet here?}
 
 %\begin{bytefield}{8}
 %  \bitheader{0-8} \\
@@ -620,9 +629,10 @@ in a datasheet here?
 \end{code}
 
 \paragraph{Using Bit Data}
+\eric{not paper text\\
 Show an example of how to play with individual bits in a register, and how
 to set nested/multi-bit fields. Also tackle the issue of converting the
-bit data value to/from its representation.
+bit data value to/from its representation.}
 
 \subsection{Module System}
 \label{sec:modules}
