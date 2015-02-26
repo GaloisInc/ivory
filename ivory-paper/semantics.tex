@@ -366,7 +366,7 @@ Develop0ing this model uncovered a bug in the Ivory embedding into
 Haskell, namely that the Haskell erroneously allowed functions to
 end without encountering a return statement.  Thus, a program could
 claim to return, say, a valid index but in reality return an
-out-of-bounds index, breaking memory safety.  In the model these
+out-of-bounds index, breaking memory safety.  In the model this
 check is part of the type checking rules (although elided for clarity
 in this paper) but is implemented as a post-processing check in the
 Haskell implementation.  
