@@ -30,7 +30,9 @@ error reporting, both static and dynamic.
 
 Statically, the use of advanced type-system features, e.g.\ higher-rank
 polymorphism to track memory regions, can in practice produce elaborate and
-confusing type-error messages. Idris~\cite{christiansen2014reflect} allows the
+confusing type-error messages.
+\eric{I'm sure there's a better example here than higher-rank polymorphism.}
+Idris~\cite{christiansen2014reflect} allows the
 programmer to supply error handlers, which are given a data structure
 representing the compiler's error message and can rewrite it to insert
 domain-specific knowledge. Thus, the EDSL author can provide custom type-error

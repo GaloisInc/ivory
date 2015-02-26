@@ -227,8 +227,15 @@ Ivory can only import and use functions that have a valid Ivory type signature.
 Some polymorphic C functions may have multiple valid Ivory types.
 \jamey{The printf\_proc example illustrates this, but does it pass the sanity
 checker? I don't think so...?}
+\eric{Good point, the sanity checker will complain about the call to
+  printf\_none, but I'd call this a shortcoming of the sanity checker. I guess
+  it needs some notion of sum types for importProcs (and maybe externProcs?).}
 
 \subsection{Toolchain Use}
+\eric{this subsection feels a little out of place, the whole overview has been
+  about ivory-the-language, and now we're talking about ivory-the-compiler, and
+  even including artifacts and option parsing. maybe it would fit better in \autoref{sec:edsl}?}
+
 The Ivory compiler is a Haskell function that takes a list of \cd{Module}s,
 parses command line options, and writes generated C source and header files to
 a directory given by those options.
@@ -248,7 +255,6 @@ import Ivory.Compile.C (compile)
 main :: IO ()
 main = compile [ ex_module, print_ex_module ] []
 \end{code}
-
 
 
 
