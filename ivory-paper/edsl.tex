@@ -16,7 +16,7 @@ EDSL. We want C/C++ developers to use Ivory!
 
 \begin{figure}[h!]
 \begin{code}
-void mapProc(s*uint8_t[4] arr, uint8_t x) {
+void mapProc(*uint8_t[4] arr, uint8_t x) {
   map ix {
     let v = arr@ix;
     *v = *v + x;
@@ -26,6 +26,11 @@ void mapProc(s*uint8_t[4] arr, uint8_t x) {
   \caption{Concrete Syntax for Ivory}
   \label{fig:concrete}
 \end{figure}
+
+\jamey{Might explain why an array type like ``arr'' needs an ``extra'' star in
+its type. Could cite Dennis Ritchie's ``The Development of the C Language''
+(\url{http://www.lysator.liu.se/c/chistory.ps}) to explain how C got the weird
+array type semantics in the first place...}
 
 The need for a concrete C-like syntax became evident in our work supporting
 Boeing's use of Ivory, mentioned in Section~\ref{sec:introduction}. We have
@@ -54,16 +59,16 @@ and a stand-alone compiler is surprisingly small, essentially requiring a
 type-checker and a front-end targeting the AST directly. In this manner, we are
 able to ``grow'' a compiler, from an EDSL to a stand-alone system.
 
+
 \paragraph{Haskell as Macro Language}
 C programmers are accustomed to using the C Pre-Processor (CPP) as a limited
 macro and metaprogramming system. CPP is significantly limited: it was
-originally designed to prohibit recursion during macro expansion (although C99's
-variadic macros have been abused to implement near-arbitrary recursion
-\jamey{\url{https://github.com/pfultz2/Cloak/wiki/Is-the-C-preprocessor-Turing-complete\%3F}}).
-Widely used tools such as lex~\cite{} and yacc~\cite{} demonstrate other
-approaches to metaprogramming in C, and some projects such as libxcb~\cite{}
-have produced specialized metaprogramming tools in languages such as m4~\cite{}
-or Python~\cite{}.
+originally designed to prohibit recursion during macro expansion (although
+C99's variadic macros have been abused to implement near-arbitrary
+recursion~\cite{cpp-turing}). Widely used tools such as lex~\cite{lex} and
+yacc~\cite{yacc} demonstrate other approaches to metaprogramming in C, and some
+projects such as libxcb~\cite{xcb} have produced specialized metaprogramming
+tools in languages such as m4~\cite{m4} or Python~\cite{python}.
 
 Embedding Ivory within Haskell enables using the full power of Haskell as a
 type-safe metaprogramming environment for C. We have used this power in a
@@ -89,9 +94,16 @@ variety of ways:
   generated C is monomorphized.
 \end{itemize}
 
-\jamey{I'm supposed to fill in here about (1) Haskell as a macro language and
-(2) extracting C computed by Haskell libraries like ad and linear that weren't
-designed with this in mind.}
+Mathematical metaprogramming has been a particularly powerful tool when combined
+with Ivory. Edward Kmett's automatic differentiation~\cite{ad} and linear
+algebra~\cite{linear} packages, which depend primarily on the Haskell Prelude's
+numeric typeclasses, operate transparently over Ivory expressions---despite
+having been designed independently. This allowed us to build a stand-alone
+package, ``estimator''~\cite{estimator}, which automatically derives an Extended
+Kalman Filter from a concise model written in pure Haskell. Like linear and ad,
+the estimator package is independent of Ivory, but when evaluated over an Ivory
+floating-point type, the result is a C implementation of the derived Kalman
+filter.
 
 
 \paragraph{Error Reporting}

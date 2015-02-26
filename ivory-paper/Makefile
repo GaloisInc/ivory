@@ -9,7 +9,7 @@ tex=latex -output-directory $(WORK_DIR) --interaction=batchmode
 
 all: $(TGT).pdf
 
-$(TGT).pdf: $(WORK_DIR) *.tex
+$(TGT).pdf: $(WORK_DIR) *.tex *.bib
 	$(latex) $(TGT)
 	bibtex $(WORK_DIR)/$(TGT).aux
 	$(latex) $(TGT)
