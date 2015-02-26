@@ -4,7 +4,7 @@ WORK_DIR=pdflatex
 TGT=ivory
 BIB=paper
 #latex=TEXINPUTS=".:./style:" pdflatex -output-directory $(WORK_DIR)
-latex=pdflatex -output-directory $(WORK_DIR) --interaction=batchmode
+latex=pdflatex -output-directory $(WORK_DIR)
 tex=latex -output-directory $(WORK_DIR) --interaction=batchmode
 
 all: $(TGT).pdf

@@ -1,66 +1,140 @@
 \section{A Safe-C EDSL}
 \label{sec:edsl}
 
-Here, we remark briefly on some of the advantages and disadvantages of using an
-EDSL in our domain. In a previous short paper, we explored some of the benefits
-of using an EDSL for embedded system development~\cite{smaccm}. We will not
-repeat those claims here, but rather describe new problems we have observed as
-well as their mitigations.
+Large-scale, safe~C programming in an EDSL has advantages and disadvantages. In
+a previous experience report, we explored some of the benefits of using an EDSL
+for embedded system development~\cite{smaccm}. We will not repeat those claims
+here. Rather, we describe two problematic aspects we have specifically addressed in Ivory:
+(1) integrating a C-like concrete syntax into the EDSL and (2) error-reporting.
+
+\paragraph{Concrete Syntax}
 
 A benefit of the EDSL approach is that it relieves the developer from having to
 define and implement a front-end syntax. However, that also generally means that
 only users of the host language will be attracted to using the
-EDSL. We want C/C++ developers to use Ivory! Consequently, we implemented a
-C-like concrete syntax for Ivory. We have particularly used the concrete syntax
-in our work with Boeing, mentioned in Section~\ref{sec:introduction}.
+EDSL. We want C/C++ developers to use Ivory!
 
-Implementing a concrete syntax does not mean we have to abandon our EDSL. Using
-Template Haskell~\cite{} and quasiquotation~\cite{}, 
+\begin{figure}[h!]
+\begin{code}
+void mapProc(s*uint8_t[4] arr, uint8_t x) {
+  map ix {
+    let v = arr@ix;
+    *v = *v + x;
+  }
+}
+\end{code}
+  \caption{Concrete Syntax for Ivory}
+  \label{fig:concrete}
+\end{figure}
 
+The need for a concrete C-like syntax became evident in our work supporting
+Boeing's use of Ivory, mentioned in Section~\ref{sec:introduction}. We have
+already seen specific uses of quasi-quotation in Ivory to define a concrete
+syntax for structs (Section~\ref{sec:area}) and bit-data
+(Section~\ref{sec:bitdata}). In fact, a quasi-quotation is given for the entire
+Ivory language. An example quasi-quoted Ivory procedure is shown in
+Figure~\ref{sec:control}. The procedure is the equivalent of the procedure with
+the same name in Section~\ref{sec:control}.
 
-\lee{Focus on some of the benefits/detriments of an EDSL for a safe-C
-  language. Try not to overlap too much with last year's paper.}
-\sjw{We should talk about what we borrow from the Haskell type checker}
+A quasi-quoted Ivory program is guaranteed to be type-safe, since the generated
+Haskell program is type-checked. an important feature of the quasi-quoted
+language is that it automatically generates the appropriate type signatures for
+Ivory programs, relieving the programmer from doing so. The quasi-quoter also
+generates Ivory modules automatically and guarantees that procedure names match
+their Haskell identifiers, obviating the problems discussed in
+Section~\ref{sec:modules}. The quasi-quoter supports anti-quotation, so that
+Haskell can still be used as a macro language. All of Boeing's development in
+Ivory is via the quasi-quoter.
+
+Implementing a quasi-quoter means that we have defined a lexer and parser for
+the concrete syntax. Because Ivory is deeply embedded in Haskell, there is a
+concrete data type (i.e., the abstract syntax tree (AST)) over which
+optimizations and back-ends are implemented. The distance from Ivory as an EDSL
+and a stand-alone compiler is surprisingly small, essentially requiring a
+type-checker and a front-end targeting the AST directly. In this manner, we are
+able to ``grow'' a compiler, from an EDSL to a stand-alone system.
+
+\paragraph{Haskell as Macro Language}
+C programmers are accustomed to using the C Pre-Processor (CPP) as a limited
+macro and metaprogramming system. CPP is significantly limited: it was
+originally designed to prohibit recursion during macro expansion (although C99's
+variadic macros have been abused to implement near-arbitrary recursion
+\jamey{\url{https://github.com/pfultz2/Cloak/wiki/Is-the-C-preprocessor-Turing-complete\%3F}}).
+Widely used tools such as lex~\cite{} and yacc~\cite{} demonstrate other
+approaches to metaprogramming in C, and some projects such as libxcb~\cite{}
+have produced specialized metaprogramming tools in languages such as m4~\cite{}
+or Python~\cite{}.
+
+Embedding Ivory within Haskell enables using the full power of Haskell as a
+type-safe metaprogramming environment for C. We have used this power in a
+variety of ways:
+
+\begin{itemize}
+\item Our Tower component architecture allows compositional specification of
+  components and their message-passing channels. When instantiating a particular
+  configuration of a collection of components, the Tower backend performs
+  whole-program analysis of the data-flow graph to statically allocate exactly
+  as much buffer space as necessary, avoiding dynamic memory allocation.
+\item In embedded systems, a peripheral device's clock may be derived from a
+  platform-wide clock by a programmable clock divider. However, the platform
+  clock may be configurable. Configuring, say, a serial port to operate at
+  115200bps, may require a complex search over the space of clock divider and
+  other configuration settings based on the current platform clock. But these
+  settings will be the same on every run for a given application, so we can
+  precompute them in Haskell.
+\item We frequently use Haskell type-classes to provide function overloading for
+  Ivory. For example, the ivory-serialize library provides a ``Packable''
+  typeclass capturing the code needed to serialize or deserialize user-specified
+  types. This style of overloading is resolved during Haskell run-time, so the
+  generated C is monomorphized.
+\end{itemize}
+
+\jamey{I'm supposed to fill in here about (1) Haskell as a macro language and
+(2) extracting C computed by Haskell libraries like ad and linear that weren't
+designed with this in mind.}
 
 
 \paragraph{Error Reporting}
-A great strength of EDSLs is that you get to reuse the host language's parser,
-type-checker, code-generator, etc. However, these benefits come at a cost to
-error reporting, both static and dynamic. 
+%% Ivory's The use of advanced type-system features can produce elaborate and
+%% confusing type-error messages to the user. Idris~\cite{christiansen2014reflect}
+%% allows the programmer to supply error handlers, which are given a data structure
+%% representing the compiler's error message and can rewrite it to insert
+%% domain-specific knowledge. Unfortunately, GHC Haskell does not currently support
+%% such a feature.
 
-Statically, the use of advanced type-system features, e.g.\ higher-rank
-polymorphism to track memory regions, can in practice produce elaborate and
-confusing type-error messages. Idris~\cite{christiansen2014reflect} allows the
-programmer to supply error handlers, which are given a data structure
-representing the compiler's error message and can rewrite it to insert
-domain-specific knowledge. Thus, the EDSL author can provide custom type-error
-messages using language the application programmers will understand.
-Unfortunately, GHC Haskell does not currently support such a feature.
+%% Thus, the EDSL author can provide custom type-error
+%% messages using language the application programmers will understand.
 
-Dynamically reporting errors in an EDSL is also made difficult by the lack of
+%% The next best thing is to at least give the user accurate error location
+%% information. 
+
+Dynamically reporting errors in an EDSL is made difficult by the lack of
 source locations. Consider the Ivory expression \hbox{\cd{x / y},} which induces a
-runtime assertion \cd{y != 0}. If the assertion fails, we would like to include
-a source location in the error message to direct the programmer to the source of
+runtime assertion \cd{y != 0}, inserted into the generated back-end (e.g., C code). If the assertion fails, we would like to include
+a \emph{Haskell} source location in the error message to direct the programmer to the source of
 the error. But how are we to obtain the source location in the first place?
 Ivory programs are comprised of Haskell expressions and Haskell is
 pure--functions cannot depend on their call-site--so we must look outside the
-language proper to obtain source locations. A common approach for writing
-location-aware functions in Haskell, epitomized by the \cd{file-location}
-package~\cite{file-location}, is to use a Template Haskell splice to query the
-compiler for the current source location and insert it into the AST. This
-approach did not appeal to us as Template Haskell incurs considerable syntactic
-overhead, and we already had 10+ KLoC of Ivory which would all need to be
+language proper to obtain source locations.
+
+A common approach for writing location-aware functions in Haskell, epitomized by
+the \cd{file-location} package~\cite{file-location}, is to use a Template
+Haskell splice to query the compiler for the current source location and insert
+it into the AST. This approach did not appeal to us as Template Haskell incurs
+considerable syntactic overhead and is incompatible with the concrete syntax
+described above, and we already had 10+ KLoC of Ivory implementation which would need to be
 rewritten.
 
-Instead we opted to write a compiler plugin that rewrites GHC's intermediate
-representation to add the source locations. The implementation was
-straightforward, we first extended the \cd{Ivory} statement type with a new
-\cd{Location} constructor that just contains a location in the Haskell source,
+Instead, we opted to write a compiler plugin that rewrites GHC's intermediate
+representation to add the source locations. To do so, we extended the \cd{Ivory} statement type with a new
+\cd{Location} constructor that contains a location in the Haskell source,
 essentially a special type of comment. The plugin then extracts the source
 locations from GHC and wraps all actions in the \cd{Ivory} monad with a
 \cd{withLocation} function that emits a \cd{Location} statement before executing
-the wrapped action. While this effectively limits the location granularity to
-lines rather than columns, our approach required only modest changes to the
+the wrapped action.
+
+The approach limits the location granularity to
+lines rather than columns, but it requires only modest changes to the
 Ivory compiler and--importantly--no changes to Ivory code. As the plugin
 itself requires little knowledge of Ivory, we have abstracted it out into a
 separate package~\cite{ghc-srcspan-plugin} that can be reused by other projects.
@@ -68,12 +142,3 @@ Furthermore, we have since submitted a lightweight extension to GHC that allows
 functions to request their call-site by taking a special implicit
 parameter~\cite{lewis2000implicit} as an argument, which should become available
 in the 7.12 release.
-
-\lee{Lee: describe line number insertions (overcoming a bad thing), module
-  system (hack), the use of TH to make a concrete syntax, macros (e.g., standard
-  lib---compare to Rust), other uses of macros, small compiler.}
-
-%%% Local Variables: 
-%%% mode: latex
-%%% TeX-master: "ivory"
-%%% End: 

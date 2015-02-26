@@ -168,6 +168,14 @@ predicates_ex = proc "predicates_ex" $
              ret (i + 1))
 \end{code}
 
+
+\sjw{removed, what is the main point of this section?}
+\jamey{The printf\_proc example illustrates this, but does it pass the sanity
+checker? I don't think so...?}
+\eric{Good point, the sanity checker will complain about the call to
+  printf\_none, but I'd call this a shortcoming of the sanity checker. I guess
+  it needs some notion of sum types for importProcs (and maybe externProcs?).}
+
 % \begin{code}
 
 % print_ex_module :: Module
@@ -219,7 +227,6 @@ predicates_ex = proc "predicates_ex" $
 % main :: IO ()
 % main = compile [ ex_module, print_ex_module ] []
 % \end{code}
-
 
 
 
