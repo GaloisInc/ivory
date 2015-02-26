@@ -139,17 +139,18 @@ procedure adds \cd{x} to each element of the array \cd{arr}, noting
 that \cd{arr ! ix} returns a \emph{reference} to the \cd{ix}-th
 element of \cd{arr}.
 
-\sjw{Is there some cool type inference going on here?}
 \begin{code}
 mapProc = proc "mapProc"
         $ \arr x -> body
         $ arrayMap
         $ \ix -> do
-        ￼￼v <- deref (arr ! ix)
-          store (arr ! ix) (v + x)
+            v <- deref (arr ! ix)
+            store (arr ! ix) (v + x)
 \end{code}
-
 %$
+Note that we do not need to pass \cd{arr} to \cd{arrayMap} to determine the
+correct bounds on the loop; rather, as we explain in \autoref{sec:area}, GHC can
+\emph{infer} the bounds from the loop body!
 
 \subsection{Assertions}
 
