@@ -29,7 +29,7 @@ programs to be written in a high-level style.
 
 Ivory's type system is shallowly embedded within Haskell's type
 system, taking advantage of the dependently-typed extensions provided
-by GHC~\cite{dephaskell}. Thus, well-typed Ivory programs are
+by GHC~\cite{dephaskell}.  Thus, well-typed Ivory programs are
 guaranteed to produce memory safe executables, all without writing a
 stand-alone type-checker.
 
@@ -41,6 +41,8 @@ addition to the generation of embedded C for compilation, the Ivory
 language suite includes an integrated SMT-based symbolic simulator and
 a theorem-prover back-end.  All these back-ends share the same AST:
 Ivory verifies what it compiles.
+
+\sjw{Ivory uses regions for memory management.}
 
 \sjw{move to contributions bit?}
 Ivory is not a toy language: we have used Ivory to write

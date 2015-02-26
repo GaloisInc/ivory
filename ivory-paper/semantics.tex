@@ -3,19 +3,13 @@
 \section{Ivory Semantics}
 \label{sec:semantics}
 
-In this section we discuss the more formal aspects of the Ivory
-language, including its static and dynamic semantics.  We modeled a
-simplified version of the Ivory language inside
-Isabelle/HOL\sjw{cite}, henceforth \emph{\coreivory{}}; this
-development is available under the \texttt{ivory-formal-model}
-directory in the Ivory repository.  We present in this section a
-semantics based upon the Isabelle/HOL development.
-\lee{I'd remove where it's located or just mention that in the intro, with
-  mentioning where the lang is.}
+In the previous section, we described our embedding of Ivory into the
+GHC type system and make a claim that this guarantees memory safety.
+We modeled a simplified version of the Ivory language inside
+Isabelle/HOL\sjw{cite}, henceforth \emph{\coreivory{}}, to support
+this claim.  In this section we present a semantics based upon the
+Isabelle/HOL development, and outline the proof of type safety.
 
-\lee{In the motivation, I think we should pose the question: ``in the previous
-  section, we described our embedding of Ivory into the GHC type system and make
-a claim that this guarantees memory safety. But the argument is complicated and informal.''}
 Developing this model provides a number of benefits for a modest
 investment --- we developed the model in under a person month, albeit
 one of the authors has significant experience with Isabelle.  In
@@ -76,9 +70,6 @@ C & \in & H \times S \times E \times s \sep{} \texttt{finished}(v) \\
 \caption{Concrete syntax of \coreivory{}}
 \end{figure}
 
-\sjw{more on why we want a model/motivations (?)}
-\lee{i don't think we have to motivate the need for semantics with icfp!}
-
 \subsection{Syntax}
 
 The syntax for \coreivory{} is given in \autoref{fig:syntax}.
@@ -126,7 +117,7 @@ $\alpha$ in region $\rho$, where $\alpha$ is not a reference.
 
 \newcommand{\rulestitle}[1]{\textnormal{#1}\hspace*{\fill}}
 
-\begin{figure*}[ht]
+\begin{figure*}[p!]
 
 \begin{mathpar}
 
@@ -302,7 +293,7 @@ transition to well-formed configurations.
 Formally, we prove, assuming 
 \[
 \begin{array}{l}
-\vdash \texttt{Procs} : \Psi \\
+\vdash \texttt{Procs} : \Psi\textnormal{, and} \\
 \Psi(\texttt{main}) = \texttt{fun}(\texttt{nat}, ())
 \end{array}
 \]
@@ -401,7 +392,6 @@ are confident that this extension is sound, \emph{proving} it sound
 allows a much greater confidence in the implementation: memory
 deallocation is notoriously easy to get wrong, so having a formal
 proof of soundness would be greatly comforting. \sjw{comforting?}
-
 
 % \lee{Simon: this is yours. Give the typing rules for Ivory, sketch the proofs of
 %   progress and preservation, and describe this embedding in Isabelle. Also

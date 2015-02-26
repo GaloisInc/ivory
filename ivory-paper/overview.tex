@@ -4,19 +4,36 @@
 \lee{need lead-in here. What does Ivory do? What's the motivation for it's
   design (I like to motivate it with the JPL's Power of 10 rules).}
 
+In this section we give an illustrative overview of Ivory.  An Ivory
+program is a Haskell program producing a collection of Ivory modules,
+each module containing type and procedure definitions.  Type
+definitions are produced using a quasi-quoter\cite{}, while procedure
+definitions are built from a set of monadic combinators.
+
+Ivory is a staged language: the Haskell program compiles Ivory modules
+to produce an AST which is then passed to one or more back-ends.  Thus,
+an executable is produced from an Ivory program by compiling and
+running the Haskell code to produce a C program, which is then
+compiled with a C compiler.  Alternately, checking of pre- and
+post-conditions is performed by simply running the Haskell program in
+conjunction with the verification back-end.
 
 \subsection{Ivory Statements}
 
 \lee{I'd suggest we elide types in this section, to the extent possible.}
 
-Ivory has a simple statement language embedded in a monad. Unlike in C, all
-reference reading and writing must explicitly take place in a statement, which
-eliminates large classes of unintuitive and undefined behaviors.
+Ivory statements are terms in the \cd{Ivory} monad.  This monad
+provides fresh variables, along with constructors for Ivory
+statements. Unlike C, Ivory expressions must be pure, so
+side-effecting operations take place at the statement level, in
+the context of the monad. This ensures a defined order for effects,
+eliminating large classes of unintuitive and undefined behaviors.
 
-Ivory expressions are immutable. References (non-nullable pointers) may be
-read and written using the \cd{deref} and \cd{store} statements, respectively.
-The following Haskell function takes a reference to a signed 32 bit integer value,
-and returns a statement which increments the value of the reference.
+Memory in Ivory is manipulated via non-nullable references.
+References are read and written using the \cd{deref} and \cd{store}
+statements, respectively.  For example, the following Haskell function
+takes a reference to a signed 32 bit integer value and constructs
+statements which increment the value of the reference.
 
 \begin{code}
 incr_ref :: Ref s (Stored Sint32) -> Ivory eff ()
@@ -25,88 +42,54 @@ incr_ref r = do
     store r (v + 1)
 \end{code}
 
-Ivory users can create global memory areas, like in C:
+We note that this function is \emph{not} a complete Ivory procedure.
+Rather, it can be thought of as a template parameterised by a reference.
+Ivory procedures must be explicitly defined and exported through
+procedure definitions, such as
 \begin{code}
-ex_global_area :: MemArea (Stored Sint32)
-ex_global_area = area "ex_global" (Just (ival 42))
-
-ex_global :: Ref Global (Stored Sint32)
-ex_global = addrOf ex_global_area
-\end{code}
-
-There is a separate concept of the memory area \cd{:: MemArea a}, which
-exists as part of a module def (as we'll explain below), and a reference
-to that area, which is a value that can be mutated.
-
-In addition to global memory areas, we can create memory areas on the stack.
-The \cd{local} primitive allocates a value on the stack, and returns a reference to
-that area.
-
-To use allocation in an Ivory statement, the \cd{eff} parameter must be
-constrained to have a given allocation scope. The following function creates an integer
-on the stack with an initial value of 3, increments it, and checks that the resulting
-value is equal to 4.
-
-\begin{code}
-
-uses_allocation :: (GetAlloc eff %*\mytilde*) Scope s)
-                => Ivory eff IBool
-uses_allocation = do
-  r <- local (ival (3 :: Sint32))
+ex_incr_proc :: Def ('[Ref s (Stored Sint32)] :-> Sint32)
+ex_incr_proc = proc "ex_incr" $ \r -> body $ do
   incr_ref r
   v <- deref r
-  return (v ==? 4)
-
+  ret r
 \end{code}
+The Ivory embedding uses standard Haskell techniques\cite{} to reuse
+Haskell's binders to name procedure arguments.  These binders do not
+appear in the AST, however, being erased by the \cd{proc} smart
+constructor.
 
+A reference in Ivory may refer to either a global object, allocated at
+compile time, or a \emph{local} object, allocated dynamically.
+Dynamic objectes are created in ephemeral \emph{regions} associated
+with the scope of the containing procedure; operationally, local
+objects are allocated on the stack, so regions are implicitly free'd
+on procedure return.  Ivory reference types are indexed by region
+variables, the parameter \cd{s} seen in the type signatures above.
+Along with type variable scoping, these region annotations on
+references ensure that references do not escape the context in which
+they were allocated.
 
+The Ivory monad tracks effects such as allocation through a parameter
+to the \cd{Ivory} monad.  The allocation effect ties the current
+region to the monad, and the allocation function \cd{local} returns a
+reference in the current region.  For example, the following
+constructs a zero initialized reference to an integer.
 \begin{code}
-ex_incr_proc :: Def ('[Sint32]:->IBool)
-ex_incr_proc = proc "ex_incr" $ \a -> body $ do
-  incr_ref ex_global
-  v <- deref ex_global
-  ret (v >? a)
+make_zero :: (GetAlloc eff %*\mytilde*) Scope s)
+             => Ivory eff (Ref s (Stored Sint32))
+make_zero = local (ival 0)
 \end{code}
-
-\lee{You need to put the English description before the program.}
-
-We can wrap up statements into a procedure. Procedures can take arguments
-passed in as a lambda, and optionally return an ivory value with the \cd{ret}
-statement.
-
-\begin{code}
-ex_module :: Module
-ex_module = package "example" $ do
-  incl ex_incr_proc
-  private $ do
-    defMemArea ex_global_area
-\end{code}
-
-and then collect procedures and memory areas into a module, which is then
-compiled to two files, \cd{example.h} containing the public interface and
-\cd{example.c} containing the implementation.
 
 \subsection{Data structures}
 
-Ivory provides a collection of atomic (\cd{Stored}) types which may be composed
-as product types. Arrays are specified by the type \cd{Array n a}, where \cd{n}
-is a type natural specifying the array length. Because length is specified in
-the type system, all arrays must have a known and finite length. Array
-members are accessed through the \cd{!} operator, which enforces that array
-offsets are specified by a special type \cd{Ix n}, which only permits expressing
-natural numbers in \cd{0 <= Ix n < n}.
-
-\begin{code}
-array_ex :: Ref s (Array 10 (Stored Sint32))
-         -> Ivory eff ()
-array_ex a = incr_ref (a ! 5)
-\end{code}
-
-Traditional C structures are defined using a quasiquoter to specify the field
-names and their types. Each field name can be used with the \cd{\mytilde>} operator
-which takes a reference to a struct and a field name in that struct, and gives
-a ref of the field's type. The following code declares a structure type named
-\cd{position}, allocates a position on the stack with an initial value, and then
+Ivory provides C-style arrays and data structures.  Arrays types are
+parameterised by their size, the type system ensuring that array accesses
+are within bounds.  Data structures are defined using a quasi-quoter
+to specify the field names and their types.  Fields in data structures
+are accessed via the \cd{\mytilde>} operator which takes a
+reference to a struct and a field name, and returns a reference at the
+field's type. For example, the following code declares a structure
+type named \cd{position}, allocates an initialized instance, and then
 shows some basic operations on elements in the structure.
 
 \begin{code}
@@ -125,18 +108,16 @@ struct_ex = do
                       , altitude .= ival 1524 ])
   lat <- deref (s %*\mytilde*)> latitude)
   lon <- deref (s %*\mytilde*)> longitude)
-  incr (s %*\mytilde*)> altitude)
+  incr_ref (s %*\mytilde*)> altitude)
 \end{code}
-
 
 \subsection{Control structures}
 \label{sec:control}
 
-Ivory has a few simple control flow primitives. For boolean conditions,
-the \cd{ifte\_} primitive is a statement that takes an \cd{IBool} and two
-branches of type \cd{Ivory eff ()}. For conditions that do not cause side
-effects, the \cd{?} operator gives an expression from an IBool and a tuple
-of two expressions.
+Ivory supports the usual control structures: the \cd{ifte\_} statement
+constructor takes a boolean argument and two statements, one for each
+branch of the if-then-else, while the pure ternary operator, \cd{?},
+selects from two alternatives at the expression level.
 
 \begin{code}
 abs :: Def('[Sint16] :-> Sint16)
@@ -149,18 +130,18 @@ abs2 :: Def('[Sint16] :-> Sint16)
 abs2 = proc "abs2" $ \v -> body $ do
   ret $ (v <? 0) ? ((-1*v), v)
 \end{code}
+%$
+Ivory has two iteration constructs: \cd{forever} for non-terminating
+loops such as OS tasks, and \cd{arrayMap} which iterates over a range;
+as the name suggests, the primary purpose of \cd{arrayMap} is
+iteration over elements in an array.  For example, the following
+procedure adds \cd{x} to each element of the array \cd{arr}, noting
+that \cd{arr ! ix} returns a \emph{reference} to the \cd{ix}-th
+element of \cd{arr}.
 
-Ivory has two types of loops: unbounded loops, using the \cd{forever} primitive,
-are for control structures that should never terminate, such as OS tasks. All
-other loops must specify an upper bound at the type level, using the \cd{Ix n} type
-we used for array indexing. The \cd{arrayMap} loop is run once for every value
-in the range given by \cd{Ix n}. The following loop computes the sum of the
-numbers from 1 to 16:
-
-\lee{Use the following example instead (I want to refer to exactly the following
-code later in the paper):}
+\sjw{Is there some cool type inference going on here?}
 \begin{code}
-mapProc = proc ``mapProc''
+mapProc = proc "mapProc"
         $ \arr x -> body
         $ arrayMap
         $ \ix -> do
@@ -168,19 +149,14 @@ mapProc = proc ``mapProc''
           store (arr ! ix) (v + x)
 \end{code}
 
-\begin{code}
-loop_ex :: (GetAlloc eff %*\mytilde*) Scope s) => Ivory eff Sint32
-loop_ex = do
-  a <- local (iarray [1..])
-  v <- local (ival 0)
-  arrayMap $ \(ix :: Ix 16) -> do
-    aix <- deref (a ! ix)
-    vv <- deref v
-    store v (vv + aix)
-  deref v
-\end{code}
+%$
 
-Loops may be terminated early using the \cd{break} statement.
+\subsection{Assertions}
+
+Ivory supports pre- and post-conditions, along with assertions.  The
+Ivory compiler can emit run-time assertions to enforce these
+conditions, or the model checker back-end can be used to statically
+verify these properties hold.
 
 \begin{code}
 predicates_ex :: Def('[ IFloat ] :-> IFloat)
@@ -192,62 +168,57 @@ predicates_ex = proc "predicates_ex" $
              ret (i + 1))
 \end{code}
 
-Procedures may also specify preconditions and postconditions, and users may
-specify assertions as statements. The Ivory compiler can emit run-time
-assertions to enforce these conditions, or use a model checker backend to
-statically verify they are satisified.
+% \begin{code}
 
-\begin{code}
+% print_ex_module :: Module
+% print_ex_module = package "print_ex" $ do
+%   incl printf_none
+%   incl printf_sint32
+%   incl print_proc
 
-print_ex_module :: Module
-print_ex_module = package "print_ex" $ do
-  incl printf_none
-  incl printf_sint32
-  incl print_proc
+% printf_none :: Def('[IString] :-> Sint32)
+% printf_none  = importProc "printf" "stdio.h"
 
-printf_none :: Def('[IString] :-> Sint32)
-printf_none  = importProc "printf" "stdio.h"
+% printf_sint32 :: Def('[IString, Sint32] :-> Sint32)
+% printf_sint32  = importProc "printf" "stdio.h"
 
-printf_sint32 :: Def('[IString, Sint32] :-> Sint32)
-printf_sint32  = importProc "printf" "stdio.h"
+% print_proc = Def('[]:->())
+% print_proc = proc "print_proc" $ body $ do
+%   _ <- call printf_none "hello, world!\n"
+%   _ <- call printf_sint32 "print an integer: \%d" 42
+%   return ()
+% \end{code}
 
-print_proc = Def('[]:->())
-print_proc = proc "print_proc" $ body $ do
-  _ <- call printf_none "hello, world!\n"
-  _ <- call printf_sint32 "print an integer: \%d" 42
-  return ()
-\end{code}
+% Ivory can interact with externally defined C functions and global
+% variables. The \cd{importProc} primitive allows the user to declare an external
+% procedure, and ensures the correct header file is included by the generated
+% code.
 
-Ivory can interact with externally defined C functions and global
-variables. The \cd{importProc} primitive allows the user to declare an external
-procedure, and ensures the correct header file is included by the generated
-code.
+% Ivory can only import and use functions that have a valid Ivory type signature.
+% Some polymorphic C functions may have multiple valid Ivory types.
+% \jamey{The printf\_proc example illustrates this, but does it pass the sanity
+% checker? I don't think so...?}
 
-Ivory can only import and use functions that have a valid Ivory type signature.
-Some polymorphic C functions may have multiple valid Ivory types.
-\jamey{The printf\_proc example illustrates this, but does it pass the sanity
-checker? I don't think so...?}
+% \subsection{Toolchain Use}
+% The Ivory compiler is a Haskell function that takes a list of \cd{Module}s,
+% parses command line options, and writes generated C source and header files to
+% a directory given by those options.
 
-\subsection{Toolchain Use}
-The Ivory compiler is a Haskell function that takes a list of \cd{Module}s,
-parses command line options, and writes generated C source and header files to
-a directory given by those options.
+% The compiler's second argument is a list of \cd{Artifact}s. Artifacts are a
+% datatype for an arbitrary Haskell string and a filename, indicating the contents
+% of a non-Ivory-generated file to be written to the output directory. In
+% practice, this is used to write Makefiles, native C sources, linker scripts, and debug output
+% specified by the user.
 
-The compiler's second argument is a list of \cd{Artifact}s. Artifacts are a
-datatype for an arbitrary Haskell string and a filename, indicating the contents
-of a non-Ivory-generated file to be written to the output directory. In
-practice, this is used to write Makefiles, native C sources, linker scripts, and debug output
-specified by the user.
+% There are also related functions exposed to the user that allow the parsing
+% of command line options to be separated from the compile step, where desired.
 
-There are also related functions exposed to the user that allow the parsing
-of command line options to be separated from the compile step, where desired.
+% \begin{code}
+% import Ivory.Compile.C (compile)
 
-\begin{code}
-import Ivory.Compile.C (compile)
-
-main :: IO ()
-main = compile [ ex_module, print_ex_module ] []
-\end{code}
+% main :: IO ()
+% main = compile [ ex_module, print_ex_module ] []
+% \end{code}
 
 
 
