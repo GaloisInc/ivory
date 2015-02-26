@@ -664,20 +664,20 @@ Ivory~\cite{}, the error can take several minutes to detect.
 \begin{figure}[h]
 \begin{code}
 foo :: Def ('[Sint32] :-> Sint32)
-foo = proc ``foo'' $ \_ -> body $ ret 0
+foo = proc "foo" $ \_ -> body $ ret 0
 
 fooInternal :: Def ('[Ref s (Stored Sint32)] :-> Sint32)
-fooInternal = proc ``foo'' $ \ref -> body $ do
+fooInternal = proc "foo" $ \ref -> body $ do
  x <- deref ref
  ret x
 
 main :: Def ('[] :-> Sint32)
-main = proc ``main'' $ body $ do
+main = proc "main" $ body $ do
  x <- call foo 0
  ret x
 
 cmodule :: Module
-cmodule = package ``Evil'' $ do
+cmodule = package "Evil" $ do
  incl fooInternal
  incl main
 \end{code}
