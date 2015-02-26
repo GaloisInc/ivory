@@ -54,6 +54,46 @@ and a stand-alone compiler is surprisingly small, essentially requiring a
 type-checker and a front-end targeting the AST directly. In this manner, we are
 able to ``grow'' a compiler, from an EDSL to a stand-alone system.
 
+\paragraph{Haskell as Macro Language}
+C programmers are accustomed to using the C Pre-Processor (CPP) as a limited
+macro and metaprogramming system. CPP is significantly limited: it was
+originally designed to prohibit recursion during macro expansion (although C99's
+variadic macros have been abused to implement near-arbitrary recursion
+\jamey{\url{https://github.com/pfultz2/Cloak/wiki/Is-the-C-preprocessor-Turing-complete\%3F}}).
+Widely used tools such as lex~\cite{} and yacc~\cite{} demonstrate other
+approaches to metaprogramming in C, and some projects such as libxcb~\cite{}
+have produced specialized metaprogramming tools in languages such as m4~\cite{}
+or Python~\cite{}.
+
+Embedding Ivory within Haskell enables using the full power of Haskell as a
+type-safe metaprogramming environment for C. We have used this power in a
+variety of ways:
+
+\begin{itemize}
+\item Our Tower component architecture allows compositional specification of
+  components and their message-passing channels. When instantiating a particular
+  configuration of a collection of components, the Tower backend performs
+  whole-program analysis of the data-flow graph to statically allocate exactly
+  as much buffer space as necessary, avoiding dynamic memory allocation.
+\item In embedded systems, a peripheral device's clock may be derived from a
+  platform-wide clock by a programmable clock divider. However, the platform
+  clock may be configurable. Configuring, say, a serial port to operate at
+  115200bps, may require a complex search over the space of clock divider and
+  other configuration settings based on the current platform clock. But these
+  settings will be the same on every run for a given application, so we can
+  precompute them in Haskell.
+\item We frequently use Haskell type-classes to provide function overloading for
+  Ivory. For example, the ivory-serialize library provides a ``Packable''
+  typeclass capturing the code needed to serialize or deserialize user-specified
+  types. This style of overloading is resolved during Haskell run-time, so the
+  generated C is monomorphized.
+\end{itemize}
+
+\jamey{I'm supposed to fill in here about (1) Haskell as a macro language and
+(2) extracting C computed by Haskell libraries like ad and linear that weren't
+designed with this in mind.}
+
+
 \paragraph{Error Reporting}
 Ivory's The use of advanced type-system features can produce elaborate and
 confusing type-error messages to the user. Idris~\cite{christiansen2014reflect}
