@@ -2,30 +2,30 @@
 \label{sec:tools}
 
 Ivory contains built-in tools to support high-assurance software
-development. These tools include a correctness condition generator, a SMT-based
-symbolic simulator, a theorem-prover translator, and a QuickCheck engine. We
-describe each of them briefly below.
+development. These tools include a correctness condition generator, a
+SMT-based symbolic simulator, a theorem-prover translator, and a
+QuickCheck\cite{qc} engine for randomized testing. We describe each of
+them briefly below.
 
-None of these tools specifically depend on Ivory being an EDSL, and their
-implementations are straight-forward.
+% \sjw{er, what?}
+% None of these tools specifically depend on Ivory being an EDSL, and their
+% implementations are straight-forward.
 
 \subsection{Correctness Conditions}
-Some correctness properties (e.g., arithmetic underflow and overflow properties)
-cannot be embedded in the Haskell type system. For these kind of properties, the
-Ivory AST is instrumented with appropriate assertions. For example, for the
-function
+Some correctness properties such as arithmetic underflow and overflow
+cannot be embedded in the Haskell type system. For this class of
+properties the translation into the Ivory AST adds instrumentation
+containing appropriate assertions. For example, from the function
 
 \begin{code}
-main :: Def ('[Sint32, Sint32] :-> Sint32)
-main = proc "main" $ \ x y -> body $
+add_ex :: Def ('[Sint32, Sint32] :-> Sint32)
+add_ex = proc "add_ex" $ \x y -> body $
   ret (x + y)
 \end{code}
 \noindent
-\jamey{I suggest not naming this ``main''; its type will confuse C programmers.}
-The following function is generated, which contains an overflow check before the
-expression is evaluated:
+The following function is generated
 \begin{code}
-int32_t main(int32_t var0, int32_t var1)
+int32_t add_ex(int32_t var0, int32_t var1)
 {
     bool i_ovf0 = add_ovf_i32(var0, var1);
     COMPILER_ASSERTS(i_ovf0);
@@ -33,18 +33,20 @@ int32_t main(int32_t var0, int32_t var1)
 }
 \end{code}
 \noindent
-The overflow check is performed by the function
-\cd{add\_ovf\_i32}. \cd{COMPILER\_ASSERTS} is a C macro; the appropriate response when
-property is violated is platform-dependent (e.g., logging, do-nothing, run a
-recovery procedure, etc.).
+Note the addition of the an overflow check, performed by the function
+\cd{add\_ovf\_i32}, before the expression is evaluated. The result of
+this check is handled by the platform-dependent macro
+\cd{COMPILER\_ASSERTS}; the response when a property is
+violated is platform-dependent, and may include logging, do-nothing, run a
+recovery procedure, and so forth.
 
-Ivory inserts correctness condition checks for the following, as requested by
+Ivory inserts correctness condition checks for the following conditions, as requested by
 the user:
 \begin{itemize}
 \item no arithmetic underflow and overflow,
 \item no division-by-zero,
 \item no bit-shifts are greater than or equal to the value's width,
-  (bit-shifts on signed integers is prevented statically by the type system)
+  (bit-shifts on signed integers are prevented statically by the type system)
 \item no floating-point operations result in \cd{inf} or \cd{NaN} values.
 \end{itemize}
 
