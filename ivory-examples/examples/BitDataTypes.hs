@@ -18,3 +18,12 @@ import Ivory.Language
    | spi_baud_div_128 as 6
    | spi_baud_div_256 as 7
 |]
+
+-- | Examples from Ivory paper.
+[ivory|
+ bitdata BaudRate :: Bits 2
+   = baud_9600  as 0b00
+   | baud_19200 as 0b01
+   | baud_38400 as 0b10
+   -- bit pattern 0b11 is invalid
+|]

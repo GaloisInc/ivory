@@ -524,7 +524,7 @@ Describe scenarios in which we need bit data like features. Low level network
 and hardware programming, for example. Outline how Ivory implements a data
 definition language at the bit level based on the paper by Iavor et al.}
 
-\paragraph{BitRep}
+\paragraph{Ivory Representation}
 Ivory's type system supports a set of unsigned integer types with
 specific bit sizes (8, 16, 32, and 64 bits), as in the C language.
 In order to support bit data of arbitrary width (up to the maximum
@@ -588,34 +588,39 @@ instance BitData (Bits n) where
   fromBits = id
 \end{code}
 
-\paragraph{BitData Sum Types}
-\eric{Not paper text\\
-Show how we can define a bit data type as a sum type with specific
-bit patterns for each value.}
+\paragraph{Defining Bit Data Types}
+The language for defining bit data types mirrors Haskell's syntax
+for defining data types. Each bit data type contains one or more
+constructors, each of which may have zero or more data fields.
+
+For example, consider a control register for a communication device
+with a 2-bit field used to specify the baud rate. We may define a
+bit data type \cd{BaudRate} that enumerates the legal 2-bit values:
 
 \begin{code}
 [ivory|
   bitdata BaudRate :: Bits 2
-    = baud_9600    as 0b00
-    | baud_19200   as 0b01
-    | baud_38400   as 0b10
+    = baud_9600   as 0b00
+    | baud_19200  as 0b01
+    | baud_38400  as 0b10
     -- bit pattern 0b11 is invalid
 |]
 \end{code}
 
-\paragraph{BitData Product Types}
-\eric{Not paper text\\
-Show how to assemble a larger bit data type from a set of primitive
-and user-defined bit data types.  We'll use an explicit layout clause
-as well to show that off.\\
-TODO: Can we include a figure of what this register might look like
-in a datasheet here?}
+This definition defines an opaque Haskell type \cd{BaudRate},
+implements an instance of the \cd{BitData} type class, and defines
+zero-argument constructors for each value:
 
-%\begin{bytefield}{8}
-%  \bitheader{0-8} \\
-%  \bitbox{4}{Reserved} & \bitbox{1}{TX\_ENABLE} &
-%   \bitbox{1}{RX\_ENABLE} & \bitbox{2}{BAUD\_RATE}
-%\end{bytefield}
+\begin{code}
+newtype BaudRate = {- ... -}
+instance BitData BaudRate where
+  {- ... -}
+baud_9600, baud_19200, baud_38400 :: BaudRate
+\end{code}
+
+Bit data types can be arbitrary nested to define more complex types.
+To continue the example, we define the entire control register consisting
+of enable bits for a transmitter and receiver, along with the baud rate:
 
 \begin{code}
 [ivory|
@@ -626,6 +631,23 @@ in a datasheet here?}
     } as 0b0000 # ctrl_tx_enable # ctrl_rx_enable
                 # ctrl_baud_rate
 |]
+\end{code}
+
+This definition of \cd{CtrlReg} defines a single constructor for building
+a \cd{CtrlReg} value out of its constituent fields:
+
+\begin{code}
+ctrl_reg :: Bit -> Bit -> BaudRate -> CtrlReg
+\end{code}
+
+The field definitions, which mirror Haskell's record syntax, 
+define accessors for the fields of a \cd{CtrlReg},
+and have the types:
+
+\begin{code}
+ctrl_rx_enable :: BitDataField CtrlReg Bit
+ctrl_tx_enable :: BitDataField CtrlReg Bit
+ctrl_baud_rate :: BitDataField CtrlReg BaudRate
 \end{code}
 
 \paragraph{Using Bit Data}
