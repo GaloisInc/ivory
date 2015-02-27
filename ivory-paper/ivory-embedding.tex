@@ -139,7 +139,7 @@ Figure~\ref{fig:mem-alloc} defines an initializer for an array of three
 \cd{Uint8} values.  The types of the allocation functions, as well as a sample
 of the initializers available are given in Figure~\ref{fig:mem-alloc}.
 
-\begin{figure}
+\begin{figure}[ht]
 \begin{code}
 local  :: (GetAlloc eff %*\mytilde*) 'Scope s, IvoryArea area)
        => Init area -> Ivory eff (Ref s area)
@@ -194,7 +194,7 @@ Ivory supports four kinds of areas that we explain below: arrays with statically
 known size, ``C'' arrays without statically known size (for communicating with
 external C functions), structs, and stored atomic values.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \begin{code}
 data Area k = Array Nat (Area k)
             | CArray (Area k)
@@ -310,7 +310,7 @@ iteration.  Additionally, as the size of the index is tied to the size of the
 array it's indexing, it is unnecessary to provide an array as an argument to
 \cd{arrayMap}: we rely on the use of the index to set the bounds of the loop.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \begin{code}
 arrayMap :: (Ix n -> Ivory eff a) -> Ivory eff a
 toCArray :: Ref s (Array n area) -> Ref s (CArray area)
@@ -344,7 +344,7 @@ instance are limited to those that have kind \cd{Area}, defined in
 section~\ref{sec:area}.  All types used in Ivory programs will have an
 \cd{IvoryType} or \cd{IvoryArea} instance.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \begin{code}
 class IvoryType t
 class IvoryType t => IvoryVar a where
@@ -454,7 +454,7 @@ scope variable is quantified over in the rank-2 context of the argument to the
 \cd{body} function, that reference is prevented from showing up in the return
 type of the procedure, \cd{r}.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \begin{code}
 f = proc "f" $ body $ do
   ref <- local (izero :: Init Sint32)
@@ -479,7 +479,7 @@ a procedure with type \cd{Def ('[Sint32] :-> Sint32)} will produce a
 continuation of the type, \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff}
 parameter is inherited from the current environment.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \begin{code}
 data Proc k = [k] :-> k
 
@@ -692,7 +692,7 @@ compiles, but fails during link time. The error does not result in a safety
 violation, but in large projects, such as the SMACCMPilot autopilot written in
 Ivory~\cite{}, the error can take several minutes to detect.
 
-\begin{figure}[h]
+\begin{figure}[ht]
 \begin{code}
 foo :: Def ('[Sint32] :-> Sint32)
 foo = proc "foo" $ \_ -> body $ ret 0

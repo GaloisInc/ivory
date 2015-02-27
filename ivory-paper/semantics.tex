@@ -6,7 +6,7 @@
 In the previous section, we described our embedding of Ivory into the
 GHC type system and make a claim that this guarantees memory safety.
 We modeled a simplified version of the Ivory language inside
-Isabelle/HOL\sjw{cite}, henceforth \emph{\coreivory{}}, to support
+Isabelle/HOL\cite{}, henceforth \emph{\coreivory{}}, to support
 this claim.  In this section we present a semantics based upon the
 Isabelle/HOL development, and outline the proof of type safety.
 
@@ -21,6 +21,10 @@ the heap, a feature we avoided in the development of Ivory due to
 soundness concerns.  While a simple extension to the syntax and
 semantics of Ivory, the effort involved in extending the soundness
 proofs was almost as much as developing the initial model.  
+
+Due to space constraints we discuss only those particulars of
+\coreivory{} which differ significantly from a standard imperative
+language; see \autoref{sec:all-semantics} for more details.
 
 \newcommand{\sep}{\ |\ }
 
@@ -41,26 +45,25 @@ s & ::= & \texttt{skip} \sep{} \texttt{return}(e) \sep{} s_1; s_2 \\
   & |   & \texttt{for}(x = e_1; e_2; e_3) \{ s \} \\
   & |   & \texttt{let\;} x = i \texttt{\;in\;} s \\
   & |   & \texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s \\
-\syntaxtitle{procedure definitions}\\
-P & ::= & \texttt{proc\;} f(x_1, \ldots{}, x_n) \{ s \}
-\\
 \syntaxtitle{values}\\
 v & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \\
 w & ::= & \texttt{stored}(v) \sep{} \texttt{ref}(r, n) \\
-\syntaxtitle{environments}\\
+\syntaxtitle{Stores}\\
 E & \in{} & x \to w \\
 \syntaxtitle{regions and heaps}\\
 R & \in{} & \mathbb{N} \to w\\
-H & ::=   & H, R \sep{} \cdot{}\\
+H & ::=   & H, R \sep{} \emptyset{}\\
 \syntaxtitle{stacks}\\
 F & ::= & \texttt{rframe}(x, E, s) \sep{} \texttt{sframe}(E, s) \\
-S & ::= & F, S \sep{} \cdot{} \\
+S & ::= & F, S \sep{} \emptyset{} \\
 \syntaxtitle{configurations}\\
 C & \in & H \times S \times E \times s \sep{} \texttt{finished}(v) \\
 \syntaxtitle{types}\\
 \rho   & \in & \textit{region variables}\\
 \alpha & ::= & \texttt{nat} \sep{} \texttt{bool} \sep{} \texttt{unit} \\
-\tau   & ::= & \texttt{storedt}(\alpha) \sep{} \texttt{reft}(\rho, \alpha)
+\tau   & ::= & \texttt{storedt}(\alpha) \sep{} \texttt{reft}(\rho, \alpha) \\
+\syntaxtitle{procedure definitions}\\
+P & ::= & \texttt{proc\;} f(\tau_1\;x_1, \ldots{}, \tau_n\;x_n) : \tau\; \{ s \}
 \end{array}
 \]
 
@@ -80,7 +83,7 @@ wherever possible, and so variables are let-bound with forms for
 binding the result of expression evaluation and function
 calls. Furthermore, \coreivory{} expressions are stratified into
 \emph{pure} and \emph{impure}, the latter allowing operations on the
-heap: allocation, reading, and writing references.
+heap: allocation, reading, and writing references.  
 
 Ivory uses regions to manage memory.  Thus, the heap is modeled as a
 list of \emph{regions}, each region a finite map from \emph{offsets},
@@ -113,33 +116,36 @@ $\alpha$ in region $\rho$, where $\alpha$ is not a reference.
 \newcommand{\stepsH}[2]{#1 \longmapsto_I #2}
 \newcommand{\hsteps}[5]{#1 \models \stepsH{#2; #3}{#4; #5}}
 
-\newcommand{\wfstmt}[5]{#1; #2; #3 \vdash_s #4 : #5}
+% We ignore the procedure environment for clarity
+\newcommand{\wfstmt}[5]{#1; #3 \vdash_s #4 : #5}
 \newcommand{\wfexp}[3]{#1 \vdash_e #2 : #3}
 \newcommand{\wfimp}[4]{#1; #2 \vdash_i #3 : #4}
 
 \newcommand{\rulestitle}[1]{\textnormal{#1}\hspace*{\fill}}
 
-\sjw{in appendix ... }
-coreivory{}'s semantics, presented in \autoref{fig:rules}, is modeled
-as an abstract machine\cite{} over configurations.  The judgement
+\coreivory{}'s semantics are, modeled as an abstract machine\cite{}
+over configurations.  The judgement
 \[
 \stepsX{C}{C'}
 \]
-states that configuration $C$ transitions to configuration $C'$ and
-relies on the denotation of expressions (not shown) $\denoteexp{e}{E}$
-and the semantics of impure expressions
-\[
-\hsteps{E}{H}{i}{H'}{w}
-\]
-stating that execution of the impure expression $i$ in environment $E$
-and heap $H$ yields a new heap $H'$ and value $w$.
-
-A configuration consists of a heap, a stack, an environment, and a
+states that configuration $C$ transitions to configuration $C'$.  A
+configuration consists of a heap, a stack, a store, and the current
 statement. The stack contains continuations for both function calls
-and statement sequences; the environment maps variables to values. The
+and statement sequences while the store maps variables to values. The
 semantics of sequencing is slightly non-standard as variables are
 let-bound rather than assigned, and so statement sequencing preserves
-the environment across execution of the first statement.
+the store across execution of the first statement.
+
+For example, the semantics of dereferencing is given by the rule
+\begin{mathpar}
+\inferrule{ \denoteexp{e}{E} = \texttt{ref}(r, n)  \\ (r, n) \in \texttt{dom}(H) }%
+          {\steps{(H; S; E)}{\texttt{let\;} x = \texttt{read}(e) \texttt{\;in\;} s}{(H; S; E[x \mapsto{} w])}{s}}
+\end{mathpar}
+where \( \denoteexp{e}{E} \)
+evaluates the pure expression $e$ under the store $E$.  The premise
+\( (r, n) \in \texttt{dom}(H) \)
+requires the existence of the region and offset pointed to by the
+reference resulting from evaluating $e$.
 
 Operationally, the heap is extended on a function call, an empty
 region being added to the end of the list, and shrunk on function
@@ -152,23 +158,19 @@ does not exist or at an offset which has not been allocated will
 result in a stuck configuration.  In particular, accessing a region
 after it has been removed will result in a stuck state.  
 
-\sjw{make stuc states more explicit?}
-% \sjw{stratification of values into ref/non-ref makes things easy}
-
 \subsection{Typing Ivory}
 
-The typing rules for \coreivory{} statements are given in
-\autoref{fig:rules}.  The typing judgement 
+\coreivory{}'s typing judgements extend standard statement typing
+judgements with a current region variable.  The typing judgement 
 \[
 \wfstmt{\Gamma}{\Psi}{\rho}{s}{\tau}
 \]
-holds when the statement $s$ is well-formed under the variable
-environment $\Gamma$, procedure environment $\Psi$, current region
-$\rho$, with any return statements returning values of type $\tau$.
+holds when the statement $s$ is well-formed under the store
+environment $\Gamma$, current region $\rho$, with any return
+statements returning values of type $\tau$.
 
 The region variable $\rho$ represents the current region and is used
-when checking memory allocation.  In particular, we may derive the
-following typing rule
+when checking memory allocation.  The typing rule for allocation is then
 \[
 \inferrule{ 
 \wfexp{\Gamma}{e}{\alpha} \\
@@ -177,9 +179,19 @@ following typing rule
 \]
 where the body of the let statement is checked under the additional
 assumption that the variable $x$ has reference type
-$\texttt{reft}(\rho, \alpha)$.  
+$\texttt{reft}(\rho, \alpha)$, noting the region variable on the
+reference type comes from the current region variable.  The judgement 
+\( \wfexp{\Gamma}{e}{\alpha} \) holds when pure expression $e$ has type $\alpha$.
 
-The typing rule for procedure bodies ensures that this region variable
+We fix the set of procedures as \texttt{Procs}. The typing rule for procedure bodies
+\begin{mathpar}
+\inferrule{\forall\;\texttt{proc\;} f(\tau_1\;x_1, \ldots, \tau_n\;x_n) : \tau\;\{ \mathit{body} \} \in \texttt{Procs}\\\\
+            \rho \textrm{ fresh} \\     
+            \texttt{frees}(\tau) \subseteq \texttt{frees}(\tau_1) \cup \ldots \cup \texttt{frees}(\tau_n) \\
+            \wfstmt{[x_1 \mapsto \tau_1, \ldots, x_n \mapsto \tau_n]}{\Psi}{\rho}{s}{\tau} }%
+{ \vdash \texttt{Procs} }
+\end{mathpar}
+ensures that this region variable
 is fresh; this constraint, together with the constraint that region
 variables in the procedure's return type must occur in an argument
 type, ensures that references cannot escape the scope in which they
@@ -190,31 +202,30 @@ safety of \coreivory{} programs.
 
 We prove type safety, that is, well-typed programs do not get stuck,
 by proving the usual progress and preservation lemmas.  As is
-common\sjw{cite?}  with type safety for imperative languages, we
+common  with type safety for imperative languages, we
 define auxiliary well-formedness invariants on configurations.  The
 progress lemma then states that well-formed configurations are not
 stuck, and preservation states that well-formed configurations
 transition to well-formed configurations.
 
-\sjw{name this?}
-Formally, we prove, assuming 
+\begin{theorem}[Type Safety]
+Given \( \vdash \texttt{Procs} \) and
 \[
-\begin{array}{l}
-\vdash \texttt{Procs} : \Psi\textnormal{, and} \\
-\Psi(\texttt{main}) = \texttt{fun}(\texttt{nat}, ())
-\end{array}
+\texttt{proc\;} \texttt{main}() : \texttt{nat}\;\{ \mathit{s} \} \in \texttt{Procs}\\
 \]
-that there exists some number of steps $n$ and value $v \in \mathbb{N}$ such that
+there either exists some number of steps $n$ and value $v \in \mathbb{N}$ such that
 \[
-\stepsXX{n}{(\cdot; \cdot; \cdot); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{\texttt{finished}(v)}
+\stepsXX{n}{(\emptyset; \emptyset; \emptyset); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{\texttt{finished}(v)}
 \]
 or, for all $n$ there is a well-formed configuration $C$ such that
 \[
-\stepsXX{n}{(\cdot; \cdot; \cdot); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{C}
+\stepsXX{n}{(\emptyset; \emptyset; \emptyset); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{C}
 \]
+\end{theorem}
 Informally, a well-formed program, when called via the \texttt{main}
 procedure, will either terminate in a finite number of steps, or will
 diverge through well-formed configurations.
+
 
 The well-formedness invariants are typical, and are based upon a
 well-formed value judgement.  For our purposes, the interesting rule
@@ -226,16 +237,16 @@ here is for references
 which links reference types to reference values through the region
 environment $\Delta$, mapping region variables to region indices, and
 heap type $\Theta$, mapping region indices and offsets to types.
-Well-formed heaps and environments then follow point-wise from this
+Well-formed heaps and stores then follow point-wise from this
 judgement.  Well-formedness of stacks follows, ensuring that each
 continuation on the stack is well-formed.
 
 A well-formed configuration, in addition to the well-formedness of the
-heap, stack, variable environment, and current statement, constrains
+heap, stack, store, and current statement, constrains
 the region environment ($\Delta$).  In particular, the variable
 representing the current region must be mapped to the length of the
 current heap, every region index in the range of $\Delta$ must be
-below this length, and the type variables occurring in the variable
+below this length, and the type variables occurring in the store
 environment $\Gamma$ must be mapped by $\Delta$.
 
 The progress lemma follows from well-formedness.  The preservation
@@ -298,11 +309,4 @@ allocate and return objects in a parent functions region.  While we
 are confident that this extension is sound, \emph{proving} it sound
 allows a much greater confidence in the implementation: memory
 deallocation is notoriously easy to get wrong, so having a formal
-proof of soundness would be greatly comforting. \sjw{comforting?}
-
-% \lee{Simon: this is yours. Give the typing rules for Ivory, sketch the proofs of
-%   progress and preservation, and describe this embedding in Isabelle. Also
-%   describe the (work-in-progress) to extend Ivory with memory regions and
-%   relaxed references. I'm expecting this'll be about 1-2 pages. Talk about a
-%   little additional type-checking at value level (return statements), discovered
-% from formal modeling.}
+proof of soundness would be greatly comforting.

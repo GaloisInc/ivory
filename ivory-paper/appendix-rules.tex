@@ -1,5 +1,6 @@
 
 \section{Ivory Semantics Rules}
+\label{sec:all-semantics}
 
 \subsection{Abstract machine}
 
@@ -20,9 +21,9 @@
 \and
 \inferrule{\denoteexp{e}{E} = \texttt{stored}(v)}{\hsteps{E}{H, R}{\texttt{alloc}(e)}{H, R[p \mapsto{} v]}{\texttt{ref}(|H|, p)}}(p \notin{} \mathrm{dom}(R))
 \and
-\inferrule{\denoteexp{e}{E} = \texttt{ref}(r, n)}{ \hsteps{E}{H}{ \texttt{read}(e) }{H}{\texttt{stored}(H(r, n))} }
+\inferrule{\denoteexp{e}{E} = \texttt{ref}(r, n)  \\ (r, n) \in \texttt{dom}(H)}{ \hsteps{E}{H}{ \texttt{read}(e) }{H}{\texttt{stored}(H(r, n))} }
 \and
-\inferrule{\denoteexp{e_1}{E} = \texttt{ref}(r, n) \\ \denoteexp{e_2}{E} = \texttt{stored}(v)}{ \hsteps{E}{H}{ \texttt{write}(e_1, e_2) }{H[(r, n) \mapsto v]}{\texttt{stored}(())} }
+\inferrule{\denoteexp{e_1}{E} = \texttt{ref}(r, n) \\ (r, n) \in \texttt{dom}(H) \\ \denoteexp{e_2}{E} = \texttt{stored}(v)}{ \hsteps{E}{H}{ \texttt{write}(e_1, e_2) }{H[(r, n) \mapsto v]}{\texttt{stored}(())} }
 
 \\
 %% Statements
@@ -33,7 +34,7 @@
 \and
 \inferrule{ \denoteexp{e}{E_0} = w }{\steps{(H, \_; \texttt{rframe}(x, E, s), S; E_0)}{\texttt{return}(e)}{(H; S; E[x \mapsto{} w])}{s}}
 \and
-\inferrule{ \denoteexp{e}{E} = w }{ \stepsX{(\_; \cdot; E); \texttt{return}(e)}{\texttt{finished}(w)} }
+\inferrule{ \denoteexp{e}{E} = w }{ \stepsX{(\_; \emptyset; E); \texttt{return}(e)}{\texttt{finished}(w)} }
 \and
 \inferrule{ {} }{\steps{(H; S; E)}{ (s_1; s_2) }{(H; \texttt{sframe}(E, s_2), S; E)}{s_1}}
 \and
@@ -47,7 +48,7 @@
 \and
 \inferrule{ \hsteps{E}{H}{i}{H'}{w} }{\steps{(H; S; E)}{\texttt{let\;} x = i \texttt{\;in\;} s}{(H'; S; E[x \mapsto{} w])}{s}}
 \and
-\inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H, \emptyset; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
+\inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(\tau_1\;x_1, \ldots, \tau_n\;x_n) : \tau\;\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H, \emptyset; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
 
 \\
 \end{mathpar}
@@ -86,17 +87,16 @@
 { \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = i \texttt{\;in\;} s}{\tau} }
 \and
 \inferrule{ \wfexp{\Gamma}{e_i}{\sigma_i} \\
-            \Psi(f) = \texttt{fun}(\sigma, (\sigma_1, \ldots, \sigma_n))\\
+            \texttt{proc\;} f(\sigma_1\;x_1, \ldots, \sigma_n\;x_n) : \sigma\;\{ \mathit{body} \} \in \texttt{Procs} \\
             \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau} }%
 { \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{\tau} }
 
 \\
-\inferrule{ \forall{}f \in \textrm{dom}(\Psi), \\\\ \Psi(f) = \texttt{fun}(\tau, (\sigma_1, \ldots, \sigma_n))\\      
+\inferrule{\forall\texttt{proc\;} f(\tau_1\;x_1, \ldots, \tau_n\;x_n) : \tau\;\{ \mathit{body} \} \in \texttt{Procs}\\\\
            \rho \textrm{ fresh} \\     
-            \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{s} \} \in \texttt{Procs} \\            
-            \texttt{frees}(\tau) \subseteq \texttt{frees}(\sigma_1) \cup \ldots \cup \texttt{frees}(\sigma_n) \\
-            \wfstmt{[x_1 \mapsto \sigma_1, \ldots, x_n \mapsto \sigma_n]}{\Psi}{\rho}{s}{\tau} }%
-{ \vdash \texttt{Procs} : \Psi }
+            \texttt{frees}(\tau) \subseteq \texttt{frees}(\tau_1) \cup \ldots \cup \texttt{frees}(\tau_n) \\
+            \wfstmt{[x_1 \mapsto \tau_1, \ldots, x_n \mapsto \tau_n]}{\Psi}{\rho}{s}{\tau} }%
+{ \vdash \texttt{Procs} }
 
 \end{mathpar}
 \end{figure*}
