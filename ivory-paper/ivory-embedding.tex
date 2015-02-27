@@ -513,18 +513,25 @@ call :: IvoryCall sig eff impl => Def sig -> impl
 \subsection{Bit-Data}
 \label{sec:bitdata}
 
+\paragraph{Introduction}
 Low-level systems programming often requires extensive manipulation
 of binary data packed into multi-field integer values. For example,
 a hardware register may contain several single-bit flags along with
 multi-bit fields that may not be aligned to byte boundaries.
 
-When programming in C, these values are typically accessed by defining
-a set of integer constants and using bit operations to shift and
-mask the correct bits into place with little to no type checking.
+When programming in C, these bit values are typically accessed by
+defining a set of integer constants and using bit operations to
+shift and mask the correct bits into place with little to no type
+safety.
 
-\james{TODO: One more paragraph about how we do better in Ivory using a bit
-data system based on the design described in Iavor's paper.}
+In support of high assurance low-level programming, Ivory's standard
+library contains a data definition language for these "bit data"
+types. Our system is a subset of the bit data implementation
+described in~\cite{high-level},
+which allows the programmer to define bit data as algebraic data
+types that can be nested and accessed in a type-safe manner.
 
+\paragraph{Implementation}
 Ivory's type system supports a set of unsigned integer types with
 specific bit sizes (8, 16, 32, and 64 bits), as in the C language.
 In order to support bit data of arbitrary width (up to the maximum
@@ -580,6 +587,7 @@ instance BitData (Bits n) where
   fromBits = id
 \end{code}
 
+\paragraph{Type Definition}
 The language for defining bit data types mirrors Haskell's syntax
 for defining data types. Each bit data type contains one or more
 constructors, each of which may have zero or more data fields.
@@ -632,11 +640,16 @@ ctrl_reg :: Bit -> Bit -> BaudRate -> CtrlReg
 \end{code}
 
 The field definitions define accessors for the fields of a
-\cd{CtrlReg}.
+\cd{CtrlReg}. Because the type of these accessors contains both
+the type of the containing bit data and the field being accessed,
+Haskell's type system prevents errors such as accessing a bit
+in the wrong register:
 
-\james{Show how the accessors are type-safe so we can't try to set
-fields in the wrong register to tie this back to the intro.}
+\begin{code}
+ctrl_rx_enable :: BitDataField CtrlReg Bit
+\end{code}
 
+\paragraph{Usage}
 In a typical low-level application, these fields
 are accessed with a read-modify-write cycle which is supported
 efficiently by the \cd{withBits} function and Haskell's
@@ -651,8 +664,6 @@ init_ctrl_reg = proc "init_ctrl_reg" $ body $ do
     setBit   ctrl_rx_enable
     setField ctrl_baud_rate baud_9600
 \end{code}
-
-\james{Show the C code this expands into for efficiency and atomicity?}
 
 \subsection{Module System}
 \label{sec:modules}
