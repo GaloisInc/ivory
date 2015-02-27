@@ -44,17 +44,13 @@ terminate execution in a \cd{switch} block, but Ivory does not contain
 containing a \cd{break} statement is not used outside of a loop. Finally,
 allocation effects are used to guarantee that a reference to locally-allocated
 memory is not returned by a procedure, which would result in undefined behavior; see
-Section~\ref{sec:ref} for details. Moreover, from a code block's type alone, we
-can determine whether it allocates memory, simplifying tasks like stack usage
-analysis.
-\jamey{We don't have a coherent story for stack usage analysis as far as I can
-tell. Can we give a more compelling example of the value of tracking local
-allocation effects?}
+Section~\ref{sec:ref} for details. Moreover, we can prohibit a code block from
+allocating memory simply by removing allocation effects from its type.
 
 The Ivory effects system is essentially implemented by a type-level tuple
 structure where each of the three effects correspond to a field of the
 tuple. Type equality constraints enforce that a particular effect is (or is not)
-allowed in a give function signature.
+allowed in a given function signature.
 
 The type-level tuple is implemented using data kinds~\cite{data-kinds}. Effects
 must have the kind \cd{Effects}, for which there is a single constructor,
@@ -304,11 +300,15 @@ a maximum value that is less than the length of the target array.
 
 As array indexes are parameterized by the length of arrays they can index into,
 they become an interesting target for new combinators.  In this vein, we
-introduce \cd{arrayMap}, whose signature is shown in Figure~\ref{array-support-functions}.  The intuition for the \cd{arrayMap} function is
-that it invokes the function provided for all indexes that lie between $0$ and
-$n - 1$.  As the index argument given to the function is most often used with an
-array, type information propagates out from uses of the \cd{(!)} operator, and
-it becomes unnecessary to give explicit bounds for the iteration.
+introduce \cd{arrayMap}, whose signature is shown in
+Figure~\ref{array-support-functions}.  The intuition for the \cd{arrayMap}
+function is that it invokes the function provided for all indexes that lie
+between $0$ and $n - 1$.  As the index argument given to the function is most
+often used with an array, type information propagates out from uses of the
+\cd{(!)} operator, and it becomes unnecessary to give explicit bounds for the
+iteration.  Additionally, as the size of the index is tied to the size of the
+array it's indexing, it is unnecessary to provide an array as an argument to
+\cd{arrayMap}: we rely on the use of the index to set the bounds of the loop.
 
 \begin{figure}[h]
 \begin{code}
@@ -319,11 +319,6 @@ arrayLen :: Num len => Ref s (Array n area) -> len
 \caption{Array support functions}
 \label{array-support-functions}
 \end{figure}
-\eric{When I read this, being somewhat out of the loop, I was certain that
-  arrayMap was missing the array parameter. But it actually isn't since the
-  bound is inferred by the usage inside the loop body. You should be more
-  explicit about not needing the array as a parameter because it's both odd and
-  very neat!}
 
 For compatibility with C, we also introduce a type for arrays that are not
 parameterized by their length, \cd{CArray}.  There are no operations to work
@@ -518,13 +513,25 @@ call :: IvoryCall sig eff impl => Def sig -> impl
 \subsection{Bit-Data}
 \label{sec:bitdata}
 
-\paragraph{Motivation}
-\eric{This is not actual paper text!\\
-Describe scenarios in which we need bit data like features. Low level network
-and hardware programming, for example. Outline how Ivory implements a data
-definition language at the bit level based on the paper by Iavor et al.}
+\paragraph{Introduction}
+Low-level systems programming often requires extensive manipulation
+of binary data packed into multi-field integer values. For example,
+a hardware register may contain several single-bit flags along with
+multi-bit fields that may not be aligned to byte boundaries.
 
-\paragraph{Ivory Representation}
+When programming in C, these bit values are typically accessed by
+defining a set of integer constants and using bit operations to
+shift and mask the correct bits into place with little to no type
+safety.
+
+In support of high assurance low-level programming, Ivory's standard
+library contains a data definition language for these "bit data"
+types. Our system is a subset of the bit data implementation
+described in~\cite{high-level},
+which allows the programmer to define bit data as algebraic data
+types that can be nested and accessed in a type-safe manner.
+
+\paragraph{Implementation}
 Ivory's type system supports a set of unsigned integer types with
 specific bit sizes (8, 16, 32, and 64 bits), as in the C language.
 In order to support bit data of arbitrary width (up to the maximum
@@ -537,13 +544,9 @@ type family BitRep (n :: Nat) :: *
 type instance BitRep 1 = Uint8
 type instance BitRep 2 = Uint8
 {- ... -}
-type instance BitRep 9 = Uint16
-type instance BitRep 10 = Uint16
-{- ... -}
 type instance BitRep 64 = Uint64
 \end{code}
 
-\paragraph{The "Bits" Type}
 Ivory adds additional type safety to arbitrary width integers by
 wrapping these values in an opaque type \cd{Bits n}.
 Haskell's module system is used to hide the raw constructor for
@@ -551,13 +554,10 @@ these values, only permitting valid values to be created via the
 use of smart constructors:
 
 \begin{code}
-newtype Bits (n :: Nat) = {- Bits (BitRep n) -}
+newtype Bits (n :: Nat) = Bits (BitRep n)
 
--- | Return a bit value of all zeros.
 zeroBits :: Bits n
--- | Convert an Ivory integer to a bit value.
 repToBits :: BitRep n -> Bits n
--- | Convert a bit value to an Ivory value.
 bitsToRep :: Bits n -> BitRep n
 \end{code}
 
@@ -566,7 +566,6 @@ such as \cd{repToBits}, automatically mask out any bits that are
 out of range. It is also possible to define runtime-checked versions
 of these functions that treat such "junk values" as an error.
 
-\paragraph{BitData Type Class}
 To support combining multiple bit fields into a single value, we
 generalize the "bit data" concept with a type class \cd{BitData}
 that captures the interface of a value that may be converted to
@@ -574,21 +573,21 @@ and from its representation as raw bits:
 
 \begin{code}
 class BitData a where
-  -- | The base 'Bits n' type for this data.
   type BitType a :: *
-  -- | Convert a bit data type to its raw bit value.
   toBits :: a -> BitType a
-  -- | Convert a raw bit value to this bit data type.
   fromBits :: BitType a -> a
+\end{code}
 
--- | A 'Bits n' value is a trivial instance of 'BitData'.
+The \cd{Bits n} type is a trivial instance of this type class:
+
+\begin{code}
 instance BitData (Bits n) where
   type BitType (Bits n) = Bits n
   toBits   = id
   fromBits = id
 \end{code}
 
-\paragraph{Defining Bit Data Types}
+\paragraph{Type Definition}
 The language for defining bit data types mirrors Haskell's syntax
 for defining data types. Each bit data type contains one or more
 constructors, each of which may have zero or more data fields.
@@ -640,21 +639,31 @@ a \cd{CtrlReg} value out of its constituent fields:
 ctrl_reg :: Bit -> Bit -> BaudRate -> CtrlReg
 \end{code}
 
-The field definitions, which mirror Haskell's record syntax, 
-define accessors for the fields of a \cd{CtrlReg},
-and have the types:
+The field definitions define accessors for the fields of a
+\cd{CtrlReg}. Because the type of these accessors contains both
+the type of the containing bit data and the field being accessed,
+Haskell's type system prevents errors such as accessing a bit
+in the wrong register:
 
 \begin{code}
 ctrl_rx_enable :: BitDataField CtrlReg Bit
-ctrl_tx_enable :: BitDataField CtrlReg Bit
-ctrl_baud_rate :: BitDataField CtrlReg BaudRate
 \end{code}
 
-\paragraph{Using Bit Data}
-\eric{not paper text\\
-Show an example of how to play with individual bits in a register, and how
-to set nested/multi-bit fields. Also tackle the issue of converting the
-bit data value to/from its representation.}
+\paragraph{Usage}
+In a typical low-level application, these fields
+are accessed with a read-modify-write cycle which is supported
+efficiently by the \cd{withBits} function and Haskell's
+\cd{do} notation:
+
+\begin{code}
+init_ctrl_reg :: Def ('[] :-> ())
+init_ctrl_reg = proc "init_ctrl_reg" $ body $ do
+  reg <- call read_ctrl_reg
+  call_ write_ctrl_reg $ withBits reg $ do
+    setBit   ctrl_tx_enable
+    setBit   ctrl_rx_enable
+    setField ctrl_baud_rate baud_9600
+\end{code}
 
 \subsection{Module System}
 \label{sec:modules}
