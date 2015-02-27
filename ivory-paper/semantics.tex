@@ -6,7 +6,7 @@
 In the previous section, we described our embedding of Ivory into the
 GHC type system and make a claim that this guarantees memory safety.
 We modeled a simplified version of the Ivory language inside
-Isabelle/HOL\cite{}, henceforth \emph{\coreivory{}}, to support
+Isabelle/HOL\cite{isabelle}, henceforth \emph{\coreivory{}}, to support
 this claim.  In this section we present a semantics based upon the
 Isabelle/HOL development, and outline the proof of type safety.
 
@@ -123,7 +123,7 @@ $\alpha$ in region $\rho$, where $\alpha$ is not a reference.
 
 \newcommand{\rulestitle}[1]{\textnormal{#1}\hspace*{\fill}}
 
-\coreivory{}'s semantics are, modeled as an abstract machine\cite{}
+\coreivory{}'s semantics are, modeled as an abstract machine
 over configurations.  The judgement
 \[
 \stepsX{C}{C'}
