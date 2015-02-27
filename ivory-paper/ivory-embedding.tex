@@ -288,7 +288,7 @@ Arrays in Ivory take two type parameters: the length of the array as a
 type-level natural number, and the area type of its elements.  For example, an
 array of 10 \cd{Sint32} would have the type \cd{Array 10 (Stored
 Sint32)}.  Indexing into arrays is accomplished through the use of the \cd{(!)}
-operator, shown in Figure \ref{array-support-functions}.
+operator, shown in Figure~\ref{array-support-functions}.
 
 An index into an array has the type \cd{Ix}, which is parameterized by the size
 of the array that it is indexing into.  The \cd{Ix n} type will only hold
@@ -307,7 +307,7 @@ between $0$ and $n - 1$.  As the index argument given to the function is most
 often used with an array, type information propagates out from uses of the
 \cd{(!)} operator, and it becomes unnecessary to give explicit bounds for the
 iteration.  Additionally, as the size of the index is tied to the size of the
-array it's indexing, it is unnecessary to provide an array as an argument to
+array being indexed, it is unnecessary to provide an array as an argument to
 \cd{arrayMap}: we rely on the use of the index to set the bounds of the loop.
 
 \begin{figure}[ht]
