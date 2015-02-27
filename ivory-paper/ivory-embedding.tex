@@ -304,11 +304,15 @@ a maximum value that is less than the length of the target array.
 
 As array indexes are parameterized by the length of arrays they can index into,
 they become an interesting target for new combinators.  In this vein, we
-introduce \cd{arrayMap}, whose signature is shown in Figure~\ref{array-support-functions}.  The intuition for the \cd{arrayMap} function is
-that it invokes the function provided for all indexes that lie between $0$ and
-$n - 1$.  As the index argument given to the function is most often used with an
-array, type information propagates out from uses of the \cd{(!)} operator, and
-it becomes unnecessary to give explicit bounds for the iteration.
+introduce \cd{arrayMap}, whose signature is shown in
+Figure~\ref{array-support-functions}.  The intuition for the \cd{arrayMap}
+function is that it invokes the function provided for all indexes that lie
+between $0$ and $n - 1$.  As the index argument given to the function is most
+often used with an array, type information propagates out from uses of the
+\cd{(!)} operator, and it becomes unnecessary to give explicit bounds for the
+iteration.  Additionally, as the size of the index is tied to the size of the
+array it's indexing, it is unnecessary to provide an array as an argument to
+\cd{arrayMap}: we rely on the use of the index to set the bounds of the loop.
 
 \begin{figure}[h]
 \begin{code}
@@ -319,11 +323,6 @@ arrayLen :: Num len => Ref s (Array n area) -> len
 \caption{Array support functions}
 \label{array-support-functions}
 \end{figure}
-\eric{When I read this, being somewhat out of the loop, I was certain that
-  arrayMap was missing the array parameter. But it actually isn't since the
-  bound is inferred by the usage inside the loop body. You should be more
-  explicit about not needing the array as a parameter because it's both odd and
-  very neat!}
 
 For compatibility with C, we also introduce a type for arrays that are not
 parameterized by their length, \cd{CArray}.  There are no operations to work
