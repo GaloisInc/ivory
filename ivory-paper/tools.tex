@@ -65,14 +65,12 @@ for the expression
 x != 0 ? 3/x : 0
 \end{code}
 \noindent
-the assertion
+the (tautological) assertion
 \begin{code}
 (x == 0) || (x != 0)
 \end{code}
 \noindent
-is generated (and in this case, subsequently discharged by the constant folder).
-\jamey{I this this expression is too complicated for the constant folder. An
-SMT solver could sort it out, of course.}
+is generated.
 
 Generated correctness conditions as well as general user assertions can be
 discharged via testing or using model-checking or theorem-proving. We describe

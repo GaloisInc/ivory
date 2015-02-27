@@ -44,17 +44,13 @@ terminate execution in a \cd{switch} block, but Ivory does not contain
 containing a \cd{break} statement is not used outside of a loop. Finally,
 allocation effects are used to guarantee that a reference to locally-allocated
 memory is not returned by a procedure, which would result in undefined behavior; see
-Section~\ref{sec:ref} for details. Moreover, from a code block's type alone, we
-can determine whether it allocates memory, simplifying tasks like stack usage
-analysis.
-\jamey{We don't have a coherent story for stack usage analysis as far as I can
-tell. Can we give a more compelling example of the value of tracking local
-allocation effects?}
+Section~\ref{sec:ref} for details. Moreover, we can prohibit a code block from
+allocating memory simply by removing allocation effects from its type.
 
 The Ivory effects system is essentially implemented by a type-level tuple
 structure where each of the three effects correspond to a field of the
 tuple. Type equality constraints enforce that a particular effect is (or is not)
-allowed in a give function signature.
+allowed in a given function signature.
 
 The type-level tuple is implemented using data kinds~\cite{data-kinds}. Effects
 must have the kind \cd{Effects}, for which there is a single constructor,
