@@ -1,0 +1,102 @@
+
+\section{Ivory Semantics Rules}
+
+\subsection{Abstract machine}
+
+\begin{figure*}[ht]
+
+\begin{mathpar}
+
+%% Pure expressions
+
+% \sjw{all but var lookup return stored(x)}
+\rulestitle{Semantics}\\
+\denoteexp{e}{E} = \ldots
+
+\and
+%% Impure expression
+
+\inferrule{\denoteexp{e}{E} = w}{\hsteps{E}{H}{\texttt{pure}(e)}{H}{w}}
+\and
+\inferrule{\denoteexp{e}{E} = \texttt{stored}(v)}{\hsteps{E}{H, R}{\texttt{alloc}(e)}{H, R[p \mapsto{} v]}{\texttt{ref}(|H|, p)}}(p \notin{} \mathrm{dom}(R))
+\and
+\inferrule{\denoteexp{e}{E} = \texttt{ref}(r, n)}{ \hsteps{E}{H}{ \texttt{read}(e) }{H}{\texttt{stored}(H(r, n))} }
+\and
+\inferrule{\denoteexp{e_1}{E} = \texttt{ref}(r, n) \\ \denoteexp{e_2}{E} = \texttt{stored}(v)}{ \hsteps{E}{H}{ \texttt{write}(e_1, e_2) }{H[(r, n) \mapsto v]}{\texttt{stored}(())} }
+
+\\
+%% Statements
+
+\inferrule{ {} }{\steps{(H; \texttt{sframe}(E, s), S; \_)}{\texttt{skip}}{(H; S; E)}{s}}
+\and
+\inferrule{ {} }{\steps{(H; \texttt{sframe}(\_, \_), S; E)}{\texttt{return}(e)}{(H; S; E)}{\texttt{return}(e)}}
+\and
+\inferrule{ \denoteexp{e}{E_0} = w }{\steps{(H, \_; \texttt{rframe}(x, E, s), S; E_0)}{\texttt{return}(e)}{(H; S; E[x \mapsto{} w])}{s}}
+\and
+\inferrule{ \denoteexp{e}{E} = w }{ \stepsX{(\_; \cdot; E); \texttt{return}(e)}{\texttt{finished}(w)} }
+\and
+\inferrule{ {} }{\steps{(H; S; E)}{ (s_1; s_2) }{(H; \texttt{sframe}(E, s_2), S; E)}{s_1}}
+\and
+
+\inferrule{ \denoteexp{e}{E} = \texttt{stored}(\texttt{true}) }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_1}}
+\and
+\inferrule{ \denoteexp{e}{E} = \texttt{stored}(\texttt{false}) }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_2}}
+\and
+\inferrule{ \denoteexp{e_1}{E} = w }{\steps{(H; S; E)}{ \texttt{for}(x = e_1; e_2; e_3) \{ s \} }{(H, S, E[x \mapsto{} w])}%
+{\texttt{if}(e_2)\texttt{\;then\;} (s; \texttt{for}(x = e_3; e_2; e_3) \{ s \}) \texttt{\;else\;} \texttt{skip} }}
+\and
+\inferrule{ \hsteps{E}{H}{i}{H'}{w} }{\steps{(H; S; E)}{\texttt{let\;} x = i \texttt{\;in\;} s}{(H'; S; E[x \mapsto{} w])}{s}}
+\and
+\inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H, \emptyset; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
+
+\\
+\end{mathpar}
+\end{figure*}
+
+\subsection{Typing rules}
+
+\begin{figure*}[ht]
+
+\begin{mathpar}
+% wfimp
+\inferrule{ \wfexp{\Gamma}{e}{\tau} }{ \wfimp{\Gamma}{\rho}{\texttt{pure}(e)}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{alloc}(e)}{\texttt{reft}(\rho, \alpha)} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\texttt{reft}(\rho, \alpha)} }{ \wfimp{\Gamma}{\rho}{\texttt{read}(e)}{\texttt{storedt}(\alpha)} }
+\and
+\inferrule{ \wfexp{\Gamma}{e_1}{\texttt{reft}(\rho, \alpha)} \\ \wfexp{\Gamma}{e_2}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{write}(e_1, e_2)}{\texttt{storedt}(\texttt{unit})} }
+
+\\
+%% wfstmt
+\inferrule{ }{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{skip}}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\tau}  }{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{return}(e)}{\tau} }
+\and
+\inferrule{ \wfstmt{\Gamma}{\Psi}{\rho}{s_1}{\tau} \\ \wfstmt{\Gamma}{\Psi}{\rho}{s_2}{\tau} }{ \wfstmt{\Gamma}{\Psi}{\rho}{s_1; s_2}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e}{\texttt{bool}} \\ \wfstmt{\Gamma}{\Psi}{\rho}{s_1}{\tau} \\ \wfstmt{\Gamma}{\Psi}{\rho}{s_2}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e_1}{\sigma} \\ \wfexp{\Gamma[x \mapsto \sigma]}{e_2}{\texttt{bool}} \\ \wfexp{\Gamma[x \mapsto \sigma]}{e_3}{\sigma}
+\\ \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau}}%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{ \texttt{for}(x = e_1; e_2; e_3) \{ s \} }{\tau} }
+\and
+\inferrule{ \wfimp{\Gamma}{\rho}{i}{\sigma} \\  \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = i \texttt{\;in\;} s}{\tau} }
+\and
+\inferrule{ \wfexp{\Gamma}{e_i}{\sigma_i} \\
+            \Psi(f) = \texttt{fun}(\sigma, (\sigma_1, \ldots, \sigma_n))\\
+            \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{\tau} }
+
+\\
+\inferrule{ \forall{}f \in \textrm{dom}(\Psi), \\\\ \Psi(f) = \texttt{fun}(\tau, (\sigma_1, \ldots, \sigma_n))\\      
+           \rho \textrm{ fresh} \\     
+            \texttt{proc\;} f(x_1, \ldots, x_n)\{ \mathit{s} \} \in \texttt{Procs} \\            
+            \texttt{frees}(\tau) \subseteq \texttt{frees}(\sigma_1) \cup \ldots \cup \texttt{frees}(\sigma_n) \\
+            \wfstmt{[x_1 \mapsto \sigma_1, \ldots, x_n \mapsto \sigma_n]}{\Psi}{\rho}{s}{\tau} }%
+{ \vdash \texttt{Procs} : \Psi }
+
+\end{mathpar}
+\end{figure*}
