@@ -117,9 +117,6 @@ filter.
 %% Thus, the EDSL author can provide custom type-error
 %% messages using language the application programmers will understand.
 
-%% The next best thing is to at least give the user accurate error location
-%% information. 
-
 Dynamically reporting errors in an EDSL is made difficult by the lack of
 source locations. Consider the Ivory expression \hbox{\cd{x / y},} which induces a
 runtime assertion \cd{y != 0}, inserted into the generated back-end (e.g., C code). If the assertion fails, we would like to include
