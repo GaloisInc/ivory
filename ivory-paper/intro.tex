@@ -22,13 +22,13 @@ languages, has a minimal runtime system.
 
 Ivory's implementation, however, is unique compared to previous safe C
 languages: Ivory is implemented as an embedded domain-specific
-language (EDSL)~\cite{edsl} within Haskell.  In addition to the
+language (EDSL) within Haskell.  In addition to the
 benefits of rapid language development, this gives Ivory a powerful
 templating system --- the language Haskell --- allowing low-level
 programs to be written in a high-level style.
 
 Ivory's type system is shallowly embedded within Haskell's type
-system, taking advantage of the dependently-typed extensions provided
+system, taking advantage of the extensions provided
 by GHC~\cite{dephaskell}.  Thus, well-typed Ivory programs are
 guaranteed to produce memory safe executables, all without writing a
 stand-alone type-checker.
@@ -54,7 +54,7 @@ standard. We know of a few additional small projects by other
 developers in Ivory, as well.  There are well over 100~KLoC of Ivory in existence.
 
 \paragraph{Contributions}
-In 2014, Stephanie Weirich gave an ICFP keynote describing dependent programming
+In 2014, Stephanie Weirich gave an ICFP keynote describing dependently-typed programming
 using recent type and language extensions of GHC's implementation of Haskell
 (which we will colloquially refer to as ``GHC'' in the remainder of this
 paper)~\cite{weirich-keynote}. Weirich describes how recent extensions to GHC
@@ -67,7 +67,7 @@ Ivory exemplifies the use of GHC dependent types in a large, fully-featured
 EDSL. The language demonstrates that type checking for safe systems programming
 can be embedded into GHC's type system, verifying properties involving
 pointers, arrays, loops and local memory allocation. Indeed, Ivory's type
-system goes beyond mere safety and tracks control-flow effects at host-language
+system goes beyond mere memory safety and tracks control-flow effects at host-language
 compile-time.
 
 After providing a brief introduction to the Ivory language in
@@ -79,10 +79,10 @@ aspects of the language that cannot be checked by the host language's type
 system (e.g., Ivory's module system).
 
 Embedding a type system for a safe C language into GHC's type system is tricky
-business. To gain confidence that our embedding is correct, we have formalized a
+business. To gain confidence that our embedding is correct, we formalized a
 model of Ivory in the Isabelle theorem prover~\cite{isabelle}, and used the model to
 formally prove progress and preservation properties for Ivory. In the process,
-we have discovered minor bugs in Ivory's type embedding in GHC as well as
+we discovered minor bugs in Ivory's type embedding in GHC as well as
 generalizations to Ivory that still preserve safety. We describe the
 formalization, proofs, and extensions in Section~\ref{sec:semantics}.
 
