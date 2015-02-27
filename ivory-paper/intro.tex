@@ -20,12 +20,21 @@ related to memory safety and undefined behavior, while being suitable for
 writing low-level code (e.g., device drivers). Ivory, like other safe C
 languages, has a minimal runtime system.
 
+Ivory is particularly designed for safety-critical embedded programming. Such a language
+should guarantee memory safety, prevent most undefined behaviors, and provide
+integrated testing and verification tools. Additional conventions for safe
+embedded systems such as those in use at NASA's Jet Propulsion
+Laboratory~\cite{mars}, are enforced by Ivory's type system. The major
+restrictions enforced by Ivory include no dynamic memory allocation, all loops
+having constant upper bounds, avoiding machine-dependent types (e.g., \cd{int}),
+do not use nested pointers.
+
 Ivory's implementation, however, is unique compared to previous safe C
 languages: Ivory is implemented as an embedded domain-specific
 language (EDSL) within Haskell.  In addition to the
 benefits of rapid language development, this gives Ivory a powerful
-templating system --- the language Haskell --- allowing low-level
-programs to be written in a high-level style.
+templating system---the language Haskell---allowing low-level
+programs to be written in a high-level style, despite some of the language restrictions.
 
 Ivory's type system is shallowly embedded within Haskell's type
 system, taking advantage of the extensions provided
@@ -42,9 +51,7 @@ language suite includes an integrated SMT-based symbolic simulator and
 a theorem-prover back-end.  All these back-ends share the same AST:
 Ivory verifies what it compiles.
 
-\sjw{Ivory uses regions for memory management.}
 
-\sjw{move to contributions bit?}
 Ivory is not a toy language: we have used Ivory to write
 \emph{SMACCMPilot}~\cite{smaccm}, a full-featured high-assurance
 autopilot for a small unpiloted air vehicle.  Furthermore, Boeing has
@@ -52,6 +59,10 @@ used Ivory to implement a level-of-interoperability for
 Stanag~4586~\cite{stanag}, a unpiloted air vehicle communications
 standard. We know of a few additional small projects by other
 developers in Ivory, as well.  There are well over 100~KLoC of Ivory in existence.
+
+\sjw{Ivory uses regions for memory management.}
+
+\sjw{move to contributions bit?}
 
 \paragraph{Contributions}
 In 2014, Stephanie Weirich gave an ICFP keynote describing dependently-typed programming
@@ -95,11 +106,13 @@ assertions and pre- and post-conditions on functions, and includes a built-in
 symbolic simulator targeting an SMT solver (CVC4~\cite{cvc4}), as well as an
 theorem-prover back-end targeting ACL2~\cite{acl2}. For automated testing, a
 QuickCheck-like property-based test-case generator is integrated into
-Ivory. These tools are described in Section~\ref{sec:tools}.
-
-\eric{add a blurb about section 6, unless we're dropping it for space?}
+Ivory. These tools are described in Section~\ref{sec:tools}. In
+Section~\ref{sec:edsl}, we discuss some of the issues and our mitigations with
+using a large EDSL for embedded programming projects.
 
 We describe related work in safe C language and EDSLs in
 Section~\ref{sec:related-work} and provide concluding remarks in
 Section~\ref{sec:conclusion}.
+
+
 
