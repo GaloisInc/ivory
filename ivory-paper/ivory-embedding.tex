@@ -513,13 +513,18 @@ call :: IvoryCall sig eff impl => Def sig -> impl
 \subsection{Bit-Data}
 \label{sec:bitdata}
 
-\paragraph{Motivation}
-\eric{This is not actual paper text!\\
-Describe scenarios in which we need bit data like features. Low level network
-and hardware programming, for example. Outline how Ivory implements a data
-definition language at the bit level based on the paper by Iavor et al.}
+Low-level systems programming often requires extensive manipulation
+of binary data packed into multi-field integer values. For example,
+a hardware register may contain several single-bit flags along with
+multi-bit fields that may not be aligned to byte boundaries.
 
-\paragraph{Ivory Representation}
+When programming in C, these values are typically accessed by defining
+a set of integer constants and using bit operations to shift and
+mask the correct bits into place with little to no type checking.
+
+\james{TODO: One more paragraph about how we do better in Ivory using a bit
+data system based on the design described in Iavor's paper.}
+
 Ivory's type system supports a set of unsigned integer types with
 specific bit sizes (8, 16, 32, and 64 bits), as in the C language.
 In order to support bit data of arbitrary width (up to the maximum
@@ -532,13 +537,9 @@ type family BitRep (n :: Nat) :: *
 type instance BitRep 1 = Uint8
 type instance BitRep 2 = Uint8
 {- ... -}
-type instance BitRep 9 = Uint16
-type instance BitRep 10 = Uint16
-{- ... -}
 type instance BitRep 64 = Uint64
 \end{code}
 
-\paragraph{The "Bits" Type}
 Ivory adds additional type safety to arbitrary width integers by
 wrapping these values in an opaque type \cd{Bits n}.
 Haskell's module system is used to hide the raw constructor for
@@ -546,13 +547,10 @@ these values, only permitting valid values to be created via the
 use of smart constructors:
 
 \begin{code}
-newtype Bits (n :: Nat) = {- Bits (BitRep n) -}
+newtype Bits (n :: Nat) = Bits (BitRep n)
 
--- | Return a bit value of all zeros.
 zeroBits :: Bits n
--- | Convert an Ivory integer to a bit value.
 repToBits :: BitRep n -> Bits n
--- | Convert a bit value to an Ivory value.
 bitsToRep :: Bits n -> BitRep n
 \end{code}
 
@@ -561,7 +559,6 @@ such as \cd{repToBits}, automatically mask out any bits that are
 out of range. It is also possible to define runtime-checked versions
 of these functions that treat such "junk values" as an error.
 
-\paragraph{BitData Type Class}
 To support combining multiple bit fields into a single value, we
 generalize the "bit data" concept with a type class \cd{BitData}
 that captures the interface of a value that may be converted to
@@ -569,21 +566,20 @@ and from its representation as raw bits:
 
 \begin{code}
 class BitData a where
-  -- | The base 'Bits n' type for this data.
   type BitType a :: *
-  -- | Convert a bit data type to its raw bit value.
   toBits :: a -> BitType a
-  -- | Convert a raw bit value to this bit data type.
   fromBits :: BitType a -> a
+\end{code}
 
--- | A 'Bits n' value is a trivial instance of 'BitData'.
+The \cd{Bits n} type is a trivial instance of this type class:
+
+\begin{code}
 instance BitData (Bits n) where
   type BitType (Bits n) = Bits n
   toBits   = id
   fromBits = id
 \end{code}
 
-\paragraph{Defining Bit Data Types}
 The language for defining bit data types mirrors Haskell's syntax
 for defining data types. Each bit data type contains one or more
 constructors, each of which may have zero or more data fields.
@@ -635,21 +631,28 @@ a \cd{CtrlReg} value out of its constituent fields:
 ctrl_reg :: Bit -> Bit -> BaudRate -> CtrlReg
 \end{code}
 
-The field definitions, which mirror Haskell's record syntax, 
-define accessors for the fields of a \cd{CtrlReg},
-and have the types:
+The field definitions define accessors for the fields of a
+\cd{CtrlReg}.
+
+\james{Show how the accessors are type-safe so we can't try to set
+fields in the wrong register to tie this back to the intro.}
+
+In a typical low-level application, these fields
+are accessed with a read-modify-write cycle which is supported
+efficiently by the \cd{withBits} function and Haskell's
+\cd{do} notation:
 
 \begin{code}
-ctrl_rx_enable :: BitDataField CtrlReg Bit
-ctrl_tx_enable :: BitDataField CtrlReg Bit
-ctrl_baud_rate :: BitDataField CtrlReg BaudRate
+init_ctrl_reg :: Def ('[] :-> ())
+init_ctrl_reg = proc "init_ctrl_reg" $ body $ do
+  reg <- call read_ctrl_reg
+  call_ write_ctrl_reg $ withBits reg $ do
+    setBit   ctrl_tx_enable
+    setBit   ctrl_rx_enable
+    setField ctrl_baud_rate baud_9600
 \end{code}
 
-\paragraph{Using Bit Data}
-\eric{not paper text\\
-Show an example of how to play with individual bits in a register, and how
-to set nested/multi-bit fields. Also tackle the issue of converting the
-bit data value to/from its representation.}
+\james{Show the C code this expands into for efficiency and atomicity?}
 
 \subsection{Module System}
 \label{sec:modules}
