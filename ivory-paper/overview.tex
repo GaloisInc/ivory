@@ -59,8 +59,6 @@ Along with type variable scoping, these region annotations on
 references ensure that references do not escape the context in which
 they were allocated.
 
-The Ivory monad tracks effects (the \cd{eff} type parameter); see Section~\ref{sec:ivory-monad}.
-
 The definition \cd{incr\_ref} is not a complete Ivory procedure.
 Rather, it can be thought of as a template parameterised by a reference.
 Ivory procedures must be explicitly defined and exported through
@@ -78,14 +76,15 @@ incr_def = proc "incr_def" $ \r -> body $ do
 %% appear in the AST, however, being erased by the \cd{proc} smart
 %% constructor.
 
-One of the effects tracked by the Ivory monad is an allocation effect that ties the
-current region to the monad, and the allocation function \cd{local} returns a
-reference in the current region.  For example, the following constructs a zero
-initialized reference to an integer; the \cd{ival} constructs an initializer
-from a value:
+The Ivory monad tracks effects (the \cd{eff} type parameter); see
+Section~\ref{sec:ivory-monad}.  One of these effects is the current allocation
+region: the allocation function \cd{local} returns a reference that is tied to
+that region.  For example, the following constructs a zero initialized reference
+to an integer; the \cd{ival} constructs an initializer from a value:
+
 \begin{code}
 make_zero :: (GetAlloc eff %*\mytilde*) Scope s)
-             => Ivory eff (Ref s (Stored Sint32))
+          => Ivory eff (Ref s (Stored Sint32))
 make_zero = local (ival 0)
 \end{code}
 
