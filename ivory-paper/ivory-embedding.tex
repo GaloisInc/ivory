@@ -116,7 +116,7 @@ instance are limited to those that have kind \cd{Area}, defined in
 section~\ref{sec:area}.  All types used in Ivory programs will have an
 \cd{IvoryType} or \cd{IvoryArea} instance.
 
-\begin{figure}[ht]
+\begin{figure}[t]
 \begin{code}
 class IvoryType t
 class IvoryType t => IvoryVar a where
@@ -184,7 +184,7 @@ Figure~\ref{fig:mem-alloc} defines an initializer for an array of three
 \cd{Uint8} values.  The types of the allocation functions, as well as a sample
 of the initializers available are given in Figure~\ref{fig:mem-alloc}.
 
-\begin{figure}[ht]
+\begin{figure}[t]
 \begin{code}
 data Area k = Array Nat (Area k)
             | CArray (Area k)
@@ -306,7 +306,7 @@ field2 :: Label "a" (Struct "b")
 Using a struct label to select the field of a structure requires the use of the
 \cd{(\mytilde>)} operator, which expects a reference to a structure as its first
 argument, and a compatible label as its second.  The type of the
-\cd{(\mytilde>)} operator is given in Figure~\ref{fig:area-def}.  In the
+\cd{(\mytilde>)} operator is given in Figure~\ref{fig:mem-alloc}.  In the
 following example, the \cd{(\mytilde>)} operator is used with a reference to an
 ``\cd{a}'' struct, with the \cd{field1} label, producing a new reference of type
 \cd{Ref Global (Stored Sint32)}.
@@ -476,13 +476,13 @@ by the instances of \cd{IvoryCall}.  For example, calling a procedure with type
 \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff} parameter is inherited from
 the current environment.
 
-\begin{figure}[ht]
+\begin{figure}[t]
 \begin{code}
 data Proc k = [k] :-> k
 
 class IvoryProcDef (sig :: Proc *) impl | impl -> sig
 instance IvoryProcDef ('[] :-> r) (Body r)
-instance IvoryProcDef (as :-> r) impl
+instance (IvoryProcDef (as :-> r) impl, IvoryVar a)
   => IvoryProcDef ((a ': as) :-> r) (a -> impl)
 
 class IvoryCall eff (sig :: Proc *) impl
@@ -610,8 +610,7 @@ zero-argument constructors for each value:
 
 \begin{code}
 newtype BaudRate = {- ... -}
-instance BitData BaudRate where
-  {- ... -}
+instance BitData BaudRate where {- ... -}
 baud_9600, baud_19200, baud_38400 :: BaudRate
 \end{code}
 
@@ -626,8 +625,7 @@ of enable bits for a transmitter and receiver, along with the baud rate:
     , ctrl_rx_enable  :: Bit
     , ctrl_baud_rate  :: BaudRate
     } as 0b0000 # ctrl_tx_enable # ctrl_rx_enable
-                # ctrl_baud_rate
-|]
+                # ctrl_baud_rate |]
 \end{code}
 
 This definition of \cd{CtrlReg} defines a single constructor for building
@@ -654,7 +652,6 @@ efficiently by the \cd{withBits} function and Haskell's
 \cd{do} notation:
 
 \begin{code}
-init_ctrl_reg :: Def ('[] :-> ())
 init_ctrl_reg = proc "init_ctrl_reg" $ body $ do
   reg <- call read_ctrl_reg
   call_ write_ctrl_reg $ withBits reg $ do
@@ -690,7 +687,7 @@ compiles, but fails during link time. The error does not result in a safety
 violation, but in large projects, such as the SMACCMPilot autopilot written in
 Ivory~\cite{}, the error can take several minutes to detect.
 
-\begin{figure}[ht]
+\begin{figure}[t]
 \begin{code}
 foo :: Def ('[Sint32] :-> Sint32)
 foo = proc "foo" $ \_ -> body $ ret 0
