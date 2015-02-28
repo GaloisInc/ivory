@@ -92,7 +92,7 @@ make_zero = local (ival 0)
 \subsection{Data structures}
 
 Ivory provides C-style arrays and data structures.  Arrays types are
-parameterised by their size, the type system ensuring that array accesses
+parameterised by their size, the type system ensures that array accesses
 are within bounds.  Data structures are defined using a quasi-quoter
 to specify the field names and their types.  Fields in data structures
 are accessed via the \cd{\mytilde>} operator which takes a
@@ -110,7 +110,6 @@ struct position
   }
 |]
 
-struct_ex :: (GetAlloc eff %*\mytilde*) Scope s) => Ivory eff ()
 struct_ex = do
   s <- local (istruct [ latitude  .= ival 45.52
                       , longitude .= ival (-122.68)

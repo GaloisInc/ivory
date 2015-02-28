@@ -26,14 +26,14 @@ the recent work on effects systems for monad transformers~\cite{effects}.)
 Currently, we track three classes of effects for Ivory statement blocks:
 
 \begin{itemize}
-\item \emph{Returns}: does the code block contain a \cd{return} statement, and
+\item \emph{Returns}: does the code block contain a \cd{ret} statement, and
   is the type of the returned value correct?
 \item \emph{Breaks}: does the code block contain a \cd{break} statement?
 \item \emph{Allocates}: does the code block contain local memory allocation?
 \end{itemize}
 
 Intuitively, these effects matter because their safety depends on the context in
-which the monad is used. For example, a \cd{return} statement is safe when used
+which the monad is used. For example, a \cd{ret} statement is safe when used
 within a procedure, to implement a function return. But an Ivory code block can
 also be used to implement an operating system task that should never
 return. Similarly in Ivory, \cd{break} statements are used to terminate
