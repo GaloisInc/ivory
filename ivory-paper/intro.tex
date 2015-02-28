@@ -9,24 +9,24 @@ usage and timing behavior. Unfortunately, these languages provide
 little support for creating high assurance software --- they are
 unsafe and unanalyzable.
 
-In this paper we present the language \emph{Ivory}\footnote{%
-Ivory is open-source (BSD3 license) and available at \url{ivory-lang.org}.}.
+In this paper we present the language \emph{Ivory}.\footnote{%
+Ivory is open-source (BSD3 license) and available at \url{ivory-lang.org}.}
 Ivory follows in the
 footsteps of other ``safe C'' programming languages, like
 Cyclone~\cite{cyclone}, BitC~\cite{bitc}, and Rust~\cite{rust}. By safe C
 languages, we mean languages that avoid many of the pitfalls of C, particularly
 related to memory safety and undefined behavior, while being suitable for
-writing low-level code (e.g., device drivers). Ivory, like other safe C
-languages, has a minimal runtime system.
+writing low-level code (e.g., device drivers), and having minimal runtime systems.
 
 Ivory is particularly designed for safety-critical embedded programming. Such a language
 should guarantee memory safety, prevent most undefined behaviors, and provide
 integrated testing and verification tools. Additional conventions for safe
 embedded systems such as those in use at NASA's Jet Propulsion
 Laboratory~\cite{mars}, are enforced by Ivory's type system. The major
-restrictions enforced by Ivory include no dynamic memory allocation, all loops
-having constant upper bounds, avoiding machine-dependent types (e.g., \cd{int}),
-do not use nested pointers.
+restrictions enforced by Ivory include restricted allocation so that
+zero-overhead garbage collection is feasible, enforcing loops
+to have constant upper bounds, avoiding machine-dependent types (e.g., \cd{int}),
+and safe dereferencing.
 
 Ivory's implementation, however, is unique compared to previous safe C
 languages: Ivory is implemented as an embedded domain-specific language (EDSL)

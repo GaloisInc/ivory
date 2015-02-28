@@ -331,7 +331,7 @@ arrayLen :: Num len => Ref s (Array n area) -> len
 toCArray :: Ref s (Array n area)
          -> Ref s (CArray area)
 \end{code}
-\caption{Array support functions.}
+\caption{Array support functions}
 \label{array-support-functions}
 \end{figure}
 
@@ -591,7 +591,7 @@ for defining data types. Each bit data type contains one or more
 constructors, each of which may have zero or more data fields.
 
 For example, consider a control register for a communication device
-with a 2-bit field used to specify the baud rate. We may define a
+with a 2-bit field used to specify the baud rate. The user can provide a quasi-quoter-defined
 bit data type \cd{BaudRate} that enumerates the legal 2-bit values:
 
 \begin{code}
@@ -604,7 +604,7 @@ bit data type \cd{BaudRate} that enumerates the legal 2-bit values:
 |]
 \end{code}
 
-This definition defines an opaque Haskell type \cd{BaudRate},
+Using Template Haskell, the definition generates an opaque Haskell type \cd{BaudRate},
 implements an instance of the \cd{BitData} type class, and defines
 zero-argument constructors for each value:
 
@@ -663,7 +663,7 @@ init_ctrl_reg = proc "init_ctrl_reg" $ body $ do
 \subsection{Module System}
 \label{sec:modules}
 
-As seen in Section~\ref{sec:ivory-overview}, Ivory's module system packages up
+The Ivory  module system packages up
 the collection of procedures, data declarations, and dependencies to be passed
 to a back-end, such as the C code generator. The module system is implemented as
 a writer monad that produces a list of abstract syntax values that are processed
@@ -674,10 +674,10 @@ of C modules in which header files are used to specify shared declarations. For
 example, declarations can be declared as either public or private, and modules
 can depend on other modules.
 
-While Ivory's type system is embedded in GHC's type system and Ivory's language
-is the Haskell term language, Ivory's module system cannot be embedded in
-Haskell's module system. Thus, the user must deal with both Haskell's module
-system and Ivory's orthogonal module system when programming.
+%% While Ivory's type system is embedded in GHC's type system and Ivory's language
+%% is the Haskell term language, Ivory's module system cannot be embedded in
+%% Haskell's module system. Thus, the user must deal with both Haskell's module
+%% system and Ivory's orthogonal module system when programming.
 
 At best, forgetting to include an Ivory dependency is an inconvenience. This
 inconvenience can be substantial in the case that an inter-module dependency is
@@ -685,7 +685,7 @@ omitted, which still permits the Ivory program to type-check. If the dependency
 missing is a C~function implementation, for example, C~code is generated and
 compiles, but fails during link time. The error does not result in a safety
 violation, but in large projects, such as the SMACCMPilot autopilot written in
-Ivory~\cite{}, the error can take several minutes to detect.
+Ivory~\cite{smaccm}, the error can take several minutes to detect.
 
 \begin{figure}[t]
 \begin{code}
@@ -720,7 +720,7 @@ generated C. The Ivory program is type-correct and safe, but by passing
 the C99 specification, the program compiles without warnings or errors, since
 \cd{0} can be implicitly cast to a pointer to a signed 32-bit
 integer.\footnote{In practice, the C we generate does contain a warning, since
-  the C we generate contains additional type annotations.} The result is a
+  it contains additional type annotations.} The result is a
 null-pointer dereference.
 
 To ensure this does not happen, a simple type-check pass over the Ivory AST is
