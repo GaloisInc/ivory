@@ -1,18 +1,16 @@
 \section{A Safe-C EDSL}
 \label{sec:edsl}
 
-Large-scale, safe~C programming in an EDSL has advantages and disadvantages. In
-a previous experience report, we explored some of the benefits of using an EDSL
-for embedded system development~\cite{smaccm}. We will not repeat those claims
-here. Rather, we describe two problematic aspects we have specifically addressed
-in Ivory: (1) integrating a C-like concrete syntax into the EDSL, (2)
-error-reporting, and (3) uses of macro programming specifically tailored to
-embedded system programming.
+In this section, we discuss the following issues we encountered when
+implementing an EDSL targeted toward constructing realistic embedded
+systems, notably integrating a C-like concrete syntax into the EDSL,
+error-reporting, and uses of macro programming specifically tailored
+to embedded system programming.
 
 \paragraph{Concrete Syntax}
 
 A benefit of the EDSL approach is that it relieves the developer from having to
-define and implement a front-end syntax. However, that also generally means that
+define and implement a front-end syntax. However, this also generally means that
 only users of the host language will be attracted to using the
 EDSL. We want C/C++ developers to use Ivory!
 
@@ -38,7 +36,7 @@ The need for a concrete C-like syntax became evident in our work supporting
 Boeing's use of Ivory, mentioned in Section~\ref{sec:introduction}. We have
 already seen specific uses of quasi-quotation in Ivory to define a concrete
 syntax for structs (Section~\ref{sec:area}) and bit-data
-(Section~\ref{sec:bitdata}). In fact, a quasi-quotation is given for the entire
+(Section~\ref{sec:bitdata}). In addition, we implemented a quasi-quoter for the entire
 Ivory language. An example quasi-quoted Ivory procedure is shown in
 Figure~\ref{fig:concrete}. The procedure is the equivalent of the procedure with
 the same name in Section~\ref{sec:control}.
@@ -105,8 +103,6 @@ the estimator package is independent of Ivory, but when evaluated over an Ivory
 floating-point type, the result is a C implementation of the derived Kalman
 filter.
 \end{itemize}
-
-
 
 \paragraph{Error Reporting}
 %% Ivory's The use of advanced type-system features can produce elaborate and
