@@ -38,7 +38,7 @@ Memory in Ivory is manipulated via non-nullable references~\cite{memareas}.
 References are read and written using the \cd{deref} and \cd{store}
 statements, respectively.  For example, the following Haskell function
 takes a reference to a signed 32-bit integer value and constructs
-statements in the Ivory monad which increment the value of the reference.
+a program fragment which increments the value of the reference.
 
 \begin{code}
 incr_ref :: Ref s (Stored Sint32) -> Ivory eff ()
@@ -109,7 +109,6 @@ struct position
   ; altitude  :: Stored Sint32
   }
 |]
-
 struct_ex :: (GetAlloc eff %*\mytilde*) Scope s) => Ivory eff ()
 struct_ex = do
   s <- local (istruct [ latitude  .= ival 45.52

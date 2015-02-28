@@ -14,9 +14,9 @@ Ivory (eff :: Effects) a
 \end{code}
 
 \noindent
-This type is a wrapper for a writer monad transformer over a state monad. The writer
+This type wraps a writer monad transformer over a state monad. The writer
 monad writes statements into the Ivory abstract syntax tree, and the
-state monad is used to generate fresh names for variables.
+state monad is used to generate fresh variable names.
 
 \lee{note in particular that effects can be ``turned on'' and ``turned off''}
 \paragraph{Effects}
@@ -97,7 +97,6 @@ has the type
 
 \begin{code}
 break :: (E.GetBreaks eff %*\mytilde*) E.Break) => Ivory eff ()
-break = ...
 \end{code}
 
 \subsection{Types}
@@ -151,17 +150,17 @@ relationship between these classes.
 \subsection{Memory Management}
 \label{sec:ref}
 
-Ivory uses regions for memory management~\cite{memareas}.  When data is allocated, a reference
-to the resulting data is returned, and tagged by the containing region using a
-type variable.  Well-typed Ivory programs guarantee that references do no
-persist beyond the scope of their containing region.  Regions in Ivory classify
-global data, and data allocated and freed on procedure entry/exit (the back-end
-relies on stack-based allocation in C), through the language could be modified
-to separate the two concepts, as discussed in section~\ref{sec:sem-discuss}.
-Corresponding to these two kinds of regions are the region tags that Ivory
-supports: \cd{Global} which holds statically-allocated global data that is
-available for the lifetime of the program, and a local region unique to each
-procedure whose lifetime is tied to that of the procedure.
+Ivory uses regions for memory management~\cite{memareas}.  When data
+is allocated, a reference to the resulting data is returned, and
+tagged by the containing region via a type variable.  Well-typed Ivory
+programs guarantee that references do no persist beyond the scope of
+their containing region.  Regions in Ivory classify both global data
+and data allocated and freed on procedure entry/exit (the back-end
+relies on stack-based allocation in C).  Corresponding to these two
+kinds of regions are the region tags that Ivory supports: \cd{Global}
+which holds statically-allocated global data that is available for the
+lifetime of the program, and a local region unique to each procedure
+whose lifetime is tied to that of the procedure.
 
 Data with \cd{Global} scope is allocated through the use of the \cd{area}
 top-level declaration, then converted to a reference through the use of the
@@ -185,6 +184,20 @@ of the initializers available are given in Figure~\ref{fig:mem-alloc}.
 
 \begin{figure}[ht]
 \begin{code}
+data Area k = Array Nat (Area k)
+            | CArray (Area k)
+            | Struct Symbol
+            | Stored k
+
+store :: IvoryStore a
+      => Ref s (Stored a) -> a -> Ivory eff ()
+deref :: IvoryStore a
+      => Ref s (Stored a) -> Ivory eff a
+
+data Label (struct :: Symbol) (area :: Area *)
+(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
+(!)  :: Ref s (Array n area) -> Ix n -> Ref s area
+
 local  :: (GetAlloc eff %*\mytilde*) 'Scope s, IvoryArea area)
        => Init area -> Ivory eff (Ref s area)
 
@@ -203,7 +216,8 @@ iarray :: IvoryArea area
 example :: Init (Array 3 (Stored Uint8))
 example  = iarray (map ival [1,2,3])
 \end{code}
-\caption{Memory allocation and initialization functions}
+\caption{Memory allocation, initialization, access functions, along
+  with the Area kind.}
 \label{fig:mem-alloc}
 \end{figure}
 
@@ -224,40 +238,19 @@ context of the Ivory monad.
 \subsection{Memory Areas}
 \label{sec:area}
 
-In addition to being parameterized on the region they are allocated in,
-references are parameterized by the layout of the memory they point to.  We
+References are parameterized by both their containing region
+and an \emph{area type} describing the layout of the referenced memory.  We
 introduce area types through the \cd{Area}\footnote{The type parameter on the
 \cd{Area} kind is present so that when giving kind-signatures, we can fix the
 kind of stored-values as being star (\cd{*})-kinded.  As Haskell currently lacks
 a construct for defining kinds without data, this parameterization is necessary,
 as kinds are specified with a syntax that is invalid where a type is expected.
 This technique was described by Magalh\~{a}es~\cite{jpm:trkgp:12}.} kind, and
-the four types that inhabit it (Figure~\ref{fig:area-def}).  This typing of
+the four types that inhabit it (Figure~\ref{fig:mem-alloc}).  This typing of
 memory is heavily inspired by the work of Diatchki and Jones~\cite{memareas}.
 Ivory supports four kinds of areas that we explain below: arrays with statically
 known size, ``C'' arrays without statically known size (for communicating with
 external C functions), structs, and stored atomic values.
-
-\begin{figure}[ht]
-\begin{code}
-data Area k = Array Nat (Area k)
-            | CArray (Area k)
-            | Struct Symbol
-            | Stored k
-
-
-store :: IvoryStore a
-      => Ref s (Stored a) -> a -> Ivory eff ()
-deref :: IvoryStore a
-      => Ref s (Stored a) -> Ivory eff a
-
-data Label (struct :: Symbol) (area :: Area *)
-(%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
-(!)  :: Ref s (Array n area) -> Ix n -> Ref s area
-\end{code}
-\caption{The definition of the \cd{Area} kind, and associated operations}
-\label{fig:area-def}
-\end{figure}
 
 \paragraph{Stored values}
 The simplest type of memory area is a single base type, lifted to the \cd{Area}
@@ -294,8 +287,7 @@ the following struct declaration, it would have type \cd{Struct "a"}.
 \begin{code}
 [ivory| struct a { field1 :: Stored Sint32
                  , field2 :: Struct "b"
-                 }
-|]
+                 } |]
 \end{code}
 
 Also introduced by the struct declaration are field labels.  Field labels allow
@@ -329,7 +321,7 @@ the \cd{deref} primitive, which is an effectful operation.
 
 \paragraph{Arrays}
 
-\begin{figure}[ht]
+\begin{figure}[t]
 \begin{code}
 arrayMap :: (Ix n -> Ivory (E.AllowBreak eff) a)
          => (Ix n -> Ivory eff a) -> Ivory eff a
@@ -408,17 +400,17 @@ name, and the fully-applied macro as its body.  Correct procedure definition is
 guarded by the \cd{IvoryProcDef} class, shown in Figure~\ref{fig:proc-defs},
 which constrains uses of the \cd{proc} function.
 
-\cd{IvoryProcDef} has two parameters: signature and implementation, which relate
-the \cd{Proc} type of the resulting Ivory procedure and the Haskell function
-given as the its implementation.  There are only two instances for
-\cd{IvoryProcDef}: the case where the argument list is empty, and the case where
-the argument list is extended by one argument, corresponding to the cases for
-the \cd{'[]} and \cd{(':)} type constructors.  The latter case also requires
-that the argument added be an Ivory type that is inhabited by a use of the
-\cd{IvoryVar} constraint.  In addition to ensuring that the argument type is
-acceptable as an argument to an Ivory function, the use of the \cd{IvoryVar}
-constraint also allows values to be manufactured from fresh names, allowing
-dummy values to be passed to the implementation function.
+The \cd{IvoryProcDef} type class has two parameters: signature and implementation.
+This class relates the \cd{Proc} type of the resulting Ivory procedure and
+the Haskell function given as the its implementation.  There are only
+two instances for \cd{IvoryProcDef}: the case where the argument list
+is empty, and the case where the argument list is extended by one
+argument, corresponding to the cases for the \cd{'[]} and \cd{(':)}
+type constructors.  The latter case also requires that the argument
+added be an Ivory type that is inhabited by a use of the \cd{IvoryVar}
+constraint.  This constraint both ensures that the argument type is
+acceptable as an argument to an Ivory function, and allows the use of
+pseudo-higher order abstract syntax by calling the body at fresh variables.
 
 Examining the functional dependencies for the \cd{IvoryProcDef} class from
 Figure~\ref{fig:proc-defs}, we see that the implementation function (\cd{impl})
@@ -458,7 +450,7 @@ scope variable is quantified over in the rank-2 context of the argument to the
 \cd{body} function, that reference is prevented from showing up in the return
 type of the procedure, \cd{r}.
 
-\begin{figure}[ht]
+\begin{figure}[t]
 \begin{code}
 f = proc "f" $ body $ do
   ref <- local (izero :: Init Sint32)
