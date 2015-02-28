@@ -85,10 +85,12 @@ The \cd{AllowBreak} and \cd{ClearBreak} families turn the effect ``on'' or
 
 \begin{code}
 type family   AllowBreak (effs :: Effects) :: Effects
-type instance AllowBreak ('Effects r b a) = 'Effects r 'Break a
+type instance AllowBreak ('Effects r b a) =
+    'Effects r 'Break a
 
 type family   ClearBreak (effs :: Effects) :: Effects
-type instance ClearBreak ('Effects r b a) = 'Effects r 'NoBreak a
+type instance ClearBreak ('Effects r b a) =
+    'Effects r 'NoBreak a
 \end{code}
 
 With this machinery, we can now use a type equality constraint to enforce
@@ -333,9 +335,9 @@ the \cd{deref} primitive, which is an effectful operation.
 \begin{code}
 arrayMap :: (Ix n -> Ivory (E.AllowBreak eff) a)
          => (Ix n -> Ivory eff a) -> Ivory eff a
-toCArray :: Ref s (Array n area) -> Ref s (CArray area)
 arrayLen :: Num len => Ref s (Array n area) -> len
-(!)      :: Ref s (Array len area) -> Ix len -> Ref s area
+toCArray :: Ref s (Array n area)
+         -> Ref s (CArray area)
 \end{code}
 \caption{Array support functions.}
 \label{array-support-functions}
@@ -498,7 +500,8 @@ instance IvoryCall eff ([] :-> r) (Ivory eff r)
 instance (IvoryExpr a, IvoryCall eff (as :-> r) impl)
   => IvoryCall eff ((a ': as) :-> r) (a -> impl)
 
-body :: (forall s. Ivory (ProcEffects s r) () -> Body r
+body :: (forall s. Ivory (ProcEffects s r) ())
+     -> Body r
 
 data Def (sig :: Proc *)
 proc :: IvoryProcDef sig impl
