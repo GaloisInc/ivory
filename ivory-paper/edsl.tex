@@ -4,8 +4,10 @@
 Large-scale, safe~C programming in an EDSL has advantages and disadvantages. In
 a previous experience report, we explored some of the benefits of using an EDSL
 for embedded system development~\cite{smaccm}. We will not repeat those claims
-here. Rather, we describe two problematic aspects we have specifically addressed in Ivory:
-(1) integrating a C-like concrete syntax into the EDSL and (2) error-reporting.
+here. Rather, we describe two problematic aspects we have specifically addressed
+in Ivory: (1) integrating a C-like concrete syntax into the EDSL, (2)
+error-reporting, and (3) uses of macro programming specifically tailored to
+embedded system programming.
 
 \paragraph{Concrete Syntax}
 
@@ -42,7 +44,7 @@ Figure~\ref{fig:concrete}. The procedure is the equivalent of the procedure with
 the same name in Section~\ref{sec:control}.
 
 A quasi-quoted Ivory program is guaranteed to be type-safe, since the generated
-Haskell program is type-checked. an important feature of the quasi-quoted
+Haskell program is type-checked an important feature of the quasi-quoted
 language is that it automatically generates the appropriate type signatures for
 Ivory programs, relieving the programmer from doing so. The quasi-quoter also
 generates Ivory modules automatically and guarantees that procedure names match
@@ -68,18 +70,18 @@ C99's variadic macros have been abused to implement near-arbitrary
 recursion~\cite{cpp-turing}). Widely used tools such as lex~\cite{lex} and
 yacc~\cite{yacc} demonstrate other approaches to metaprogramming in C, and some
 projects such as libxcb~\cite{xcb} have produced specialized metaprogramming
-tools in languages such as m4~\cite{m4} or Python~\cite{python}.
+tools in languages such as m4~\cite{m4}.
 
 Embedding Ivory within Haskell enables using the full power of Haskell as a
 type-safe metaprogramming environment for C. We have used this power in a
-variety of ways:
+variety of ways, specifically beneficial to embedded development.
 
 \begin{itemize}
-\item Our Tower component architecture allows compositional specification of
-  components and their message-passing channels. When instantiating a particular
-  configuration of a collection of components, the Tower backend performs
-  whole-program analysis of the data-flow graph to statically allocate exactly
-  as much buffer space as necessary, avoiding dynamic memory allocation.
+%% \item Our Tower component architecture allows compositional specification of
+%%   components and their message-passing channels. When instantiating a particular
+%%   configuration of a collection of components, the Tower backend performs
+%%   whole-program analysis of the data-flow graph to statically allocate exactly
+%%   as much buffer space as necessary, avoiding dynamic memory allocation.
 \item In embedded systems, a peripheral device's clock may be derived from a
   platform-wide clock by a programmable clock divider. However, the platform
   clock may be configurable. Configuring, say, a serial port to operate at
@@ -92,9 +94,7 @@ variety of ways:
   typeclass capturing the code needed to serialize or deserialize user-specified
   types. This style of overloading is resolved during Haskell run-time, so the
   generated C is monomorphized.
-\end{itemize}
-
-Mathematical metaprogramming has been a particularly powerful tool when combined
+\item Mathematical metaprogramming has been a particularly powerful tool when combined
 with Ivory. Edward Kmett's automatic differentiation~\cite{ad} and linear
 algebra~\cite{linear} packages, which depend primarily on the Haskell Prelude's
 numeric typeclasses, operate transparently over Ivory expressions---despite
@@ -104,6 +104,8 @@ Kalman Filter from a concise model written in pure Haskell. Like linear and ad,
 the estimator package is independent of Ivory, but when evaluated over an Ivory
 floating-point type, the result is a C implementation of the derived Kalman
 filter.
+\end{itemize}
+
 
 
 \paragraph{Error Reporting}
