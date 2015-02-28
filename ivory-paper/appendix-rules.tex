@@ -2,21 +2,73 @@
 \section{Ivory Semantics Rules}
 \label{sec:all-semantics}
 
+In this section we give the semantics of Ivory.  This is a simplification of the Isabelle/HOL development, available in the
+ivory language distribution.
+
+\subsection{Syntax}
+
+\[
+\begin{array}{crl}
+\syntaxtitle{pure expressions}\\
+e & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \sep{} x \sep{} 
+          e_1 \mathbin{\mathit{op}} e_2 \\
+\syntaxtitle{impure expressions}\\
+i & ::= & \texttt{pure}(e) \sep{} \texttt{alloc}(e) \sep{}
+          \texttt{read}(e) \sep{} \texttt{write}(e_1, e_2)\\
+\syntaxtitle{statements}\\
+s & ::= & \texttt{skip} \sep{} \texttt{return}(e) \sep{} s_1; s_2 \\ 
+  & |   & \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 \\
+  & |   & \texttt{for}(x = e_1; e_2; e_3) \{ s \} \\
+  & |   & \texttt{let\;} x = i \texttt{\;in\;} s \\
+  & |   & \texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s \\
+\syntaxtitle{values}\\
+v & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \\
+w & ::= & \texttt{stored}(v) \sep{} \texttt{ref}(r, n) \\
+\syntaxtitle{Stores}\\
+E & \in{} & x \to w \\
+\syntaxtitle{regions and heaps}\\
+R & \in{} & \mathbb{N} \to w\\
+H & ::=   & H, R \sep{} \emptyset{}\\
+\syntaxtitle{stacks}\\
+F & ::= & \texttt{rframe}(x, E, s) \sep{} \texttt{sframe}(E, s) \\
+S & ::= & F, S \sep{} \emptyset{} \\
+\syntaxtitle{configurations}\\
+C & \in & H \times S \times E \times s \sep{} \texttt{finished}(v) \\
+\syntaxtitle{types}\\
+\rho   & \in & \textit{region variables}\\
+\alpha & ::= & \texttt{nat} \sep{} \texttt{bool} \sep{} \texttt{unit} \\
+\tau   & ::= & \texttt{storedt}(\alpha) \sep{} \texttt{reft}(\rho, \alpha) \\
+\syntaxtitle{procedure definitions}\\
+P & ::= & \texttt{proc\;} f(\tau_1\;x_1, \ldots{}, \tau_n\;x_n) : \tau\; \{ s \} \\
+\texttt{Procs} & \in & \texttt{pow}(P)
+\end{array}
+\]
+
 \subsection{Abstract machine}
 
-\begin{figure*}[ht]
+The semantics of Ivory is encoded as an abstract machine.  
+
+\paragraph{Pure expressions} Pure expresses are given a denotational semantics, as below.
+
+\[
+\begin{array}{rcl}
+\denoteexp{i}{E}  &=&i \\
+\denoteexp{b}{E}  &=&b \\
+\denoteexp{()}{E} &=&() \\
+\denoteexp{x}{E}  &=&E\;x \\
+\denoteexp{e_1 \mathbin{\mathit{op}} e_2}{E} &=& \denoteexp{e_1}{E} \mathbin{\mathit{op}} \denoteexp{e_2}{E} \\
+\end{array}
+\]
+
+\paragraph{Impure expressions}
+The semantics of impure expressions operates over heaps and impure expressions, in the context of a
+store.  The judgement
+\[
+\hsteps{E}{H}{i}{H}{v}
+\]
+holds when impure expression $i$ in heap $H$ evaluates to heap $H'$ and result $v$.
 
 \begin{mathpar}
-
-%% Pure expressions
-
-% \sjw{all but var lookup return stored(x)}
-\rulestitle{Semantics}\\
-\denoteexp{e}{E} = \ldots
-
-\and
-%% Impure expression
-
 \inferrule{\denoteexp{e}{E} = w}{\hsteps{E}{H}{\texttt{pure}(e)}{H}{w}}
 \and
 \inferrule{\denoteexp{e}{E} = \texttt{stored}(v)}{\hsteps{E}{H, R}{\texttt{alloc}(e)}{H, R[p \mapsto{} v]}{\texttt{ref}(|H|, p)}}(p \notin{} \mathrm{dom}(R))
@@ -24,10 +76,23 @@
 \inferrule{\denoteexp{e}{E} = \texttt{ref}(r, n)  \\ (r, n) \in \texttt{dom}(H)}{ \hsteps{E}{H}{ \texttt{read}(e) }{H}{\texttt{stored}(H(r, n))} }
 \and
 \inferrule{\denoteexp{e_1}{E} = \texttt{ref}(r, n) \\ (r, n) \in \texttt{dom}(H) \\ \denoteexp{e_2}{E} = \texttt{stored}(v)}{ \hsteps{E}{H}{ \texttt{write}(e_1, e_2) }{H[(r, n) \mapsto v]}{\texttt{stored}(())} }
+\end{mathpar}
 
-\\
+\paragraph{Statements}
+The judgement
+\[
+\stepsX{C}{C'}
+\]
+states that configuration $C$ transitions to configuration $C'$.  A
+configuration consists of a heap, a stack, a store, and the current
+statement. The stack contains continuations for both function calls
+and statement sequences while the store maps variables to values. The
+semantics of sequencing is slightly non-standard as variables are
+let-bound rather than assigned, and so statement sequencing preserves
+the store across execution of the first statement.
+
 %% Statements
-
+\begin{mathpar}
 \inferrule{ {} }{\steps{(H; \texttt{sframe}(E, s), S; \_)}{\texttt{skip}}{(H; S; E)}{s}}
 \and
 \inferrule{ {} }{\steps{(H; \texttt{sframe}(\_, \_), S; E)}{\texttt{return}(e)}{(H; S; E)}{\texttt{return}(e)}}
@@ -38,7 +103,6 @@
 \and
 \inferrule{ {} }{\steps{(H; S; E)}{ (s_1; s_2) }{(H; \texttt{sframe}(E, s_2), S; E)}{s_1}}
 \and
-
 \inferrule{ \denoteexp{e}{E} = \texttt{stored}(\texttt{true}) }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_1}}
 \and
 \inferrule{ \denoteexp{e}{E} = \texttt{stored}(\texttt{false}) }{\steps{(H; S; E)}{ \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 }{(H; S; E)}{s_2}}
@@ -50,25 +114,48 @@
 \and
 \inferrule{ \denoteexp{e_i}{E} = w_i \\ \texttt{proc\;} f(\tau_1\;x_1, \ldots, \tau_n\;x_n) : \tau\;\{ \mathit{body} \} \in \texttt{Procs} }{\steps{(H; S; E)}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{(H, \emptyset; \texttt{rframe}(x, E, s), S; [x_1 \mapsto{} w_1. \ldots{}, x_n \mapsto{} w_n])}{\mathit{body}}}
 
-\\
 \end{mathpar}
-\end{figure*}
 
 \subsection{Typing rules}
 
-\begin{figure*}[ht]
+\paragraph{Pure expressions} Pure expression typing is standard, with $\mathit{op}_\tau$ an
+operation that returns type $\tau$, where $\tau$ is \texttt{nat} for
+arithmetic operations and \texttt{bool} for comparison operations.
+
+\begin{mathpar}
+\inferrule{  }{ \wfexp{\Gamma}{i}{\texttt{nat}} }\and
+\inferrule{  }{ \wfexp{\Gamma}{b}{\texttt{bool}} }\and
+\inferrule{  }{ \wfexp{\Gamma}{()}{\texttt{unit}} }\and
+\inferrule{ \Gamma(x) = \tau }{ \wfexp{\Gamma}{x}{\tau} }\and
+\inferrule{ \wfexp{\Gamma}{e_1}{\texttt{nat}} \\ \wfexp{\Gamma}{e_2}{\texttt{nat}} }%
+{\wfexp{\Gamma}{e_1 \mathbin{\mathit{op}_\tau} e_2}{\tau}}
+\end{mathpar}
+
+\paragraph{Impure expressions}
+The typing judgement for impure expressions, as with statements, is
+parameterized by the current region, $\rho$.  
 
 \begin{mathpar}
 % wfimp
-\inferrule{ \wfexp{\Gamma}{e}{\tau} }{ \wfimp{\Gamma}{\rho}{\texttt{pure}(e)}{\tau} }
+f\inferrule{ \wfexp{\Gamma}{e}{\tau} }{ \wfimp{\Gamma}{\rho}{\texttt{pure}(e)}{\tau} }
 \and
 \inferrule{ \wfexp{\Gamma}{e}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{alloc}(e)}{\texttt{reft}(\rho, \alpha)} }
 \and
 \inferrule{ \wfexp{\Gamma}{e}{\texttt{reft}(\rho, \alpha)} }{ \wfimp{\Gamma}{\rho}{\texttt{read}(e)}{\texttt{storedt}(\alpha)} }
 \and
 \inferrule{ \wfexp{\Gamma}{e_1}{\texttt{reft}(\rho, \alpha)} \\ \wfexp{\Gamma}{e_2}{\alpha} }{ \wfimp{\Gamma}{\rho}{\texttt{write}(e_1, e_2)}{\texttt{storedt}(\texttt{unit})} }
+\end{mathpar}
 
-\\
+\paragraph{Statements}
+The typing judgement 
+\[
+\wfstmt{\Gamma}{\Psi}{\rho}{s}{\tau}
+\]
+holds when the statement $s$ is well-formed under the store
+environment $\Gamma$, current region $\rho$, with any return
+statements returning values of type $\tau$.
+
+\begin{mathpar}
 %% wfstmt
 \inferrule{ }{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{skip}}{\tau} }
 \and
@@ -91,7 +178,13 @@
             \wfstmt{\Gamma[x \mapsto \sigma]}{\Psi}{\rho}{s}{\tau} }%
 { \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s}{\tau} }
 
-\\
+\end{mathpar}
+
+\paragraph{Programs}
+A program is well-formed when all its constituent procedures are
+well-formed under a fresh region variable and constrained return type.
+
+\begin{mathpar}
 \inferrule{\forall\texttt{proc\;} f(\tau_1\;x_1, \ldots, \tau_n\;x_n) : \tau\;\{ \mathit{body} \} \in \texttt{Procs}\\\\
            \rho \textrm{ fresh} \\     
             \texttt{frees}(\tau) \subseteq \texttt{frees}(\tau_1) \cup \ldots \cup \texttt{frees}(\tau_n) \\
@@ -99,4 +192,3 @@
 { \vdash \texttt{Procs} }
 
 \end{mathpar}
-\end{figure*}
