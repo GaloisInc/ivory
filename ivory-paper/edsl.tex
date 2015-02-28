@@ -61,18 +61,22 @@ able to ``grow'' a compiler, from an EDSL to a stand-alone system.
 
 
 \paragraph{Haskell as Macro Language}
-C programmers are accustomed to using the C Pre-Processor (CPP) as a limited
-macro and metaprogramming system. CPP is significantly limited: it was
-originally designed to prohibit recursion during macro expansion (although
-C99's variadic macros have been abused to implement near-arbitrary
-recursion~\cite{cpp-turing}). Widely used tools such as lex~\cite{lex} and
-yacc~\cite{yacc} demonstrate other approaches to metaprogramming in C, and some
-projects such as libxcb~\cite{xcb} have produced specialized metaprogramming
-tools in languages such as m4~\cite{m4}.
 
-Embedding Ivory within Haskell enables using the full power of Haskell as a
-type-safe metaprogramming environment for C. We have used this power in a
+C programmers are accustomed to using the C Pre-Processor (CPP) as a
+limited macro and metaprogramming system.  Embedding Ivory within
+Haskell allows users the full power of Haskell as a type-safe
+metaprogramming environment for Ivory. We have used this feature in a
 variety of ways, specifically beneficial to embedded development.
+
+% CPP is significantly limited: it was
+% originally designed to prohibit recursion during macro expansion (although
+% C99's variadic macros have been abused to implement near-arbitrary
+% recursion~\cite{cpp-turing}). 
+
+% Widely used tools such as lex~\cite{lex} and
+% yacc~\cite{yacc} demonstrate other approaches to metaprogramming in C, and some
+% projects such as libxcb~\cite{xcb} have produced specialized metaprogramming
+% tools in languages such as m4~\cite{m4}.
 
 \begin{itemize}
 %% \item Our Tower component architecture allows compositional specification of
@@ -84,7 +88,7 @@ variety of ways, specifically beneficial to embedded development.
   platform-wide clock by a programmable clock divider. However, the platform
   clock may be configurable. Configuring, say, a serial port to operate at
   115200bps, may require a complex search over the space of clock divider and
-  other configuration settings based on the current platform clock. But these
+  other configuration settings based on the current platform clock. These
   settings will be the same on every run for a given application, so we can
   precompute them in Haskell.
 \item We frequently use Haskell type-classes to provide function overloading for
@@ -119,7 +123,7 @@ Dynamically reporting errors in an EDSL is made difficult by the lack of
 source locations. Consider the Ivory expression \hbox{\cd{x / y},} which induces a
 runtime assertion \cd{y != 0}, inserted into the generated back-end (e.g., C code). If the assertion fails, we would like to include
 a \emph{Haskell} source location in the error message to direct the programmer to the source of
-the error. But how are we to obtain the source location in the first place?
+the error. The question is then: how are we to obtain the source location in the first place?
 Ivory programs are comprised of Haskell expressions and Haskell is
 pure--functions cannot depend on their call-site--so we must look outside the
 language proper to obtain source locations.
@@ -129,8 +133,7 @@ the \cd{file-location} package~\cite{file-location}, is to use a Template
 Haskell splice to query the compiler for the current source location and insert
 it into the AST. This approach did not appeal to us as Template Haskell incurs
 considerable syntactic overhead and is incompatible with the concrete syntax
-described above, and we already had 10+ KLoC of Ivory implementation which would need to be
-rewritten.
+described above.  
 
 Instead, we opted to write a compiler plugin that rewrites GHC's intermediate
 representation to add the source locations. To do so, we extended the \cd{Ivory} statement type with a new

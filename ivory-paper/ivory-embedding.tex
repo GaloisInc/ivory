@@ -34,7 +34,7 @@ Currently, we track three classes of effects for Ivory statement blocks:
 
 Intuitively, these effects matter because their safety depends on the context in
 which the monad is used. For example, a \cd{ret} statement is safe when used
-within a procedure, to implement a function return. But an Ivory code block can
+within a procedure, to implement a function return. However, an Ivory code block can
 also be used to implement an operating system task that should never
 return. Similarly in Ivory, \cd{break} statements are used to terminate
 execution of an enclosing loop. (The other valid use of \cd{break} in C99 is to
