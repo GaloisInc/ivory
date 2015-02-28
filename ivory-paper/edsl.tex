@@ -15,6 +15,7 @@ A benefit of the EDSL approach is that it relieves the developer from having to
 define and implement a front-end syntax. However, that also generally means that
 only users of the host language will be attracted to using the
 EDSL. We want C/C++ developers to use Ivory!
+<<<<<<< Updated upstream
 
 \begin{figure}[h!]
 \begin{code}
@@ -105,8 +106,42 @@ the estimator package is independent of Ivory, but when evaluated over an Ivory
 floating-point type, the result is a C implementation of the derived Kalman
 filter.
 \end{itemize}
+=======
 
+\begin{figure}[h!]
+\begin{code}
+void mapProc(s*uint8_t[4] arr, uint8_t x) {
+  map ix {
+    let v = arr@ix;
+    *v = *v + x;
+  }
+}
+\end{code}
+  \caption{Concrete Syntax for Ivory}
+  \label{fig:concrete}
+\end{figure}
 
+The need for a concrete C-like syntax became evident in our work supporting
+Boeing's use of Ivory, mentioned in Section~\ref{sec:introduction}. We have
+already seen specific uses of quasi-quotation in Ivory to define a concrete
+syntax for structs (Section~\ref{sec:area}) and bit-data
+(Section~\ref{sec:bitdata}). In fact, a quasi-quotation is given for the entire
+Ivory language. An example quasi-quoted Ivory procedure is shown in
+Figure~\ref{sec:control}. The procedure is the equivalent of the procedure with
+the same name in Section~\ref{sec:control}.
+>>>>>>> Stashed changes
+
+A quasi-quoted Ivory program is guaranteed to be type-safe, since the generated
+Haskell program is type-checked. an important feature of the quasi-quoted
+language is that it automatically generates the appropriate type signatures for
+Ivory programs, relieving the programmer from doing so. The quasi-quoter also
+generates Ivory modules automatically and guarantees that procedure names match
+their Haskell identifiers, obviating the problems discussed in
+Section~\ref{sec:modules}. The quasi-quoter supports anti-quotation, so that
+Haskell can still be used as a macro language. All of Boeing's development in
+Ivory is via the quasi-quoter.
+
+<<<<<<< Updated upstream
 
 \paragraph{Error Reporting}
 %% Ivory's The use of advanced type-system features can produce elaborate and
@@ -115,13 +150,37 @@ filter.
 %% representing the compiler's error message and can rewrite it to insert
 %% domain-specific knowledge. Unfortunately, GHC Haskell does not currently support
 %% such a feature.
+=======
+Implementing a quasi-quoter means that we have defined a lexer and parser for
+the concrete syntax. Because Ivory is deeply embedded in Haskell, there is a
+concrete data type (i.e., the abstract syntax tree (AST)) over which
+optimizations and back-ends are implemented. The distance from Ivory as an EDSL
+and a stand-alone compiler is surprisingly small, essentially requiring a
+type-checker and a front-end targeting the AST directly. In this manner, we are
+able to ``grow'' a compiler, from an EDSL to a stand-alone system.
+
+\paragraph{Error Reporting}
+Ivory's The use of advanced type-system features can produce elaborate and
+confusing type-error messages to the user. Idris~\cite{christiansen2014reflect}
+allows the programmer to supply error handlers, which are given a data structure
+representing the compiler's error message and can rewrite it to insert
+domain-specific knowledge. Unfortunately, GHC Haskell does not currently support
+such a feature.
+>>>>>>> Stashed changes
 
 %% Thus, the EDSL author can provide custom type-error
 %% messages using language the application programmers will understand.
 
+<<<<<<< Updated upstream
 Dynamically reporting errors in an EDSL is made difficult by the lack of
 source locations. Consider the Ivory expression \hbox{\cd{x / y},} which induces a
 runtime assertion \cd{y != 0}, inserted into the generated back-end (e.g., C code). If the assertion fails, we would like to include
+=======
+The next best thing is to at least give the user accurate error location
+information. Dynamically reporting errors in an EDSL is also made difficult by the lack of
+source locations. Consider the Ivory expression \hbox{\cd{x / y},} which induces a
+runtime assertion \cd{y != 0}. If the assertion fails, we would like to include
+>>>>>>> Stashed changes
 a \emph{Haskell} source location in the error message to direct the programmer to the source of
 the error. But how are we to obtain the source location in the first place?
 Ivory programs are comprised of Haskell expressions and Haskell is
