@@ -27,13 +27,12 @@ prove invariants~\cite{spark}. To support verification, the language is
 very restrictive: in particular, there are no references in the language.
 
 Rust is an actively-developed safe C language, originating from
-Mozilla~\cite{rust}. Rust has a powerful type system to enforce the safe use of
-heap-based data structures. An affine type system prevents pointer aliasing
-errors. Rust provides reference counting garbage collection as a library (so
-other garbage collection strategies can be used instead). Rust has hygenic
-macros. The language has a property-based testing framework, but no mature
-support for verification, or even static checks for undefined behavior (e.g.,
-division by a constant zero expression).
+Mozilla~\cite{rust}. Rust has a powerful affine type system\footnote{An affine
+type system prevents pointer aliasing errors.} that enforces the safe use of
+heap-based data structures, reference counting garbage collection as a library,
+and hygenic macros. The language has a property-based testing framework, but no
+mature support for verification, or even static checks for undefined behavior
+(e.g., division by a constant zero expression).
 
 EDSLs for safe C programming also exist. Examples include Atom, a language for
 lock-free embedded programs~\cite{atom}; Copilot, a stream-oriented synchronous
