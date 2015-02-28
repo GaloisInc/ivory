@@ -96,7 +96,7 @@ the particular effects in a context. For example, Ivory's \cd{break} statement
 has the type
 
 \begin{code}
-break :: (E.GetBreaks eff %*\mytilde* E.Break) => Ivory eff ()
+break :: (E.GetBreaks eff %*\mytilde*) E.Break) => Ivory eff ()
 break = ...
 \end{code}
 
