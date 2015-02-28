@@ -9,10 +9,10 @@ to embedded system programming.
 
 \paragraph{Concrete Syntax}
 
-A benefit of the EDSL approach is that it relieves the developer from having to
-define and implement a front-end syntax. However, this also generally means that
-only users of the host language will be attracted to using the
-EDSL. We want C/C++ developers to use Ivory!
+A benefit of the EDSL approach is that it relieves the language developer from
+having to define and implement front-end syntax. However, that also generally
+means that only users of the host language will be attracted to using the EDSL.
+We want C/C++ developers to use Ivory!
 
 \begin{figure}[h!]
 \begin{code}
@@ -32,8 +32,8 @@ its type. Could cite Dennis Ritchie's ``The Development of the C Language''
 (\url{http://www.lysator.liu.se/c/chistory.ps}) to explain how C got the weird
 array type semantics in the first place...}
 
-The need for a concrete C-like syntax became evident in our work supporting
-Boeing's use of Ivory, mentioned in Section~\ref{sec:introduction}. We have
+We developed a concrete C-like syntax for Ivory, which facilitated use by
+Boeing, mentioned in Section~\ref{sec:introduction}. We have
 already seen specific uses of quasi-quotation in Ivory to define a concrete
 syntax for structs (Section~\ref{sec:area}) and bit-data
 (Section~\ref{sec:bitdata}). In addition, we implemented a quasi-quoter for the entire
