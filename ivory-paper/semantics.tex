@@ -286,7 +286,8 @@ end without encountering a return statement.  Thus, a program could
 claim to return, say, a valid index but in reality return an
 out-of-bounds index, breaking memory safety.  In the model this
 check is part of the type checking rules (although elided for clarity
-in this paper) but is implemented as a post-processing check in the
+in this paper) but is implemented as an explicit type-check over the Ivory AST
+in the
 Haskell implementation.  
 
 The existence of the formal model is not a guarantee that the Ivory

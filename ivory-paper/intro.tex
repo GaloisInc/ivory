@@ -1,9 +1,8 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Recent reports of car-hacking via software flaws~\cite{}, unsafe
-safety-critical software~\cite{}, and bugs in internet-of-things
-devices~\cite{}, all point toward the need for safe low-level programming
+Recent reports of car-hacking via software flaws~\cite{cars11}, and insecure
+low-level networking code~\cite{heartbleed} point toward the need for safe low-level programming
 languages. Languages like C or C++ are still the gold standard in embedded
 system development given the low-level control they provide in terms of memory
 usage and timing behavior. Unfortunately, these languages provide
@@ -20,15 +19,24 @@ related to memory safety and undefined behavior, while being suitable for
 writing low-level code (e.g., device drivers). Ivory, like other safe C
 languages, has a minimal runtime system.
 
+Ivory is particularly designed for safety-critical embedded programming. Such a language
+should guarantee memory safety, prevent most undefined behaviors, and provide
+integrated testing and verification tools. Additional conventions for safe
+embedded systems such as those in use at NASA's Jet Propulsion
+Laboratory~\cite{mars}, are enforced by Ivory's type system. The major
+restrictions enforced by Ivory include no dynamic memory allocation, all loops
+having constant upper bounds, avoiding machine-dependent types (e.g., \cd{int}),
+do not use nested pointers.
+
 Ivory's implementation, however, is unique compared to previous safe C
 languages: Ivory is implemented as an embedded domain-specific
-language (EDSL)~\cite{edsl} within Haskell.  In addition to the
+language (EDSL) within Haskell.  In addition to the
 benefits of rapid language development, this gives Ivory a powerful
-templating system --- the language Haskell --- allowing low-level
-programs to be written in a high-level style.
+templating system---the language Haskell---allowing low-level
+programs to be written in a high-level style, despite some of the language restrictions.
 
 Ivory's type system is shallowly embedded within Haskell's type
-system, taking advantage of the dependently-typed extensions provided
+system, taking advantage of the extensions provided
 by GHC~\cite{dephaskell}.  Thus, well-typed Ivory programs are
 guaranteed to produce memory safe executables, all without writing a
 stand-alone type-checker.
@@ -42,9 +50,7 @@ language suite includes an integrated SMT-based symbolic simulator and
 a theorem-prover back-end.  All these back-ends share the same AST:
 Ivory verifies what it compiles.
 
-\sjw{Ivory uses regions for memory management.}
 
-\sjw{move to contributions bit?}
 Ivory is not a toy language: we have used Ivory to write
 \emph{SMACCMPilot}~\cite{smaccm}, a full-featured high-assurance
 autopilot for a small unpiloted air vehicle.  Furthermore, Boeing has
@@ -53,8 +59,12 @@ Stanag~4586~\cite{stanag}, a unpiloted air vehicle communications
 standard. We know of a few additional small projects by other
 developers in Ivory, as well.  There are well over 100~KLoC of Ivory in existence.
 
+\sjw{Ivory uses regions for memory management.}
+
+\sjw{move to contributions bit?}
+
 \paragraph{Contributions}
-In 2014, Stephanie Weirich gave an ICFP keynote describing dependent programming
+In 2014, Stephanie Weirich gave an ICFP keynote describing dependently-typed programming
 using recent type and language extensions of GHC's implementation of Haskell
 (which we will colloquially refer to as ``GHC'' in the remainder of this
 paper)~\cite{weirich-keynote}. Weirich describes how recent extensions to GHC
@@ -67,7 +77,7 @@ Ivory exemplifies the use of GHC dependent types in a large, fully-featured
 EDSL. The language demonstrates that type checking for safe systems programming
 can be embedded into GHC's type system, verifying properties involving
 pointers, arrays, loops and local memory allocation. Indeed, Ivory's type
-system goes beyond mere safety and tracks control-flow effects at host-language
+system goes beyond mere memory safety and tracks control-flow effects at host-language
 compile-time.
 
 After providing a brief introduction to the Ivory language in
@@ -79,10 +89,10 @@ aspects of the language that cannot be checked by the host language's type
 system (e.g., Ivory's module system).
 
 Embedding a type system for a safe C language into GHC's type system is tricky
-business. To gain confidence that our embedding is correct, we have formalized a
+business. To gain confidence that our embedding is correct, we formalized a
 model of Ivory in the Isabelle theorem prover~\cite{isabelle}, and used the model to
 formally prove progress and preservation properties for Ivory. In the process,
-we have discovered minor bugs in Ivory's type embedding in GHC as well as
+we discovered minor bugs in Ivory's type embedding in GHC as well as
 generalizations to Ivory that still preserve safety. We describe the
 formalization, proofs, and extensions in Section~\ref{sec:semantics}.
 
@@ -95,11 +105,13 @@ assertions and pre- and post-conditions on functions, and includes a built-in
 symbolic simulator targeting an SMT solver (CVC4~\cite{cvc4}), as well as an
 theorem-prover back-end targeting ACL2~\cite{acl2}. For automated testing, a
 QuickCheck-like property-based test-case generator is integrated into
-Ivory. These tools are described in Section~\ref{sec:tools}.
-
-\eric{add a blurb about section 6, unless we're dropping it for space?}
+Ivory. These tools are described in Section~\ref{sec:tools}. In
+Section~\ref{sec:edsl}, we discuss some of the issues and our mitigations with
+using a large EDSL for embedded programming projects.
 
 We describe related work in safe C language and EDSLs in
 Section~\ref{sec:related-work} and provide concluding remarks in
 Section~\ref{sec:conclusion}.
+
+
 

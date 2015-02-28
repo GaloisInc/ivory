@@ -1,22 +1,32 @@
 \section{Conclusions and Future Work}
 \label{sec:conclusion}
 
-In this paper, we have described a full-featured EDSL language for
-high-assurance embedded systems programming. Ivory's type system enforces safe C
-development, but as an EDSL, the programmer still has the flexibility to create
-high-level constructs.
-
+In this paper, we have described a full-featured EDSL for high-assurance
+embedded systems programming. Ivory's type system ensures safe C development,
+and being an EDSL, it allows programmers the flexibility to create high-level
+constructs in a type-safe fashion. This feature is used extensively in the
+development of the SMACCMPilot project, allowing common idioms to be abstracted.
 We have demonstrated the feasibility of developing large embedded systems in
 Ivory ourselves, and there is a growing user community.
 
-That said, there are a variety of improvements we have considered for the
-language. For one, there are plans to integrate SMT solving into GHC's
-type-checking, allowing us to generalize Ivory. For example, the correctness of
-array slicing can be guaranteed statically.
+As Ivory's type system is embedded in GHC's, the properties that Ivory's type
+system can encode is limited to what can be expressed in GHC: for instance,
+while procedures are guaranteed to be consistent in their return type, that they
+use the return statement must be checked during a separate phase.  In practice,
+this limitation results in the discovery of errors later in the compilation
+pipeline than would be the case in a standalone compiler.  Conversely, Ivory can
+take advantage of new developments in GHC's type system.  For instance, there
+are plans to integrate SMT solving into GHC's constraint solver, which would
+enable more expressive array operations in the Ivory core language, as well as
+enabling a richer set of derived operations.
 
-Our implementation of modules
-
-\lee{discuss lack of sum types somewhere?}
-
-
-\lee{unions}
+Use of Ivory has exposed a number of avenues for future work. As mentioned in
+Section~\autoref{sec:semantics}, we are investigating the addition of nested
+references.  We also plan to investigate decoupling regions from function
+bodies, thus giving finer-grained control over memory lifetimes.  Finally, we
+are considering making regions first-class, allowing allocation to take place in
+a parent region.  On the verification side, we are considering developing a
+weakest-precondition style verification tool for Ivory programs, and extending
+the assertion language with separation-logic predicates.
+%Furthermore, Ivory's restricted core language should lend itself to static
+%analysis, 

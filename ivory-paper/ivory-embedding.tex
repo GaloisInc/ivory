@@ -7,30 +7,29 @@ the Ivory type system in the GHC type system.
 \subsection{The Ivory Monad}
 \label{sec:ivory-monad}
 
-Ivory is a monadic language, in which Ivory statements have effects in the Ivory
-monad. The Ivory monad has the type
+Ivory statements have the type
 
 \begin{code}
 Ivory (eff :: Effects) a
 \end{code}
 
 \noindent
-and is a wrapper for a writer monad transformer over a state monad. The writer
+This type is a wrapper for a writer monad transformer over a state monad. The writer
 monad writes statements into the Ivory abstract syntax tree, and the
 state monad is used to generate fresh names for variables.
 
 \lee{note in particular that effects can be ``turned on'' and ``turned off''}
 \paragraph{Effects}
-The \cd{eff} type parameter of the Ivory monad is a phantom type that tracks
-effects in the Ivory monad at the type level. (These effects have no relation to
+The \cd{eff} type parameter is a phantom type that tracks
+effects at the type level. (These effects have no relation to
 the recent work on effects systems for monad transformers~\cite{effects}.)
-Currently, we track three classes of effects for a given monadic code block:
+Currently, we track three classes of effects for Ivory statement blocks:
 
 \begin{itemize}
 \item \emph{Returns}: does the code block contain a \cd{return} statement, and
   is the type of the returned value correct?
 \item \emph{Breaks}: does the code block contain a \cd{break} statement?
-\item \emph{Allocation}: does the code block contain local memory allocation?
+\item \emph{Allocates}: does the code block contain local memory allocation?
 \end{itemize}
 
 Intuitively, these effects matter because their safety depends on the context in
@@ -47,15 +46,13 @@ memory is not returned by a procedure, which would result in undefined behavior;
 Section~\ref{sec:ref} for details. Moreover, we can prohibit a code block from
 allocating memory simply by removing allocation effects from its type.
 
-The Ivory effects system is essentially implemented by a type-level tuple
-structure where each of the three effects correspond to a field of the
+The Ivory effects system is implemented by a type-level tuple
+where each of the three effects correspond to a field of the
 tuple. Type equality constraints enforce that a particular effect is (or is not)
 allowed in a given function signature.
 
-The type-level tuple is implemented using data kinds~\cite{data-kinds}. Effects
-must have the kind \cd{Effects}, for which there is a single constructor,
-\cd{Effects}, that contains the three effect types as fields.  We use GHC's data
-kinds extension to lift the following type declaration to a \emph{kind} declaration.
+We use GHC's data kinds extension~\cite{data-kinds} to lift the following type
+declaration to a \emph{kind} declaration.
 
 \begin{code}
 data Effects = Effects ReturnEff BreakEff AllocEff
@@ -63,51 +60,98 @@ data Effects = Effects ReturnEff BreakEff AllocEff
 
 \noindent
 The individual effect types are implemented similarly, using GHC to derive a
-kind from the type definition. For example, the \cd{ReturnEff} type/kind
-describes whether or not a block may return a value.
+kind from the type definition. For example, the \cd{BreakEff} type/kind
+describes whether a break statement is allowed in a block of statements.
 
 \begin{code}
-data ReturnEff = forall t. Returns t | NoReturn
+data BreakEff = Break | NoBreak
 \end{code}
 
 \noindent
-This type is existentially quantified, since in the case of permitted returns we
-must track the type of value being returned.
-
 Type families~\cite{typefamilies} are used to access and modify the types at each field of
-the tuple. For example, the \cd{GetReturn} family extracts the \cd{ReturnEff}
+the tuple. For example, the \cd{GetBreaks} family extracts the \cd{BreakEff}
 field of an \cd{Effects} tuple.
 \footnote{The GHC syntax is to precede a data kind type constructor with a tick (\cd{'})
 to disambiguate it from the corresponding data constructor.}
 
 \begin{code}
-type family   GetReturn (effs :: Effects) :: ReturnEff
-type instance GetReturn ('Effects r b a) = r
+type family   GetBreaks (effs :: Effects) :: BreakEff
+type instance GetBreaks ('Effects r b a) = b
 \end{code}
 
 \noindent
-Similarly, the \cd{ClearReturn} family sets the \cd{ReturnEff} field to \cd{NoReturn}.
+The \cd{AllowBreak} and \cd{ClearBreak} families turn the effect ``on'' or
+``off'', respectively.
 
 \begin{code}
-type family   ClearReturn (effs :: Effects) :: Effects
-type instance ClearReturn ('Effects r b a) =
-  'Effects 'NoReturn b a
+type family   AllowBreak (effs :: Effects) :: Effects
+type instance AllowBreak ('Effects r b a) = 'Effects r 'Break a
+
+type family   ClearBreak (effs :: Effects) :: Effects
+type instance ClearBreak ('Effects r b a) = 'Effects r 'NoBreak a
 \end{code}
 
 With this machinery, we can now use a type equality constraint to enforce
-particular effects in a context. For example, \cd{ret}, the smart
-constructor for returning a value from a procedure, has the following type
-(additional type constraints are elided):
+the particular effects in a context. For example, Ivory's \cd{break} statement
+has the type
 
 \begin{code}
-ret :: (GetReturn eff %*\mytilde*) Returns r, ...)
-    => r -> Ivory eff ()
+break :: (E.GetBreaks eff %*\mytilde* E.Break) => Ivory eff ()
+break = ...
 \end{code}
+
+\subsection{Types}
+\label{sec:types}
+
+Ivory uses two type classes to define its domain: \cd{IvoryType} and
+\cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
+programs.  As Ivory programs build up the AST of the program they represent when
+they are run, this class describes the set of types that contain fragments of
+the Ivory AST.  The \cd{IvoryArea} class serves to ensure that primitive types
+that are stored in references also have an instance of \cd{IvoryType}.  Types
+that have \cd{IvoryType} instances include signed and unsigned integers, the
+void type \cd{()}, and references, while types that have an \cd{IvoryArea}
+instance are limited to those that have kind \cd{Area}, defined in
+section~\ref{sec:area}.  All types used in Ivory programs will have an
+\cd{IvoryType} or \cd{IvoryArea} instance.
+
+\begin{figure}[ht]
+\begin{code}
+class IvoryType t
+class IvoryType t => IvoryVar a where
+  unwrapExpr :: t -> Expr
+  wrapVar    :: Var -> t
+class IvoryVar t => IvoryExpr t
+  wrapExpr   :: Expr -> t
+
+class    IvoryArea (area :: Area *)
+instance IvoryType t => IvoryArea (Stored t)
+instance IvoryArea ...
+\end{code}
+\caption{Classes used to define Ivory's domain}
+\label{fig:types}
+\end{figure}
+
+The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
+have values.  The \cd{IvoryVar} class, which is a superclass of \cd{IvoryExpr},
+describes all types that can have an Ivory expression extracted from them, as
+well as be created from a fresh name.  This roughly corresponds to types that
+can be used as an L-value in assignments as well as formal parameters.  The
+\cd{IvoryExpr} class includes types that can be constructed from full
+expressions, and corresponds to the set of types whose values can be used in the
+position of an R-value.  It might be tempting to say that the functionality of
+the \cd{IvoryVar} belongs in the \cd{IvoryType} class. However, Ivory has a void
+type (\cd{()}) so we do require this distinction to prevent void values from
+being created.  Most types used in Ivory provide instances for all three
+classes, \cd{IvoryType}, \cd{IvoryVar}, and \cd{IvoryExpr}, with only a few
+exceptions like \cd{()} defining a subset.  See Figure~\ref{fig:types} for the
+relationship between these classes.
+
 
 \subsection{Memory Management}
 \label{sec:ref}
 
-Ivory uses regions for memory management.  When data is allocated, a reference
+Ivory uses regions for memory management~\cite{memareas}.  When data is allocated, a reference
 to the resulting data is returned, and tagged by the containing region using a
 type variable.  Well-typed Ivory programs guarantee that references do no
 persist beyond the scope of their containing region.  Regions in Ivory classify
@@ -126,7 +170,7 @@ declaration, it also requires a symbol to use as the name of the allocated
 memory.  Data allocated within a procedure is allocated through the use of the
 \cd{local} function, and are tagged with the region of that function.  Since
 procedure definition introduces a fresh region, with the constraint that no
-reference allocated in that region should should up in the return type of that
+reference allocated in that region should show up in the return type of that
 procedure, Ivory avoids the introduction of dangling pointers.  The embedding of
 this feature in Haskell will be described in more detail in
 section~\ref{sec:proc}.
@@ -182,7 +226,7 @@ context of the Ivory monad.
 
 In addition to being parameterized on the region they are allocated in,
 references are parameterized by the layout of the memory they point to.  We
-introduce area types through the \cd{Area} \footnote{ The type parameter on the
+introduce area types through the \cd{Area}\footnote{The type parameter on the
 \cd{Area} kind is present so that when giving kind-signatures, we can fix the
 kind of stored-values as being star (\cd{*})-kinded.  As Haskell currently lacks
 a construct for defining kinds without data, this parameterization is necessary,
@@ -284,11 +328,25 @@ pointer; the value of a reference is never dereferenced until an explicit use of
 the \cd{deref} primitive, which is an effectful operation.
 
 \paragraph{Arrays}
+
+\begin{figure}[ht]
+\begin{code}
+arrayMap :: (Ix n -> Ivory (E.AllowBreak eff) a)
+         => (Ix n -> Ivory eff a) -> Ivory eff a
+toCArray :: Ref s (Array n area) -> Ref s (CArray area)
+arrayLen :: Num len => Ref s (Array n area) -> len
+(!)      :: Ref s (Array len area) -> Ix len -> Ref s area
+\end{code}
+\caption{Array support functions.}
+\label{array-support-functions}
+\end{figure}
+
 Arrays in Ivory take two type parameters: the length of the array as a
 type-level natural number, and the area type of its elements.  For example, an
-array of 10 \cd{Sint32} would have the type \cd{Array 10 (Stored
+array of 10 signed 32-bit integers would have the type \cd{Array 10 (Stored
 Sint32)}.  Indexing into arrays is accomplished through the use of the \cd{(!)}
-operator, shown in Figure \ref{array-support-functions}.
+operator, shown in Figure~\ref{array-support-functions}. Indexing an array does
+not dereference it, but returns a reference to the indexed cell.
 
 An index into an array has the type \cd{Ix}, which is parameterized by the size
 of the array that it is indexing into.  The \cd{Ix n} type will only hold
@@ -306,19 +364,11 @@ function is that it invokes the function provided for all indexes that lie
 between $0$ and $n - 1$.  As the index argument given to the function is most
 often used with an array, type information propagates out from uses of the
 \cd{(!)} operator, and it becomes unnecessary to give explicit bounds for the
-iteration.  Additionally, as the size of the index is tied to the size of the
-array it's indexing, it is unnecessary to provide an array as an argument to
-\cd{arrayMap}: we rely on the use of the index to set the bounds of the loop.
-
-\begin{figure}[ht]
-\begin{code}
-arrayMap :: (Ix n -> Ivory eff a) -> Ivory eff a
-toCArray :: Ref s (Array n area) -> Ref s (CArray area)
-arrayLen :: Num len => Ref s (Array n area) -> len
-\end{code}
-\caption{Array support functions}
-\label{array-support-functions}
-\end{figure}
+iteration. Additionally, as the size of the index is tied to the size of the
+array being indexed, it is unnecessary to provide an array as an argument to
+\cd{arrayMap}: we rely on the use of the index to set the bounds of the
+loop. The implementation relies on type-level natural numbers being singleton
+types, with the ability to construct a value $n$ inhabiting the type $n$.
 
 For compatibility with C, we also introduce a type for arrays that are not
 parameterized by their length, \cd{CArray}.  There are no operations to work
@@ -329,52 +379,6 @@ provide the \cd{arrayLen} function, which allows the length of an Ivory array to
 be demoted to a value.  When used in conjunction with \cd{toCArray}, this
 function allows for fairly seamless integration with external C code.
 
-\subsection{Types}
-\label{sec:types}
-
-Ivory uses two type classes to define its domain: \cd{IvoryType} and
-\cd{IvoryArea}.  \cd{IvoryType} classifies all types that make up valid Ivory
-programs.  As Ivory programs build up the AST of the program they represent when
-they are run, this class describes the set of types that contain fragments of
-the Ivory AST.  The \cd{IvoryArea} class serves to ensure that primitive types
-that are stored in references also have an instance of \cd{IvoryType}.  Types
-that have \cd{IvoryType} instances include signed and unsigned integers, the
-void type \cd{()}, and references, while types that have an \cd{IvoryArea}
-instance are limited to those that have kind \cd{Area}, defined in
-section~\ref{sec:area}.  All types used in Ivory programs will have an
-\cd{IvoryType} or \cd{IvoryArea} instance.
-
-\begin{figure}[ht]
-\begin{code}
-class IvoryType t
-class IvoryType t => IvoryVar a where
-  unwrapExpr :: t -> Expr
-  wrapVar    :: Var -> t
-class IvoryVar t => IvoryExpr t
-  wrapExpr   :: Expr -> t
-
-class    IvoryArea (area :: Area *)
-instance IvoryType t => IvoryArea (Stored t)
-instance IvoryArea ...
-\end{code}
-\caption{Classes used to define Ivory's domain}
-\label{fig:types}
-\end{figure}
-
-The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
-have values.  The \cd{IvoryVar} class, which is a superclass of \cd{IvoryExpr},
-describes all types that can have an Ivory expression extracted from them, as
-well as be created from a fresh name.  This roughly corresponds to types that
-can be used as an L-value in assigments, but also includes types that are to be
-used as arguments to functions.  The \cd{IvoryExpr} class includes types that
-can be constructed from full expressions, and corresponds to the set of types
-whose values can be used in the position of an R-value.  It might be tempting to
-say that the functionality of the \cd{IvoryVar} belongs in the \cd{IvoryType}
-class. However, Ivory has a void type (\cd{()}) so we do require this distinction
-to prevent void values from being created.  Most types used in Ivory
-provide instances for all three classes, \cd{IvoryType}, \cd{IvoryVar}, and
-\cd{IvoryExpr}, with only a few exceptions like \cd{()} defining a subset.  See
-Figure~\ref{fig:types} for the relationship between these classes.
 
 \subsection{Procedures}
 \label{sec:proc}
@@ -399,7 +403,7 @@ implementation.  The implementation takes the form of a Haskell function that
 accepts Ivory value arguments, and produces a result in the Ivory monad.  Again,
 viewing Haskell functions that produce values in the Ivory monad as macros, the
 \cd{proc} function can be seen as operating at the meta-level, accepting a
-symbol name and macro as its arguments, and producing a procedure with the given
+symbol name and a macro as its arguments, and producing a procedure with the given
 name, and the fully-applied macro as its body.  Correct procedure definition is
 guarded by the \cd{IvoryProcDef} class, shown in Figure~\ref{fig:proc-defs},
 which constrains uses of the \cd{proc} function.
@@ -471,7 +475,7 @@ arguments needed.  The arguments needed are determined by the \cd{IvoryCall}
 class, which uses the signature information to produce a continuation that
 requires parameters that match the type of the argument list from the signature
 of the \cd{Def}.  The \cd{IvoryCall} class mirrors the structure of the
-\cd{IvoryProcDef} class in instance structure, though it adds one additional
+\cd{IvoryProcDef} instances structure, though it adds one additional
 parameter: \cd{eff}.  This additional parameter is required so that the
 containing effect context of the call can be connected to the result of the
 continuation generated by the instances of \cd{IvoryCall}.  For example, calling
@@ -617,7 +621,7 @@ instance BitData BaudRate where
 baud_9600, baud_19200, baud_38400 :: BaudRate
 \end{code}
 
-Bit data types can be arbitrary nested to define more complex types.
+Bit data types can be arbitrarily nested to define more complex types.
 To continue the example, we define the entire control register consisting
 of enable bits for a transmitter and receiver, along with the baud rate:
 
@@ -731,6 +735,3 @@ null-pointer dereference.
 To ensure this does not happen, a simple type-check pass over the Ivory AST is
 performed before compilation. The type-check pass ensures that the prototype of
 a function matches the types of the arguments.
-
-We describe other approaches to compilation that do not involve an embedded
-module system in Section~\ref{sec:conclusion}.

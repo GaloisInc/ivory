@@ -126,8 +126,8 @@
 \titlebanner{Under submission}        % These are ignored unless
 \preprintfooter{short description of paper}   % 'preprint' option specified.
 
-\title{Ivory}
-\subtitle{catchy subtitle}
+\title{Guilt Free Ivory}
+%\subtitle{}
 
 \authorinfo{Trevor decides authors and order}
            {Galois, Inc.}
@@ -139,16 +139,16 @@
 \maketitle
 
 \begin{abstract}
-Ivory is a ``safe C'' language, enforcing memory safety and avoiding most
-undefined behaviors, while providing low-level control of memory-manipulation
-and timing. Ivory is embedded in a modern variant of Haskell, as implemented by
-the GHC compiler. The main contributions of the paper are two-fold. First, we
-demonstrate how to embedded type type-system of a safe-C language into the
-dependent-type extensions of GHC. Second, Ivory is of interest in its own right,
-as a powerful language for writing high-assurance embedded programs. Beyond
-invariants enforced by its type-system, Ivory has direct support for
-model-checking, theorem-proving, and property-based testing. Ivory's semantics
-have been formalized and proved correct.
+Ivory is a language that enforces memory safety and avoids most undefined
+behaviors while providing low-level control of memory-manipulation. Ivory is
+embedded in a modern variant of Haskell, as implemented by the GHC compiler. The
+main contributions of the paper are two-fold. First, we demonstrate how to
+embed the type-system of a safe-C language into the type
+extensions of GHC. Second, Ivory is of interest in its own right, as a powerful
+language for writing high-assurance embedded programs. Beyond invariants
+enforced by its type-system, Ivory has direct support for model-checking,
+theorem-proving, and property-based testing. Ivory's semantics have been
+formalized and proved to guarantee memory safety.
 \end{abstract}
 
 \category{D.3.2}{Language Classifications}{Applicative (functional) languages}
@@ -176,9 +176,6 @@ Embedded Domain Specific Languages; Embedded Systems
 \input{related-work}
 
 \input{conclusion}
-
-
-\lee{summarize the TCs over the AST?}
 
 %% \appendix
 %% \section{Appendix Title}
