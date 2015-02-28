@@ -4,7 +4,7 @@
 \lee{need lead-in here. What does Ivory do? What's the motivation for it's
   design (I like to motivate it with the JPL's Power of 10 rules).}
 
-In this section we give an illustrative overview of Ivory.  An Ivory
+In this section, we give an illustrative overview of Ivory.  An Ivory
 program is a Haskell program producing a collection of Ivory modules,
 each module containing type and procedure definitions.  %% Type
 %% definitions are produced using a quasi-quoter\cite{quoted}, while procedure
@@ -23,7 +23,7 @@ postpone most discussion of the types to Section~\ref{sec:ivory-embedding}. We
 focus on core aspects of the language in this introduction and throughout
 the paper. Ivory contains a large number of operators and standard libraries we
 elide. Examples include serialization, safe type casts, nullable pointers (for
-inter-operation with legacy C), function pointers, and restricted sum types.
+inter-operation with legacy C), function pointers, and bit operators.
 
 \subsection{Ivory Statements}
 
@@ -50,7 +50,7 @@ incr_ref r = do
 \noindent
 A reference in Ivory may refer either to a global object, allocated at
 compile time, or a \emph{local} object, allocated dynamically.
-Dynamic objectes are created in ephemeral regions~\cite{memareas} associated
+Dynamic objectes are created in ephemeral regions associated
 with the scope of the containing procedure; operationally, local
 objects are allocated on the stack, so regions are implicitly freed
 on procedure return.  Ivory reference types are indexed by region
@@ -137,10 +137,10 @@ abs2 = proc "abs2" $ \v -> body $ do
   ret $ (v <? 0) ? ((-1*v), v)
 \end{code}
 %$
-Ivory has two iteration constructs: \cd{forever} for non-terminating
-loops such as OS tasks, and \cd{arrayMap} which iterates over a range;
-as the name suggests, the primary purpose of \cd{arrayMap} is
-iteration over elements in an array.  For example, the following
+Ivory has two classes of iteration constructs: \cd{forever} for non-terminating
+loops such as OS tasks, and loops with a constant bounds. The prototypical
+bounded loop in Ivory is the \cd{arrayMap}, which iterates over the elements of
+an array. For example, the following
 procedure adds \cd{x} to each element of the array \cd{arr}, noting
 that \cd{arr ! ix} returns a \emph{reference} to the \cd{ix}-th
 element of \cd{arr}.
