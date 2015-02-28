@@ -32,13 +32,12 @@ its type. Could cite Dennis Ritchie's ``The Development of the C Language''
 (\url{http://www.lysator.liu.se/c/chistory.ps}) to explain how C got the weird
 array type semantics in the first place...}
 
-We developed a concrete C-like syntax for Ivory, which facilitated use by
-Boeing, mentioned in Section~\ref{sec:introduction}. We have
-already seen specific uses of quasi-quotation in Ivory to define a concrete
+We developed a concrete C-like syntax for Ivory as a quasi-quoter, which facilitated use by
+Boeing as mentioned in Section~\ref{sec:introduction}. In the above
+we presented specific uses of quasi-quotation in Ivory to define a concrete
 syntax for structs (Section~\ref{sec:area}) and bit-data
-(Section~\ref{sec:bitdata}). In addition, we implemented a quasi-quoter for the entire
-Ivory language. An example quasi-quoted Ivory procedure is shown in
-Figure~\ref{fig:concrete}. The procedure is the equivalent of the procedure with
+(Section~\ref{sec:bitdata}). In Figure~\ref{fig:concrete} we show an 
+example quasi-quoted Ivory procedure, equivalent to the that with
 the same name in Section~\ref{sec:control}.
 
 A quasi-quoted Ivory program is guaranteed to be type-safe, since the generated
