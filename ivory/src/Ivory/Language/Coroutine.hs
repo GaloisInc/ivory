@@ -132,7 +132,7 @@ doInline inlineLabel blocks = do
   let inlineBlock (BasicBlock b (BranchTo False dst))
         | dst == inlineLabel = BasicBlock (b ++ newStmts) tgt
       inlineBlock (BasicBlock b (CondBranchTo cond tb fb))
-        = BasicBlock b $ CondBranchTo cond (inlineBlock tb) (inlineBlock fb)
+        = joinTerminators $ BasicBlock b $ CondBranchTo cond (inlineBlock tb) (inlineBlock fb)
       inlineBlock bb = bb
   (label, bb) <- blocks
   return $ if label == inlineLabel then (label, bb) else (label, inlineBlock bb)
