@@ -239,6 +239,7 @@ extractLocals next (s : rest) = do
     AST.Deref ty var ex -> AST.RefCopy ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)
     AST.Store ty lhs rhs -> runUpdateExpr $ AST.Store ty <$> updateExpr lhs <*> updateExpr rhs
     AST.Assign ty var ex -> AST.Store ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)
+    AST.RefCopy ty lhs rhs -> runUpdateExpr $ AST.RefCopy ty <$> updateExpr lhs <*> updateExpr rhs
     _ -> return s
   extractLocals next rest
 
