@@ -63,7 +63,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   -- return before any control flow statements. Otherwise, the resulting
   -- resumeAt call will emit a 'break;' statement outside of the
   -- forever-loop that the state machine runs in, which is invalid C.
-  initCode = makeLabel $ foldr extractLocals (resumeAt 0) rawCode
+  initCode = makeLabel' =<< getBlock rawCode (resumeAt 0)
   (((initLabel, _), (localVars, resumes)), finalState) = MonadLib.runM initCode params initialState
   initBB = BasicBlock [] $ BranchTo False initLabel
 
@@ -84,7 +84,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   coroutineRun doInit arg = do
     ifte_ doInit (emits mempty { blockStmts = genBB initBB }) (return ())
     emit $ AST.Forever $ (AST.Deref stateType (AST.VarName stateName) $ getCont params stateName) : do
-      (label, block) <- keepUsedBlocks initLabel $ inlineBlocks $ zip [0..] $ map joinTerminators $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
+      (label, block) <- keepUsedBlocks initLabel $ zip [0..] $ map joinTerminators $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
       let cond = AST.ExpOp (AST.ExpEq stateType) [AST.ExpVar (AST.VarName stateName), litLabel label]
       let b' = Map.findWithDefault (const []) label resumes (unwrapExpr arg) ++ genBB block
       return $ AST.IfTE cond b' []
@@ -119,13 +119,6 @@ joinTerminators (BasicBlock b (CondBranchTo cond t f)) =
   (t', f') -> BasicBlock b (CondBranchTo cond t' f')
 joinTerminators bb = bb
 
-inlineBlocks :: [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
-inlineBlocks blocks = foldr doInline blocks emptyBlocks
-  where
-  isComment (AST.Comment{}) = True
-  isComment _ = False
-  emptyBlocks = [ label | (label, BasicBlock b (BranchTo _ _)) <- blocks, all isComment b ]
-
 doInline :: Goto -> [(Goto, BasicBlock)] -> [(Goto, BasicBlock)]
 doInline inlineLabel blocks = do
   let Just (BasicBlock newStmts tgt) = lookup inlineLabel blocks
@@ -158,7 +151,7 @@ keepUsedBlocks root blocks = sweep $ snd $ MonadLib.runM (mark root >> ref root)
 
 data CoroutineParams = CoroutineParams
   { getCont :: String -> AST.Expr
-  , getBreakLabel :: Goto
+  , getBreakLabel :: Terminator
   }
 
 data CoroutineState = CoroutineState
@@ -176,7 +169,7 @@ type CoroutineMonad = MonadLib.WriterT (D.DList AST.Stmt) (MonadLib.ReaderT Coro
 extractLocals :: AST.Stmt -> CoroutineMonad Terminator -> CoroutineMonad Terminator
 extractLocals (AST.IfTE cond tb fb) rest = do
   after <- makeLabel rest
-  CondBranchTo <$> runUpdateExpr (updateExpr cond) <*> getBlock tb (goto after) <*> getBlock fb (goto after)
+  CondBranchTo <$> runUpdateExpr (updateExpr cond) <*> getBlock tb (return after) <*> getBlock fb (return after)
 extractLocals (AST.Assert cond) rest = (AST.Assert <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
 extractLocals (AST.CompilerAssert cond) rest = (AST.CompilerAssert <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
 extractLocals (AST.Assume cond) rest = (AST.Assume <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
@@ -219,25 +212,20 @@ extractLocals (AST.Loop var initEx incr b) rest = do
   cont <- addLocal ty var
   stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr initEx)
   after <- makeLabel rest
-  loop <- mfix $ \ loop -> makeLabel $ do
+  mfix $ \ loop -> makeLabel $ do
     let (condOp, incOp, limitEx) = case incr of
           AST.IncrTo ex -> (AST.ExpGt, AST.ExpAdd, ex)
           AST.DecrTo ex -> (AST.ExpLt, AST.ExpSub, ex)
     cond <- runUpdateExpr $ updateExpr $ AST.ExpOp (condOp False ty) [AST.ExpVar var, limitEx]
-    CondBranchTo cond <$> getBlock [] (goto after) <*> do
+    CondBranchTo cond (BasicBlock [] after) <$> do
       setBreakLabel after $ getBlock b $ do
         stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)])
-        goto loop
-  goto loop
+        return loop
 extractLocals (AST.Forever b) rest = do
   after <- makeLabel rest
-  loop <- mfix $ \ loop -> makeLabel $ do
-    BasicBlock b' term <- setBreakLabel after $ getBlock b (goto loop)
-    stmts b'
-    return term
-  goto loop
+  mfix $ \ loop -> makeLabel $ setBreakLabel after $ foldr extractLocals (return loop) b
 -- XXX: this discards any code after a break. is that OK?
-extractLocals (AST.Break) _ = goto =<< MonadLib.asks getBreakLabel
+extractLocals (AST.Break) _ = MonadLib.asks getBreakLabel
 extractLocals s@(AST.Comment{}) rest = stmt s >> rest
 
 getBlock :: AST.Block -> CoroutineMonad Terminator -> CoroutineMonad BasicBlock
@@ -245,12 +233,22 @@ getBlock b next = do
   (term, b') <- MonadLib.collect $ foldr extractLocals next b
   return $ BasicBlock (D.toList b') term
 
-makeLabel :: CoroutineMonad Terminator -> CoroutineMonad Goto
+makeLabel :: CoroutineMonad Terminator -> CoroutineMonad Terminator
 makeLabel m = do
   block <- getBlock [] m
-  MonadLib.sets $ \ state ->
-    let state' = state { labels = block : labels state }
-    in (length (labels state'), state')
+  case block of
+    BasicBlock b term | all isComment b -> do
+      stmts b
+      return term
+    _ -> goto =<< makeLabel' block
+  where
+  isComment (AST.Comment{}) = True
+  isComment _ = False
+
+makeLabel' :: BasicBlock -> CoroutineMonad Goto
+makeLabel' block = MonadLib.sets $ \ state ->
+  let state' = state { labels = block : labels state }
+  in (length (labels state'), state')
 
 goto :: Goto -> CoroutineMonad Terminator
 goto = return . BranchTo False
@@ -282,12 +280,12 @@ addYield ty var rest = do
   MonadLib.lift $ MonadLib.put (D.singleton $ AST.Typed derefTy varStr, mempty)
   cont <- contRef var
   var `rewriteTo` return cont
-  after <- makeLabel rest
+  after <- makeLabel' =<< getBlock [] rest
   let resume arg = [AST.RefCopy derefTy cont arg]
   MonadLib.lift $ MonadLib.put (mempty, Map.singleton after resume)
   resumeAt after
 
-setBreakLabel :: Goto -> CoroutineMonad a -> CoroutineMonad a
+setBreakLabel :: Terminator -> CoroutineMonad a -> CoroutineMonad a
 setBreakLabel label m = do
   params <- MonadLib.ask
   MonadLib.local (params { getBreakLabel = label }) m
