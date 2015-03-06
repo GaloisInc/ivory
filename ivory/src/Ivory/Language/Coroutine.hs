@@ -63,7 +63,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   -- return before any control flow statements. Otherwise, the resulting
   -- resumeAt call will emit a 'break;' statement outside of the
   -- forever-loop that the state machine runs in, which is invalid C.
-  initCode = makeLabel $ extractLocals (resumeAt 0) rawCode
+  initCode = makeLabel $ foldr extractLocals (resumeAt 0) rawCode
   (((initLabel, _), (localVars, resumes)), finalState) = MonadLib.runM initCode params initialState
   initBB = BasicBlock [] $ BranchTo False initLabel
 
@@ -173,18 +173,23 @@ type CoroutineVars = (D.DList (AST.Typed String), CoroutineResume)
 
 type CoroutineMonad = MonadLib.WriterT (D.DList AST.Stmt) (MonadLib.ReaderT CoroutineParams (MonadLib.WriterT CoroutineVars (MonadLib.StateT CoroutineState MonadLib.Id)))
 
-extractLocals :: CoroutineMonad Terminator -> AST.Block -> CoroutineMonad Terminator
-extractLocals next [] = next
-extractLocals next (AST.IfTE cond tb fb : rest) = do
-  after <- makeLabel $ extractLocals next rest
+extractLocals :: AST.Stmt -> CoroutineMonad Terminator -> CoroutineMonad Terminator
+extractLocals (AST.IfTE cond tb fb) rest = do
+  after <- makeLabel rest
   CondBranchTo <$> runUpdateExpr (updateExpr cond) <*> getBlock tb (goto after) <*> getBlock fb (goto after)
-extractLocals _next (AST.Return {} : _) = error "Ivory.Language.Coroutine: can't return a value from the coroutine body"
+extractLocals (AST.Assert cond) rest = (AST.Assert <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
+extractLocals (AST.CompilerAssert cond) rest = (AST.CompilerAssert <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
+extractLocals (AST.Assume cond) rest = (AST.Assume <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
+extractLocals (AST.Return {}) _ = error "Ivory.Language.Coroutine: can't return a value from the coroutine body"
 -- XXX: this discards any code after a return. is that OK?
-extractLocals _next (AST.ReturnVoid : _) = resumeAt 0
-extractLocals next (AST.Call ty mvar name args : rest)
+extractLocals (AST.ReturnVoid) _ = resumeAt 0
+extractLocals (AST.Deref ty var ex) rest = (AST.RefCopy ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)) >>= stmt >> rest
+extractLocals (AST.Store ty lhs rhs) rest = (runUpdateExpr $ AST.Store ty <$> updateExpr lhs <*> updateExpr rhs) >>= stmt >> rest
+extractLocals (AST.Assign ty var ex) rest = (AST.Store ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)) >>= stmt >> rest
+extractLocals (AST.Call ty mvar name args) rest
   | name == AST.NameSym yieldName = do
     let (Just var, []) = (mvar, args) -- XXX: yield takes no arguments and always returns something
-    addYield ty var rest next
+    addYield ty var rest
   | otherwise = do
     stmt =<< AST.Call ty mvar name <$> runUpdateExpr (mapM updateTypedExpr args)
     case mvar of
@@ -192,8 +197,8 @@ extractLocals next (AST.Call ty mvar name args : rest)
       Just var -> do
         cont <- addLocal ty var
         stmt $ AST.Store ty cont $ AST.ExpVar var
-    extractLocals next rest
-extractLocals next (AST.Local ty var initex : rest) = do
+    rest
+extractLocals (AST.Local ty var initex) rest = do
   cont <- addLocal ty var
   let AST.VarName varStr = var
   let ref = AST.VarName $ varStr ++ "_ref"
@@ -203,16 +208,17 @@ extractLocals next (AST.Local ty var initex : rest) = do
     , AST.AllocRef ty ref $ AST.NameVar var
     , AST.RefCopy ty cont $ AST.ExpVar ref
     ]
-  extractLocals next rest
-extractLocals next (AST.AllocRef _ty refvar name : rest) = do
+  rest
+extractLocals (AST.RefCopy ty lhs rhs) rest = (runUpdateExpr $ AST.RefCopy ty <$> updateExpr lhs <*> updateExpr rhs) >>= stmt >> rest
+extractLocals (AST.AllocRef _ty refvar name) rest = do
   let AST.NameVar var = name -- XXX: AFAICT, AllocRef can't have a NameSym argument.
   refvar `rewriteTo` contRef var
-  extractLocals next rest
-extractLocals next (AST.Loop var initEx incr b : rest) = do
+  rest
+extractLocals (AST.Loop var initEx incr b) rest = do
   let ty = ivoryType (Proxy :: Proxy IxRep)
   cont <- addLocal ty var
   stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr initEx)
-  after <- makeLabel $ extractLocals next rest
+  after <- makeLabel rest
   loop <- mfix $ \ loop -> makeLabel $ do
     let (condOp, incOp, limitEx) = case incr of
           AST.IncrTo ex -> (AST.ExpGt, AST.ExpAdd, ex)
@@ -223,29 +229,20 @@ extractLocals next (AST.Loop var initEx incr b : rest) = do
         stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr $ AST.ExpOp incOp [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)])
         goto loop
   goto loop
-extractLocals next (AST.Forever b : rest) = do
-  after <- makeLabel $ extractLocals next rest
+extractLocals (AST.Forever b) rest = do
+  after <- makeLabel rest
   loop <- mfix $ \ loop -> makeLabel $ do
     BasicBlock b' term <- setBreakLabel after $ getBlock b (goto loop)
     stmts b'
     return term
   goto loop
 -- XXX: this discards any code after a break. is that OK?
-extractLocals _next (AST.Break : _) = goto =<< MonadLib.asks getBreakLabel
-extractLocals next (s : rest) = do
-  stmt =<< case s of
-    AST.Assert cond -> AST.Assert <$> runUpdateExpr (updateExpr cond)
-    AST.CompilerAssert cond -> AST.CompilerAssert <$> runUpdateExpr (updateExpr cond)
-    AST.Deref ty var ex -> AST.RefCopy ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)
-    AST.Store ty lhs rhs -> runUpdateExpr $ AST.Store ty <$> updateExpr lhs <*> updateExpr rhs
-    AST.Assign ty var ex -> AST.Store ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)
-    AST.RefCopy ty lhs rhs -> runUpdateExpr $ AST.RefCopy ty <$> updateExpr lhs <*> updateExpr rhs
-    _ -> return s
-  extractLocals next rest
+extractLocals (AST.Break) _ = goto =<< MonadLib.asks getBreakLabel
+extractLocals s@(AST.Comment{}) rest = stmt s >> rest
 
 getBlock :: AST.Block -> CoroutineMonad Terminator -> CoroutineMonad BasicBlock
 getBlock b next = do
-  (term, b') <- MonadLib.collect $ extractLocals next b
+  (term, b') <- MonadLib.collect $ foldr extractLocals next b
   return $ BasicBlock (D.toList b') term
 
 makeLabel :: CoroutineMonad Terminator -> CoroutineMonad Goto
@@ -278,14 +275,14 @@ addLocal ty var = do
     return $ AST.ExpVar var'
   return cont
 
-addYield :: AST.Type -> AST.Var -> AST.Block -> CoroutineMonad Terminator -> CoroutineMonad Terminator
-addYield ty var rest next = do
+addYield :: AST.Type -> AST.Var -> CoroutineMonad Terminator -> CoroutineMonad Terminator
+addYield ty var rest = do
   let AST.TyRef derefTy = ty
   let AST.VarName varStr = var
   MonadLib.lift $ MonadLib.put (D.singleton $ AST.Typed derefTy varStr, mempty)
   cont <- contRef var
   var `rewriteTo` return cont
-  after <- makeLabel $ extractLocals next rest
+  after <- makeLabel rest
   let resume arg = [AST.RefCopy derefTy cont arg]
   MonadLib.lift $ MonadLib.put (mempty, Map.singleton after resume)
   resumeAt after
