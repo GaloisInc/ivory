@@ -39,7 +39,17 @@ cseFold def = def
 data Bindings = Bindings
   { availableBindings :: (Map (Unique, AST.Type) Int)
   , unusedBindings :: IntSet
+  , writableBindings :: IntSet
   , totalBindings :: Int
+  }
+
+-- | Initial value of binding state.
+initialBindings :: Bindings
+initialBindings = Bindings
+  { availableBindings = Map.empty
+  , unusedBindings = IntSet.empty
+  , writableBindings = IntSet.empty
+  , totalBindings = 0
   }
 
 -- | A monad for emitting both source-level statements as well as
@@ -247,30 +257,40 @@ getFact m k = case IntMap.lookup k m of
   Nothing -> error "IvoryCSE: cycle detected in expression graph"
   Just v -> v
 
+-- | Results of analysis pass over the whole procedure.
+data Analysis = Analysis
+  { usedOnce :: IntSet
+  , usedWritable :: IntSet
+  }
+
 -- | Walk a reified AST in topo-sorted order, accumulating analysis
 -- results.
 --
--- `usedOnce` must be the final value of `unusedBindings` after analysis
+-- `analysis` must be final values from the state after analysis
 -- is complete.
-updateFacts :: IntSet -> (Unique, CSE Unique) -> Facts -> Facts
+updateFacts :: Analysis -> (Unique, CSE Unique) -> Facts -> Facts
 updateFacts _ (ident, CSEBlock block) (exprFacts, blockFacts) = (exprFacts, IntMap.insert ident (toBlock (getFact exprFacts) (getFact blockFacts) block) blockFacts)
-updateFacts usedOnce (ident, CSEExpr expr) (exprFacts, blockFacts) = (IntMap.insert ident fact exprFacts, blockFacts)
+updateFacts analysis (ident, CSEExpr expr) (exprFacts, blockFacts) = (IntMap.insert ident fact exprFacts, blockFacts)
   where
   nameOf var = AST.VarName $ "cse" ++ show var
+  constRefTy (AST.TyRef refTy) = AST.TyConstRef refTy
+  constRefTy ty = ty
   fact = case expr of
     ExpSimpleF e -> const $ return e
-    ex -> \ ty -> do
+    ex -> \ rawTy -> do
+      let ty = constRefTy rawTy
       bindings <- get
-      case Map.lookup (ident, ty) $ availableBindings bindings of
+      (var, rewritten) <- case Map.lookup (ident, ty) $ availableBindings bindings of
         Just var -> do
           set $ bindings { unusedBindings = IntSet.delete var $ unusedBindings bindings }
-          return $ AST.ExpVar $ nameOf var
+          return (var, AST.ExpVar $ nameOf var)
         Nothing -> do
-          ex' <- fmap toExpr $ mapM (uncurry $ getFact exprFacts) $ labelTypes ty ex
-          var <- sets $ \ (Bindings { availableBindings = avail, unusedBindings = unused, totalBindings = maxId}) ->
-            (maxId, Bindings
-              { availableBindings = Map.insert (ident, ty) maxId avail
-              , unusedBindings = IntSet.insert maxId unused
+          ex' <- fmap toExpr $ mapM (uncurry $ getFact exprFacts) $ labelTypes rawTy ex
+          var <- sets $ \ newBindings ->
+            let maxId = totalBindings newBindings
+            in (maxId, newBindings
+              { availableBindings = Map.insert (ident, ty) maxId $ availableBindings newBindings
+              , unusedBindings = IntSet.insert maxId $ unusedBindings newBindings
               , totalBindings = maxId + 1
               })
           -- Defer a final decision on whether to inline this expression
@@ -278,11 +298,20 @@ updateFacts usedOnce (ident, CSEExpr expr) (exprFacts, blockFacts) = (IntMap.ins
           -- the State monad and can extract the unusedBindings set from
           -- there. After that the Writer monad can make decisions based
           -- on usedOnce without throwing a <<loop>> exception.
-          lift $ if var `IntSet.member` usedOnce
+          ex'' <- lift $ if var `IntSet.member` usedOnce analysis
             then return ex'
             else do
-              put $ D.singleton $ AST.Assign ty (nameOf var) ex'
+              let newTy = case ty of
+                    AST.TyConstRef refTy | var `IntSet.member` usedWritable analysis -> AST.TyRef refTy
+                    _ -> ty
+              put $ D.singleton $ AST.Assign newTy (nameOf var) ex'
               return $ AST.ExpVar $ nameOf var
+          return (var, ex'')
+      case rawTy of
+        AST.TyRef _ -> sets_ $ \ newBindings ->
+          newBindings { writableBindings = IntSet.insert var $ writableBindings newBindings }
+        _ -> return ()
+      return rewritten
 
 -- | Values that we may generate by simplification rules on the reified
 -- representation of the graph.
@@ -312,8 +341,8 @@ type Dupes = (Map (CSE Unique) Unique, IntMap Unique, Facts)
 -- checking for equality of statements or expressions is constant-time
 -- in this representation, so apply any simplifications that rely on
 -- equality of subtrees here.
-dedup :: IntSet -> (Unique, CSE Unique) -> Dupes -> Dupes
-dedup usedOnce (ident, expr) (seen, remap, facts) = case expr' of
+dedup :: Analysis -> (Unique, CSE Unique) -> Dupes -> Dupes
+dedup analysis (ident, expr) (seen, remap, facts) = case expr' of
   -- If this operator yields a constant on equal operands, we can
   -- rewrite it to that constant.
   CSEExpr (ExpOpF (AST.ExpEq ty) [a, b]) | not (isFloat ty) && a == b -> remapTo $ constUnique ConstTrue
@@ -347,7 +376,7 @@ dedup usedOnce (ident, expr) (seen, remap, facts) = case expr' of
   -- No equal subtrees, so run with it.
   _ -> case Map.lookup expr' seen of
     Just ident' -> remapTo ident'
-    Nothing -> (Map.insert expr' ident seen, remap, updateFacts usedOnce (ident, expr') facts)
+    Nothing -> (Map.insert expr' ident seen, remap, updateFacts analysis (ident, expr') facts)
   where
   remapTo ident' = (seen, IntMap.insert ident ident' remap, facts)
   expr' = case fmap (\ k -> IntMap.findWithDefault k k remap) expr of
@@ -382,6 +411,7 @@ reconstruct (Graph subexprs root) = D.toList rootBlock
   -- NOTE: `dedup` needs to merge the constants in first, which means
   -- that as long as this is a `foldr`, they need to be appended after
   -- `subexprs`. Don't try to optimize this by re-ordering the list.
-  (_, remap, (_, blockFacts)) = foldr (dedup usedOnce) mempty $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
+  (_, remap, (_, blockFacts)) = foldr (dedup analysis) mempty $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
   Just rootGen = IntMap.lookup (IntMap.findWithDefault root root remap) blockFacts
-  (((), Bindings { unusedBindings = usedOnce }), rootBlock) = runM rootGen $ Bindings Map.empty IntSet.empty 0
+  (((), bindings), rootBlock) = runM rootGen initialBindings
+  analysis = Analysis { usedOnce = unusedBindings bindings, usedWritable = writableBindings bindings }
