@@ -234,7 +234,7 @@ import Ivory.Language.Syntax.Concrete.Location
 %right '?' ':'
 %left '||'
 %left '&&'
-%left '|'
+%left '|' '&'
 %left '^'
 %nonassoc '==' '!='
 %nonassoc '<' '<=' '>' '>='
@@ -245,7 +245,6 @@ import Ivory.Language.Syntax.Concrete.Location
 -- '[' assumed to be followed by ']'
 %left '.' '@' '->' '['
 -- Tighter than normal binding
-%right '&'
 %right
   abs
   signum
