@@ -244,6 +244,7 @@ import Ivory.Language.Syntax.Concrete.Location
 %right '*' '~' '!' '-'
 -- '[' assumed to be followed by ']'
 %left '.' '@' '->' '['
+%right ADDR
 -- Tighter than normal binding
 %right
   abs
@@ -590,7 +591,7 @@ cType :
   | type '[' integer ']'         { let TokInteger i = unLoc $3 in
                                    LocTy (atBin (TyArray $1 i) $1 $3) }
   | struct structName            { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
-  | '&' type                     { LocTy (atBin (TyStored $2) $1 $2) }
+  | '&' type %prec ADDR          { LocTy (atBin (TyStored $2) $1 $2) }
 
 scopeC :: { Located Scope }
 scopeC :
