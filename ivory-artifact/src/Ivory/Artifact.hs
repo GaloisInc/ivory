@@ -69,7 +69,7 @@ module Ivory.Artifact (
   , printArtifact
   ) where
 
-import Control.Monad (void, when)
+import Control.Monad (void, unless)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import System.FilePath
@@ -161,7 +161,7 @@ putArtifact fp a = withContents a $ \c -> do
     c' <- T.readFile fname
     -- XXX Should be a rare event. If files are large, can be changed to a
     -- hash.
-    when (c == c')
+    unless (c == c')
       (putStrLn ("*** Warning: overwriting " ++ fname))
   T.writeFile fname c
 
