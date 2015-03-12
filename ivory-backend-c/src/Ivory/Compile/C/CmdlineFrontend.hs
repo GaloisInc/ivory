@@ -110,9 +110,12 @@ rc sm modules artifacts opts
     -- Irrrefutable pattern checked above
     let Just dir = outDir opts
     createDirectoryIfMissing True dir
-    mapM_ (output (hdrDir dir) ".h" renderHeader) cmodules
+    createDirectoryIfMissing True hdrDir
+    createDirectoryIfMissing True artifactsDir
     mapM_ (output dir          ".c" renderSource) cmodules
+    mapM_ (output (hdrDir dir) ".h" renderHeader) cmodules
     runArtifactCompiler artifacts (artifactsDir dir)
+    -- control-flow graph
     cfgoutput
 
   hdrDir dir =
