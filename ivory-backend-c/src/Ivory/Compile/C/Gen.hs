@@ -169,7 +169,7 @@ toTypeCast = toTypeCxt arrIxTy
   where
   -- Invariant: ty is wrapped in a Ref, ConstRef, or Ptr.
   arrIxTy t = case t of
-   I.TyArr    len t'
+   I.TyArr    _len t'
      -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
    I.TyCArray t'
      -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
