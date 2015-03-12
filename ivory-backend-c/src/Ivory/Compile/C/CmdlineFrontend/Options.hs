@@ -45,6 +45,13 @@ parseOptions opts args = case getOpt Permute opts args of
 
 data Opts = Opts
   { outDir      :: Maybe FilePath
+  -- ^ output directory for all files (or standard out).
+  , outHdrDir   :: Maybe FilePath
+  -- ^ if set, output directory for headers. Otherwise, use @outDir@.
+  -- optimization passes
+  , outArtDir   :: Maybe FilePath
+  -- ^ if set, output directory for artifacts. Otherwise, use @outDir@.
+
   -- optimization passes
   , constFold   :: Bool
   , overflow    :: Bool
@@ -71,6 +78,8 @@ data Opts = Opts
 initialOpts :: Opts
 initialOpts  = Opts
   { outDir       = Just ""
+  , outHdrDir    = Nothing
+  , outArtDir    = Nothing
 
   -- optimization/safety passes
   , constFold    = False
@@ -99,6 +108,12 @@ setStdOut  = success (\opts -> opts { outDir = Nothing } )
 
 setOutDir :: String -> OptParser Opts
 setOutDir str = success (\opts -> opts { outDir = Just str })
+
+setHdrDir :: String -> OptParser Opts
+setHdrDir str = success (\opts -> opts { outHdrDir = Just str })
+
+setArtDir :: String -> OptParser Opts
+setArtDir str = success (\opts -> opts { outArtDir = Just str })
 
 setConstFold :: OptParser Opts
 setConstFold  = success (\opts -> opts { constFold = True })

@@ -69,7 +69,6 @@ renderHdr s unitname = PP.displayS (PP.render width guardedHeader) ""
                                      , "#endif"]
   defs (incls,us) = map includeDef (S.toList incls) ++ us
 
-
 renderSrc :: (Includes, Sources) -> String
 renderSrc s = PP.displayS (PP.render width srcdoc) ""
   where

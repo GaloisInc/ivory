@@ -107,12 +107,23 @@ rc sm modules artifacts opts
     cfgoutput
 
   outputmodules = do
+    -- Irrrefutable pattern checked above
     let Just dir = outDir opts
     createDirectoryIfMissing True dir
-    mapM_ (output dir ".h" renderHeader) cmodules
-    mapM_ (output dir ".c" renderSource) cmodules
-    runArtifactCompiler artifacts opts
+    mapM_ (output (hdrDir dir) ".h" renderHeader) cmodules
+    mapM_ (output dir          ".c" renderSource) cmodules
+    runArtifactCompiler artifacts (artifactsDir dir)
     cfgoutput
+
+  hdrDir dir =
+    case outHdrDir opts of
+      Nothing -> dir
+      Just d  -> d
+
+  artifactsDir dir =
+    case outArtDir opts of
+      Nothing -> dir
+      Just d  -> d
 
   cfgoutput = when (cfg opts) $ do
     cfs <- mapM (\p -> G.callGraphDot p (cfgDotDir opts) optModules) cfgps
@@ -182,16 +193,14 @@ rc sm modules artifacts opts
 
 --------------------------------------------------------------------------------
 
-runArtifactCompiler :: [Artifact] -> Opts -> IO ()
-runArtifactCompiler as opts = putAs (outDir opts)
+runArtifactCompiler :: [Artifact] -> FilePath -> IO ()
+runArtifactCompiler as dir = do
+  mes <- mapM (putArtifact dir) artifacts
+  case catMaybes mes of
+    [] -> return ()
+    errs -> error (unlines errs)
   where
   artifacts = as ++ runtimeArtifacts
-  putAs Nothing    = mapM_ printArtifact artifacts
-  putAs (Just dir) = do
-    mes <- mapM (putArtifact dir) artifacts
-    case catMaybes mes of
-      [] -> return ()
-      errs -> error (unlines errs)
 
 runtimeArtifacts :: [Artifact]
 runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
