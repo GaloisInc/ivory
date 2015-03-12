@@ -196,7 +196,12 @@ rc sm modules artifacts opts
     where
     out = do
       b <- doesFileExist fname
-      when b $ putStrLn ("*** Warning: overwriting " ++ fname)
+      when b $ do
+        contents' <- readFile fname
+        -- XXX Should be a rare event. If files are large, can be changed to a
+        -- hash.
+        when (contents == contents')
+          (putStrLn ("*** Warning: overwriting " ++ fname))
       writeFile fname contents
 
 --------------------------------------------------------------------------------
