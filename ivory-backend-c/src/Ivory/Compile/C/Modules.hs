@@ -77,16 +77,6 @@ renderSrc s = PP.displayS (PP.render width srcdoc) ""
   defs (incls,us) = map includeDef (S.toList incls) ++ us
   out = stack $ punctuate line $ map ppr $ defs s
 
--- Utility
-toFileQuiet :: FilePath -> String -> IO ()
-toFileQuiet f v = writeFile f v
-
-toFile :: FilePath -> String -> IO ()
-toFile f v = do
-  putStr $ "Writing to file " ++ f ++ "..."
-  toFileQuiet f v
-  putStrLn " Done."
-
 --------------------------------------------------------------------------------
 
 runOpt :: (I.Proc -> I.Proc) -> I.Module -> I.Module
