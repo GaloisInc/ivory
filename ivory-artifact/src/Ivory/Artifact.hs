@@ -69,7 +69,7 @@ module Ivory.Artifact (
   , printArtifact
   ) where
 
-import Control.Monad (void, unless)
+import Control.Monad (void, when, unless)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import System.FilePath

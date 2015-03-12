@@ -29,7 +29,7 @@ import qualified Ivory.Opts.TypeCheck       as T
 
 
 import Data.Maybe (mapMaybe, catMaybes)
-import Control.Monad (unless)
+import Control.Monad (when, unless)
 import Data.List (foldl')
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment (getArgs)
