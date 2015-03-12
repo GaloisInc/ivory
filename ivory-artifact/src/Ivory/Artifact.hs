@@ -69,7 +69,7 @@ module Ivory.Artifact (
   , printArtifact
   ) where
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import System.FilePath
@@ -155,7 +155,10 @@ withContents a f = do
 putArtifact :: FilePath -> Artifact -> IO (Maybe String)
 putArtifact fp a = withContents a $ \c -> do
   createDirectoryIfMissing True fp
-  T.writeFile (fp </> artifact_outputname a) c
+  let fname = fp </> artifact_outputname a
+  b <- doesFileExist fname
+  when b $ putStrLn ("*** Warning: overwriting " ++ fname)
+  T.writeFile fname c
 
 putArtifact_ :: FilePath -> Artifact -> IO ()
 putArtifact_ fp a = void (putArtifact fp a)
