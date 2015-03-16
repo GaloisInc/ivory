@@ -31,7 +31,7 @@ import qualified Ivory.Opts.TypeCheck       as T
 import Data.Maybe (mapMaybe, catMaybes)
 import Control.Monad (when)
 import Data.List (foldl')
-import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.Directory (createDirectoryIfMissing)
 import System.Environment (getArgs)
 import System.FilePath (addExtension,(</>))
 
@@ -194,10 +194,7 @@ rc sm modules artifacts opts
       out
       putStrLn " Done"
     where
-    out = do
-      b <- doesFileExist fname
-      when b $ putStrLn ("*** Warning: overwriting " ++ fname)
-      writeFile fname contents
+    out = writeFile fname contents
 
 --------------------------------------------------------------------------------
 
