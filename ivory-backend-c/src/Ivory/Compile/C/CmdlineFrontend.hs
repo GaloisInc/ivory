@@ -29,7 +29,7 @@ import qualified Ivory.Opts.TypeCheck       as T
 
 
 import Data.Maybe (mapMaybe, catMaybes)
-import Control.Monad (unless)
+import Control.Monad (when)
 import Data.List (foldl')
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment (getArgs)
@@ -200,7 +200,7 @@ rc sm modules artifacts opts
         contents' <- readFile fname
         -- XXX Should be a rare event. If files are large, can be changed to a
         -- hash.
-        unless (contents == contents')
+        when (contents == contents')
           (putStrLn ("*** Warning: overwriting " ++ fname))
       writeFile fname contents
 
