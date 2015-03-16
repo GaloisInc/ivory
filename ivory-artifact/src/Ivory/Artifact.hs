@@ -157,12 +157,7 @@ putArtifact fp a = withContents a $ \c -> do
   createDirectoryIfMissing True fp
   let fname = fp </> artifact_outputname a
   b <- doesFileExist fname
-  when b $ do
-    c' <- T.readFile fname
-    -- XXX Should be a rare event. If files are large, can be changed to a
-    -- hash.
-    when (c == c')
-      (putStrLn ("*** Warning: overwriting " ++ fname))
+  when b $ putStrLn ("*** Warning: overwriting " ++ fname)
   T.writeFile fname c
 
 putArtifact_ :: FilePath -> Artifact -> IO ()
