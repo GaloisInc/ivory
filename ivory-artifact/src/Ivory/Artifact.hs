@@ -67,6 +67,9 @@ module Ivory.Artifact (
   -- | Takes an `Artifact` and prints it, or an appropriate error message, to
   -- stdout.
   , printArtifact
+
+  -- | Takes a guess at whether two artifacts might be equal.
+  , mightBeEqArtifact
   ) where
 
 import Control.Monad (void)
@@ -75,6 +78,7 @@ import qualified Data.Text.Lazy.IO as T
 import System.FilePath
 import System.Directory
 import Ivory.Artifact.Transformer
+import System.IO.Unsafe (unsafePerformIO)
 
 data Artifact =
   Artifact
@@ -83,8 +87,18 @@ data Artifact =
     , artifact_transformer :: Transformer T.Text
     }
 
+
+mightBeEqArtifact :: Artifact -> Artifact -> Bool
+mightBeEqArtifact a b =
+  and [ artifact_outputname a == artifact_outputname b
+      , artifact_contents   a `mightBeEqAContents` artifact_contents   b]
+
 data AContents = LiteralContents T.Text
                | FileContents (IO FilePath)
+
+mightBeEqAContents (LiteralContents a) (LiteralContents b) = a == b
+mightBeEqAContents (FileContents a) (FileContents b) = unsafePerformIO a == unsafePerformIO b
+mightBeEqAContents _ _ = False
 
 artifactFileName :: Artifact -> FilePath
 artifactFileName = artifact_outputname
