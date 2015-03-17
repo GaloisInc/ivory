@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -14,7 +15,7 @@ import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)
 import Control.Applicative
-import Data.Monoid (mempty)
+import Data.Monoid
 import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
 import MonadLib.Derive (Iso (..),derive_ask,derive_put)
 import qualified Data.Set as Set
@@ -35,6 +36,10 @@ instance WriterM ModuleM I.Module where
   put = derive_put (Iso Module unModule)
 
 type ModuleDef = ModuleM ()
+
+instance Monoid (ModuleM ()) where
+  mempty = return ()
+  mappend a b = a >> b
 
 -- | Add an element to the public/private list, depending on visibility
 visAcc :: Visible -> a -> I.Visible a
