@@ -131,6 +131,7 @@ tokens :-
   string   { keyword }
   type     { keyword }
   include  { keyword }
+  import   { keyword }
 
   -- C style
   bool     { keyword }

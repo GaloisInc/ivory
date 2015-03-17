@@ -1,5 +1,8 @@
 -- # -*- mode: haskell -*-
 
+import (stdio.h, printf) int32_t printf(string x)
+import (stdio.h, printf) int32_t printf2(string x, int32_t y)
+
 include concreteIvory --for printf definitions in ConcreteFile.hs
 include stdlibStringModule
 

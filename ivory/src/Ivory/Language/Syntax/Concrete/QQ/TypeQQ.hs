@@ -190,8 +190,8 @@ fromType ty = case ty of
   LocTy ty'         -> fromType (unLoc ty')
 
 -- | Create a procedure type.
-fromProcType :: ProcDef -> Q Dec
-fromProcType (ProcDef retTy procName args _ _ _) = do
+fromProcType :: Type -> String -> [(Type, a)] -> Q Dec
+fromProcType retTy procName args = do
   arr                 <- promotedT '(I.:->)
   (ret,retTyVars)     <- runToQ (fromType retTy)
   (argVars,argTyVars) <- fromArgs
@@ -205,7 +205,6 @@ fromProcType (ProcDef retTy procName args _ _ _) = do
                          def
                 )
   where
-
   fromArgs :: Q (T.Type, [TyVar])
   fromArgs = runToQ $ foldM go PromotedNilT
                                (reverse $ fst $ unzip args)

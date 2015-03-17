@@ -45,12 +45,6 @@ macroExp :: IvoryOrd a => a -> a -> IBool
 macroExp x y = do
   x <? y
 
-printf :: Def ('[IString] :-> Sint32)
-printf  = importProc "printf" "stdio.h"
-
-printf2 :: Def ('[IString,Sint32] :-> Sint32)
-printf2  = importProc "printf" "stdio.h"
-
 toIx' :: ANat n => Uint32 -> Ix n
 toIx' ix = toIx (twosComplementCast ix)
 
@@ -65,3 +59,5 @@ concreteIvory = package "concreteIvory" $ do
 main :: IO ()
 main = runCompiler [concreteIvory, examplesfile, stdlibStringModule] stdlibStringArtifacts
   initialOpts {outDir = Just "concrete-ivory", constFold = True}
+
+

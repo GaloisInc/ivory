@@ -217,6 +217,7 @@ import Ivory.Language.Syntax.Concrete.Location
 
   ty       { Located $$ (TokReserved "type") }
   include  { Located $$ (TokReserved "include") }
+  import   { Located $$ (TokReserved "import") }
 
   -- Bit data
   bitdata  { Located $$ (TokReserved "bitdata") }
@@ -279,6 +280,7 @@ import Ivory.Language.Syntax.Concrete.Location
 
 defs :: { [GlobalSym] }
 defs : defs procDef       { GlobalProc     $2 : $1 }
+     | defs includeProc   { GlobalInclProc $2 : $1 }
      | defs structDef     { GlobalStruct   $2 : $1 }
      | defs bdDef         { GlobalBitData  $2 : $1 }
      | defs typeDef       { GlobalTypeDef  $2 : $1 }
@@ -305,6 +307,7 @@ constDef :
 ----------------------------------------
 -- Procs
 
+-- Defined procedure
 procDef :: { ProcDef }
 procDef :
   type ident '(' args ')' '{' stmts '}' prePostBlk
@@ -313,6 +316,16 @@ procDef :
                                                                   , getLoc $7
                                                                   , getLoc $9
                                                                   ]) }
+
+-- Externally-defined procedure
+includeProc :: { IncludeProc }
+includeProc :
+  import '(' ident '.' ident ',' ident ')' type ident '(' args ')'
+    { IncludeProc $9 (unLoc $10) (reverse $12) (unLoc $3 ++ ('.':unLoc $5), unLoc $7)
+        (mconcat [ getLoc $3
+                 , getLoc $7
+                 , getLoc $10
+                 ]) }
 
 tyArg :: { (Type, Var) }
 tyArg : type ident { ($1, unLoc $2) }

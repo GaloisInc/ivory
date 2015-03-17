@@ -8,6 +8,7 @@ module Ivory.Compile.C.CmdlineFrontend
   , initialOpts
   ) where
 
+import           Data.List                  (nub, (\\), intercalate)
 import qualified Paths_ivory_backend_c      as P
 import qualified Ivory.Compile.C            as C
 
@@ -29,9 +30,9 @@ import qualified Ivory.Opts.TypeCheck       as T
 
 
 import Data.Maybe (mapMaybe, catMaybes)
-import Control.Monad (when, unless)
+import Control.Monad (when)
 import Data.List (foldl')
-import System.Directory (createDirectoryIfMissing, doesFileExist)
+import System.Directory (createDirectoryIfMissing)
 import System.Environment (getArgs)
 import System.FilePath (addExtension,(</>))
 
@@ -95,7 +96,7 @@ runCompilerWith sm modules artifacts opts = do
       errs     = res T.showErrors
 
 rc :: G.SizeMap -> [Module] -> [Artifact] -> Opts -> IO ()
-rc sm modules artifacts opts
+rc sm modules user_artifacts opts
   | outProcSyms opts       = C.outputProcSyms modules
   | Nothing <- outDir opts = stdoutmodules
   | otherwise              = outputmodules
@@ -114,6 +115,8 @@ rc sm modules artifacts opts
     createDirectoryIfMissing True dir
     createDirectoryIfMissing True hd
     createDirectoryIfMissing True ad
+    let artifacts = runtimeArtifacts ++ user_artifacts
+    warnCollisions cmodules dir hd artifacts ad
     mapM_ (output dir ".c" renderSource) cmodules
     mapM_ (output hd  ".h" renderHeader) cmodules
     runArtifactCompiler artifacts ad
@@ -194,30 +197,42 @@ rc sm modules artifacts opts
       out
       putStrLn " Done"
     where
-    out = do
-      b <- doesFileExist fname
-      when b $ do
-        contents' <- readFile fname
-        -- XXX Should be a rare event. If files are large, can be changed to a
-        -- hash.
-        unless (contents == contents')
-          (putStrLn ("*** Warning: overwriting " ++ fname))
-      writeFile fname contents
+    out = writeFile fname contents
 
 --------------------------------------------------------------------------------
 
 runArtifactCompiler :: [Artifact] -> FilePath -> IO ()
 runArtifactCompiler as dir = do
-  mes <- mapM (putArtifact dir) artifacts
+  mes <- mapM (putArtifact dir) as
   case catMaybes mes of
     [] -> return ()
     errs -> error (unlines errs)
-  where
-  artifacts = as ++ runtimeArtifacts
+
+--------------------------------------------------------------------------------
 
 runtimeArtifacts :: [Artifact]
 runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
   where a f = artifactCabalFile P.getDataDir ("runtime/" ++ f)
+
+--------------------------------------------------------------------------------
+warnCollisions :: [C.CompileUnits] -- All Ivory Modules
+               -> FilePath  -- Ivory source path
+               -> FilePath  -- Ivory header path
+               -> [Artifact] -- All artifacts
+               -> FilePath -- Artifact path
+               -> IO ()
+warnCollisions ms spath hpath as apath = case dupes of
+  [] -> return ()
+  _ -> putStrLn $ intercalate "\n\t" $
+    ["**** Warning: the following files will be written multiple times during codegen! ****"]
+    ++ dupes
+  where
+  cnames = [ spath </> (C.unitName m ++ ".c") | m <- ms ]
+  hnames = [ hpath </> (C.unitName m ++ ".h") | m <- ms ]
+  anames = [ apath </>  artifactFileName a    | a <- as ]
+  allnames = cnames ++ hnames ++ anames
+  dupes = allnames \\ (nub allnames)
+
 
 --------------------------------------------------------------------------------
 
