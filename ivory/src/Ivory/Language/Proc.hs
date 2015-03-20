@@ -108,6 +108,13 @@ proc name impl = defproc
                      , AST.importEnsures  = ens
                      }
 
+-- | Type inference can usually determine the argument types of an Ivory
+-- procedure, but for void procedures there's often nothing to constrain
+-- the return type. This function is a type-constrained version of
+-- 'proc' that just forces the return type to be '()'.
+voidProc :: IvoryProcDef (args :-> ()) impl => AST.Sym -> impl -> Def (args :-> ())
+voidProc = proc
+
 
 newtype Body r = Body
   { runBody :: forall s . Ivory (E.ProcEffects s r) ()
