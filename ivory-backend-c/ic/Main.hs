@@ -19,8 +19,8 @@ deriving instance Typeable Artifact
 
 icCfg :: Conf
 icCfg = [ (arg, "output", Optional, "Output file name")
-      , (arg, "input",  Optional, "Input file name")
-      ]
+        , (arg, "input",  Optional, "Input file name")
+        ]
 
 pkgDb :: M.Map String String -> Maybe String
 pkgDb = M.lookup "pkg-db"
@@ -30,7 +30,7 @@ main = do
     (opts0, iptMb) <- getUsingConf icCfg ["input"]
     let opts = M.insert "input" ipt opts0
         ipt  = head iptMb
-        iopt = initialOpts { outDir  = M.lookup "ouput" opts }
+        iopt = initialOpts { outDir  = M.lookup "output" opts }
 
     (ivoryModules, ivoryArtifacts) <- interpFile ipt (pkgDb opts)
     runCompiler ivoryModules ivoryArtifacts iopt
