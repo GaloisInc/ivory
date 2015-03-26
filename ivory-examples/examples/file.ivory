@@ -301,3 +301,10 @@ int32_t bar72(int32_t x, * struct Boo a, * int32_t y, * int32_t[10] arr) {
   return a.aBoo->aBar7;
 }
 
+float tanFuncD(float x) {
+  return $iAtan2(3.0, 1);
+}
+
+float tanFuncF(float x) {
+  return $iAtan2(3.0, 1);
+}
