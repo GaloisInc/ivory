@@ -55,6 +55,9 @@ module Ivory.Artifact (
   -- transformation on the contents of an `Artifact` which may give an error.
   , artifactTransformErr, artifactTransformErrString
 
+  -- | `artifactPath` prepends a `FilePath` to the output file path.
+  , artifactPath
+
   -- * Artifact actions
   -- | Takes a directory of type `FilePath` and an `Artifact`
   -- writes each `Artifact` to the file system or gives an error explaining why
@@ -96,6 +99,7 @@ mightBeEqArtifact a b =
 data AContents = LiteralContents T.Text
                | FileContents (IO FilePath)
 
+mightBeEqAContents :: AContents -> AContents -> Bool
 mightBeEqAContents (LiteralContents a) (LiteralContents b) = a == b
 mightBeEqAContents (FileContents a) (FileContents b) = unsafePerformIO a == unsafePerformIO b
 mightBeEqAContents _ _ = False
@@ -121,6 +125,9 @@ artifactText outputname t = Artifact
   , artifact_contents    = LiteralContents t
   , artifact_transformer = emptyTransformer
   }
+
+artifactPath :: FilePath -> Artifact -> Artifact
+artifactPath f a = a { artifact_outputname = f </> artifact_outputname a }
 
 artifactString :: FilePath -> String -> Artifact
 artifactString f s = artifactText f (T.pack s)
@@ -168,8 +175,9 @@ withContents a f = do
 
 putArtifact :: FilePath -> Artifact -> IO (Maybe String)
 putArtifact fp a = withContents a $ \c -> do
-  createDirectoryIfMissing True fp
-  T.writeFile (fp </> artifact_outputname a) c
+  let fname = fp </> artifact_outputname a
+  createDirectoryIfMissing True (dropFileName fname)
+  T.writeFile fname c
 
 putArtifact_ :: FilePath -> Artifact -> IO ()
 putArtifact_ fp a = void (putArtifact fp a)
