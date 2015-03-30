@@ -308,3 +308,19 @@ float tanFuncD(float x) {
 float tanFuncF(float x) {
   return $iAtan2(3.0, 1);
 }
+
+string struct Astr 4
+
+-- copy from an uint8_t array to a string
+void arr_to_str( * struct ivory_string_Astr s
+               , const * uint8_t[5] arr
+               ) {
+  $istr_from_sz(s, arr);
+}
+
+-- copy to an uint8_t array from a string
+void str_to_arr(* uint8_t[5] arr
+               , const * struct ivory_string_Astr s
+               ) {
+  $sz_from_istr(arr, s);
+}
