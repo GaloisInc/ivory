@@ -37,6 +37,7 @@ instance (ANat len, IvoryArea area, Packable area) => Packable (Array len area) 
 
 serializeModule :: Module
 serializeModule = package "ivory_serialize" $ do
+  wrappedPackMod ibool
   wrappedPackMod uint8
   wrappedPackMod int8
   wrappedPackMod uint16
@@ -55,6 +56,11 @@ serializeArtifacts :: [Artifact]
 serializeArtifacts = [ a serializeHeader ]
   where
   a f = artifactCabalFile P.getDataDir ("support/" ++ f)
+
+ibool :: WrappedPackRep (Stored IBool)
+ibool = wrapPackRep "ibool" (repackV (/=? 0) (? ((1 :: Uint8), 0)) (packRep :: PackRep (Stored Uint8)))
+instance Packable (Stored IBool) where
+  packRep = wrappedPackRep ibool
 
 uint8 :: WrappedPackRep (Stored Uint8)
 uint8 = mkPackRep "uint8" 1

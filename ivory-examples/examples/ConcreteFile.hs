@@ -18,7 +18,7 @@
 module ConcreteFile where
 
 import Ivory.Language
-import Ivory.Stdlib.String
+import Ivory.Stdlib
 import Ivory.Compile.C.CmdlineFrontend
 
 e :: IBool
