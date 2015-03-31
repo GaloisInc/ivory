@@ -1,6 +1,7 @@
 
 module Ivory.Stdlib
   ( module Ivory.Stdlib.Control
+  , module Ivory.Stdlib.Init
   , module Ivory.Stdlib.Memory
   , module Ivory.Stdlib.Operators
   , module Ivory.Stdlib.String
@@ -11,6 +12,7 @@ module Ivory.Stdlib
 import Ivory.Language (Module)
 
 import Ivory.Stdlib.Control
+import Ivory.Stdlib.Init
 import Ivory.Stdlib.Memory
 import Ivory.Stdlib.Operators
 import Ivory.Stdlib.String

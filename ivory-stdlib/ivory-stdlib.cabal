@@ -21,6 +21,7 @@ source-repository    this
 library
   exposed-modules:      Ivory.Stdlib,
                         Ivory.Stdlib.Control,
+                        Ivory.Stdlib.Init,
                         Ivory.Stdlib.Memory,
                         Ivory.Stdlib.Operators,
                         Ivory.Stdlib.String,
