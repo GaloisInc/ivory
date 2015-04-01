@@ -112,6 +112,7 @@ fromOpExp env op args = case op of
   FCosOp           -> mkUn 'cos
   FAsinOp          -> mkUn 'asin
   FAtanOp          -> mkUn 'atan
+  FAtan2Op         -> mkBin 'I.atan2F
   FAcosOp          -> mkUn 'acos
   FSinhOp          -> mkUn 'sinh
   FTanhOp          -> mkUn 'tanh

@@ -197,6 +197,7 @@ data ExpOp
   | FCosOp
   | FAsinOp
   | FAtanOp
+  | FAtan2Op
   | FAcosOp
   | FSinhOp
   | FTanhOp

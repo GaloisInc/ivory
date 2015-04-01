@@ -73,6 +73,7 @@ import Ivory.Language.Syntax.Concrete.Location
   asin         { Located $$ (TokReserved "asin") }
   acos         { Located $$ (TokReserved "acos") }
   atan         { Located $$ (TokReserved "atan") }
+  atan2        { Located $$ (TokReserved "atan2") }
 
   sinh         { Located $$ (TokReserved "sinh") }
   cosh         { Located $$ (TokReserved "cosh") }
@@ -529,6 +530,7 @@ libFuncExp :
     | asin         expArgs { LocExp (atBin (ExpOp FAsinOp $2) $1 $2) }
     | acos         expArgs { LocExp (atBin (ExpOp FAcosOp $2) $1 $2) }
     | atan         expArgs { LocExp (atBin (ExpOp FAtanOp $2) $1 $2) }
+    | atan2        expArgs { LocExp (atBin (ExpOp FAtan2Op $2) $1 $2) }
     | sinh         expArgs { LocExp (atBin (ExpOp FSinhOp $2) $1 $2) }
     | cosh         expArgs { LocExp (atBin (ExpOp FCoshOp $2) $1 $2) }
     | tanh         expArgs { LocExp (atBin (ExpOp FTanhOp $2) $1 $2) }

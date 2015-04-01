@@ -91,6 +91,7 @@ tokens :-
   asin             { keyword }
   acos             { keyword }
   atan             { keyword }
+  atan2            { keyword }
 
   sinh             { keyword }
   cosh             { keyword }

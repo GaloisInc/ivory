@@ -302,11 +302,11 @@ int32_t bar72(int32_t x, * struct Boo a, * int32_t y, * int32_t[10] arr) {
 }
 
 float tanFuncD(float x) {
-  return $iAtan2(3.0, 1);
+  return atan2(3.0, 1);
 }
 
 float tanFuncF(float x) {
-  return $iAtan2(3.0, 1);
+  return atan2(3.0, 1);
 }
 
 string struct Astr 4
