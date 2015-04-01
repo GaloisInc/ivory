@@ -22,11 +22,10 @@ library
   exposed-modules:      Ivory.Stdlib,
                         Ivory.Stdlib.Control,
                         Ivory.Stdlib.Init,
+                        Ivory.Stdlib.Maybe,
                         Ivory.Stdlib.Memory,
                         Ivory.Stdlib.Operators,
-                        Ivory.Stdlib.String,
-                        Ivory.Stdlib.Trig,
-                        Ivory.Stdlib.Maybe
+                        Ivory.Stdlib.String
 
   other-modules:        Paths_ivory_stdlib
 
