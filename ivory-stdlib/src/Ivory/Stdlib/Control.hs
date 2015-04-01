@@ -7,7 +7,7 @@ module Ivory.Stdlib.Control
   ( ifte
   , when
   , unless
-  , cond_, cond, (==>)
+  , cond_, cond, (==>), Cond()
   ) where
 
 import Ivory.Language
