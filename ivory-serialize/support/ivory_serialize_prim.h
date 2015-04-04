@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#define IVORY_SERIALIZE_CAT(X,Y) X##_##Y
+#define IVORY_SERIALIZE_CAT(X,Y,Z) X##_##Y##_##Z
 // Indirection in case X,Y defined
-#define IVORY_SERIALIZE_C(X,Y,Z) IVORY_SERIALIZE_CAT(IVORY_SERIALIZE_CAT(X,Y),Z)
+#define IVORY_SERIALIZE_C(X,Y,Z) IVORY_SERIALIZE_CAT(X,Y,Z)
 
 // Implementation dependent sizes.
 #ifndef CONFIG_IVORY_SIZEOF_FLOAT
@@ -264,11 +264,15 @@ static inline void ivory_serialize_pack_double_be(uint8_t *dst, uint32_t offs, c
 
 // Unpacking primitives:
 
-static inline uint8_t ivory_serialize_unpack_prim_1(const uint8_t *src){
+static inline uint8_t ivory_serialize_unpack_prim_1_le(const uint8_t *src){
 	return ((uint8_t) src[0] << 0);
 }
 
-static inline uint16_t ivory_serialize_unpack_prim_2(const uint8_t *src){
+static inline uint8_t ivory_serialize_unpack_prim_1_be(const uint8_t *src){
+	return ((uint8_t) src[0] << 0);
+}
+
+static inline uint16_t ivory_serialize_unpack_prim_2_le(const uint8_t *src){
 #ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint16_t) src[0] << 0) |
 			((uint16_t) src[1] << 8));
@@ -278,7 +282,17 @@ static inline uint16_t ivory_serialize_unpack_prim_2(const uint8_t *src){
 #endif
 }
 
-static inline uint32_t ivory_serialize_unpack_prim_4(const uint8_t *src){
+static inline uint16_t ivory_serialize_unpack_prim_2_be(const uint8_t *src){
+#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
+	return (((uint16_t) src[1] << 0) |
+			((uint16_t) src[0] << 8));
+#else
+	return (((uint16_t) src[0] << 0) |
+			((uint16_t) src[1] << 8));
+#endif
+}
+
+static inline uint32_t ivory_serialize_unpack_prim_4_le(const uint8_t *src){
 #ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint32_t) src[0] << 0)  |
 			((uint32_t) src[1] << 8)  |
@@ -292,7 +306,21 @@ static inline uint32_t ivory_serialize_unpack_prim_4(const uint8_t *src){
 #endif
 }
 
-static inline uint64_t ivory_serialize_unpack_prim_8(const uint8_t *src){
+static inline uint32_t ivory_serialize_unpack_prim_4_be(const uint8_t *src){
+#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
+	return (((uint32_t) src[3] << 0)  |
+			((uint32_t) src[2] << 8)  |
+			((uint32_t) src[1] << 16) |
+			((uint32_t) src[0] << 24));
+#else
+	return (((uint32_t) src[0] << 0)  |
+			((uint32_t) src[1] << 8)  |
+			((uint32_t) src[2] << 16) |
+			((uint32_t) src[3] << 24));
+#endif
+}
+
+static inline uint64_t ivory_serialize_unpack_prim_8_le(const uint8_t *src){
 #ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint64_t) src[0] << 0)  |
 			((uint64_t) src[1] << 8)  |
@@ -314,54 +342,126 @@ static inline uint64_t ivory_serialize_unpack_prim_8(const uint8_t *src){
 #endif
 }
 
+static inline uint64_t ivory_serialize_unpack_prim_8_be(const uint8_t *src){
+#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
+	return (((uint64_t) src[7] << 0)  |
+			((uint64_t) src[6] << 8)  |
+			((uint64_t) src[5] << 16) |
+			((uint64_t) src[4] << 24) |
+			((uint64_t) src[3] << 32) |
+			((uint64_t) src[2] << 40) |
+			((uint64_t) src[1] << 48) |
+			((uint64_t) src[0] << 56));
+#else
+	return (((uint64_t) src[0] << 0)  |
+			((uint64_t) src[1] << 8)  |
+			((uint64_t) src[2] << 16) |
+			((uint64_t) src[3] << 24) |
+			((uint64_t) src[4] << 32) |
+			((uint64_t) src[5] << 40) |
+			((uint64_t) src[6] << 48) |
+			((uint64_t) src[7] << 56));
+#endif
+}
+
 // Functions to cast unpacked result to specific destination types:
-static inline void ivory_serialize_unpack_uint8(const uint8_t *src, uint32_t offs, uint8_t *dst) {
-	uint8_t tmp = ivory_serialize_unpack_prim_1(src+offs);
+static inline void ivory_serialize_unpack_uint8_le(const uint8_t *src, uint32_t offs, uint8_t *dst) {
+	uint8_t tmp = ivory_serialize_unpack_prim_1_le(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_int8(const uint8_t *src, uint32_t offs, int8_t *dst) {
-	uint8_t tmp = ivory_serialize_unpack_prim_1(src+offs);
+static inline void ivory_serialize_unpack_uint8_be(const uint8_t *src, uint32_t offs, uint8_t *dst) {
+	uint8_t tmp = ivory_serialize_unpack_prim_1_be(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_uint16(const uint8_t *src, uint32_t offs, uint16_t *dst) {
-	uint16_t tmp = ivory_serialize_unpack_prim_2(src+offs);
+static inline void ivory_serialize_unpack_int8_le(const uint8_t *src, uint32_t offs, int8_t *dst) {
+	uint8_t tmp = ivory_serialize_unpack_prim_1_le(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_int16(const uint8_t *src, uint32_t offs, int16_t *dst) {
-	uint16_t tmp = ivory_serialize_unpack_prim_2(src+offs);
+static inline void ivory_serialize_unpack_int8_be(const uint8_t *src, uint32_t offs, int8_t *dst) {
+	uint8_t tmp = ivory_serialize_unpack_prim_1_be(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_uint32(const uint8_t *src, uint32_t offs, uint32_t *dst) {
-	uint32_t tmp = ivory_serialize_unpack_prim_4(src+offs);
+static inline void ivory_serialize_unpack_uint16_le(const uint8_t *src, uint32_t offs, uint16_t *dst) {
+	uint16_t tmp = ivory_serialize_unpack_prim_2_le(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_int32(const uint8_t *src, uint32_t offs, int32_t *dst) {
-	uint32_t tmp = ivory_serialize_unpack_prim_4(src+offs);
+static inline void ivory_serialize_unpack_uint16_be(const uint8_t *src, uint32_t offs, uint16_t *dst) {
+	uint16_t tmp = ivory_serialize_unpack_prim_2_be(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_float(const uint8_t *src, uint32_t offs, float *dst) {
-	CONFIG_IVORY_FLOAT_AREA_TY tmp = C(ivory_serialize_unpack_prim,CONFIG_IVORY_SIZEOF_FLOAT)(src+offs);
+static inline void ivory_serialize_unpack_int16_le(const uint8_t *src, uint32_t offs, int16_t *dst) {
+	uint16_t tmp = ivory_serialize_unpack_prim_2_le(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_uint64(const uint8_t *src, uint32_t offs, uint64_t *dst) {
-	uint64_t tmp = ivory_serialize_unpack_prim_8(src+offs);
+static inline void ivory_serialize_unpack_int16_be(const uint8_t *src, uint32_t offs, int16_t *dst) {
+	uint16_t tmp = ivory_serialize_unpack_prim_2_be(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_int64(const uint8_t *src, uint32_t offs, int64_t *dst) {
-	uint64_t tmp = ivory_serialize_unpack_prim_8(src+offs);
+static inline void ivory_serialize_unpack_uint32_le(const uint8_t *src, uint32_t offs, uint32_t *dst) {
+	uint32_t tmp = ivory_serialize_unpack_prim_4_le(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
-static inline void ivory_serialize_unpack_double(const uint8_t *src, uint32_t offs, double *dst) {
-	CONFIG_IVORY_DOUBLE_AREA_TY tmp = C(ivory_serialize_unpack_prim,CONFIG_IVORY_SIZEOF_DOUBLE)(src+offs);
+static inline void ivory_serialize_unpack_uint32_be(const uint8_t *src, uint32_t offs, uint32_t *dst) {
+	uint32_t tmp = ivory_serialize_unpack_prim_4_be(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_int32_le(const uint8_t *src, uint32_t offs, int32_t *dst) {
+	uint32_t tmp = ivory_serialize_unpack_prim_4_le(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_int32_be(const uint8_t *src, uint32_t offs, int32_t *dst) {
+	uint32_t tmp = ivory_serialize_unpack_prim_4_be(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_float_le(const uint8_t *src, uint32_t offs, float *dst) {
+	CONFIG_IVORY_FLOAT_AREA_TY tmp = IVORY_SERIALIZE_C(ivory_serialize_unpack_prim,CONFIG_IVORY_SIZEOF_FLOAT,le)(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_float_be(const uint8_t *src, uint32_t offs, float *dst) {
+	CONFIG_IVORY_FLOAT_AREA_TY tmp = IVORY_SERIALIZE_C(ivory_serialize_unpack_prim,CONFIG_IVORY_SIZEOF_FLOAT,be)(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_uint64_le(const uint8_t *src, uint32_t offs, uint64_t *dst) {
+	uint64_t tmp = ivory_serialize_unpack_prim_8_le(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_uint64_be(const uint8_t *src, uint32_t offs, uint64_t *dst) {
+	uint64_t tmp = ivory_serialize_unpack_prim_8_be(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_int64_le(const uint8_t *src, uint32_t offs, int64_t *dst) {
+	uint64_t tmp = ivory_serialize_unpack_prim_8_le(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_int64_be(const uint8_t *src, uint32_t offs, int64_t *dst) {
+	uint64_t tmp = ivory_serialize_unpack_prim_8_be(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_double_le(const uint8_t *src, uint32_t offs, double *dst) {
+	CONFIG_IVORY_DOUBLE_AREA_TY tmp = IVORY_SERIALIZE_C(ivory_serialize_unpack_prim,CONFIG_IVORY_SIZEOF_DOUBLE,le)(src+offs);
+	memcpy(dst, &tmp, sizeof(*dst));
+}
+
+static inline void ivory_serialize_unpack_double_be(const uint8_t *src, uint32_t offs, double *dst) {
+	CONFIG_IVORY_DOUBLE_AREA_TY tmp = IVORY_SERIALIZE_C(ivory_serialize_unpack_prim,CONFIG_IVORY_SIZEOF_DOUBLE,be)(src+offs);
 	memcpy(dst, &tmp, sizeof(*dst));
 }
 
