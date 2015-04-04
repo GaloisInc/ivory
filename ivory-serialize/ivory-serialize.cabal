@@ -10,7 +10,8 @@ license:             BSD3
 data-files: support/ivory_serialize_prim.h
 
 library
-  exposed-modules:      Ivory.Serialize
+  exposed-modules:      Ivory.Serialize,
+                        Ivory.Serialize.LittleEndian
   other-modules:        Ivory.Serialize.Atoms,
                         Ivory.Serialize.PackRep,
                         Ivory.Serialize.Safe.LittleEndian,
