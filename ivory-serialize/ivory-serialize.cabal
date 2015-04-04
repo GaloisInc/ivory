@@ -13,7 +13,8 @@ library
   exposed-modules:      Ivory.Serialize
   other-modules:        Ivory.Serialize.Atoms,
                         Ivory.Serialize.PackRep,
-                        Ivory.Serialize.Safe,
+                        Ivory.Serialize.Safe.LittleEndian,
+                        Ivory.Serialize.Safe.BigEndian,
                         Ivory.Serialize.Struct,
                         Paths_ivory_serialize
 

@@ -28,8 +28,10 @@ class Packable a where
 
 instance (ANat len, IvoryArea area, Packable area) => Packable (Array len area) where
   packRep = PackRep
-    { packGet = \ buf offs arr -> arrayMap $ \ ix -> packGet elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
-    , packSet = \ buf offs arr -> arrayMap $ \ ix -> packSet elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
+    { packGetLE = \ buf offs arr -> arrayMap $ \ ix -> packGetLE elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
+    , packGetBE = \ buf offs arr -> arrayMap $ \ ix -> packGetBE elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
+    , packSetLE = \ buf offs arr -> arrayMap $ \ ix -> packSetLE elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
+    , packSetBE = \ buf offs arr -> arrayMap $ \ ix -> packSetBE elRep buf (offs + fromInteger (packSize elRep) * safeCast ix) (arr ! ix)
     , packSize = packSize elRep * fromTypeNat (aNat :: NatType len)
     }
     where
@@ -114,17 +116,31 @@ instance Packable (Stored IDouble) where
 
 
 mkPackRep :: forall a. (IvoryArea (Stored a), IvoryEq a) => String -> Integer -> WrappedPackRep (Stored a)
-mkPackRep ty sz = WrappedPackRep (PackRep { packGet = call_ doGet, packSet = call_ doSet, packSize = sz }) defs
+mkPackRep ty sz = WrappedPackRep
+  (PackRep { packGetLE = call_ doGetLE
+           , packGetBE = call_ doGetBE
+           , packSetLE = call_ doSetLE
+           , packSetBE = call_ doSetBE
+           , packSize = sz })
+           defs
   where
-  doGet :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 (Stored a)] :-> ())
-  doGet = proc ("ivory_serialize_unpack_" ++ ty) $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
+  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 (Stored a)] :-> ())
+  doGetLE = proc ("ivory_serialize_unpack_" ++ ty ++ "_le") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
-  doSet :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 (Stored a)] :-> ())
-  doSet = proc ("ivory_serialize_pack_" ++ ty) $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
+  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 (Stored a)] :-> ())
+  doGetBE = proc ("ivory_serialize_unpack_" ++ ty ++ "_be") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
+
+  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 (Stored a)] :-> ())
+  doSetLE = proc ("ivory_serialize_pack_" ++ ty ++ "_le") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
+
+  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 (Stored a)] :-> ())
+  doSetBE = proc ("ivory_serialize_pack_" ++ ty ++ "_be") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
   defs = do
-    incl doGet
-    incl doSet
+    incl doGetLE
+    incl doGetBE
+    incl doSetLE
+    incl doSetBE
 
 (!!) :: (IvoryRef ref, IvoryExpr (ref s (CArray (Stored Uint8))), IvoryExpr a)
      => ref s (CArray (Stored Uint8)) -> Uint32 -> a

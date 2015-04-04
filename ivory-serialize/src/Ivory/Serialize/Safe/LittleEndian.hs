@@ -8,7 +8,7 @@
 -- All Rights Reserved.
 --
 
-module Ivory.Serialize.Safe where
+module Ivory.Serialize.Safe.LittleEndian where
 
 import Ivory.Language
 import Ivory.Serialize.Atoms
@@ -29,7 +29,7 @@ packInto' :: ANat len
           -> Ivory ('Effects r b (Scope s3)) ()
 packInto' rep buf offs val = do
   assert $ offs + fromIntegral (packSize rep) <=? arrayLen buf
-  packSet rep (toCArray buf) offs val
+  packSetLE rep (toCArray buf) offs val
 
 packVInto :: (Packable (Stored a), ANat len, IvoryInit a)
           => Ref s1 (Array len (Stored Uint8)) -- ^ buf
@@ -64,7 +64,7 @@ unpackFrom' :: ANat len
             -> Ivory ('Effects r b (Scope s3)) ()
 unpackFrom' rep buf offs val = do
   assert $ offs + fromIntegral (packSize rep) <=? arrayLen buf
-  packGet rep (toCArray buf) offs val
+  packGetLE rep (toCArray buf) offs val
 
 unpackVFrom :: (Packable (Stored a), ANat len, IvoryStore a, IvoryZeroVal a)
             => ConstRef s1 (Array len (Stored Uint8)) -- ^ buf

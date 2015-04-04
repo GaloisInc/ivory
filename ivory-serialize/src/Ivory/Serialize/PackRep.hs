@@ -8,8 +8,10 @@ module Ivory.Serialize.PackRep where
 import Ivory.Language
 
 data PackRep t = PackRep
-  { packGet :: forall s0 s1 s2 r b. ConstRef s1 (CArray (Stored Uint8)) -> Uint32 -> Ref s2 t -> Ivory ('Effects r b (Scope s0)) ()
-  , packSet :: forall s0 s1 s2 r b. Ref s1 (CArray (Stored Uint8)) -> Uint32 -> ConstRef s2 t -> Ivory ('Effects r b (Scope s0)) ()
+  { packGetLE :: forall s0 s1 s2 r b. ConstRef s1 (CArray (Stored Uint8)) -> Uint32 -> Ref s2 t -> Ivory ('Effects r b (Scope s0)) ()
+  , packGetBE :: forall s0 s1 s2 r b. ConstRef s1 (CArray (Stored Uint8)) -> Uint32 -> Ref s2 t -> Ivory ('Effects r b (Scope s0)) ()
+  , packSetLE :: forall s0 s1 s2 r b. Ref s1 (CArray (Stored Uint8)) -> Uint32 -> ConstRef s2 t -> Ivory ('Effects r b (Scope s0)) ()
+  , packSetBE :: forall s0 s1 s2 r b. Ref s1 (CArray (Stored Uint8)) -> Uint32 -> ConstRef s2 t -> Ivory ('Effects r b (Scope s0)) ()
   , packSize :: Integer
   }
 
@@ -19,14 +21,22 @@ repack :: (IvoryArea a, IvoryZero a)
        -> PackRep a
        -> PackRep b
 repack reget reset rep = PackRep
-  { packGet = \ buf offs base -> do
+  { packGetLE = \ buf offs base -> do
       tmp <- local izero
-      packGet rep buf offs tmp
+      packGetLE rep buf offs tmp
       reget (constRef tmp) base
-  , packSet = \ buf offs base -> do
+  , packGetBE = \ buf offs base -> do
+      tmp <- local izero
+      packGetBE rep buf offs tmp
+      reget (constRef tmp) base
+  , packSetLE = \ buf offs base -> do
       tmp <- local izero
       reset base tmp
-      packSet rep buf offs (constRef tmp)
+      packSetLE rep buf offs (constRef tmp)
+  , packSetBE = \ buf offs base -> do
+      tmp <- local izero
+      reset base tmp
+      packSetBE rep buf offs (constRef tmp)
   , packSize = packSize rep
   }
 
@@ -47,14 +57,27 @@ data WrappedPackRep a = WrappedPackRep
   }
 
 wrapPackRep :: forall a. IvoryArea a => String -> PackRep a -> WrappedPackRep a
-wrapPackRep name rep = WrappedPackRep (rep { packGet = call_ doGet, packSet = call_ doSet }) defs
+wrapPackRep name rep = WrappedPackRep
+  (rep { packGetLE = call_ doGetLE
+       , packGetBE = call_ doGetBE
+       , packSetLE = call_ doSetLE
+       , packSetBE = call_ doSetBE })
+  defs
   where
-  doGet :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] :-> ())
-  doGet = proc (name ++ "_get") $ \ buf offs base -> body $ packGet rep buf offs base
+  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] :-> ())
+  doGetLE = proc (name ++ "_get_le") $ \ buf offs base -> body $ packGetLE rep buf offs base
 
-  doSet :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] :-> ())
-  doSet = proc (name ++ "_set") $ \ buf offs base -> body $ packSet rep buf offs base
+  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] :-> ())
+  doGetBE = proc (name ++ "_get_be") $ \ buf offs base -> body $ packGetBE rep buf offs base
+
+  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] :-> ())
+  doSetLE = proc (name ++ "_set_le") $ \ buf offs base -> body $ packSetLE rep buf offs base
+
+  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] :-> ())
+  doSetBE = proc (name ++ "_set_be") $ \ buf offs base -> body $ packSetBE rep buf offs base
 
   defs = do
-    incl doGet
-    incl doSet
+    incl doGetLE
+    incl doGetBE
+    incl doSetLE
+    incl doSetBE
