@@ -18,7 +18,7 @@ module Ivory.Stdlib.String
   ( copy_istring , strcpy , strncpy , strncpy_uint8 , strncmp
   , stdlibStringModule, stringInit, istr_eq, sz_from_istr, istr_len
   , istr_from_sz, istr_copy, string_lit_store
-  , stdlibStringArtifacts
+  , stdlibStringArtifacts, string_lit_array
   ) where
 
 import Data.Char (ord)
@@ -83,6 +83,25 @@ string_lit_store s str =
       ++ show nat
     else do mapM_ go (zip [0..] ls)
             store (stringLength str) (fromIntegral ln)
+
+-- | Copy a Haskell string directory to an array of uint8s.
+string_lit_array :: forall n s eff .
+                 (ANat n)
+                 =>
+                 String
+                 -> Ref s (Array n (Stored Uint8))
+                 -> Ivory eff ()
+string_lit_array s arr =
+  let go :: (Integer, Uint8) -> Ivory eff ()
+      go (ix, c) = store (arr ! fromIntegral ix) c in
+  let ls = stringArray s in
+  let ln = fromIntegral (length ls) in
+  let nat = fromTypeNat (aNat :: NatType n) in
+  if ln > nat
+    then error $ "string_lit_array: " ++ " String " ++ s
+      ++ " is too large for the dynamic string max size "
+      ++ show nat
+    else mapM_ go (zip [0..] ls)
 
 stringArray :: String -> [Uint8]
 stringArray = map (fromIntegral . ord)
