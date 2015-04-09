@@ -63,7 +63,7 @@ mkFieldGroup field =
 --------------------------------------------------------------------------------
 -- | Compile an external memory area reference.
 compileAreaImport :: I.AreaImport -> Compile
-compileAreaImport ai = putSrcInc (SysInclude (I.aiFile ai))
+compileAreaImport ai = putHdrInc (SysInclude (I.aiFile ai))
 
 --------------------------------------------------------------------------------
 -- | Get prototypes for memory areas.
