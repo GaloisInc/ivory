@@ -44,7 +44,6 @@ executable ivory-c-clang-test
                         pretty >= 1.1,
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
-                        wl-pprint,
                         ivory,
                         ivory-opts,
                         ivory-quickcheck,
