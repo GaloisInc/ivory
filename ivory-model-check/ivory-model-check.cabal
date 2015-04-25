@@ -19,13 +19,7 @@ library
                         bytestring >= 0.10,
                         monadLib,
                         ivory,
-                        ivory-opts,
-                        ivory-backend-c,
--- For running tests in the repl
-                        ivory-serialize,
-                        ivory-stdlib,
-                        tasty >= 0.10,
-                        tasty-hunit
+                        ivory-opts
 
   hs-source-dirs:       src
   default-language:     Haskell2010
@@ -47,7 +41,6 @@ test-suite test
                ,  ivory
                ,  ivory-backend-c
                ,  ivory-model-check
-               ,  ivory-quickcheck
                ,  ivory-serialize
                ,  ivory-stdlib
 

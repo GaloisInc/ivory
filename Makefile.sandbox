@@ -1,0 +1,34 @@
+default:
+	cabal build
+
+test:
+
+define add-cabal-package-source =
+$(foreach package,$(1),$(eval
+ifeq ($(findstring $(package) ,$(CABAL_PACKAGE_SOURCES) ),)
+CABAL_PACKAGE_SOURCES += $(package)
+include $(package)/Makefile.deps
+endif
+))
+endef
+
+include Makefile.deps
+
+create-sandbox:
+	cabal sandbox init
+	echo "tests: True" >> cabal.sandbox.config
+ifneq ($(strip $(CABAL_PACKAGE_SOURCES)),)
+	cabal sandbox add-source $(CABAL_PACKAGE_SOURCES)
+endif
+	cabal install --dependencies-only
+
+clean:
+
+distclean: clean
+	-rm -rf dist
+
+clean-sandbox: distclean
+	-rm -rf cabal.sandbox.config
+	-rm -rf .cabal-sandbox
+
+.PHONY: default test create-sandbox clean distclean clean-sandbox
