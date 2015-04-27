@@ -3,14 +3,14 @@ default:
 
 test:
 
-define add-cabal-package-source =
-$(foreach package,$(1),$(eval
-ifeq ($(findstring $(package) ,$(CABAL_PACKAGE_SOURCES) ),)
-CABAL_PACKAGE_SOURCES += $(package)
-include $(package)/Makefile.deps
+define add-cabal-package-source-once
+ifeq ($(findstring $(1) ,$(CABAL_PACKAGE_SOURCES) ),)
+CABAL_PACKAGE_SOURCES += $(1)
+include $(1)/Makefile.deps
 endif
-))
 endef
+
+add-cabal-package-source = $(foreach package,$(1),$(eval $(call add-cabal-package-source-once,$(package))))
 
 include Makefile.deps
 
