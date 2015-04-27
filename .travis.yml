@@ -14,8 +14,7 @@ before_install:
   - sudo chmod a+x /usr/local/bin/cvc4
   - cvc4 --version
 install:
-  - cabal install alex
-  - cabal install happy
+  - cabal install alex happy
 script:
   - make test
 ghc:
