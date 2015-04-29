@@ -2,7 +2,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Ivory.Stdlib.Memory
   ( resultInto
@@ -30,12 +29,11 @@ into a b = store b =<< deref a
 -- is fully copied, the @to@ array is full, or index @end@ in the @from@ array
 -- is reached (index @end@ is not copied).  to copy the full @from@ array, let
 -- @end@ equal 'arrayLen from'.
-arrayCopy :: forall n m r s0 s1 s2 eff t.
+arrayCopy ::
            ( ANat n, ANat m, IvoryRef r
            , IvoryExpr (r s2 (Array m (Stored t)))
            , IvoryExpr (r s2 (Stored t))
            , IvoryStore t
-           , GetAlloc eff ~ Scope s0
            )
         => Ref s1 (Array n (Stored t))
         -> r s2 (Array m (Stored t))
@@ -63,6 +61,5 @@ arrayCopy to from toOffset end = do
   toLen = arrayLen to
   frLen = arrayLen from
 
-  mkIx :: Ix m -> Ix n
   mkIx ix = toIx (toOffset + fromIx ix)
 
