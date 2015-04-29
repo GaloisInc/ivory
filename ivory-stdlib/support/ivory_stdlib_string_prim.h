@@ -16,10 +16,6 @@
 extern "C" {
 #endif
 
-uint32_t ivory_stdlib_strlcpy(char *dest, const char *src,  uint32_t size);
-
-void ivory_stdlib_strncpy_uint8( uint8_t *dest, const char *src, uint32_t size);
-
 /* Copy at most 'min(dest_len, src_len)' bytes from 'src' to
  * dest, stopping early if a null terminator is encountered.
  *
