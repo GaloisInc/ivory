@@ -22,6 +22,7 @@ import Ivory.Language
 import Ivory.Language.Array (IxRep)
 import Ivory.Artifact
 import Ivory.Language.Proxy
+import Ivory.Language.Struct
 
 import qualified Control.Monad as M
 import qualified Paths_ivory_stdlib as P
@@ -104,13 +105,14 @@ stringArray = map (fromIntegral . ord)
 ----------------------------------------------------------------------
 -- Generic Functions
 
-stringCapacity :: forall ref str s.
-                  (IvoryString str, IvoryRef ref)
-               => ref s str -> Len
-stringCapacity _ = len
-  where
-  len :: Len
-  len = fromIntegral (fromTypeNat (aNat :: NatType (Capacity str)))
+stringCapacity :: ( IvoryString str
+                  , IvoryRef ref
+                  , IvoryExpr (ref s (Struct (StructName str)))
+                  , IvoryExpr (ref s (Array (Capacity (Struct (StructName str))) (Stored Uint8)))
+                  , Num n
+                  )
+               => ref s str -> n
+stringCapacity str = arrayLen (str ~> stringDataL)
 
 -- Polymorphic "stringLength" function allowing read/write access
 -- to the string length.  This is not exported, only a specialized
@@ -186,14 +188,6 @@ istr_eq s1 s2 = do
   ptr2 <- assign (stringData s2)
   call do_istr_eq ptr1 len1 ptr2 len2
 
--- | Primitive function to do a bounded string copy.
-string_copy :: Def ('[ Ref s1 (CArray (Stored Uint8))
-                     , Len
-                     , ConstRef s2 (CArray (Stored Uint8))
-                     , Len] :-> Len)
-string_copy = importProc "ivory_stdlib_string_copy"
-                         "ivory_stdlib_string_prim.h"
-
 -- | Primitive function to do a bounded null-terminated string copy.
 string_copy_z :: Def ('[ Ref s1 (CArray (Stored Uint8))
                        , Len
@@ -228,22 +222,22 @@ istr_from_sz dest src = do
 -- but may be truncated if the buffer is too small.
 --
 -- FIXME: This should return false if the string was truncated.
--- (Can we actually detect this at compile-time?  I think we
--- should be able to...)
-sz_from_istr :: forall s1 s2 eff len str.
-                (ANat len, IvoryString str)
+sz_from_istr :: (ANat len, IvoryString str)
              => Ref      s1 (Array len (Stored Uint8))
              -> ConstRef s2 str
              -> Ivory eff ()
 sz_from_istr dest src = do
-  let dest_capacity = fromTypeNat (aNat :: NatType len)
+  let dest_capacity = arrayLen dest
   M.when (dest_capacity > 0) $ do
-    let dest_len = fromIntegral (dest_capacity - 1)
-    src_data <- assign (stringData src)
+    -- leave room for a trailing NUL in dest
+    let dest_len = fromInteger (dest_capacity - 1)
     src_len  <- istr_len src
-    _result  <- call string_copy (toCArray dest) dest_len src_data src_len
-    -- XXX is this right?  shouldn't it use "result"?
-    store (dest ! toIx (dest_len - 1)) 0
+    let src_capacity = stringCapacity src
+    -- this can never truncate if dest is at least one byte bigger than src
+    let truncated = if dest_capacity > src_capacity then false else dest_len <? src_len
+    let result_len = truncated ? (dest_len, src_len)
+    call_ memcpy (toCArray dest) (stringData src) result_len
+    store (dest ! toIx result_len) 0
 
 -- | Ivory module definition.
 stdlibStringModule :: Module
@@ -251,7 +245,6 @@ stdlibStringModule = package "ivory_stdlib_string" $ do
   incl memcmp
   incl memcpy
   incl do_istr_eq
-  incl string_copy
   incl string_copy_z
 
 stdlibStringArtifacts :: [Artifact]
