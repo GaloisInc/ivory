@@ -82,6 +82,6 @@ fromInclProc pd = case pd of
 #endif
     where
     procDef = do
-      let nm   = AppE (VarE 'I.importProc) (LitE $ StringL procName)
+      let nm   = AppE (VarE 'I.importProc) (LitE $ StringL sym)
       return (AppE nm (LitE $ StringL file))
 
