@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
 
 --
 -- String.hs --- C-string utilities for Ivory.
@@ -21,7 +19,6 @@ import Data.Char (ord)
 import Ivory.Language
 import Ivory.Language.Array (IxRep)
 import Ivory.Artifact
-import Ivory.Language.Proxy
 import Ivory.Language.Struct
 
 import qualified Control.Monad as M
@@ -33,68 +30,48 @@ type Len = IxRep
 ----------------------------------------------------------------------
 -- Yet Another Ivory String Type
 
-gen_stringInit :: forall name len . (IvoryStruct name, ANat len)
-               => Label name (Array len (Stored Uint8))
-               -> Label name (Stored Len)
-               -> String
-               -> Init (Struct name)
-gen_stringInit l_data l_len xs =
-  let nat = fromIntegral (fromTypeNat (aNat :: NatType len)) in
-  if len > nat
-    then error $ "gen_stringInit: " ++ " String " ++ xs
-      ++ " is too large to initialize dynamic string with"
-      ++ " maximum size " ++ show nat
-    else go
-  where
-  go =
-    istruct
-      [ l_data .= iarray (map ival (stringArray xs))
-      , l_len  .= ival (fromIntegral len)
-      ]
-  len = length xs
+undefinedRef :: Label name field -> Ref s field
+undefinedRef _ = undefined
 
 -- | String initialization. Error returned if the `String` is too large.
 stringInit :: IvoryString str => String -> Init str
-stringInit = gen_stringInit stringDataL stringLengthL
+stringInit xs
+  | len > nat =
+    error $ "stringInit: String " ++ show xs
+      ++ " is too large to initialize dynamic string with"
+      ++ " maximum size " ++ show nat
+  | otherwise =
+    istruct
+      [ l_data .= iarray (map ival (stringArray xs))
+      , stringLengthL .= ival (fromInteger len)
+      ]
+  where
+  l_data = stringDataL
+  len = toInteger (length xs)
+  nat = arrayLen (undefinedRef l_data)
 
 -- | Store a constant string into an `IvoryString`. Error returned if the
 -- `String` is too large.
-string_lit_store :: forall n str s eff
-                  . ( IvoryString str
-                    , n ~ Capacity str
-                    )
+string_lit_store :: IvoryString str
                  => String
                  -> Ref s str
                  -> Ivory eff ()
-string_lit_store s str =
-  let d  = str~>stringDataL in
-  let ls = stringArray s in
-  let go :: (Integer, Uint8) -> Ivory eff ()
-      go (ix, c) = store (d ! fromIntegral ix) c in
-  let ln = fromIntegral (length ls) in
-  let nat = fromTypeNat (aNat :: NatType n) in
-  if ln > nat
-    then error $ "string_lit_store: " ++ " String " ++ s
-      ++ " is too large for the dynamic string max size "
-      ++ show nat
-    else do mapM_ go (zip [0..] ls)
-            store (stringLength str) (fromIntegral ln)
+string_lit_store s str = do
+  string_lit_array s (str ~> stringDataL)
+  store (str ~> stringLengthL) $ fromIntegral $ length s
 
--- | Copy a Haskell string directory to an array of uint8s.
-string_lit_array :: forall n s eff .
-                 (ANat n)
-                 =>
-                 String
+-- | Copy a Haskell string directly to an array of uint8s.
+string_lit_array :: ANat n
+                 => String
                  -> Ref s (Array n (Stored Uint8))
                  -> Ivory eff ()
 string_lit_array s arr =
-  let go :: (Integer, Uint8) -> Ivory eff ()
-      go (ix, c) = store (arr ! fromIntegral ix) c in
+  let go (ix, c) = store (arr ! fromInteger ix) c in
   let ls = stringArray s in
-  let ln = fromIntegral (length ls) in
-  let nat = fromTypeNat (aNat :: NatType n) in
+  let ln = toInteger (length ls) in
+  let nat = arrayLen arr in
   if ln > nat
-    then error $ "string_lit_array: " ++ " String " ++ s
+    then error $ "string_lit_array: String " ++ show s
       ++ " is too large for the dynamic string max size "
       ++ show nat
     else mapM_ go (zip [0..] ls)
@@ -113,16 +90,6 @@ stringCapacity :: ( IvoryString str
                   )
                => ref s str -> n
 stringCapacity str = arrayLen (str ~> stringDataL)
-
--- Polymorphic "stringLength" function allowing read/write access
--- to the string length.  This is not exported, only a specialized
--- read-only version.
-stringLength :: ( IvoryString str
-                , IvoryRef ref
-                , IvoryExpr (ref s (Stored Len))
-                , IvoryExpr (ref s str))
-             => ref s str -> ref s (Stored Len)
-stringLength x = x ~> stringLengthL
 
 stringData :: ( IvoryString str
               , IvoryRef ref
@@ -150,7 +117,7 @@ memcpy = importProc "memcpy" "string.h"
 istr_len :: IvoryString str
          => ConstRef s str
          -> Ivory eff Len
-istr_len = deref . stringLength
+istr_len str = deref (str ~> stringLengthL)
 
 -- | Copy one string into another of the same type.
 istr_copy :: IvoryString str
@@ -160,7 +127,7 @@ istr_copy :: IvoryString str
 istr_copy dest src = do
   len <- istr_len src
   call_ memcpy (stringData dest) (stringData src) len
-  store (stringLength dest) len
+  store (dest ~> stringLengthL) len
 
 -- | Internal function to compare strings for equality.
 do_istr_eq :: Def ('[ ConstRef s1 (CArray (Stored Uint8))
@@ -202,20 +169,17 @@ string_copy_z = importProc "ivory_stdlib_string_copy_z"
 -- characters.
 --
 -- FIXME: This should return false if the string was truncated.
--- (Can we actually detect this at compile-time?  I think we
--- should be able to...)
-istr_from_sz :: forall s1 s2 eff len str.
-                (ANat len, IvoryString str)
+istr_from_sz :: (ANat len, IvoryString str)
              => Ref      s1 str
              -> ConstRef s2 (Array len (Stored Uint8))
              -> Ivory eff ()
 istr_from_sz dest src = do
-  len1     <- assign (stringCapacity (constRef dest))
-  ptr1     <- assign (stringData dest)
-  let len2  = fromIntegral (fromTypeNat (aNat :: NatType len))
-  ptr2     <- assign (toCArray src)
-  result   <- call string_copy_z ptr1 len1 ptr2 len2
-  store (stringLength dest) result
+  let len1 = stringCapacity dest
+  let ptr1 = stringData dest
+  let len2 = arrayLen src
+  let ptr2 = toCArray src
+  result <- call string_copy_z ptr1 len1 ptr2 len2
+  store (dest ~> stringLengthL) result
 
 -- | Copy an Ivory string to a fixed-size, null-terminated C
 -- string.  The destination string is always properly terminated,
