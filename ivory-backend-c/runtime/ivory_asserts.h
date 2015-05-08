@@ -35,9 +35,7 @@
 
 #endif /* __arm__ */
 
-#endif /* IVORY_TEST */
-
-#ifdef IVORY_DEPLOY
+#else /* IVORY_TEST */
 
 #define REQUIRES(arg)
 #define ENSURES(arg)
@@ -45,9 +43,6 @@
 #define ASSERTS(arg)
 #define COMPILER_ASSERTS(arg)
 
-#endif /* IVORY_DEPLOY */
-
-
-
+#endif /* IVORY_TEST */
 
 #endif /* IVORY_ASSERTS_H */
