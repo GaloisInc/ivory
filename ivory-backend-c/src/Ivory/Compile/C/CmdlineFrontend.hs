@@ -115,11 +115,11 @@ rc sm modules user_artifacts opts
     createDirectoryIfMissing True dir
     createDirectoryIfMissing True hd
     createDirectoryIfMissing True ad
-    let artifacts = runtimeArtifacts ++ user_artifacts
-    warnCollisions cmodules dir hd artifacts ad
+    warnCollisions cmodules dir hd user_artifacts ad
     mapM_ (output dir ".c" renderSource) cmodules
     mapM_ (output hd  ".h" renderHeader) cmodules
-    runArtifactCompiler artifacts ad
+    runArtifactCompiler runtimeHeaders hd
+    runArtifactCompiler user_artifacts ad
     -- control-flow graph
     cfgoutput
 
@@ -210,8 +210,8 @@ runArtifactCompiler as dir = do
 
 --------------------------------------------------------------------------------
 
-runtimeArtifacts :: [Artifact]
-runtimeArtifacts = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
+runtimeHeaders :: [Artifact]
+runtimeHeaders = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
   where a f = artifactCabalFile P.getDataDir ("runtime/" ++ f)
 
 --------------------------------------------------------------------------------
