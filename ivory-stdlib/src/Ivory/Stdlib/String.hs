@@ -19,6 +19,7 @@ import Data.Char (ord)
 import Ivory.Language
 import Ivory.Language.Array (IxRep)
 import Ivory.Artifact
+import Ivory.Artifact.Location
 import Ivory.Language.Struct
 
 import qualified Control.Monad as M
@@ -211,10 +212,10 @@ stdlibStringModule = package "ivory_stdlib_string" $ do
   incl do_istr_eq
   incl string_copy_z
 
-stdlibStringArtifacts :: [Artifact]
+stdlibStringArtifacts :: [Located Artifact]
 stdlibStringArtifacts =
-  [ supportfile "ivory_stdlib_string_prim.h"
-  , supportfile "ivory_stdlib_string_prim.c"
+  [ Incl $ supportfile "ivory_stdlib_string_prim.h"
+  , Src $ supportfile "ivory_stdlib_string_prim.c"
   ]
   where
   supportfile f = artifactCabalFile P.getDataDir ("support/" ++ f)

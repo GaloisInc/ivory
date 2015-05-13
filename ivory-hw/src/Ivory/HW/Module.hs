@@ -12,8 +12,9 @@ module Ivory.HW.Module (
 
 import Ivory.HW.Prim
 import Ivory.Artifact
+import Ivory.Artifact.Location
 import qualified Paths_ivory_hw
 
-hw_artifacts :: [Artifact]
+hw_artifacts :: [Located Artifact]
 hw_artifacts =
-  [artifactCabalFile Paths_ivory_hw.getDataDir "support/ivory_hw_prim.h"]
+  [Incl $ artifactCabalFile Paths_ivory_hw.getDataDir "support/ivory_hw_prim.h"]
