@@ -15,6 +15,7 @@ source-repository    this
 library
   exposed-modules:      Ivory.Artifact,
                         Ivory.Artifact.Template,
+                        Ivory.Artifact.Location,
                         Ivory.Artifact.Transformer
   build-depends:        base >= 4.6,
                         filepath,
