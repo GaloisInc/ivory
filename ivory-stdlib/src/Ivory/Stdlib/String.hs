@@ -19,7 +19,6 @@ import Data.Char (ord)
 import Ivory.Language
 import Ivory.Language.Array (IxRep)
 import Ivory.Artifact
-import Ivory.Artifact.Location
 import Ivory.Language.Struct
 
 import qualified Control.Monad as M

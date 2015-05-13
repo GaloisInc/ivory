@@ -20,7 +20,6 @@ import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Type as I
 import qualified Ivory.Language.Uint as I
 import Ivory.Artifact
-import Ivory.Artifact.Location
 import Ivory.Serialize.PackRep
 import qualified Paths_ivory_serialize as P
 

@@ -12,7 +12,6 @@ module Ivory.HW.Module (
 
 import Ivory.HW.Prim
 import Ivory.Artifact
-import Ivory.Artifact.Location
 import qualified Paths_ivory_hw
 
 hw_artifacts :: [Located Artifact]

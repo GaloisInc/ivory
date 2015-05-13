@@ -16,7 +16,6 @@ import           Ivory.Compile.C.CmdlineFrontend.Options
 
 import           Ivory.Language
 import           Ivory.Artifact
-import           Ivory.Artifact.Location
 import           Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Opts.BitShift        as O
 import qualified Ivory.Opts.ConstFold       as O
