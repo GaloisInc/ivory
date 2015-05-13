@@ -73,6 +73,9 @@ module Ivory.Artifact (
 
   -- | Takes a guess at whether two artifacts might be equal.
   , mightBeEqArtifact
+
+  , Located(..)
+  , mightBeEqLocatedArtifact
   ) where
 
 import Control.Monad (void)
@@ -81,6 +84,7 @@ import qualified Data.Text.Lazy.IO as T
 import System.FilePath
 import System.Directory
 import Ivory.Artifact.Transformer
+import Ivory.Artifact.Location
 import System.IO.Unsafe (unsafePerformIO)
 
 data Artifact =
@@ -90,6 +94,11 @@ data Artifact =
     , artifact_transformer :: Transformer T.Text
     }
 
+mightBeEqLocatedArtifact :: Located Artifact -> Located Artifact -> Bool
+mightBeEqLocatedArtifact (Root a) (Root b) = mightBeEqArtifact a b
+mightBeEqLocatedArtifact (Src a) (Src b) = mightBeEqArtifact a b
+mightBeEqLocatedArtifact (Incl a) (Incl b) = mightBeEqArtifact a b
+mightBeEqLocatedArtifact _ _ = False
 
 mightBeEqArtifact :: Artifact -> Artifact -> Bool
 mightBeEqArtifact a b =
