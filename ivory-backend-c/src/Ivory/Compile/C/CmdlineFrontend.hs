@@ -16,6 +16,7 @@ import           Ivory.Compile.C.CmdlineFrontend.Options
 
 import           Ivory.Language
 import           Ivory.Artifact
+import           Ivory.Artifact.Location
 import           Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Opts.BitShift        as O
 import qualified Ivory.Opts.ConstFold       as O
@@ -38,21 +39,21 @@ import System.FilePath (addExtension,(</>))
 
 -- Code Generation Front End ---------------------------------------------------
 
-compile :: [Module] -> [Artifact] -> IO ()
+compile :: [Module] -> [Located Artifact] -> IO ()
 compile = compileWith Nothing
 
-compileWith :: Maybe G.SizeMap -> [Module] -> [Artifact] -> IO ()
+compileWith :: Maybe G.SizeMap -> [Module] -> [Located Artifact] -> IO ()
 compileWith sm ms as = do
   args <- getArgs
   opts <- parseOpts args
   runCompilerWith sm ms as opts
 
-runCompiler :: [Module] -> [Artifact] -> Opts -> IO ()
+runCompiler :: [Module] -> [Located Artifact] -> Opts -> IO ()
 runCompiler ms as os = runCompilerWith Nothing ms as os
 
 -- | Main compile function plus domain-specific type-checking that can't be
 -- embedded in the Haskell type-system.  Type-checker also emits warnings.
-runCompilerWith :: Maybe G.SizeMap -> [Module] -> [Artifact] -> Opts -> IO ()
+runCompilerWith :: Maybe G.SizeMap -> [Module] -> [Located Artifact] -> Opts -> IO ()
 runCompilerWith sm modules artifacts opts = do
   let (bs, msgs) = concatRes (map tcMod modules)
   putStrLn msgs
@@ -95,7 +96,7 @@ runCompilerWith sm modules artifacts opts = do
       warnings = res T.showWarnings
       errs     = res T.showErrors
 
-rc :: G.SizeMap -> [Module] -> [Artifact] -> Opts -> IO ()
+rc :: G.SizeMap -> [Module] -> [Located Artifact] -> Opts -> IO ()
 rc sm modules user_artifacts opts
   | outProcSyms opts       = C.outputProcSyms modules
   | Nothing <- outDir opts = stdoutmodules
@@ -109,17 +110,17 @@ rc sm modules user_artifacts opts
 
   outputmodules = do
     -- Irrrefutable pattern checked above
-    let Just dir = outDir opts
-    let hd = hdrDir dir
-    let ad = artifactsDir dir
-    createDirectoryIfMissing True dir
-    createDirectoryIfMissing True hd
-    createDirectoryIfMissing True ad
-    warnCollisions cmodules dir hd user_artifacts ad
-    mapM_ (output dir ".c" renderSource) cmodules
-    mapM_ (output hd  ".h" renderHeader) cmodules
-    runArtifactCompiler runtimeHeaders hd
-    runArtifactCompiler user_artifacts ad
+    let Just srcdir = outDir opts
+    let incldir = hdrDir srcdir
+    let rootdir = rootDir srcdir
+    createDirectoryIfMissing True rootdir
+    createDirectoryIfMissing True srcdir
+    createDirectoryIfMissing True incldir
+    let artifacts = runtimeHeaders ++ user_artifacts
+    warnCollisions cmodules artifacts rootdir srcdir incldir
+    mapM_ (output srcdir ".c" renderSource) cmodules
+    mapM_ (output incldir  ".h" renderHeader) cmodules
+    runArtifactCompiler artifacts rootdir srcdir incldir
     -- control-flow graph
     cfgoutput
 
@@ -128,8 +129,8 @@ rc sm modules user_artifacts opts
       Nothing -> dir
       Just d  -> d
 
-  artifactsDir dir =
-    case outArtDir opts of
+  rootDir dir =
+    case outArtDir opts of -- XXX TODO: fix outArtDir naming, should be outRootDir or somethign
       Nothing -> dir
       Just d  -> d
 
@@ -201,35 +202,45 @@ rc sm modules user_artifacts opts
 
 --------------------------------------------------------------------------------
 
-runArtifactCompiler :: [Artifact] -> FilePath -> IO ()
-runArtifactCompiler as dir = do
-  mes <- mapM (putArtifact dir) as
+runArtifactCompiler :: [Located Artifact] -> FilePath -> FilePath -> FilePath
+                    -> IO ()
+runArtifactCompiler las root_dir src_dir incl_dir = do
+  mes <- sequence
+    [ case la of
+       Root a -> putArtifact root_dir a
+       Src a  -> putArtifact src_dir a
+       Incl a -> putArtifact incl_dir a
+    | la <- las ]
   case catMaybes mes of
     [] -> return ()
     errs -> error (unlines errs)
 
 --------------------------------------------------------------------------------
 
-runtimeHeaders :: [Artifact]
+runtimeHeaders :: [Located Artifact]
 runtimeHeaders = map a [ "ivory.h", "ivory_asserts.h", "ivory_templates.h" ]
-  where a f = artifactCabalFile P.getDataDir ("runtime/" ++ f)
+  where a f = Incl $ artifactCabalFile P.getDataDir ("runtime/" ++ f)
 
 --------------------------------------------------------------------------------
 warnCollisions :: [C.CompileUnits] -- All Ivory Modules
-               -> FilePath  -- Ivory source path
-               -> FilePath  -- Ivory header path
-               -> [Artifact] -- All artifacts
-               -> FilePath -- Artifact path
+               -> [Located Artifact] -- All artifacts
+               -> FilePath  -- Root path
+               -> FilePath  -- Source path
+               -> FilePath  -- Incl path
                -> IO ()
-warnCollisions ms spath hpath as apath = case dupes of
+warnCollisions ms as rootpath spath ipath = case dupes of
   [] -> return ()
   _ -> putStrLn $ intercalate "\n\t" $
     ["**** Warning: the following files will be written multiple times during codegen! ****"]
     ++ dupes
   where
   cnames = [ spath </> (C.unitName m ++ ".c") | m <- ms ]
-  hnames = [ hpath </> (C.unitName m ++ ".h") | m <- ms ]
-  anames = [ apath </>  artifactFileName a    | a <- as ]
+  hnames = [ ipath </> (C.unitName m ++ ".h") | m <- ms ]
+  anames = [ case la of
+              Root a -> rootpath </> artifactFileName a
+              Src a  -> spath </>  artifactFileName a
+              Incl a -> ipath </>  artifactFileName a
+           | la <- as ]
   allnames = cnames ++ hnames ++ anames
   dupes = allnames \\ (nub allnames)
 
