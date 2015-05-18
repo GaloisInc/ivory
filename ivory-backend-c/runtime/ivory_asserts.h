@@ -24,12 +24,13 @@ extern void ivory_user_assert_hook(void);
 
 #elif defined(IVORY_USER_VERBOSE_ASSERT_HOOK)
 
-extern void ivory_user_verbose_assert_hook(const char *asserttype, const char *file, int line);
+extern void ivory_user_verbose_assert_hook(const char *asserttype,
+		const char *expr, const char *file, int line);
 
 #define ivory_assert(atype, arg)  \
   do {                            \
     if (!(arg)) {                 \
-       ivory_user_verbose_assert_hook(atype, __FILE__, __LINE__); \
+       ivory_user_verbose_assert_hook(atype, #arg, __FILE__, __LINE__); \
     }                             \
   } while (0)
 
