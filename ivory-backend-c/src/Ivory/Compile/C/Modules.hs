@@ -26,7 +26,6 @@ showModule :: CompileUnits -> String
 showModule m = unlines $ map unlines $
   [ mk (lbl "Source") (sources m)
   , mk (lbl "Header") (headers m)
-  , mk (lbl "Extern") (S.empty, externs m)
   ]
   where
   lbl l = "// module " ++ unitName m ++ " " ++ l ++ ":\n"
@@ -94,8 +93,8 @@ compileModule :: I.Module -> CompileUnits
 compileModule I.Module { I.modName        = nm
                        , I.modDepends     = deps
                        , I.modHeaders     = hdrs
-                       , I.modExterns     = exts
                        , I.modImports     = imports
+                       , I.modExterns     = externs
                        , I.modProcs       = procs
                        , I.modStructs     = structs
                        , I.modAreas       = areas
@@ -105,7 +104,6 @@ compileModule I.Module { I.modName        = nm
   { unitName = nm
   , sources  = sources res
   , headers  = headers res
-  , externs  = externs res
   }
   where
   res     = compRes comp
@@ -126,8 +124,8 @@ compileModule I.Module { I.modName        = nm
     mapM_ (putHdrInc . LocalInclude) (S.toList hdrs)
     mapM_ (compileStruct Public) (I.public structs)
     mapM_ (compileStruct Private) (I.private structs)
-    mapM_ compileExtern exts
     mapM_ fromImport imports
+    mapM_ fromExtern externs
     mapM_ (extractAreaProto Public) (I.public areas)
     mapM_ (extractAreaProto Private) (I.private areas)
     mapM_ (compileArea Public) (I.public areas)
@@ -141,6 +139,11 @@ compileModule I.Module { I.modName        = nm
 
 fromImport :: I.Import -> Compile
 fromImport p = putHdrInc (SysInclude (I.importFile p))
+
+--------------------------------------------------------------------------------
+
+fromExtern :: I.Extern -> Compile
+fromExtern p = putHdrInc (SysInclude (I.externFile p))
 
 --------------------------------------------------------------------------------
 

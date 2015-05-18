@@ -73,17 +73,6 @@ instance Monoid Module where
     , modAreaImports = modAreaImports l `mappend` modAreaImports r
     }
 
-
--- External Functions ----------------------------------------------------------
-
--- | Functions not defined in a header, but are available to the linker.
-data Extern = Extern
-  { externSym     :: Sym
-  , externRetType :: Type
-  , externArgs    :: [Type]
-  } deriving (Show, Eq, Ord)
-
-
 -- Imported Functions ----------------------------------------------------------
 
 -- | Functions that are defined in a c header.
@@ -257,12 +246,23 @@ newtype Ensure = Ensure
   { getEnsure :: Cond
   } deriving (Show, Eq, Ord)
 
+-- Imported symbols ------------------------------------------------------------
+
+-- | External Symbols.
+data Extern = Extern
+  { externSym     :: Sym
+  , externFile    :: ModulePath
+  , externType    :: Type
+  } deriving (Show, Eq, Ord)
 
 -- Expressions -----------------------------------------------------------------
 
 data Expr
   = ExpSym Sym
     -- ^ Symbols
+
+  | ExpExtern Extern
+    -- ^ Imported symbols
 
   | ExpVar Var
     -- ^ Variables
@@ -432,8 +432,9 @@ data Init
 deriveLiftMany
   [ ''Module, ''Visible, ''AreaImport, ''Area, ''Struct
   , ''Import
+  , ''Extern
   , ''Proc, ''Ensure, ''Require, ''Cond
-  , ''Extern, ''Set.Set
+  , ''Set.Set
 
   , ''Name
   , ''Stmt, ''LoopIncr, ''Comment, ''SrcLoc, ''Range, ''Position

@@ -7,10 +7,10 @@ import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
 x :: Uint8
-x = extern "SOME_CONST"
+x = extern "SOME_CONST" "some_other_header.h"
 
 putchar :: Def ('[Uint8] :-> ())
-putchar  = externProc "putchar"
+putchar  = importProc "putchar" "some_header.h"
 
 test :: Def ('[Uint8] :-> ())
 test  = proc "test" $ \ c -> body $
@@ -19,10 +19,10 @@ test  = proc "test" $ \ c -> body $
   >> retVoid
 
 runExtern :: IO ()
-runExtern  = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
+runExtern  = runCompiler [cmodule] [] initialOpts { outDir = Nothing, scErrors = True }
 
 cmodule :: Module
 cmodule  = package "Extern" $ do
   incl test
   incl putchar
-  inclHeader "some_header.h" -- for SOME_CONST
+  inclSym x

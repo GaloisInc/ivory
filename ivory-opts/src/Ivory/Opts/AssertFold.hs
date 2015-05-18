@@ -162,6 +162,7 @@ stmtFold ef stmt = case stmt of
 expFoldDefault :: ExpFold ->  I.Type -> I.Expr -> FolderStmt ()
 expFoldDefault asserter ty e = case e of
   I.ExpSym{}                     -> go e
+  I.ExpExtern{}                  -> go e
   I.ExpVar{}                     -> go e
   I.ExpLit{}                     -> go e
   I.ExpLabel ty' e0 _str         -> do go e

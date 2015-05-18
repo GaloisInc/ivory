@@ -73,9 +73,10 @@ data ExprF t
 instance MuRef AST.Expr where
   type DeRef AST.Expr = CSE
   mapDeRef child e = CSEExpr <$> case e of
-    AST.ExpSym{} -> pure $ ExpSimpleF e
-    AST.ExpVar{} -> pure $ ExpSimpleF e
-    AST.ExpLit{} -> pure $ ExpSimpleF e
+    AST.ExpSym{}    -> pure $ ExpSimpleF e
+    AST.ExpExtern{} -> pure $ ExpSimpleF e
+    AST.ExpVar{}    -> pure $ ExpSimpleF e
+    AST.ExpLit{}    -> pure $ ExpSimpleF e
     AST.ExpLabel ty ex nm -> ExpLabelF <$> pure ty <*> child ex <*> pure nm
     AST.ExpIndex ty1 ex1 ty2 ex2 -> ExpIndexF <$> pure ty1 <*> child ex1 <*> pure ty2 <*> child ex2
     AST.ExpToIx ex bound -> ExpToIxF <$> child ex <*> pure bound

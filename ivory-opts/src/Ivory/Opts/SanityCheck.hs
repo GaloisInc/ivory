@@ -44,7 +44,7 @@ data Error = UnboundValue String
            | TypeError String I.Type I.Type
   deriving (Show, Eq)
 
-data Warning = Warning
+data Warning = TypeWarning String I.Type I.Type
   deriving (Show, Eq)
 
 data Results = Results
@@ -65,13 +65,19 @@ showError err = case err of
   UnboundValue x
     -> text "Unbound value:" <+> quotes (text x)
   TypeError x actual expected
-    -> quotes (text x) <+> text "has type:"
-    $$ nest 4 (quotes (pretty actual))
-    $$ text "but is used with type:"
-    $$ nest 4 (quotes (pretty expected))
+    -> typeMsg x actual expected
 
 showWarning :: Warning -> Doc
-showWarning _ = text "WARNING?"
+showWarning w = case w of
+  TypeWarning x actual expected
+    -> typeMsg x actual expected
+
+typeMsg :: String -> I.Type -> I.Type -> Doc
+typeMsg x actual expected =
+     quotes (text x) <+> text "has type:"
+  $$ nest 4 (quotes (pretty actual))
+  $$ text "but is used with type:"
+  $$ nest 4 (quotes (pretty expected))
 
 showWithLoc :: (a -> Doc) -> Located a -> Doc
 showWithLoc sh (Located loc a) = pretty loc <> text ":" $$ nest 2 (sh a)
@@ -140,10 +146,10 @@ putError err = do
   loc <- getStLoc
   put (Results [err `at` loc] [])
 
--- putWarn :: Warning -> SCResults ()
--- putWarn warn = do
---   loc <- getStLoc
---   put (Results [] [warn `at` loc])
+putWarn :: Warning -> SCResults ()
+putWarn warn = do
+  loc <- getStLoc
+  put (Results [] [warn `at` loc])
 
 runSCResults :: SCResults a -> (a, Results)
 runSCResults tc = fst $ runState (St NoLoc M.empty) $ runWriterT (unTC tc)
@@ -171,12 +177,19 @@ sanityCheck deps this@(I.Module {..})
   getVisible v = I.public v ++ I.private v
 
   topLevel :: M.Map String I.Type
-  topLevel = M.fromList $ concat [ procs m ++ imports m ++ areas m | m <- this:deps ]
+  topLevel = M.fromList
+           $ concat [   procs m
+                     ++ imports m
+                     ++ externs m
+                     ++ areas m
+                    | m <- this:deps
+                    ]
 
   procs m = [ (procSym, I.TyProc procRetTy (map getType procArgs) )
             | I.Proc {..} <- getVisible $ I.modProcs m ]
   imports m = [ (importSym, I.TyProc importRetTy (map getType importArgs) )
               | I.Import {..} <- I.modImports m ]
+  externs m = [ (externSym, externType) | I.Extern {..} <- I.modExterns m ]
   areas m = [ (areaSym, areaType )
             | I.Area {..} <- getVisible $ I.modAreas m ]
 
@@ -224,19 +237,19 @@ check = mapM_ go
     I.Comment (I.SourcePos loc)
       -> setStLoc loc
     _ -> return ()
-    
 
 checkExpr :: I.Expr -> SCResults ()
 checkExpr expr = case expr of
-  I.ExpSym v -> checkScope v
-  I.ExpAddrOfGlobal v -> checkScope v
-  I.ExpVar v -> checkScope (varString v)
-  I.ExpLabel _ e _ -> checkExpr e
+  I.ExpSym v           -> checkScope v
+  I.ExpExtern v        -> checkScope (I.externSym v)
+  I.ExpAddrOfGlobal v  -> checkScope v
+  I.ExpVar v           -> checkScope (varString v)
+  I.ExpLabel _ e _     -> checkExpr e
   I.ExpIndex _ e1 _ e2 -> checkExpr e1 >> checkExpr e2
-  I.ExpToIx e _ -> checkExpr e
-  I.ExpSafeCast _ e -> checkExpr e
-  I.ExpOp _ exprs -> mapM_ checkExpr exprs
-  _ -> return ()
+  I.ExpToIx e _        -> checkExpr e
+  I.ExpSafeCast _ e    -> checkExpr e
+  I.ExpOp _ exprs      -> mapM_ checkExpr exprs
+  _                    -> return ()
 
 checkCall :: String -> I.Type -> [I.Typed I.Expr] -> I.Type -> SCResults ()
 checkCall f ty args retTy = case ty of
@@ -293,5 +306,4 @@ instance Pretty I.Type where
       -> text "CArray" <+> pretty t
     I.TyOpaque
       -> text "Opaque"
-    
-         
+
