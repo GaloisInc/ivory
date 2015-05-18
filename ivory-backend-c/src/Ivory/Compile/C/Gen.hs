@@ -28,21 +28,7 @@ data Visibility = Public | Private deriving (Show, Eq)
 -- | Compile a top-level element.
 compile :: P.Def a -> Compile
 compile (P.DefProc fun) = compileUnit fun
-compile (P.DefExtern e) = compileExtern e
 compile (P.DefImport _) = error "Can't compile an import!"
-
---------------------------------------------------------------------------------
--- | Compile an extern declaration
-compileExtern :: I.Extern -> Compile
-compileExtern I.Extern
-  { I.externSym     = sym
-  , I.externRetType = ret
-  , I.externArgs    = args
-  }
-  = putExt [cedecl| extern $ty:(toType ret) $id:(sym)
-                      ($params:(map mkParam args)) ; |]
-  where
-  mkParam ty = [cparam| $ty:(toType ty) |]
 
 --------------------------------------------------------------------------------
 -- | Compile a struct.
@@ -395,6 +381,8 @@ toExpr t (I.ExpOp op args) =
   [cexp| ($ty:(toTypeCast t)) $exp:(toExpOp t op args) |]
 ----------------------------------------
 toExpr _ (I.ExpSym sym) = [cexp| $id:sym |]
+----------------------------------------
+toExpr _ (I.ExpExtern (I.Extern sym _ _)) = [cexp| $id:sym |]
 ----------------------------------------
 toExpr t (I.ExpLabel t' e field) = case t of
   I.TyRef (I.TyArr _ _)       -> getField

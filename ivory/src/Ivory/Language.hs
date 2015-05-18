@@ -84,7 +84,7 @@ module Ivory.Language (
   , assign
 
     -- ** Constants
-  , extern
+  , extern, inclSym
 
     -- ** Arithmetic (operators from the 'Num' class are also provided).
   , IvoryIntegral((.%), iDiv), (./)
@@ -136,7 +136,7 @@ module Ivory.Language (
     -- ** Procedures
   , Def()
   , ProcPtr(), procPtr
-  , proc, voidProc, externProc, importProc
+  , proc, voidProc, importProc
   , Body(), body, importFrom
 
     -- *** Pre/Post-Conditions
@@ -187,7 +187,6 @@ module Ivory.Language (
   , ModuleDef, incl, depend, defStruct
   , defStringType
   , defMemArea, defConstMemArea
-  , inclHeader
   , private, public
 
     -- * Quasiquoters

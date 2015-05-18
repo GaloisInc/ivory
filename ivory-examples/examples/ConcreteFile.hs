@@ -52,7 +52,6 @@ concreteIvory :: Module
 concreteIvory = package "concreteIvory" $ do
   incl printf
   incl printf2
-  inclHeader "stdio.h" -- so the header isn't just in the .c file
 
 [ivoryFile|examples/file.ivory|]
 

@@ -28,6 +28,7 @@ ixFold = procFold "ix" expFold
 expFold :: I.Type -> I.Expr -> FolderStmt ()
 expFold ty e = case e of
   I.ExpSym{}                     -> return ()
+  I.ExpExtern{}                  -> return ()
   I.ExpVar{}                     -> return ()
   I.ExpLit{}                     -> return ()
   I.ExpLabel ty' e0 _str         -> expFold ty' e0

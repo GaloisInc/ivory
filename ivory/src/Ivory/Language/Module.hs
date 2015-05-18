@@ -11,6 +11,7 @@ import Ivory.Language.Proc (Def(..))
 import Ivory.Language.Proxy (Proxy(..), ASymbol)
 import Ivory.Language.String (IvoryString(..))
 import Ivory.Language.Struct (IvoryStruct(..),StructDef(..),StructName)
+import Ivory.Language.Type (IvoryExpr, unwrapExpr)
 import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)
@@ -52,12 +53,14 @@ incl :: Def a -> ModuleDef
 incl (DefProc p)    = do
   visibility <- ask
   put (mempty { I.modProcs   = visAcc visibility p })
-incl (DefExtern e)  = put (mempty { I.modExterns = [e] })
 incl (DefImport i)  = put (mempty { I.modImports = [i] })
 
--- | Add a dependency on an external header.
-inclHeader :: String -> ModuleDef
-inclHeader inc = put (mempty { I.modHeaders = Set.singleton inc })
+-- | Import an externally-defined symbol.
+inclSym :: IvoryExpr t => t -> ModuleDef
+inclSym t = case unwrapExpr t of
+  I.ExpExtern sym
+    -> put (mempty { I.modExterns = [sym] })
+  e -> error $ "Cannot import expression " ++ show e
 
 -- | Add a dependency on another module.
 depend :: I.Module -> ModuleDef
