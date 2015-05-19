@@ -47,8 +47,8 @@ data Warning = TypeWarning String I.Type I.Type
   deriving (Show, Eq)
 
 data Results = Results
-  { errors   :: [Located Error]
-  , warnings :: [Located Warning]
+  { errors    :: [Located Error]
+  , _warnings :: [Located Warning]
   } deriving (Show, Eq)
 
 instance Monoid Results where
@@ -91,7 +91,14 @@ mkOut sym kind sh ls = nm $$ nest 4 (vcat (map go ls))
 --------------------------------------------------------------------------------
 -- Writer Monad
 
-data St = St { loc :: SrcLoc, env :: M.Map String I.Type }
+-- For imported things, we won't require that the string maps to a valid
+-- type. For example, we might import `printf` multiple times at multiple
+-- types. We'll only check that the key exists (that the symbol isn't
+-- unbound). So imported symbols map to `Nothing`.
+data MaybeType = Imported | Defined I.Type
+  deriving (Show, Eq)
+
+data St = St { loc :: SrcLoc, env :: M.Map String MaybeType }
 
 newtype SCResults a = SCResults { unTC :: WriterT Results (State St) a }
   deriving (Functor, Applicative, Monad)
@@ -122,13 +129,13 @@ checkScope name =
     Nothing -> putError (UnboundValue name)
     Just _  -> return ()
 
-lookupType :: String -> SCResults (Maybe I.Type)
+lookupType :: String -> SCResults (Maybe MaybeType)
 lookupType name = do
   env <- fmap env get
   return $ M.lookup name env
 
 hasType :: String -> I.Type -> SCResults ()
-hasType name ty = sets_ (\s -> s { env = M.insert name ty (env s) })
+hasType name ty = sets_ (\s -> s { env = M.insert name (Defined ty) (env s) })
 
 putError :: Error -> SCResults ()
 putError err = do
@@ -160,25 +167,26 @@ sanityCheck deps this@(I.Module {..})
   where
   getVisible v = I.public v ++ I.private v
 
-  topLevel :: M.Map String I.Type
+  topLevel :: M.Map String MaybeType
   topLevel = M.fromList
-           $ concat [   procs m
-                     ++ imports m
-                     ++ externs m
-                     ++ areas m
+           $ concat [ procs m
+                   ++ imports m
+                   ++ externs m
+                   ++ areas m
                     | m <- this:deps
                     ]
 
-  procs m = [ (procSym, I.TyProc procRetTy (map getType procArgs) )
-            | I.Proc {..} <- getVisible $ I.modProcs m ]
-  imports m = [ (importSym, I.TyProc importRetTy (map getType importArgs) )
+  procs m   = [ (procSym, Defined $ I.TyProc procRetTy (map getType procArgs) )
+              | I.Proc {..} <- getVisible $ I.modProcs m ]
+  imports m = [ ( importSym, Imported )
               | I.Import {..} <- I.modImports m ]
-  externs m = [ (externSym, externType) | I.Extern {..} <- I.modExterns m ]
-  areas m = [ (areaSym, areaType )
-            | I.Area {..} <- getVisible $ I.modAreas m ]
+  externs m = [ (externSym, Defined externType)
+              | I.Extern {..} <- I.modExterns m ]
+  areas m   = [ (areaSym, Defined areaType )
+              | I.Area {..} <- getVisible $ I.modAreas m ]
 
 -- | Sanity Check a procedure. Check for unbound and ill-typed values
-sanityCheckProc :: M.Map String I.Type -> I.Proc -> Results
+sanityCheckProc :: M.Map String MaybeType -> I.Proc -> Results
 sanityCheckProc env (I.Proc {..}) = snd $ runSCResults $ do
   sets_ (\s -> s { env = env })
   mapM_ (\ (I.Typed t v) -> varString v `hasType` t) procArgs
@@ -198,8 +206,12 @@ check = mapM_ go
       -> do mapM_ (\ (I.Typed _ e) -> checkExpr e) args
             mt <- lookupType f
             case mt of
-              Nothing -> putError (UnboundValue f)
-              Just ty -> checkCall f ty args t
+              Nothing
+                -> putError (UnboundValue f)
+              Just mty
+                -> case mty of
+                     Imported   -> return ()
+                     Defined ty -> checkCall f ty args t
             case mv of
               Nothing -> return ()
               Just v  -> varString v `hasType` t
@@ -237,8 +249,9 @@ checkExpr expr = case expr of
 
 checkCall :: String -> I.Type -> [I.Typed I.Expr] -> I.Type -> SCResults ()
 checkCall f ty args retTy = case ty of
-  I.TyProc r as -> unless (all eq $ zip (r:as) (retTy : argTys))
-                     (putError $ TypeError f (I.TyProc r as) (I.TyProc retTy argTys))
+  I.TyProc r as
+    -> unless (all eq $ zip (r:as) (retTy : argTys))
+         (putError $ TypeError f (I.TyProc r as) (I.TyProc retTy argTys))
   _ -> putError $ TypeError f ty (I.TyProc retTy argTys)
   where
   argTys   = [t | I.Typed t _ <- args]
