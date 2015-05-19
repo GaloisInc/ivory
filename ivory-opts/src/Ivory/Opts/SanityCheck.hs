@@ -18,7 +18,6 @@
 module Ivory.Opts.SanityCheck
   ( sanityCheck
   , showErrors
-  , showWarnings
   , existErrors
   , Results()
   , render
@@ -67,11 +66,6 @@ showError err = case err of
   TypeError x actual expected
     -> typeMsg x actual expected
 
-showWarning :: Warning -> Doc
-showWarning w = case w of
-  TypeWarning x actual expected
-    -> typeMsg x actual expected
-
 typeMsg :: String -> I.Type -> I.Type -> Doc
 typeMsg x actual expected =
      quotes (text x) <+> text "has type:"
@@ -86,11 +80,6 @@ showWithLoc sh (Located loc a) = pretty loc <> text ":" $$ nest 2 (sh a)
 showErrors :: String -> Results -> Doc
 showErrors procName res
   = mkOut procName "ERROR" (showWithLoc showError) (errors res)
-
--- | Given a procedure name, show all the typechecking results for that procedure.
-showWarnings :: String -> Results -> Doc
-showWarnings procName res
-  = mkOut procName "WARNING" (showWithLoc showWarning) (warnings res)
 
 mkOut :: String -> String -> (a -> Doc) -> [a] -> Doc
 mkOut _   _    _  [] = empty
@@ -145,11 +134,6 @@ putError :: Error -> SCResults ()
 putError err = do
   loc <- getStLoc
   put (Results [err `at` loc] [])
-
-putWarn :: Warning -> SCResults ()
-putWarn warn = do
-  loc <- getStLoc
-  put (Results [] [warn `at` loc])
 
 runSCResults :: SCResults a -> (a, Results)
 runSCResults tc = fst $ runState (St NoLoc M.empty) $ runWriterT (unTC tc)
@@ -306,4 +290,22 @@ instance Pretty I.Type where
       -> text "CArray" <+> pretty t
     I.TyOpaque
       -> text "Opaque"
+
+--------------------------------------------------------------------------------
+-- Unused for now.
+
+-- showWarning :: Warning -> Doc
+-- showWarning w = case w of
+--   TypeWarning x actual expected
+--     -> typeMsg x actual expected
+
+-- -- | Given a procedure name, show all the typechecking results for that procedure.
+-- showWarnings :: String -> Results -> Doc
+-- showWarnings procName res
+--   = mkOut procName "WARNING" (showWithLoc showWarning) (warnings res)
+
+-- putWarn :: Warning -> SCResults ()
+-- putWarn warn = do
+--   loc <- getStLoc
+--   put (Results [] [warn `at` loc])
 
