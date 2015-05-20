@@ -113,7 +113,7 @@ that are stored in references also have an instance of \cd{IvoryType}.  Types
 that have \cd{IvoryType} instances include signed and unsigned integers, the
 void type \cd{()}, and references, while types that have an \cd{IvoryArea}
 instance are limited to those that have kind \cd{Area}, defined in
-section~\ref{sec:area}.  All types used in Ivory programs will have an
+Section~\ref{sec:area}.  All types used in Ivory programs will have an
 \cd{IvoryType} or \cd{IvoryArea} instance.
 
 \begin{figure}[t]
@@ -174,7 +174,7 @@ procedure definition introduces a fresh region, with the constraint that no
 reference allocated in that region should show up in the return type of that
 procedure, Ivory avoids the introduction of dangling pointers.  The embedding of
 this feature in Haskell will be described in more detail in
-section~\ref{sec:proc}.
+Section~\ref{sec:proc}.
 
 Both forms of allocation take initializers, though \cd{Global} allocation
 through \cd{area} will default to zero-initialization if it is omitted.
@@ -223,7 +223,7 @@ example  = iarray (map ival [1,2,3])
 \label{fig:mem-alloc}
 \end{figure}
 
-As noted in section~\ref{sec:ivory-monad}, allocation is tracked through an
+As noted in Section~\ref{sec:ivory-monad}, allocation is tracked through an
 effect in the effect context of the Ivory monad.  The result of this is that
 each call to the \cd{local} allocation function produces references that are
 tied to that specific context.  Conversely, if the current effect context has
@@ -462,7 +462,7 @@ f = proc "f" $ body $ do
 \label{fig:proc-def}
 \end{figure}
 
-\paragraph{Invocation} Procedures are through the use of the \cd{call} function,
+\paragraph{Invocation} Procedures are called through the use of the \cd{call} function,
 which takes a \cd{Def} as its first argument, using its signature to determine
 the arguments needed.  The arguments needed are determined by the \cd{IvoryCall}
 class, which uses the signature information to produce a continuation that
@@ -472,7 +472,7 @@ of the \cd{Def}.  The \cd{IvoryCall} class mirrors the structure of the
 \cd{eff}.  This additional parameter is required so that the containing effect
 context of the call can be connected to the result of the continuation generated
 by the instances of \cd{IvoryCall}.  For example, calling a procedure with type
-\cd{Def ('[Sint32] :-> Sint32)} will produce a continuation of the type,
+\cd{Def (`[Sint32] :-> Sint32)} will produce a continuation of the type,
 \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff} parameter is inherited from
 the current environment.
 

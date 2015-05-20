@@ -32,16 +32,22 @@ its type. Could cite Dennis Ritchie's ``The Development of the C Language''
 (\url{http://www.lysator.liu.se/c/chistory.ps}) to explain how C got the weird
 array type semantics in the first place...}
 
-We developed a concrete C-like syntax for Ivory as a quasi-quoter, which facilitated use by
-Boeing as mentioned in Section~\ref{sec:introduction}. In the above
-we presented specific uses of quasi-quotation in Ivory to define a concrete
-syntax for structs (Section~\ref{sec:area}) and bit-data
-(Section~\ref{sec:bitdata}). In Figure~\ref{fig:concrete} we show an 
-example quasi-quoted Ivory procedure, equivalent to the that with
-the same name in Section~\ref{sec:control}.
+We developed a concrete C-like syntax for Ivory as a quasi-quoter, which
+facilitated use by Boeing as mentioned in Section~\ref{sec:introduction}. In the
+above we presented specific uses of quasi-quotation in Ivory to define a
+concrete syntax for structs (Section~\ref{sec:area}) and bit-data
+(Section~\ref{sec:bitdata}). In Figure~\ref{fig:concrete} we show an example
+quasi-quoted Ivory procedure, equivalent to the that with the same name in
+Section~\ref{sec:control}. The syntax is similar to a imperative languages like
+C or Python, with some variations. For example, array types are not treated
+specially like in C; the type (e.g., \cd{uint\_8[4]}) merely describe a memory
+area, and a reference (\cd{*}) must be provided to use it. Instead of for-loops,
+we have a \cd{map} operator that calculates the number of iterations from the
+array being looped over. Let bindings are introduced. Finally, the \cd{@}
+operator indexes into an array without dereferencing.
 
 A quasi-quoted Ivory program is guaranteed to be type-safe, since the generated
-Haskell program is type-checked an important feature of the quasi-quoted
+Haskell program is type-checked, an important feature of the quasi-quoted
 language is that it automatically generates the appropriate type signatures for
 Ivory programs, relieving the programmer from doing so. The quasi-quoter also
 generates Ivory modules automatically and guarantees that procedure names match
