@@ -174,7 +174,7 @@ procedure definition introduces a fresh region, with the constraint that no
 reference allocated in that region should show up in the return type of that
 procedure, Ivory avoids the introduction of dangling pointers.  The embedding of
 this feature in Haskell will be described in more detail in
-Section~\ref{sec:proc}.
+\autoref{sec:proc}.
 
 Both forms of allocation take initializers, though \cd{Global} allocation
 through \cd{area} will default to zero-initialization if it is omitted.
@@ -325,8 +325,7 @@ the \cd{deref} primitive, which is an effectful operation.
 
 \begin{figure}[t]
 \begin{code}
-arrayMap :: (Ix n -> Ivory (E.AllowBreak eff) a)
-         => (Ix n -> Ivory eff a) -> Ivory eff a
+arrayMap :: (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff a
 arrayLen :: Num len => Ref s (Array n area) -> len
 toCArray :: Ref s (Array n area)
          -> Ref s (CArray area)
