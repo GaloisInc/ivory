@@ -119,7 +119,7 @@ Section~\ref{sec:area}.  All types used in Ivory programs will have an
 \begin{figure}[t]
 \begin{code}
 class IvoryType t
-class IvoryType t => IvoryVar a where
+class IvoryType t => IvoryVar t where
   unwrapExpr :: t -> Expr
   wrapVar    :: Var -> t
 class IvoryVar t => IvoryExpr t
