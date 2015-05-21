@@ -68,7 +68,7 @@ incr_def :: Def ('[Ref s (Stored Sint32)] :-> Sint32)
 incr_def = proc "incr_def" $ \r -> body $ do
   incr_ref r
   v <- deref r
-  ret r
+  ret v
 \end{code}
 %% \nonident
 %% The Ivory embedding uses standard Haskell techniques\cite{} to reuse
