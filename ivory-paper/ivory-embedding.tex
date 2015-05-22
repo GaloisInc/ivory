@@ -325,7 +325,8 @@ the \cd{deref} primitive, which is an effectful operation.
 
 \begin{figure}[t]
 \begin{code}
-arrayMap :: (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff a
+arrayMap :: (Ix n -> Ivory (E.AllowBreak eff) a)
+         -> Ivory eff a
 arrayLen :: Num len => Ref s (Array n area) -> len
 toCArray :: Ref s (Array n area)
          -> Ref s (CArray area)
@@ -338,7 +339,7 @@ Arrays in Ivory take two type parameters: the length of the array as a
 type-level natural number, and the area type of its elements.  For example, an
 array of 10 signed 32-bit integers would have the type \cd{Array 10 (Stored
 Sint32)}.  Indexing into arrays is accomplished through the use of the \cd{(!)}
-operator, shown in Figure~\ref{array-support-functions}. Indexing an array does
+operator, shown in Figure~\ref{fig:mem-alloc}. Indexing an array does
 not dereference it, but returns a reference to the indexed cell.
 
 An index into an array has the type \cd{Ix}, which is parameterized by the size
