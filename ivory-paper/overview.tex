@@ -70,6 +70,12 @@ incr_def = proc "incr_def" $ \r -> body $ do
   v <- deref r
   ret v
 \end{code}
+\noindent
+The procedure \cd{incr\_def} calls the Haskell function \cd{incr\_ref}
+above. The \cd{ret} statement returns a value from the Ivory procedure (we use
+\cd{ret} rather than \cd{return} to avoid conflicting with Haskell's \cd{return}
+operator).
+
 %% \nonident
 %% The Ivory embedding uses standard Haskell techniques\cite{} to reuse
 %% Haskell's binders to name procedure arguments.  These binders do not

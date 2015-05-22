@@ -471,7 +471,7 @@ of the \cd{Def}.  The \cd{IvoryCall} class mirrors the structure of the
 \cd{eff}.  This additional parameter is required so that the containing effect
 context of the call can be connected to the result of the continuation generated
 by the instances of \cd{IvoryCall}.  For example, calling a procedure with type
-\cd{Def (`[Sint32] :-> Sint32)} will produce a continuation of the type,
+\cd{Def ('[Sint32] :-> Sint32)} will produce a continuation of the type,
 \cd{Sint32 -> Ivory eff Sint32}, where the \cd{eff} parameter is inherited from
 the current environment.
 
