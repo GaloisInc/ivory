@@ -279,6 +279,9 @@ references.  The reason for this restriction is twofold:
   the region of any references it points to, it would be possible to persist a
   reference beyond its lifetime by storing it in a longer-lived reference.
 \end{enumerate}
+As Ivory only supports static memory allocation, not being able to store
+references inside of other references has not been a restriction that seriously
+impacted program development.
 
 \paragraph{Structs} A reference that has an area-kind of type \cd{Struct "x"}
 will point to memory whose layout corresponds to the definition of the struct
