@@ -83,7 +83,7 @@ showErrors procName res
 
 mkOut :: String -> String -> (a -> Doc) -> [a] -> Doc
 mkOut _   _    _  [] = empty
-mkOut sym kind sh ls = nm $$ nest 4 (vcat (map go ls))
+mkOut sym kind sh ls = nm $$ nest 4 (vcat (map go ls)) $$ empty
   where
   go x = text kind <> text ":" <+> sh x
   nm   = text "*** Procedure" <+> text sym
