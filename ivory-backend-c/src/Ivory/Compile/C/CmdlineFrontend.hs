@@ -6,6 +6,7 @@ module Ivory.Compile.C.CmdlineFrontend
   , runCompilerWith
   , Opts(..), parseOpts, printUsage
   , initialOpts
+  , compileUnits
   ) where
 
 import           Data.List                  (nub, (\\), intercalate)
@@ -24,7 +25,6 @@ import qualified Ivory.Opts.Overflow        as O
 import qualified Ivory.Opts.DivZero         as O
 import qualified Ivory.Opts.Index           as O
 import qualified Ivory.Opts.FP              as O
-import qualified Ivory.Opts.CFG             as G
 import qualified Ivory.Opts.SanityCheck     as S
 import qualified Ivory.Opts.TypeCheck       as T
 
@@ -39,21 +39,86 @@ import System.FilePath (addExtension,(</>))
 -- Code Generation Front End ---------------------------------------------------
 
 compile :: [Module] -> [Located Artifact] -> IO ()
-compile = compileWith Nothing
+compile = compileWith
 
-compileWith :: Maybe G.SizeMap -> [Module] -> [Located Artifact] -> IO ()
-compileWith sm ms as = do
+compileWith :: [Module] -> [Located Artifact] -> IO ()
+compileWith ms as = do
   args <- getArgs
   opts <- parseOpts args
-  runCompilerWith sm ms as opts
+  runCompilerWith ms as opts
 
 runCompiler :: [Module] -> [Located Artifact] -> Opts -> IO ()
-runCompiler ms as os = runCompilerWith Nothing ms as os
+runCompiler ms as os = runCompilerWith ms as os
 
 -- | Main compile function plus domain-specific type-checking that can't be
 -- embedded in the Haskell type-system.  Type-checker also emits warnings.
-runCompilerWith :: Maybe G.SizeMap -> [Module] -> [Located Artifact] -> Opts -> IO ()
-runCompilerWith sm modules artifacts opts = do
+runCompilerWith ::[Module] -> [Located Artifact] -> Opts -> IO ()
+runCompilerWith modules artifacts opts = do
+  cmodules <- compileUnits modules opts
+  outputCompiler opts modules cmodules artifacts
+
+outputCompiler ::
+  Opts -> [Module] -> [C.CompileUnits] -> [Located Artifact] -> IO ()
+outputCompiler opts modules cmodules artifacts
+  | outProcSyms opts
+  = C.outputProcSyms modules
+  | Nothing <- outDir opts
+  = stdoutmodules cmodules
+  | otherwise
+  = outputmodules opts cmodules artifacts
+
+stdoutmodules :: [C.CompileUnits] -> IO ()
+stdoutmodules cmodules =
+  mapM_ (putStrLn . C.showModule) cmodules
+
+outputmodules :: Opts -> [C.CompileUnits] -> [Located Artifact] -> IO ()
+outputmodules opts cmodules user_artifacts = do
+  -- Irrrefutable pattern checked above
+  let Just srcdir = outDir opts
+  let incldir = hdrDir srcdir
+  let rootdir = rootDir srcdir
+  createDirectoryIfMissing True rootdir
+  createDirectoryIfMissing True srcdir
+  createDirectoryIfMissing True incldir
+  let artifacts = runtimeHeaders ++ user_artifacts
+  warnCollisions cmodules artifacts rootdir srcdir incldir
+  mapM_ (output srcdir ".c" renderSource) cmodules
+  mapM_ (output incldir  ".h" renderHeader) cmodules
+  runArtifactCompiler artifacts rootdir srcdir incldir
+
+  where
+  hdrDir dir =
+    case outHdrDir opts of
+      Nothing -> dir
+      Just d  -> d
+
+  rootDir dir =
+    case outArtDir opts of -- XXX TODO: fix outArtDir naming, should be outRootDir or somethign
+      Nothing -> dir
+      Just d  -> d
+
+  output :: FilePath -> FilePath -> (C.CompileUnits -> String)
+         -> C.CompileUnits
+         -> IO ()
+  output dir ext render m = outputHelper fout (render m)
+    where fout = addExtension (dir </> (C.unitName m)) ext
+
+  renderHeader cu = C.renderHdr (C.headers cu) (C.unitName cu)
+  renderSource cu = C.renderSrc (C.sources cu)
+
+  outputHelper :: FilePath -> String -> IO ()
+  outputHelper fname contents = case verbose opts of
+    False -> out
+    True -> do
+      putStr ("Writing to file " ++ fname ++ "...")
+      out
+      putStrLn " Done"
+    where
+    out = writeFile fname contents
+
+-- | Compile, type-check, and optimize modules, but don't generate C files.
+compileUnits ::[Module] -> Opts -> IO [C.CompileUnits]
+compileUnits modules opts = do
   let (bs, msgs) = concatRes (map tcMod modules)
   putStrLn msgs
   when (scErrors opts) $ do
@@ -62,11 +127,11 @@ runCompilerWith sm modules artifacts opts = do
       putStrLn msgs'
       error "Sanity-check failed!"
   when (tcErrors opts && bs) (error "There were type-checking errors.")
-  rc (maybe G.defaultSizeMap id sm) modules artifacts opts
+  return (mkCUnits modules opts)
   where
   concatRes :: [(Bool, String)] -> (Bool, String)
   concatRes r = let (bs, strs) = unzip r in
-            (or bs, concat strs)
+                (or bs, concat strs)
 
   scMod :: I.Module -> (Bool, String)
   scMod m = (S.existErrors res, S.render msg)
@@ -95,71 +160,20 @@ runCompilerWith sm modules artifacts opts = do
       warnings = res T.showWarnings
       errs     = res T.showErrors
 
-rc :: G.SizeMap -> [Module] -> [Located Artifact] -> Opts -> IO ()
-rc sm modules user_artifacts opts
-  | outProcSyms opts       = C.outputProcSyms modules
-  | Nothing <- outDir opts = stdoutmodules
-  | otherwise              = outputmodules
-
+mkCUnits :: [Module] -> Opts -> [C.CompileUnits]
+mkCUnits modules opts = cmodules
   where
+  cmodules            = map C.compileModule optModules
+  optModules          = map (C.runOpt passes) modules
 
-  stdoutmodules = do
-    mapM_ (putStrLn . C.showModule) cmodules
-    cfgoutput
-
-  outputmodules = do
-    -- Irrrefutable pattern checked above
-    let Just srcdir = outDir opts
-    let incldir = hdrDir srcdir
-    let rootdir = rootDir srcdir
-    createDirectoryIfMissing True rootdir
-    createDirectoryIfMissing True srcdir
-    createDirectoryIfMissing True incldir
-    let artifacts = runtimeHeaders ++ user_artifacts
-    warnCollisions cmodules artifacts rootdir srcdir incldir
-    mapM_ (output srcdir ".c" renderSource) cmodules
-    mapM_ (output incldir  ".h" renderHeader) cmodules
-    runArtifactCompiler artifacts rootdir srcdir incldir
-    -- control-flow graph
-    cfgoutput
-
-  hdrDir dir =
-    case outHdrDir opts of
-      Nothing -> dir
-      Just d  -> d
-
-  rootDir dir =
-    case outArtDir opts of -- XXX TODO: fix outArtDir naming, should be outRootDir or somethign
-      Nothing -> dir
-      Just d  -> d
-
-  cfgoutput = when (cfg opts) $ do
-    cfs <- mapM (\p -> G.callGraphDot p (cfgDotDir opts) optModules) cfgps
-    let maxstacks = map ms (zip cfgps cfs)
-    mapM_ maxStackMsg (zip cfgps maxstacks)
-
-
-  optModules = map (C.runOpt passes) modules
-
-  cfgps = cfgProc opts
-
-  ms (p, cf) = G.maxStack p cf sm
-  maxStackMsg :: (String, G.WithTop Integer) -> IO ()
-  maxStackMsg (p,res) =
-    putStrLn $ "Maximum stack usage from function " ++ p ++ ": " ++ show res
-
-  cmodules   = map C.compileModule optModules
-
-  cfPass = mkPass constFold O.constFold
-
+  cfPass              = mkPass constFold O.constFold
   -- Put new assertion passes here and add them to passes below.
-  ofPass = mkPass overflow O.overflowFold
-  dzPass = mkPass divZero O.divZeroFold
-  fpPass = mkPass fpCheck O.fpFold
-  ixPass = mkPass ixCheck O.ixFold
-  bsPass = mkPass bitShiftCheck O.bitShiftFold
-
-  locPass = mkPass (not . srcLocs) dropSrcLocs
+  ofPass              = mkPass overflow O.overflowFold
+  dzPass              = mkPass divZero O.divZeroFold
+  fpPass              = mkPass fpCheck O.fpFold
+  ixPass              = mkPass ixCheck O.ixFold
+  bsPass              = mkPass bitShiftCheck O.bitShiftFold
+  locPass             = mkPass (not . srcLocs) dropSrcLocs
 
   mkPass passOpt pass = if passOpt opts then pass else id
 
@@ -179,25 +193,6 @@ rc sm modules user_artifacts opts
     , ofPass, dzPass, fpPass, ixPass, bsPass
     , cfPass
     ]
-
-  output :: FilePath -> FilePath -> (C.CompileUnits -> String)
-         -> C.CompileUnits
-         -> IO ()
-  output dir ext render m = outputHelper fout (render m)
-    where fout = addExtension (dir </> (C.unitName m)) ext
-
-  renderHeader cu = C.renderHdr (C.headers cu) (C.unitName cu)
-  renderSource cu = C.renderSrc (C.sources cu)
-
-  outputHelper :: FilePath -> String -> IO ()
-  outputHelper fname contents = case verbose opts of
-    False -> out
-    True -> do
-      putStr ("Writing to file " ++ fname ++ "...")
-      out
-      putStrLn " Done"
-    where
-    out = writeFile fname contents
 
 --------------------------------------------------------------------------------
 
