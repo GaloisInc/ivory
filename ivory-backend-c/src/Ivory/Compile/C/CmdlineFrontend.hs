@@ -7,6 +7,7 @@ module Ivory.Compile.C.CmdlineFrontend
   , Opts(..), parseOpts, printUsage
   , initialOpts
   , compileUnits
+  , outputCompiler
   ) where
 
 import           Data.List                  (nub, (\\), intercalate)
@@ -55,13 +56,12 @@ runCompiler ms as os = runCompilerWith ms as os
 runCompilerWith ::[Module] -> [Located Artifact] -> Opts -> IO ()
 runCompilerWith modules artifacts opts = do
   cmodules <- compileUnits modules opts
-  outputCompiler opts modules cmodules artifacts
+  if outProcSyms opts
+    then C.outputProcSyms modules
+    else outputCompiler cmodules artifacts opts
 
-outputCompiler ::
-  Opts -> [Module] -> [C.CompileUnits] -> [Located Artifact] -> IO ()
-outputCompiler opts modules cmodules artifacts
-  | outProcSyms opts
-  = C.outputProcSyms modules
+outputCompiler :: [C.CompileUnits] -> [Located Artifact] -> Opts -> IO ()
+outputCompiler cmodules artifacts opts
   | Nothing <- outDir opts
   = stdoutmodules cmodules
   | otherwise
