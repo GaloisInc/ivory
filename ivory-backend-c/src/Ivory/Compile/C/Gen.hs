@@ -34,13 +34,13 @@ compile (P.DefImport _) = error "Can't compile an import!"
 -- | Compile a struct.
 compileStruct :: Visibility -> I.Struct -> Compile
 compileStruct visibility def = case def of
-  I.Struct n fs    ->
-    (if visibility == Public then putHdrSrc else putSrc)
-    [cedecl| struct $id:n { $sdecls:(map mkFieldGroup fs)
-                          };
-           |]
-  I.Abstract _ file ->
-    putHdrInc (SysInclude file)
+  I.Struct n fs
+    -> (if visibility == Public then putHdrSrc else putSrc)
+         [cedecl| typedef struct $id:n { $sdecls:(map mkFieldGroup fs) } $id:n ;
+                |]
+
+  I.Abstract _ file
+    -> putHdrInc (SysInclude file)
 
 mkFieldGroup :: I.Typed String -> C.FieldGroup
 mkFieldGroup field =
