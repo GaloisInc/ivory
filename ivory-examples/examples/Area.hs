@@ -18,7 +18,7 @@ struct val {
 |]
 
 val :: MemArea (Struct "val")
-val  = area "val" (Just (istruct [field .= ival 0]))
+val  = area "value" (Just (istruct [field .= ival 0]))
 
 cval :: ConstMemArea (Struct "val")
 cval  = constArea "cval" (istruct [field .= ival 10])

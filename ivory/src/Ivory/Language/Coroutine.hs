@@ -70,7 +70,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
   strName = name ++ "_continuation"
   strDef = AST.Struct strName $ AST.Typed stateType stateName : D.toList localVars
   strTy = AST.TyStruct strName
-  cont = AST.Area strName False strTy AST.InitZero
+  cont = AST.Area (name ++ "_cont") False strTy AST.InitZero
 
   coroutineName = name
 
