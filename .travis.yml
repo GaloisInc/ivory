@@ -15,3 +15,4 @@ ghc:
 notifications:
   slack:
     secure: IQnBCQNqSYIoHv9c668lpWTnJHCWhVTLLcdxIPFFxpiyoPQQO1JPhFHLdyhB2T/W4b7mVeU1X32PJ1jRDHVEbMTcPGoBS1lstI7avTkeDQ1b8ILut6GnjmaGWWpCYimoWgAZeM1IBdfJ6jbDA861sQkSnJEb79UidLE8xyRkXAk=
+    secure: AcS89vo55VciqY8nSD8KWrAuMfTnKqJmbthYNaAfoqiVqXTi4PJaFriWNshjjxRTkzi+N9/qSv+iVXVC4jGX53ALb+JZHkQHCyYj8pU4Ce9xaGzXkmRQ6N6MmpARoNXrqh9Z+oJJsni5OQefh6EgKopJW5sXDTGlutezf0QsmNw=
