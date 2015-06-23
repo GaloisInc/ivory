@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Language.Syntax.AST where
@@ -441,8 +442,10 @@ deriveLiftMany
   , ''Expr, ''ExpOp, ''Literal, ''Init
   ]
 
+#if __GLASGOW_HASKELL__ < 709
 instance Lift Double where
   lift = lift . toRational
 
 instance Lift Float where
   lift = lift . toRational
+#endif

@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}

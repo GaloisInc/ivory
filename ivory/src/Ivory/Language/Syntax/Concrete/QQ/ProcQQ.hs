@@ -20,6 +20,7 @@ import qualified Ivory.Language.Proc as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
+import Ivory.Language.Syntax.Concrete.QQ.Common
 import Ivory.Language.Syntax.Concrete.QQ.CondQQ
 import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ

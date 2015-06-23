@@ -218,7 +218,7 @@ instance Concrete Expr where
     args' = B.unwords $ intersperse "," (map concrete args)
   concrete (Store s e)   = v <> " WITH " <> f <> " := " <> concrete e
     where
-      (v,f) = B.break (`elem` ".[") (concrete s)
+      (v,f) = B.break (`elem` (".[" :: String)) (concrete s)
   -- concrete (Store a i e) = concrete a <> " WITH "
   --                          <> B.concat (map concrete i)
   --                          <> " := " <> concrete e
@@ -226,7 +226,8 @@ instance Concrete Expr where
     = concrete a <> " WITH " <>
       B.intercalate ", " [ f <> " := " <> concrete e
                          | (i,e) <- ies
-                         , let f = B.dropWhile (not . (`elem` ".[")) (concrete i)
+                         , let f = B.dropWhile (not . (`elem` (".[" :: String)))
+                                   (concrete i)
                          ]
   concrete (Field f e)   = concrete e <> "." <> concrete f
   concrete (Index i e)   = concrete e <> "[" <> concrete i <> "]"
