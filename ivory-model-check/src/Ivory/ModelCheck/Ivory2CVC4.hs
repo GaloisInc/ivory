@@ -36,22 +36,12 @@ modelCheckProc mods p = do
   forM_ mods $ \m -> do
     mapM_ toStruct (getVisible $ I.modStructs m)
     mapM_ addStruct (getVisible $ I.modStructs m)
-    mapM_ addExtern (I.modExterns m)
     mapM_ addImport (I.modImports m)
     mapM_ (addProc Defined) (getVisible $ I.modProcs m)
     mapM_ toArea (getVisible $ I.modAreas m)
   modelCheckProc' . overflowFold . divZeroFold . bitShiftFold . ixFold . constFold $ p
   where
   getVisible ps = I.public ps ++ I.private ps
-  addExtern e = addProc Imported
-                        I.Proc { I.procSym = I.externSym e
-                               , I.procRetTy = I.externRetType e
-                               , I.procArgs = map (\arg -> I.Typed arg (I.VarName "dummy"))
-                                                  (I.externArgs e)
-                               , I.procBody = []
-                               , I.procRequires = []
-                               , I.procEnsures = []
-                               }
   addImport e = addProc Imported
                         I.Proc { I.procSym = I.importSym e
                                , I.procRetTy = err "addImport" "tried to use return type"
@@ -348,6 +338,7 @@ toExpr t exp = case exp of
   I.ExpAddrOfGlobal s        -> var <$> lookupVar s
   I.ExpMaxMin True           -> return $ intLit $ fromJust $ I.toMaxSize t
   I.ExpMaxMin False          -> return $ intLit $ fromJust $ I.toMinSize t
+  I.ExpSizeOf _ty            -> error "Ivory.ModelCheck.Ivory2CVC4.toExpr: FIXME: handle sizeof expressions"
 
 --------------------------------------------------------------------------------
 
@@ -639,6 +630,7 @@ subst su = loop
     I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
     I.ExpAddrOfGlobal{}    -> e
     I.ExpMaxMin{}          -> e
+    I.ExpSizeOf{}          -> e
 
 queryEnsures :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 queryEnsures ens t retE = forM_ ens $ \e -> addQuery =<< toEnsure e

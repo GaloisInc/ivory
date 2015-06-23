@@ -52,7 +52,8 @@ initType (IFresh  ty _ _) = ty
 
 newtype Init (area :: Area *) = Init { getInit :: XInit }
 
--- | Zero initializers.
+-- | Zero initializers. The semantics of Ivory is that initializers must be
+-- compatible with C semantics of initializing to 0 for globals in .bss.
 class IvoryZero (area :: Area *) where
   izero :: Init area
 

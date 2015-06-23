@@ -26,6 +26,7 @@ type MacroVar  = String
 
 -- Top level symbols.
 data GlobalSym = GlobalProc     ProcDef
+               | GlobalInclProc IncludeProc
                | GlobalStruct   StructDef
                | GlobalBitData  BitDataDef
                | GlobalTypeDef  TypeDef
@@ -70,6 +71,19 @@ data ProcDef = ProcDef
   , procStmt    :: [Stmt]       -- ^ Body
   , procPrePost :: [PrePost]
   , procLoc     :: SrcLoc
+  } deriving (Show, Read, Eq, Ord)
+
+-- | We distinguish the name used from the name imported so the same symbol can
+-- be used twice at different types. (E.g., @printf@).
+data IncludeProc = IncludeProc
+  { procInclTy      :: Type         -- ^ Return type
+  , procInclSym     :: FnSym        -- ^ Function name used
+  , procInclArgs    :: [(Type,Var)] -- ^ Argument types
+-- XXX add later
+--  , procInclPrePost :: [PrePost]
+  , procIncl        :: (String, FnSym) -- ^ Header to import from and function
+                                       -- name imported
+  , procInclLoc     :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 -- Pre and post conditions
@@ -183,6 +197,7 @@ data ExpOp
   | FCosOp
   | FAsinOp
   | FAtanOp
+  | FAtan2Op
   | FAcosOp
   | FSinhOp
   | FTanhOp
@@ -334,6 +349,7 @@ instance HasLocation GlobalSym where
   getLoc = mempty
   stripLoc g = case g of
     GlobalProc p     -> GlobalProc     (stripLoc p)
+    GlobalInclProc p -> GlobalInclProc (stripLoc p)
     GlobalStruct s   -> GlobalStruct   (stripLoc s)
     GlobalBitData b  -> GlobalBitData  (stripLoc b)
     GlobalTypeDef t  -> GlobalTypeDef  (stripLoc t)
@@ -343,6 +359,10 @@ instance HasLocation GlobalSym where
 instance HasLocation IncludeDef where
   getLoc = inclDefLoc
   stripLoc incl = incl { inclDefLoc = mempty }
+
+instance HasLocation IncludeProc where
+  getLoc = procInclLoc
+  stripLoc incl = incl { procInclLoc = mempty }
 
 instance HasLocation ConstDef where
   getLoc = constDefLoc

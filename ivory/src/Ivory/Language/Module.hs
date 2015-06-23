@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -10,11 +11,12 @@ import Ivory.Language.Proc (Def(..))
 import Ivory.Language.Proxy (Proxy(..), ASymbol)
 import Ivory.Language.String (IvoryString(..))
 import Ivory.Language.Struct (IvoryStruct(..),StructDef(..),StructName)
+import Ivory.Language.Type (IvoryExpr, unwrapExpr)
 import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)
 import Control.Applicative
-import Data.Monoid (mempty)
+import Data.Monoid
 import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
 import MonadLib.Derive (Iso (..),derive_ask,derive_put)
 import qualified Data.Set as Set
@@ -36,6 +38,10 @@ instance WriterM ModuleM I.Module where
 
 type ModuleDef = ModuleM ()
 
+instance Monoid (ModuleM ()) where
+  mempty = return ()
+  mappend a b = a >> b
+
 -- | Add an element to the public/private list, depending on visibility
 visAcc :: Visible -> a -> I.Visible a
 visAcc vis e = case vis of
@@ -47,12 +53,17 @@ incl :: Def a -> ModuleDef
 incl (DefProc p)    = do
   visibility <- ask
   put (mempty { I.modProcs   = visAcc visibility p })
-incl (DefExtern e)  = put (mempty { I.modExterns = [e] })
-incl (DefImport i)  = put (mempty { I.modImports = [i] })
+incl (DefImport i)
+  | null (I.importFile i) = error $ "Empty header name for " ++ show i
+  | otherwise = put (mempty { I.modImports = [i] })
 
--- | Add a dependency on an external header.
-inclHeader :: String -> ModuleDef
-inclHeader inc = put (mempty { I.modHeaders = Set.singleton inc })
+-- | Import an externally-defined symbol.
+inclSym :: IvoryExpr t => t -> ModuleDef
+inclSym t = case unwrapExpr t of
+  I.ExpExtern sym
+    | null (I.externFile sym) -> error $ "Empty header name for " ++ show sym
+    | otherwise -> put (mempty { I.modExterns = [sym] })
+  e -> error $ "Cannot import expression " ++ show e
 
 -- | Add a dependency on another module.
 depend :: I.Module -> ModuleDef
@@ -62,9 +73,11 @@ depend m =
 -- | Include the definition of a structure in the module.
 defStruct :: forall sym. (IvoryStruct sym, ASymbol sym) =>
   Proxy sym -> ModuleDef
-defStruct _ = do
-  visibility <- ask
-  put (mempty { I.modStructs = visAcc visibility (getStructDef def) })
+defStruct _ = case getStructDef def of
+  I.Abstract n "" -> error $ "Empty header name for struct " ++ n
+  str -> do
+    visibility <- ask
+    put (mempty { I.modStructs = visAcc visibility str })
   where
   def :: StructDef sym
   def  = structDef
@@ -76,7 +89,9 @@ defStringType _ = defStruct (Proxy :: Proxy (StructName str))
 -- | Include the definition of a memory area.
 defMemArea :: IvoryArea area => MemArea area -> ModuleDef
 defMemArea m = case m of
-  MemImport ia -> put (mempty { I.modAreaImports = [ia] })
+  MemImport ia
+    | null (I.aiFile ia) -> error $ "Empty header name for " ++ show ia
+    | otherwise -> put (mempty { I.modAreaImports = [ia] })
   MemArea a as -> do
     visibility <- ask
     put (mempty { I.modAreas = visAcc visibility a })

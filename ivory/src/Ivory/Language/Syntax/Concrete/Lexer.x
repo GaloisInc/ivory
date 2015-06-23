@@ -42,7 +42,7 @@ $capletter   = [A-Z]
 @brack       = [\( \) \[ \] \{ \}]
 @sep         = [\, \;]
 -- @filepath    = \" [$printable # \" # $white]+ \"
-@string      = \" [$printable]* \"
+@string      = \" [$printable # \"]* \"
 @bitlit      = $digit+ b [0 1]+
 @hexlit      = 0x $hexdig+
 @float       = $digit+ \. $digit+
@@ -91,6 +91,7 @@ tokens :-
   asin             { keyword }
   acos             { keyword }
   atan             { keyword }
+  atan2            { keyword }
 
   sinh             { keyword }
   cosh             { keyword }
@@ -131,6 +132,7 @@ tokens :-
   string   { keyword }
   type     { keyword }
   include  { keyword }
+  import   { keyword }
 
   -- C style
   bool     { keyword }

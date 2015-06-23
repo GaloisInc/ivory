@@ -30,8 +30,8 @@ import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 fromProc :: ProcDef -> Q [Dec]
 fromProc pd = case pd of
 #if __GLASGOW_HASKELL__ >= 709
-  ProcDef _ procName args body prePosts srcloc -> do
-    ty <- fromProcType pd
+  ProcDef retTy procName args body prePosts srcloc -> do
+    ty <- fromProcType retTy procName args
     pb <- procBody
     let imp = ValD (VarP $ mkName procName)
                    (NormalB pb)
@@ -39,8 +39,8 @@ fromProc pd = case pd of
     lnPrag <- lnPragma srcloc
     return (lnPrag ++ [ty, imp])
 #else
-  ProcDef _ procName args body prePosts _srcloc -> do
-    ty <- fromProcType pd
+  ProcDef retTy procName args body prePosts _srcloc -> do
+    ty <- fromProcType retTy procName args
     pb <- procBody
     let imp = ValD (VarP $ mkName procName)
                    (NormalB pb)
@@ -57,3 +57,31 @@ fromProc pd = case pd of
       full    <- mkPrePostConds prePosts bd
       let nm   = AppE (VarE 'I.proc) (LitE $ StringL procName)
       return (AppE nm (LamE lams full))
+
+-- | Turn our importProc AST value into a Haskell type declaration and
+-- definition.
+fromInclProc :: IncludeProc -> Q [Dec]
+fromInclProc pd = case pd of
+#if __GLASGOW_HASKELL__ >= 709
+  IncludeProc retTy procName args (file, sym) srcloc -> do
+    ty <- fromProcType retTy procName args
+    lnPrag <- lnPragma srcloc
+    pb <- procDef
+    let imp = ValD (VarP $ mkName procName)
+                   (NormalB pb)
+                   []
+    return (lnPrag ++ [ty, imp])
+#else
+  IncludeProc retTy procName args (file, sym) _srcloc -> do
+    ty <- fromProcType retTy procName args
+    pb <- procDef
+    let imp = ValD (VarP $ mkName procName)
+                   (NormalB pb)
+                   []
+    return [ty, imp]
+#endif
+    where
+    procDef = do
+      let nm   = AppE (VarE 'I.importProc) (LitE $ StringL sym)
+      return (AppE nm (LitE $ StringL file))
+

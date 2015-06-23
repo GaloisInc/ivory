@@ -5,15 +5,15 @@ TGT=ivory
 BIB=paper
 #latex=TEXINPUTS=".:./style:" pdflatex -output-directory $(WORK_DIR)
 latex=pdflatex -output-directory $(WORK_DIR)
-tex=latex -output-directory $(WORK_DIR)
+tex=latex -output-directory $(WORK_DIR) --interaction=batchmode
 
 all: $(TGT).pdf
 
-$(TGT).pdf: $(WORK_DIR) *.tex
+$(TGT).pdf: $(WORK_DIR) *.tex *.bib
 	$(latex) $(TGT)
-#	bibtex $(WORK_DIR)/$(TGT).aux
+	bibtex $(WORK_DIR)/$(TGT).aux
 	$(latex) $(TGT)
-#	bibtex $(WORK_DIR)/$(TGT).aux
+	bibtex $(WORK_DIR)/$(TGT).aux
 	# echo "\balance" >> $(WORK_DIR)/$(TGT).bbl
 	$(latex) $(TGT)
 	cp $(WORK_DIR)/$(TGT).pdf .

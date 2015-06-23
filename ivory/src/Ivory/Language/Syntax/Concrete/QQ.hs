@@ -136,18 +136,20 @@ justExpQQ expQQ = QuasiQuoter
 getModData :: GlobalSym -> Maybe ModuleData
 getModData sym = case sym of
   GlobalProc       d -> Just (ModProc d)
+  GlobalInclProc   d -> Just (ModImportProc d)
   GlobalStruct     d -> Just (ModStruct d)
   GlobalBitData{}    -> Nothing
   GlobalTypeDef{}    -> Nothing
   GlobalConstDef{}   -> Nothing
-  GlobalInclude    i -> Just (ModInclude i)
+  GlobalInclude    d -> Just (ModInclude d)
 
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
-  GlobalProc    d       -> fromProc d
-  GlobalStruct  d       -> fromStruct d
-  GlobalBitData d       -> fromBitData d
-  GlobalTypeDef tyDef   -> fromTypeDef tyDef
+  GlobalProc     d      -> fromProc d
+  GlobalInclProc d      -> fromInclProc d
+  GlobalStruct   d      -> fromStruct d
+  GlobalBitData  d      -> fromBitData d
+  GlobalTypeDef  tyDef  -> fromTypeDef tyDef
   GlobalConstDef const  -> fromConstDef const
   -- No definition to make for includes, source depends.
   GlobalInclude{}       -> return []
@@ -186,14 +188,17 @@ ivoryMod  modName incls = do
                     (AppT (ConT ''I.Proxy) (LitT (StrTyLit (structSym d)))))
     ModInclude incl
       -> AppE (VarE 'I.depend) (VarE $ mkName $ inclModule incl)
+    ModImportProc proc
+      -> AppE (VarE 'I.incl) (VarE $ mkName $ procInclSym proc)
 
 --------------------------------------------------------------------------------
 
 -- | Data to put in the Ivory module.
 data ModuleData =
-    ModProc    ProcDef
-  | ModStruct  StructDef
-  | ModInclude IncludeDef
+    ModProc       ProcDef
+  | ModStruct     StructDef
+  | ModInclude    IncludeDef
+  | ModImportProc IncludeProc
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------

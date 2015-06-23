@@ -12,6 +12,7 @@ ensTrans retE = loop
   where
   loop e = case e of
     I.ExpSym{}             -> e
+    I.ExpExtern{}          -> e
     I.ExpVar v             -> if v == I.retval then retE else e
     I.ExpLit{}             -> e
     I.ExpOp op args        -> I.ExpOp op (map loop args)
@@ -21,5 +22,6 @@ ensTrans retE = loop
     I.ExpToIx e0 maxSz     -> I.ExpToIx (loop e0) maxSz
     I.ExpAddrOfGlobal{}    -> e
     I.ExpMaxMin{}          -> e
+    I.ExpSizeOf{}          -> e
 
 --------------------------------------------------------------------------------

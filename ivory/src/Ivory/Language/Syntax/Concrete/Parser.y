@@ -73,6 +73,7 @@ import Ivory.Language.Syntax.Concrete.Location
   asin         { Located $$ (TokReserved "asin") }
   acos         { Located $$ (TokReserved "acos") }
   atan         { Located $$ (TokReserved "atan") }
+  atan2        { Located $$ (TokReserved "atan2") }
 
   sinh         { Located $$ (TokReserved "sinh") }
   cosh         { Located $$ (TokReserved "cosh") }
@@ -217,6 +218,7 @@ import Ivory.Language.Syntax.Concrete.Location
 
   ty       { Located $$ (TokReserved "type") }
   include  { Located $$ (TokReserved "include") }
+  import   { Located $$ (TokReserved "import") }
 
   -- Bit data
   bitdata  { Located $$ (TokReserved "bitdata") }
@@ -234,7 +236,7 @@ import Ivory.Language.Syntax.Concrete.Location
 %right '?' ':'
 %left '||'
 %left '&&'
-%left '|'
+%left '|' '&'
 %left '^'
 %nonassoc '==' '!='
 %nonassoc '<' '<=' '>' '>='
@@ -244,8 +246,8 @@ import Ivory.Language.Syntax.Concrete.Location
 %right '*' '~' '!' '-'
 -- '[' assumed to be followed by ']'
 %left '.' '@' '->' '['
+%right ADDR
 -- Tighter than normal binding
-%right '&'
 %right
   abs
   signum
@@ -279,6 +281,7 @@ import Ivory.Language.Syntax.Concrete.Location
 
 defs :: { [GlobalSym] }
 defs : defs procDef       { GlobalProc     $2 : $1 }
+     | defs includeProc   { GlobalInclProc $2 : $1 }
      | defs structDef     { GlobalStruct   $2 : $1 }
      | defs bdDef         { GlobalBitData  $2 : $1 }
      | defs typeDef       { GlobalTypeDef  $2 : $1 }
@@ -305,6 +308,7 @@ constDef :
 ----------------------------------------
 -- Procs
 
+-- Defined procedure
 procDef :: { ProcDef }
 procDef :
   type ident '(' args ')' '{' stmts '}' prePostBlk
@@ -313,6 +317,16 @@ procDef :
                                                                   , getLoc $7
                                                                   , getLoc $9
                                                                   ]) }
+
+-- Externally-defined procedure
+includeProc :: { IncludeProc }
+includeProc :
+  import '(' ident '.' ident ',' ident ')' type ident '(' args ')'
+    { IncludeProc $9 (unLoc $10) (reverse $12) (unLoc $3 ++ ('.':unLoc $5), unLoc $7)
+        (mconcat [ getLoc $3
+                 , getLoc $7
+                 , getLoc $10
+                 ]) }
 
 tyArg :: { (Type, Var) }
 tyArg : type ident { ($1, unLoc $2) }
@@ -516,6 +530,7 @@ libFuncExp :
     | asin         expArgs { LocExp (atBin (ExpOp FAsinOp $2) $1 $2) }
     | acos         expArgs { LocExp (atBin (ExpOp FAcosOp $2) $1 $2) }
     | atan         expArgs { LocExp (atBin (ExpOp FAtanOp $2) $1 $2) }
+    | atan2        expArgs { LocExp (atBin (ExpOp FAtan2Op $2) $1 $2) }
     | sinh         expArgs { LocExp (atBin (ExpOp FSinhOp $2) $1 $2) }
     | cosh         expArgs { LocExp (atBin (ExpOp FCoshOp $2) $1 $2) }
     | tanh         expArgs { LocExp (atBin (ExpOp FTanhOp $2) $1 $2) }
@@ -591,7 +606,7 @@ cType :
   | type '[' integer ']'         { let TokInteger i = unLoc $3 in
                                    LocTy (atBin (TyArray $1 i) $1 $3) }
   | struct structName            { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
-  | '&' type                     { LocTy (atBin (TyStored $2) $1 $2) }
+  | '&' type %prec ADDR          { LocTy (atBin (TyStored $2) $1 $2) }
 
 scopeC :: { Located Scope }
 scopeC :

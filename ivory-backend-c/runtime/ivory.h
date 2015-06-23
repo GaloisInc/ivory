@@ -1,10 +1,10 @@
 #ifndef IVORY_H
 #define IVORY_H
 
-#include<stdint.h>
-#include<math.h>
-#include<string.h>
-#include<limits.h>
+#include <stdint.h>
+#include <math.h>
+#include <string.h>
+#include <limits.h>
 
 #include "ivory_asserts.h"
 #include "ivory_templates.h"

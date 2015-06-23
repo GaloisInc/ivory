@@ -27,10 +27,10 @@ struct Str {
 |]
 
 test :: Def ('[Ref s (Struct "Foo")] :-> Ref s (Stored Uint32))
-test  = proc "test" (\ pid -> body (ret (pid ~> i)))
+test  = proc "alloc_test" (\ pid -> body (ret (pid ~> i)))
 
-alloc_test :: Def ('[] :-> Uint32)
-alloc_test  = proc "alloc_test" $ body $ do
+get_p :: Def ('[] :-> Uint32)
+get_p  = proc "get_p" $ body $ do
   pid <- local (istruct [])
   ret =<< deref (pid ~> d)
 
@@ -170,16 +170,12 @@ cmodule = package "Alloc" $ do
   defStruct (Proxy :: Proxy "Foo")
   defStruct (Proxy :: Proxy "Str")
   incl test
-  incl alloc_test
+  incl get_p
   incl arrMap
-
   incl ptrstrcpy
   incl mystrcpy
-
   incl callstrcpy
-
   incl assign_test
-
   incl bar
   incl castIx
   incl loopTest
@@ -187,7 +183,6 @@ cmodule = package "Alloc" $ do
   incl memcpy2
   incl testToIx
   incl memcpy3
-
   defMemArea arrayTest
 
 runAlloc :: IO ()

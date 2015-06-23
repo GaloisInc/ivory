@@ -22,7 +22,8 @@ test  = proc "test" $ body $ do
 runString :: IO ()
 runString = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
+-- Don't collide with string.h (case-insensitive on Mac)
 cmodule :: Module
-cmodule = package "String" $ do
+cmodule = package "String_ex" $ do
   incl printf
   incl test

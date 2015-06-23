@@ -3,8 +3,6 @@ module Ivory.Compile.C
   , compileModule
   , runOpt
   , showModule
-  , writeHdr
-  , writeSrc
   , renderHdr
   , renderSrc
   , CompileUnits(..)

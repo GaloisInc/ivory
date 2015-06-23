@@ -65,14 +65,12 @@ procPtr  = ProcPtr . defSymbol
 -- | Procedure definitions.
 data Def (proc :: Proc *)
   = DefProc AST.Proc
-  | DefExtern AST.Extern
   | DefImport AST.Import
     deriving (Show, Eq, Ord)
 
 defSymbol :: Def proc -> AST.Name
 defSymbol def = case def of
   DefProc p   -> AST.NameSym (AST.procSym p)
-  DefExtern e -> AST.NameSym (AST.externSym e)
   DefImport i -> AST.NameSym (AST.importSym i)
 
 instance ProcType proc => IvoryType (Def proc) where
@@ -107,6 +105,13 @@ proc name impl = defproc
                      , AST.importRequires = reqs
                      , AST.importEnsures  = ens
                      }
+
+-- | Type inference can usually determine the argument types of an Ivory
+-- procedure, but for void procedures there's often nothing to constrain
+-- the return type. This function is a type-constrained version of
+-- 'proc' that just forces the return type to be '()'.
+voidProc :: IvoryProcDef (args :-> ()) impl => AST.Sym -> impl -> Def (args :-> ())
+voidProc = proc
 
 
 newtype Body r = Body
@@ -175,19 +180,6 @@ getEnv :: Closure -> [AST.Var]
 getEnv  = reverse . closEnv
 
 
--- External Functions ----------------------------------------------------------
-
--- | External function reference.
-externProc :: forall proc. ProcType proc => AST.Sym -> Def proc
-externProc sym = DefExtern AST.Extern
-  { AST.externSym     = sym
-  , AST.externRetType = r
-  , AST.externArgs    = args
-  }
-  where
-  (r,args) = procType (Proxy :: Proxy proc)
-
-
 -- Imported Functions ----------------------------------------------------------
 
 -- | Import a function from a C header.
@@ -203,7 +195,7 @@ importProc sym file = DefImport AST.Import
   where
   (retTy, argTys) = procType (Proxy :: Proxy proc)
   args = zipWith AST.Typed argTys (closSupply initialClosure)
-  
+
 newtype ImportFrom r = ImportFrom
   { runImportFrom :: forall s . Ivory (E.ProcEffects s r) FilePath
   }

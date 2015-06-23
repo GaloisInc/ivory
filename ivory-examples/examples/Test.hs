@@ -16,28 +16,26 @@ import qualified Bits
 import qualified SizeOf
 import qualified AddrOfRegression
 import qualified Array
+import qualified ConcreteFile
+import qualified Coroutine
 
 import Control.Monad (when)
 import Ivory.Compile.C.CmdlineFrontend
-import Ivory.Language (Module(),moduleName)
+import Ivory.Stdlib.String
+import Ivory.Language (Module())
 import Ivory.Stdlib (stdlibModules)
 
 main :: IO ()
 main = do
   args <- getArgs
-  when (null args) (error "Binary takes a path to srcs/hdrs as an argument")
+  when (null args)
+       (error "Binary takes a path to srcs and headers as an argument")
   let path = head args
-  let opts = initialOpts { outDir = Just path, srcLocs = True, scErrors = True }
+  let opts = initialOpts { outDir = Just path, srcLocs = True }
+  compileExample opts modules
 
-  mapM_ (compileExample opts) modules
-
-  putStrLn "Compiling: Overflow"
-  Overflow.writeOverflow opts
-
-compileExample :: Opts -> Module -> IO ()
-compileExample opts m = do
-  putStrLn ("Compiling: " ++ moduleName m)
-  runCompiler [m] [] opts -- XXX will need stdlib artifacts to build
+compileExample :: Opts -> [Module] -> IO ()
+compileExample opts ms = runCompiler ms stdlibStringArtifacts opts
 
 modules :: [Module]
 modules = [ PID.cmodule
@@ -56,4 +54,9 @@ modules = [ PID.cmodule
           , SizeOf.cmodule
           , AddrOfRegression.cmodule
           , Array.cmodule
+          , Overflow.cmodule
+          , Coroutine.cmodule
+          , ConcreteFile.concreteIvory
+          , ConcreteFile.examplesfile
+          , stdlibStringModule
           ] ++ stdlibModules

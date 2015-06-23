@@ -31,16 +31,14 @@ data CompileUnits = CompileUnits
   { unitName :: String
   , sources  :: (Includes, Sources)
   , headers  :: (Includes, Sources)
-  , externs  :: Sources
   } deriving Show
 
 instance Monoid CompileUnits where
-  mempty = CompileUnits mempty mempty mempty mempty
-  (CompileUnits n0 s0 h0 e0) `mappend` (CompileUnits n1 s1 h1 e1) =
+  mempty = CompileUnits mempty mempty mempty
+  (CompileUnits n0 s0 h0) `mappend` (CompileUnits n1 s1 h1) =
     CompileUnits (n0 `mappend` n1)
                  (s0 `mappend` s1)
                  (h0 `mappend` h1)
-                 (e0 `mappend` e1)
 
 --------------------------------------------------------------------------------
 
@@ -63,8 +61,5 @@ putHdrSrc hdr = Compile (put mempty { headers = (S.empty,[hdr]) })
 
 putHdrInc :: Include -> Compile
 putHdrInc inc = Compile (put mempty { headers = (S.fromList [inc],[]) })
-
-putExt :: C.Definition -> Compile
-putExt ext = Compile (put mempty { externs = [ext] })
 
 --------------------------------------------------------------------------------

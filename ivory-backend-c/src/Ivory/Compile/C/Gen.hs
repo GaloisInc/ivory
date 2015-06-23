@@ -28,33 +28,19 @@ data Visibility = Public | Private deriving (Show, Eq)
 -- | Compile a top-level element.
 compile :: P.Def a -> Compile
 compile (P.DefProc fun) = compileUnit fun
-compile (P.DefExtern e) = compileExtern e
 compile (P.DefImport _) = error "Can't compile an import!"
-
---------------------------------------------------------------------------------
--- | Compile an extern declaration
-compileExtern :: I.Extern -> Compile
-compileExtern I.Extern
-  { I.externSym     = sym
-  , I.externRetType = ret
-  , I.externArgs    = args
-  }
-  = putExt [cedecl| extern $ty:(toType ret) $id:(sym)
-                      ($params:(map mkParam args)) ; |]
-  where
-  mkParam ty = [cparam| $ty:(toType ty) |]
 
 --------------------------------------------------------------------------------
 -- | Compile a struct.
 compileStruct :: Visibility -> I.Struct -> Compile
 compileStruct visibility def = case def of
-  I.Struct n fs    ->
-    (if visibility == Public then putHdrSrc else putSrc)
-    [cedecl| struct $id:n { $sdecls:(map mkFieldGroup fs)
-                          } __attribute__ ((__packed__)) ;
-           |]
-  I.Abstract _ file ->
-    putHdrInc (SysInclude file)
+  I.Struct n fs
+    -> (if visibility == Public then putHdrSrc else putSrc)
+         [cedecl| typedef struct $id:n { $sdecls:(map mkFieldGroup fs) } $id:n ;
+                |]
+
+  I.Abstract _ file
+    -> putHdrInc (SysInclude file)
 
 mkFieldGroup :: I.Typed String -> C.FieldGroup
 mkFieldGroup field =
@@ -63,7 +49,7 @@ mkFieldGroup field =
 --------------------------------------------------------------------------------
 -- | Compile an external memory area reference.
 compileAreaImport :: I.AreaImport -> Compile
-compileAreaImport ai = putSrcInc (SysInclude (I.aiFile ai))
+compileAreaImport ai = putHdrInc (SysInclude (I.aiFile ai))
 
 --------------------------------------------------------------------------------
 -- | Get prototypes for memory areas.
@@ -169,7 +155,7 @@ toTypeCast = toTypeCxt arrIxTy
   where
   -- Invariant: ty is wrapped in a Ref, ConstRef, or Ptr.
   arrIxTy t = case t of
-   I.TyArr    len t'
+   I.TyArr    _len t'
      -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
    I.TyCArray t'
      -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
@@ -255,28 +241,21 @@ toBody ens stmt =
     -- optimize away *& constructions on dereferncing structs and indexes into
     -- arrays.
     I.Deref t var exp      -> [C.BlockDecl
-      [cdecl| $ty:(toType t) $id:(toVar var) = $exp:deref; |]]
-      where
-      deref = case t of
-                I.TyArr _ _  -> [cexp| * $exp:e |]
-                I.TyCArray _ -> [cexp| * $exp:e |]
-                _            -> [cexp|   $exp:e |]
-      e = case exp of
-            I.ExpLabel t' e' field
-              -> [cexp| $exp:(toExpr (I.TyRef t') e') -> $id:field |]
-            I.ExpIndex t' e' ti i
-              -> [cexp| $exp:(toExpr (I.TyRef t') e') [$exp:(toExpr ti i)] |]
-            _ -> [cexp| * $exp:(toExpr (I.TyRef t) exp) |]
+      [cdecl| $ty:(toType t) $id:(toVar var) = $exp:(derefExp (toExpr (I.TyRef t) exp)); |]]
 
     I.Local t var inits    -> [C.BlockDecl
       [cdecl| $ty:(toType t) $id:(toVar var)
                 = $init:(toInit inits); |]]
     -- Can't do a static check since we have local let bindings.
     I.RefCopy t vto vfrom  ->
-      [C.BlockStm [cstm| if( $exp:toRef != $exp:fromRef) {
-         memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); }
-                           else { COMPILER_ASSERTS(false); }
-      |]]
+      [C.BlockStm $ case t of
+        I.TyArr{} ->
+          [cstm| if( $exp:toRef != $exp:fromRef) {
+             memcpy( $exp:toRef, $exp:fromRef, sizeof($ty:(toType t)) ); }
+                               else { COMPILER_ASSERTS(false); }
+          |]
+        _ -> [cstm| $exp:(derefExp toRef) = $exp:(derefExp fromRef); |]
+      ]
       where
       toRef   = toExpr (I.TyRef t) vto
       fromRef = toExpr (I.TyRef t) vfrom
@@ -339,7 +318,7 @@ toBody ens stmt =
 
     I.Break                       -> [C.BlockStm [cstm| break; |]]
     I.Store t ptr exp             -> [C.BlockStm
-      [cstm| * $exp:(toExpr (I.TyRef t) ptr) = $exp:(toExpr t exp); |]]
+      [cstm| $exp:(derefExp (toExpr (I.TyRef t) ptr)) = $exp:(toExpr t exp); |]]
 
     I.Comment (I.UserComment c)   -> [C.BlockStm
       [cstm| $comment:("/* " ++ c ++ " */"); |]]
@@ -365,6 +344,14 @@ fieldDes :: String -> C.Designation
 fieldDes n = C.Designation [ C.MemberDesignator (C.Id n noLoc) noLoc ] noLoc
 
 --------------------------------------------------------------------------------
+
+derefExp :: C.Exp -> C.Exp
+derefExp (C.UnOp C.AddrOf rhs _) = rhs
+derefExp e = [cexp| * $exp:e |]
+
+labelExp :: C.Exp -> String -> C.Exp
+labelExp (C.UnOp C.AddrOf lhs _) field = [cexp| $exp:lhs . $id:field |]
+labelExp lhs field = [cexp| $exp:lhs -> $id:field |]
 
 -- | Translate an expression.
 toExpr :: I.Type -> I.Expr -> C.Exp
@@ -395,14 +382,16 @@ toExpr t (I.ExpOp op args) =
 ----------------------------------------
 toExpr _ (I.ExpSym sym) = [cexp| $id:sym |]
 ----------------------------------------
+toExpr _ (I.ExpExtern (I.Extern sym _ _)) = [cexp| $id:sym |]
+----------------------------------------
 toExpr t (I.ExpLabel t' e field) = case t of
   I.TyRef (I.TyArr _ _)       -> getField
   I.TyRef (I.TyCArray _)      -> getField
   I.TyConstRef (I.TyArr _ _)  -> getField
   I.TyConstRef (I.TyCArray _) -> getField
   _                           ->
-    [cexp| &($exp:(toExpr (I.TyRef t') e) -> $id:field) |]
-  where getField = [cexp| ($exp:(toExpr t' e) -> $id:field) |]
+    [cexp| &($exp:(labelExp (toExpr (I.TyRef t') e) field)) |]
+  where getField = labelExp (toExpr t' e) field
 ----------------------------------------
 toExpr t (I.ExpIndex at a ti i) = case t of
   I.TyRef (I.TyArr _ _)       -> expIdx I.TyRef
@@ -458,6 +447,8 @@ toExpr ty (I.ExpMaxMin b) = [cexp| $id:macro |]
       I.TyIndex _ -> "0"
       _           -> err
   err = error $ "unexpected type " ++ show ty ++ " in ExpMaxMin."
+----------------------------------------
+toExpr ty (I.ExpSizeOf ty') = [cexp| ($ty:(toTypeCast ty)) sizeof($ty:(toType ty')) |]
 ----------------------------------------
 
 exp0 :: [C.Exp] -> C.Exp
@@ -623,7 +614,7 @@ signumSym ty = case ty of
   I.TyFloat  -> "signum_float"
   I.TyDouble -> "signum_double"
   I.TyInt i  -> "signum_i" ++ showInt i
-  I.TyWord w -> "signum_w" ++ showWord w
+  I.TyWord w -> "signum_u" ++ showWord w
   I.TyChar   -> "signum_char"
   _          -> error ("signum " ++ "unimplemented for type " ++ show ty)
 ----------------------------------------

@@ -34,31 +34,74 @@
 \usepackage{framed}
 \usepackage{paralist}
 \usepackage{mathtools}
-\usepackage{alltt}
+\usepackage{listings}
 \usepackage{textcomp}
 \usepackage{fixltx2e}
 \usepackage{url}
 \usepackage{flushend}
+\usepackage{bold-extra}
+%% \usepackage{array} %sjw, for <{$} etc.
+\usepackage{hyperref} %sjw, for \autoref
+\usepackage{stmaryrd} %sjw, for oxford brackets (\llbracket, \rrbracket)
+\usepackage{amssymb}  %sjw, mainly for mathbb
+%% \usepackage{bytefield} %jjb, for bit data, not used yet
+\usepackage{hyphenat} %js to control hyphenation
+\usepackage{theorem}
+
+\newtheorem{theorem}{Theorem}
+
+%% For inference rules
+\usepackage{mathpartir}
+
+\hyphenation{SMACCM-Pilot Co-pilot}
+
+% Language definition for both quasi-quoted Ivory, and Haskell.
+\lstdefinelanguage{Ivory}
+{morekeywords={struct,data,where,let,in,class,instance,type,family},
+ sensitive=true,
+ morestring=[b]",
+ escapeinside={\%*}{*)},
+ commentstyle=\ttfamily,
+ morecomment=[l]{--},
+ morecomment=[s]{\{-}{-\}}
+}
+
+\lstset{language=Ivory}
 
 \newboolean{td}
-  \setboolean{td}{true} % modify here
+  \setboolean{td}{false} % modify here
   \ifthenelse{\boolean{td}}
              {\newcommand{\pat}[1]{\textcolor{blue}{PH: #1}}
               \newcommand{\lee}[1]{\textcolor{blue}{LP: #1}}
-              \newcommand{\simon}[1]{\textcolor{blue}{SW: #1}}
+              \newcommand{\sjw}[1]{\textcolor{blue}{SW: #1}}
               \newcommand{\trevor}[1]{\textcolor{blue}{TE: #1}}
               \newcommand{\james}[1]{\textcolor{blue}{JB: #1}}
+              \newcommand{\eric}[1]{\textcolor{blue}{ES: #1}}
+              \newcommand{\jamey}[1]{\textcolor{blue}{JS: #1}}
              }
-             {\newcommand{\ph}[1]{}
-               \newcommand{\lp}[1]{}
+             {\newcommand{\pat}[1]{}
+              \newcommand{\lee}[1]{}
+              \newcommand{\sjw}[1]{}
+              \newcommand{\trevor}[1]{}
+              \newcommand{\james}[1]{}
+              \newcommand{\eric}[1]{}
+              \newcommand{\jamey}[1]{}
              }
 
 \newcommand{\mytilde}{\raise.17ex\hbox{$\scriptstyle\mathtt{\sim}$}}
-\newenvironment{code}{\begin{alltt}\footnotesize}{\end{alltt}}
-\newenvironment{smcode}{\begin{alltt}\scriptsize}{\end{alltt}}
+\lstnewenvironment{code}[1][]
+  {\lstset{basicstyle=\scriptsize\ttfamily,#1}}
+  {}
+%% \lstnewenvironment{smcode}[1][]
+%%   {\lstset{basicstyle=\scriptsize\ttfamily,#1}}
+%%   {}
 
 %% \newenvironment{cols}{\begin{tabular}{m{3.6cm}|m{3.6cm}} &
 %%     \\\hline}{\end{tabular}}
+
+
+\renewcommand{\sectionautorefname}{Section}
+\renewcommand{\subsectionautorefname}{Section}
 
 \newcommand{\cd}[1]{\texttt{#1}}
 
@@ -68,10 +111,11 @@
 \setlength{\pdfpageheight}{\paperheight}
 \setlength{\pdfpagewidth}{\paperwidth}
 
-\conferenceinfo{ICFP~'14}{September 1--6, 2014, Gothenburg, Sweden}
-\copyrightyear{2014}
-\copyrightdata{978-1-4503-2873-9/14/09}
-\doi{2628136.2628146}
+%% XXX fix when we have the right info
+\conferenceinfo{ICFP~'15}{}
+\copyrightyear{2015}
+\copyrightdata{}
+\doi{}
 
 % Uncomment one of the following two, if you are not going for the 
 % traditional copyright transfer agreement.
@@ -86,12 +130,21 @@
 \titlebanner{Under submission}        % These are ignored unless
 \preprintfooter{short description of paper}   % 'preprint' option specified.
 
-\title{Ivory}
-\subtitle{catchy subtitle}
+\title{Guilt Free Ivory}
+%\subtitle{}
 
-\authorinfo{Trevor decides authors and order}
+\authorinfo{Trevor Elliott\and Lee Pike\and Simon Winwood\and Pat Hickey\and %
+            James Bielman\and Jamey Sharp}
            {Galois, Inc.}
-           {\{foobar\}@galois.com}
+           {\{firstname.lastname\}@galois.com}
+
+\authorinfo{Eric Seidel}
+           {UC San Diego}
+           {eseidel@cs.ucsd.edu}
+
+\authorinfo{John Launchbury}
+           {Willamette University}
+           {jlaunchb@willamette.edu}
 %% \authorinfo{Name2\and Name3}
 %%            {Affiliation2/3}
 %%            {Email2/3}
@@ -99,7 +152,16 @@
 \maketitle
 
 \begin{abstract}
-\lee{I'll write it}
+Ivory is a language that enforces memory safety and avoids most undefined
+behaviors while providing low-level control of memory-manipulation. Ivory is
+embedded in a modern variant of Haskell, as implemented by the GHC compiler. The
+main contributions of the paper are two-fold. First, we demonstrate how to
+embed the type-system of a safe-C language into the type
+extensions of GHC. Second, Ivory is of interest in its own right, as a powerful
+language for writing high-assurance embedded programs. Beyond invariants
+enforced by its type-system, Ivory has direct support for model-checking,
+theorem-proving, and property-based testing. Ivory's semantics have been
+formalized and proved to guarantee memory safety.
 \end{abstract}
 
 \category{D.3.2}{Language Classifications}{Applicative (functional) languages}
@@ -128,21 +190,28 @@ Embedded Domain Specific Languages; Embedded Systems
 
 \input{conclusion}
 
-
 %% \appendix
 %% \section{Appendix Title}
 
-
-
 \acks
 
-This work is supported by DARPA under contract no. FA8750-12-9-0169.  Opinions
+We thank Kathleen Fisher, Iavor Diatchki, Mike Whalen, Gerwin Klein,
+Ben Lippmeier, and the
+members of the SMACCM team from Rockwell Collins, Boeing, NICTA for comments on
+this paper as well as stimulating discussions in the development of Ivory.  This
+work is supported by DARPA under contract no. FA8750-12-9-0169.  Opinions
 expressed herein are our own.
 
 % We recommend abbrvnat bibliography style.
 
 \bibliographystyle{abbrvnat}
 \bibliography{paper}
+
+% appendices
+\appendix
+\onecolumn
+\clearpage
+%\input{appendix-rules.tex}
 
 % The bibliography should be embedded for final submission.
 

@@ -41,12 +41,12 @@ fromTypeNat  = natVal
 --------------------------------------------------------------------------------
 #else
 
-type ANat n    = (SingI n)
+type ANat (n :: Nat) = (SingI n)
 type NatType n = Sing n
 aNat :: SingI n => Sing n
 aNat = sing
 
-type ASymbol s    = (SingI s)
+type ASymbol (s :: Symbol) = (SingI s)
 type SymbolType s = Sing s
 aSymbol :: SingI s => Sing s
 aSymbol = sing

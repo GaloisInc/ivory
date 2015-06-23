@@ -1,0 +1,3 @@
+$(call add-cabal-package-source, \
+  $(IVORY_REPO)/ivory \
+)

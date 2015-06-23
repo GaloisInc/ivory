@@ -1,0 +1,43 @@
+\section{Related Work}
+\label{sec:related-work}
+
+The general idea of safe C languages is not new; our main contribution is
+embedding a type system into GHC as well as our support of verification
+tools.
+
+Pioneering work in the area is the Cyclone language and
+compiler~\cite{cyclone}. Cyclone is a dialect of C. Cyclone is less restrictive than
+Ivory, relying on both static analysis and runtime checks to enforce memory
+safety. Cyclone provides regions for dynamic memory allocation; garbage
+collection is optional. Cyclone programs are typically slightly larger than
+their C equivalents and mostly syntactically the same. In contrast to Ivory,
+Cyclone does not provide macro-programming facilities (beyond the C
+preprocessor), nor does it interface to verification and testing
+tools. Unfortunately, Cyclone is not actively maintained.
+
+Bit-data and memory areas in Ivory borrow heavily from Diatchki~et~al.'s
+previous work~\cite{high-level, memareas}. Indeed, one can consider the present
+work as demonstrating the feasibility of embedding this language into Haskell
+and GHC types. BitC is another deprecated research language that explored a
+similar design space~\cite{bitc}.
+
+Spark/Ada is a mature language for high-assurance embedded
+programming, with a contract language and verification tools to
+prove invariants~\cite{spark}. To support verification, the language is
+very restrictive: in particular, there are no references in the language.
+
+Rust is an actively-developed safe C language, originating from
+Mozilla~\cite{rust}. Rust has a powerful affine type system\footnote{An affine
+type system prevents pointer aliasing errors.} that enforces the safe use of
+heap-based data structures, reference counting garbage collection as a library,
+and hygenic macros. The language has a property-based testing framework, but no
+mature support for verification, or even static checks for undefined behavior
+(e.g., division by a constant zero expression).
+
+Other safe C EDSLs exist such as Atom, a language for
+lock-free embedded programs~\cite{atom}; Copilot, a stream-oriented synchronous
+language~\cite{copilot}; SBV, a Haskell-based SMT symbolic simulator with a C code
+generator~\cite{sbv}; and Feldspar, a language specialized for high-level and
+efficient specifications of digital signal processing~\cite{feldspar1}. Compared to these
+languages, Ivory is more focused on the kinds of C in low-level code such as
+device drivers, with bit-data and memory area manipulation.

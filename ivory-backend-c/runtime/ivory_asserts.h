@@ -5,15 +5,14 @@
 
 #ifdef IVORY_TEST
 
-#ifdef __arm__
+#if defined(IVORY_USER_ASSERT_HOOK)
 
-/* TODO: We could write a better "assert" that suspends all RTOS
- * tasks and tries to write a debug string somewhere, but this is at
- * least somewhat useful while running under GDB. */
+extern void ivory_user_assert_hook(void);
+
 #define ivory_assert(arg)         \
   do {                            \
     if (!(arg)) {                 \
-      asm volatile("bkpt");       \
+       ivory_user_assert_hook();  \
     }                             \
   } while (0)
 
@@ -23,7 +22,25 @@
 #define ASSERTS(arg)          ivory_assert(arg)
 #define COMPILER_ASSERTS(arg) ivory_assert(arg)
 
-#else /* ! __arm__ */
+#elif defined(IVORY_USER_VERBOSE_ASSERT_HOOK)
+
+extern void ivory_user_verbose_assert_hook(const char *asserttype,
+		const char *expr, const char *file, int line);
+
+#define ivory_assert(atype, arg)  \
+  do {                            \
+    if (!(arg)) {                 \
+       ivory_user_verbose_assert_hook(atype, #arg, __FILE__, __LINE__); \
+    }                             \
+  } while (0)
+
+#define REQUIRES(arg)         ivory_assert("REQUIRES",arg)
+#define ENSURES(arg)          ivory_assert("ENSURES",arg)
+#define ASSUMES(arg)          ivory_assert("ASSUMES",arg)
+#define ASSERTS(arg)          ivory_assert("ASSERTS",arg)
+#define COMPILER_ASSERTS(arg) ivory_assert("COMPILER_ASSERTS",arg)
+
+#else
 
 #include <assert.h>
 
@@ -33,11 +50,9 @@
 #define ASSERTS(arg)          assert(arg)
 #define COMPILER_ASSERTS(arg) assert(arg)
 
-#endif /* __arm__ */
+#endif /* assert hooks */
 
-#endif /* IVORY_TEST */
-
-#ifdef IVORY_DEPLOY
+#else /* IVORY_TEST */
 
 #define REQUIRES(arg)
 #define ENSURES(arg)
@@ -45,9 +60,6 @@
 #define ASSERTS(arg)
 #define COMPILER_ASSERTS(arg)
 
-#endif /* IVORY_DEPLOY */
-
-
-
+#endif /* IVORY_TEST */
 
 #endif /* IVORY_ASSERTS_H */

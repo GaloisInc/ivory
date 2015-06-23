@@ -1,5 +1,11 @@
 -- # -*- mode: haskell -*-
 
+import (stdio.h, printf) int32_t printf(string x)
+import (stdio.h, printf) int32_t printf2(string x, int32_t y)
+
+include concreteIvory --for printf definitions in ConcreteFile.hs
+include stdlibStringModule
+
 -- A top level definition.
 bar = 3 + 2;
 
@@ -44,8 +50,8 @@ r* struct ivory_string_FooStr foostr(r* struct ivory_string_FooStr s) {
   return s;
 }
 
--- Abstract structs
-abstract struct fooStruct "foobar/foo.h"
+-- Declaring abstract structs
+-- abstract struct fooStruct "foobar/foo.h"
 
 -- Struct declared with C-like types
 struct Goo
@@ -240,7 +246,7 @@ void fizzbuzz() {
       } else {
         if (i % 3 == 0) {
           printf("Buzz");
-        } else { printf2("",i); }
+        } else { printf2("%i\n",i); }
       }
     }
   }
@@ -295,3 +301,26 @@ int32_t bar72(int32_t x, * struct Boo a, * int32_t y, * int32_t[10] arr) {
   return a.aBoo->aBar7;
 }
 
+float tanFuncD(float x) {
+  return atan2(3.0, 1);
+}
+
+float tanFuncF(float x) {
+  return atan2(3.0, 1);
+}
+
+string struct Astr 4
+
+-- copy from an uint8_t array to a string
+void arr_to_str( * struct ivory_string_Astr s
+               , const * uint8_t[5] arr
+               ) {
+  $istr_from_sz(s, arr);
+}
+
+-- copy to an uint8_t array from a string
+void str_to_arr(* uint8_t[5] arr
+               , const * struct ivory_string_Astr s
+               ) {
+  $sz_from_istr(arr, s);
+}

@@ -22,7 +22,7 @@ import qualified Overflow
 import qualified PID
 import qualified PublicPrivate
 -- import qualified QC
-import qualified SizeOf
+-- import qualified SizeOf
 import qualified String
 -- import qualified TestClang
 
@@ -49,7 +49,7 @@ modules = [ AddrOfRegression.cmodule
           , PID.cmodule
           , PublicPrivate.cmodule
           -- , QC.cmodule
-          , SizeOf.cmodule
+          -- , SizeOf.cmodule -- FIXME: not currently correctly implemented
           , String.cmodule
           -- , TestClang.cmodule
           ]

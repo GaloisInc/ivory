@@ -109,6 +109,15 @@ get_baud = proc "get_baud" $ \x -> body $ do
   let d = fromRep x
   ret (toRep (d #. spi_cr1_br))
 
+-- | Examples from Ivory paper:
+[ivory|
+ bitdata CtrlReg :: Bits 8 = ctrl_reg
+   { ctrl_tx_enable  :: Bit
+   , ctrl_rx_enable  :: Bit
+   , ctrl_baud_rate  :: BaudRate
+   } as 0b0000 # ctrl_tx_enable # ctrl_rx_enable # ctrl_baud_rate
+|]
+
 cmodule :: Module
 cmodule = package "hw" $ do
   incl get_baud

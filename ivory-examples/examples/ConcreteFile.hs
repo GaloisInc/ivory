@@ -15,10 +15,10 @@
 -- All rights reserved.
 --
 
-module Main where
+module ConcreteFile where
 
 import Ivory.Language
-import Ivory.Stdlib.String
+import Ivory.Stdlib
 import Ivory.Compile.C.CmdlineFrontend
 
 e :: IBool
@@ -45,15 +45,18 @@ macroExp :: IvoryOrd a => a -> a -> IBool
 macroExp x y = do
   x <? y
 
-printf :: Def ('[IString] :-> Sint32)
-printf  = importProc "printf" "stdio.h"
+toIx' :: ANat n => Uint32 -> Ix n
+toIx' ix = toIx (twosComplementCast ix)
 
-printf2 :: Def ('[IString,Sint32] :-> Sint32)
-printf2  = importProc "printf" "stdio.h"
-
+concreteIvory :: Module
+concreteIvory = package "concreteIvory" $ do
+  incl printf
+  incl printf2
 
 [ivoryFile|examples/file.ivory|]
 
 main :: IO ()
-main = runCompiler [examplesfile] []
-  initialOpts {outDir = Nothing, constFold = True}
+main = runCompiler [concreteIvory, examplesfile, stdlibStringModule] stdlibStringArtifacts
+  initialOpts {outDir = Just "concrete-ivory", constFold = True}
+
+

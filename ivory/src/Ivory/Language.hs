@@ -33,7 +33,7 @@ module Ivory.Language (
   , local
 
     -- ** SizeOf
-  , IvorySizeOf(..), sizeOf
+  , IvorySizeOf, sizeOf
 
     -- ** Nullable Pointers
   , Ptr(), nullPtr
@@ -84,7 +84,7 @@ module Ivory.Language (
   , assign
 
     -- ** Constants
-  , extern
+  , extern, inclSym
 
     -- ** Arithmetic (operators from the 'Num' class are also provided).
   , IvoryIntegral((.%), iDiv), (./)
@@ -136,7 +136,7 @@ module Ivory.Language (
     -- ** Procedures
   , Def()
   , ProcPtr(), procPtr
-  , proc, externProc, importProc
+  , proc, voidProc, importProc
   , Body(), body, importFrom
 
     -- *** Pre/Post-Conditions
@@ -187,7 +187,6 @@ module Ivory.Language (
   , ModuleDef, incl, depend, defStruct
   , defStringType
   , defMemArea, defConstMemArea
-  , inclHeader
   , private, public
 
     -- * Quasiquoters
@@ -197,6 +196,7 @@ module Ivory.Language (
 
     -- * Utilities
   , Proxy(..), comment
+  , module Ivory.Language.Coroutine
 
   ) where
 
@@ -209,6 +209,7 @@ import Ivory.Language.Cast
 import Ivory.Language.Comment
 import Ivory.Language.Cond
 import Ivory.Language.Const
+import Ivory.Language.Coroutine
 import Ivory.Language.Effects
 import Ivory.Language.Float
 import Ivory.Language.IBool

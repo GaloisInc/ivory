@@ -7,7 +7,7 @@
 module Area where
 
 import Ivory.Language
-
+import Ivory.Compile.C.CmdlineFrontend
 
 [ivory|
 
@@ -18,7 +18,7 @@ struct val {
 |]
 
 val :: MemArea (Struct "val")
-val  = area "val" (Just (istruct [field .= ival 0]))
+val  = area "value" (Just (istruct [field .= ival 0]))
 
 cval :: ConstMemArea (Struct "val")
 cval  = constArea "cval" (istruct [field .= ival 10])
@@ -39,3 +39,6 @@ cmodule = package "Area" $ do
   defMemArea val
   defConstMemArea cval
   defStruct (Proxy :: Proxy "val")
+
+main :: IO ()
+main = runCompiler [cmodule] [] initialOpts { outDir = Nothing, constFold = True }

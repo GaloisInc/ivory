@@ -146,9 +146,10 @@ constFoldInits copies (I.InitArray i) = I.InitArray $ map (constFoldInits copies
 cf :: ExprOpt
 cf copies ty e =
   case e of
-    I.ExpSym{} -> e
-    I.ExpVar v -> Map.findWithDefault e v copies
-    I.ExpLit{} -> e
+    I.ExpSym{}            -> e
+    I.ExpExtern{}         -> e
+    I.ExpVar v            -> Map.findWithDefault e v copies
+    I.ExpLit{}            -> e
 
     I.ExpOp op args       -> liftChoice copies ty op args
 
@@ -171,6 +172,7 @@ cf copies ty e =
 
     I.ExpAddrOfGlobal{}   -> e
     I.ExpMaxMin{}         -> e
+    I.ExpSizeOf{}         -> e
 
 loopIncrFold :: (I.Expr -> I.Expr) -> I.LoopIncr -> I.LoopIncr
 loopIncrFold opt incr =

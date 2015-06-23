@@ -55,23 +55,37 @@ module Ivory.Artifact (
   -- transformation on the contents of an `Artifact` which may give an error.
   , artifactTransformErr, artifactTransformErrString
 
+  -- | `artifactPath` prepends a `FilePath` to the output file path.
+  , artifactPath
+
   -- * Artifact actions
   -- | Takes a directory of type `FilePath` and an `Artifact`
   -- writes each `Artifact` to the file system or gives an error explaining why
   -- not. `Maybe String` containins errors encountered when an `Artifact` is
   -- transformed, or specified by an input filename which does not exist.
   , putArtifact
+  -- | like `putArtifact` but ignores any errors.
+  , putArtifact_
 
   -- | Takes an `Artifact` and prints it, or an appropriate error message, to
   -- stdout.
   , printArtifact
+
+  -- | Takes a guess at whether two artifacts might be equal.
+  , mightBeEqArtifact
+
+  , Located(..)
+  , mightBeEqLocatedArtifact
   ) where
 
+import Control.Monad (void)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as T
 import System.FilePath
 import System.Directory
 import Ivory.Artifact.Transformer
+import Ivory.Artifact.Location
+import System.IO.Unsafe (unsafePerformIO)
 
 data Artifact =
   Artifact
@@ -80,8 +94,24 @@ data Artifact =
     , artifact_transformer :: Transformer T.Text
     }
 
+mightBeEqLocatedArtifact :: Located Artifact -> Located Artifact -> Bool
+mightBeEqLocatedArtifact (Root a) (Root b) = mightBeEqArtifact a b
+mightBeEqLocatedArtifact (Src a) (Src b) = mightBeEqArtifact a b
+mightBeEqLocatedArtifact (Incl a) (Incl b) = mightBeEqArtifact a b
+mightBeEqLocatedArtifact _ _ = False
+
+mightBeEqArtifact :: Artifact -> Artifact -> Bool
+mightBeEqArtifact a b =
+  and [ artifact_outputname a == artifact_outputname b
+      , artifact_contents   a `mightBeEqAContents` artifact_contents   b]
+
 data AContents = LiteralContents T.Text
                | FileContents (IO FilePath)
+
+mightBeEqAContents :: AContents -> AContents -> Bool
+mightBeEqAContents (LiteralContents a) (LiteralContents b) = a == b
+mightBeEqAContents (FileContents a) (FileContents b) = unsafePerformIO a == unsafePerformIO b
+mightBeEqAContents _ _ = False
 
 artifactFileName :: Artifact -> FilePath
 artifactFileName = artifact_outputname
@@ -104,6 +134,9 @@ artifactText outputname t = Artifact
   , artifact_contents    = LiteralContents t
   , artifact_transformer = emptyTransformer
   }
+
+artifactPath :: FilePath -> Artifact -> Artifact
+artifactPath f a = a { artifact_outputname = f </> artifact_outputname a }
 
 artifactString :: FilePath -> String -> Artifact
 artifactString f s = artifactText f (T.pack s)
@@ -150,8 +183,13 @@ withContents a f = do
     Right c  -> f c >> return Nothing
 
 putArtifact :: FilePath -> Artifact -> IO (Maybe String)
-putArtifact fp a = withContents a $ \c ->
-  T.writeFile (fp </> artifact_outputname a) c
+putArtifact fp a = withContents a $ \c -> do
+  let fname = fp </> artifact_outputname a
+  createDirectoryIfMissing True (dropFileName fname)
+  T.writeFile fname c
+
+putArtifact_ :: FilePath -> Artifact -> IO ()
+putArtifact_ fp a = void (putArtifact fp a)
 
 printArtifact :: Artifact -> IO ()
 printArtifact a = do

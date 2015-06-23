@@ -1,0 +1,314 @@
+\newcommand{\coreivory}{Core Ivory}
+
+\section{Ivory Semantics}
+\label{sec:semantics}
+
+In the previous section, we described our embedding of Ivory into the
+GHC type system and made the claim that this guarantees memory safety.
+We modeled a simplified version of the Ivory language inside
+Isabelle/HOL\cite{isabelle}, henceforth \emph{\coreivory{}}, to support
+this claim.  In this section we present a semantics based upon the
+Isabelle/HOL development, and outline the proof of type safety.
+
+Developing this model provides a number of benefits for a modest
+investment---we developed the model in under a person month, albeit
+one of the authors has significant experience with Isabelle.  In
+addition to the basic benefits formalisation provides, we can
+experiment with extensions to Ivory.
+
+In one such experiment, we extended the model to allow references in
+the heap, a feature we avoided in the development of Ivory due to
+soundness concerns.  While a simple extension to the syntax and
+semantics of Ivory, the effort involved in extending the soundness
+proofs was almost as much as developing the initial model.  
+
+Due to space constraints we discuss only those particulars of
+\coreivory{} which differ significantly from a standard imperative
+\trevor{Remember to fix this reference in the final version}
+language; see the supplemental material for more details.
+
+\newcommand{\sep}{\ |\ }
+\newcommand{\syntaxtitle}[1]{\multicolumn{3}{l}{\textit{#1}}}
+
+\begin{figure}[t]
+
+\[
+\begin{array}{crl}
+\syntaxtitle{pure expressions}\\
+e & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \sep{} x \sep{} 
+          e_1 \mathbin{\mathit{op}} e_2 \\
+\syntaxtitle{impure expressions}\\
+i & ::= & \texttt{pure}(e) \sep{} \texttt{alloc}(e) \sep{}
+          \texttt{read}(e) \sep{} \texttt{write}(e_1, e_2)\\
+\syntaxtitle{statements}\\
+s & ::= & \texttt{skip} \sep{} \texttt{return}(e) \sep{} s_1; s_2 \\ 
+  & |   & \texttt{if}(e)\texttt{\;then\;} s_1 \texttt{\;else\;} s_2 \\
+  & |   & \texttt{for}(x = e_1; e_2; e_3) \{ s \} \\
+  & |   & \texttt{let\;} x = i \texttt{\;in\;} s \\
+  & |   & \texttt{let\;} x = f(e_1, \ldots{}, e_n) \texttt{\;in\;} s \\
+\syntaxtitle{values}\\
+v & ::= & 0 \sep{} 1 \sep{} \ldots{} \sep{} \texttt{true} \sep{} \texttt{false} \sep{} () \\
+w & ::= & \texttt{stored}(v) \sep{} \texttt{ref}(r, n) \\
+\syntaxtitle{Stores}\\
+E & \in{} & x \to w \\
+\syntaxtitle{regions and heaps}\\
+R & \in{} & \mathbb{N} \to w\\
+H & ::=   & H, R \sep{} \emptyset{}\\
+\syntaxtitle{stacks}\\
+F & ::= & \texttt{rframe}(x, E, s) \sep{} \texttt{sframe}(E, s) \\
+S & ::= & F, S \sep{} \emptyset{} \\
+\syntaxtitle{configurations}\\
+C & \in & H \times S \times E \times s \sep{} \texttt{finished}(v) \\
+\syntaxtitle{types}\\
+\rho   & \in & \textit{region variables}\\
+\alpha & ::= & \texttt{nat} \sep{} \texttt{bool} \sep{} \texttt{unit} \\
+\tau   & ::= & \texttt{storedt}(\alpha) \sep{} \texttt{reft}(\rho, \alpha) \\
+\syntaxtitle{procedure definitions}\\
+P & ::= & \texttt{proc\;} f(\tau_1\;x_1, \ldots{}, \tau_n\;x_n) : \tau\; \{ s \}
+\end{array}
+\]
+
+\sjw{values (in or out?), $\in$ or $\subseteq$?}
+
+\caption{Concrete syntax of \coreivory{}}
+\label{fig:syntax}
+\end{figure}
+
+\subsection{Syntax}
+
+The syntax for \coreivory{} is given in \autoref{fig:syntax}.
+\coreivory{} is based upon a typical typed imperative language with
+function calls, references, and memory allocation (but not memory
+deallocation).  \coreivory{} attempts to stay faithful to Ivory
+wherever possible, and so variables are let-bound with forms for
+binding the result of expression evaluation and function
+calls. Furthermore, \coreivory{} expressions are stratified into
+\emph{pure} and \emph{impure}, the latter allowing operations on the
+heap: allocation, reading, and writing references.  
+
+Ivory uses regions to manage memory.  Thus, the heap is modeled as a
+list of \emph{regions}, each region a finite map from \emph{offsets},
+modeled as natural numbers, to \emph{stored values}; Ivory does not
+allow references in heap allocated values, and so a stored value is
+any value which is not a reference. A \emph{reference} contains both a
+\emph{region index} into the list of regions, and an offset with the
+region.  To simplify the presentation, we will use $H(r, n)$ to denote
+the value at offset $n$ in the $r$th region of $H$, and similarly with
+updates.
+
+As with values, types classifying values in \coreivory{} are
+stratified into storable and reference types; a reference type
+$\texttt{reft}(\rho, \alpha)$ is a reference to an object of type
+$\alpha$ in region $\rho$, where $\alpha$ is not a reference.
+
+\sjw{talk about structs and arrays?}
+
+\subsection{Operational Semantics}
+
+% These are here so we can talk about them in the text, but they are
+% mainly used in the appendix
+
+\newcommand{\stepsX}[2]{\models #1 \longmapsto{} #2}
+\newcommand{\stepsXX}[3]{\models #2 \longmapsto^{#1} #3}
+\newcommand{\steps}[4]{\stepsX{#1; #2}{#3; #4}}
+
+\newcommand{\denoteexp}[2]{\llbracket{}#1\rrbracket{}#2}
+
+\newcommand{\stepsH}[2]{#1 \longmapsto_I #2}
+\newcommand{\hsteps}[5]{#1 \models \stepsH{#2; #3}{#4; #5}}
+
+% We ignore the procedure environment for clarity
+\newcommand{\wfstmt}[5]{#1; #3 \vdash_s #4 : #5}
+\newcommand{\wfexp}[3]{#1 \vdash_e #2 : #3}
+\newcommand{\wfimp}[4]{#1; #2 \vdash_i #3 : #4}
+
+\newcommand{\rulestitle}[1]{\textnormal{#1}\hspace*{\fill}}
+
+\coreivory{}'s semantics are modeled as an abstract machine
+over configurations.  The judgement
+\[
+\stepsX{C}{C'}
+\]
+states that configuration $C$ transitions to configuration $C'$.  A
+configuration consists of a heap, a stack, a store, and the current
+statement. The stack contains continuations for both function calls
+and statement sequences while the store maps variables to values. The
+semantics of sequencing is slightly non-standard as variables are
+let-bound rather than assigned, and so statement sequencing preserves
+the store across execution of the first statement.
+
+For example, the semantics of dereferencing is given by the rule
+\begin{mathpar}
+\inferrule{ \denoteexp{e}{E} = \texttt{ref}(r, n)  \\ (r, n) \in \texttt{dom}(H) }%
+          {\steps{(H; S; E)}{\texttt{let\;} x = \texttt{read}(e) \texttt{\;in\;} s}{(H; S; E[x \mapsto{} w])}{s}}
+\end{mathpar}
+where \( \denoteexp{e}{E} \)
+evaluates the pure expression $e$ under the store $E$.  The premise
+\( (r, n) \in \texttt{dom}(H) \)
+requires the existence of the region and offset pointed to by the
+reference resulting from evaluating $e$.
+
+Operationally, the heap is extended on a function call, an empty
+region being added to the end of the list, and shrunk on function
+return, removing the last region.  Allocating an object extends the
+current (last) region.
+
+A configuration is stuck if there is no available transition.  For
+instance, an attempted heap access or update where the region index
+does not exist or at an offset which has not been allocated will
+result in a stuck configuration.  In particular, accessing a region
+after it has been removed will result in a stuck state.  
+
+\subsection{Typing Ivory}
+
+\coreivory{}'s typing judgements extend standard statement typing
+judgements with a current region variable.  The typing judgement 
+\[
+\wfstmt{\Gamma}{\Psi}{\rho}{s}{\tau}
+\]
+holds when the statement $s$ is well-formed under the store
+environment $\Gamma$, current region $\rho$, with any return
+statements returning values of type $\tau$.
+
+The region variable $\rho$ represents the current region and is used
+when checking memory allocation.  The typing rule for allocation is then
+\[
+\inferrule{ 
+\wfexp{\Gamma}{e}{\alpha} \\
+\wfstmt{\Gamma[x \mapsto \texttt{reft}(\rho, \alpha)]}{\Psi}{\rho}{s}{\tau} }%
+{ \wfstmt{\Gamma}{\Psi}{\rho}{\texttt{let\;} x = \texttt{alloc}(e) \texttt{\;in\;} s}{\tau} }
+\]
+where the body of the let statement is checked under the additional
+assumption that the variable $x$ has reference type
+$\texttt{reft}(\rho, \alpha)$, noting the region variable on the
+reference type comes from the current region variable.  The judgement 
+\( \wfexp{\Gamma}{e}{\alpha} \) holds when pure expression $e$ has type $\alpha$.
+
+We fix the set of procedures as \texttt{Procs}. The typing rule for procedure bodies
+\begin{mathpar}
+\inferrule{\forall\;\texttt{proc\;} f(\tau_1\;x_1, \ldots, \tau_n\;x_n) : \tau\;\{ \mathit{body} \} \in \texttt{Procs}\\\\
+            \rho \textrm{ fresh} \\     
+            \texttt{frees}(\tau) \subseteq \texttt{frees}(\tau_1) \cup \ldots \cup \texttt{frees}(\tau_n) \\
+            \wfstmt{[x_1 \mapsto \tau_1, \ldots, x_n \mapsto \tau_n]}{\Psi}{\rho}{s}{\tau} }%
+{ \vdash \texttt{Procs} }
+\end{mathpar}
+ensures that this region variable
+is fresh; this constraint, together with the constraint that region
+variables in the procedure's return type must occur in an argument
+type, ensures that references cannot escape the scope in which they
+were allocated.  These constraints are then fundamental to the type
+safety of \coreivory{} programs.
+
+\subsection{Type Safety}
+
+We prove type safety, that is, well-typed programs do not get stuck,
+by proving the usual progress and preservation lemmas.  As is
+common  with type safety for imperative languages, we
+define auxiliary well-formedness invariants on configurations.  The
+progress lemma then states that well-formed configurations are not
+stuck, and preservation states that well-formed configurations
+transition to well-formed configurations.
+
+\begin{theorem}[Type Safety]
+Given \( \vdash \texttt{Procs} \) and
+\[
+\texttt{proc\;} \texttt{main}() : \texttt{nat}\;\{ \mathit{s} \} \in \texttt{Procs}\\
+\]
+there either exists some number of steps $n$ and value $v \in \mathbb{N}$ such that
+\[
+\stepsXX{n}{(\emptyset; \emptyset; \emptyset); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{\texttt{finished}(v)}
+\]
+or, for all $n$ there is a well-formed configuration $C$ such that
+\[
+\stepsXX{n}{(\emptyset; \emptyset; \emptyset); \texttt{let\;} x = \texttt{main}() \texttt{\;in\;} \texttt{return}(x)}{C}
+\]
+\end{theorem}
+Informally, a well-formed program, when called via the \texttt{main}
+procedure, will either terminate in a finite number of steps, or will
+diverge through well-formed configurations.
+
+
+The well-formedness invariants are typical, and are based upon a
+well-formed value judgement.  For our purposes, the interesting rule
+here is for references
+\[
+\inferrule{\Delta(\rho) = r \\ \Theta(r, n) = \alpha }%
+{\Theta; \Delta \vdash \texttt{ref}(r, n) : \texttt{reft}(\rho, \alpha)}
+\]
+which links reference types to reference values through the region
+environment $\Delta$, mapping region variables to region indices, and
+heap type $\Theta$, mapping region indices and offsets to types.
+Well-formed heaps and stores then follow point-wise from this
+judgement.  Well-formedness of stacks follows, ensuring that each
+continuation on the stack is well-formed.
+
+A well-formed configuration, in addition to the well-formedness of the
+heap, stack, store, and current statement, constrains
+the region environment ($\Delta$).  In particular, the variable
+representing the current region must be mapped to the length of the
+current heap, every region index in the range of $\Delta$ must be
+below this length, and the type variables occurring in the store
+environment $\Gamma$ must be mapped by $\Delta$.
+
+The progress lemma follows from well-formedness.  The preservation
+proof, as usual, is the trickier of the two proofs.  In particular,
+the case for return involves showing that the various configuration
+members are well-formed under a heap where the last region has been
+removed from the heap.  This involves showing that references are
+well-formed under this smaller heap which follows from the stack and
+region environment well-formedness invariants.  The case for function
+calls is also involved, although this is primarily due to the
+instantiation of the type variables in the type of the called
+function.
+
+\subsection{Discussion}
+\label{sec:sem-discuss}
+
+The type safety proofs are greatly simplified by the restriction of
+heap values to non-references: it is trivially true, for example, that
+the heap is well-formed after a return as the well-formedness of
+non-reference values does not depend on the type of other heap
+elements.
+
+We extended the Isabelle model to remove the stratification of values,
+allowing references to appear in the heap.  Syntactically, this
+simplifies the language, at the expense of more complicated proofs.
+For example, we extend the well-formedness of heaps to require that
+heaps are downward closed with respect to region references: that is,
+references in the heap refer only to regions up to and including the
+containing region.  This work extended the proof development from
+approximately 2500 lines of proof to 3300 lines of proof, and took
+approximately 2 person weeks to finish.
+
+\sjw{move to end?}
+Developing this model uncovered a bug in the Ivory embedding into
+Haskell, namely that the Haskell erroneously allowed functions to
+end without encountering a return statement.  Thus, a program could
+claim to return, say, a valid index but in reality return an
+out-of-bounds index, breaking memory safety.  In the model this
+check is part of the type checking rules (although elided for clarity
+in this paper) but is implemented as an explicit type-check over the Ivory AST
+in the
+Haskell implementation.  
+
+The existence of the formal model is not a guarantee that the Ivory
+implementation is sound, however: there is no formal link between the
+implementation and the model.  For example, we discovered a number of
+bugs due to the way in which references are initialized: these bugs
+are impossible in the model, but allowed in the implementation.  
+
+In addition, \coreivory{} covers a subset of the Ivory language,
+currently missing data structures and arrays.  We are working to
+reduce this gap; furthermore, in future, we plan to investigate making
+the core of the implementation more closely resemble \coreivory{}.
+Doing so would have the additional benefit of allowing us to verify
+the correctness of operations performed over the core AST.
+
+We plan on investigating first-class regions as a further extension to
+the model.  This feature would allow programmers to name and pass
+around allocation contexts, allowing helper functions to, for example,
+allocate and return objects in a parent functions region.  While we
+are confident that this extension is sound, \emph{proving} it sound
+allows a much greater confidence in the implementation: memory
+deallocation is notoriously easy to get wrong, so having a formal
+proof of soundness would be greatly comforting.

@@ -48,6 +48,7 @@ shouldPass = testGroup "should be safe"
              , mkSuccess foo17 m17
              , mkSuccess foo18 m18
              , mkSuccess foo19 m19
+             , mkSuccess test_max mmax
              ]
 
 shouldFail :: TestTree
@@ -301,3 +302,18 @@ m19 :: Module
 m19 = package "foo19" $ do
   defMemArea ppm_valid_area
   incl foo19
+
+-----------------------
+
+[ivory|
+int32_t test_max(int32_t a, int32_t b) {
+  return (a > b) ? a : b;
+}
+{
+  post(return >= a && return >= b);
+  post(return == a || return == b);
+}
+|]
+
+mmax :: Module
+mmax = package "max" (incl test_max)
