@@ -1,9 +1,5 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
-#if __GLASGOW_HASKELL__ >= 707
-    {-# LANGUAGE AllowAmbiguousTypes #-}
-#endif
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -46,7 +42,11 @@ data Coroutine a = Coroutine
   , coroutineDef :: ModuleDef
   }
 
-newtype CoroutineBody a = CoroutineBody (forall s1 s2. (forall eff. ClearBreak eff ~ ProcEffects s2 () => Ivory eff (Ref s1 a)) -> Ivory (ProcEffects s2 ()) ())
+newtype CoroutineBody a =
+  CoroutineBody (forall s1 s2.
+                 (forall b.
+                  Ivory ('Effects (Returns ()) b (Scope s2)) (Ref s1 a)) ->
+                         Ivory (ProcEffects s2 ()) ())
 
 coroutine :: forall a. IvoryArea a => String -> CoroutineBody a -> Coroutine a
 coroutine name (CoroutineBody fromYield) = Coroutine { .. }
