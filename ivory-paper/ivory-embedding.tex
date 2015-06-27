@@ -155,7 +155,7 @@ relationship between these classes.
 Ivory uses regions for memory management~\cite{memareas}.  When data
 is allocated, a reference to the resulting data is returned, and
 tagged by the containing region via a type variable.  Well-typed Ivory
-programs guarantee that references do no persist beyond the scope of
+programs guarantee that references do not persist beyond the scope of
 their containing region.  Regions in Ivory classify both global data
 and data allocated and freed on procedure entry/exit (the back-end
 relies on stack-based allocation in C).  Corresponding to these two
