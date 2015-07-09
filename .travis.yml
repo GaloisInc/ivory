@@ -1,9 +1,11 @@
+sudo: false
 language: haskell
 before_install:
 - CVC4=cvc4-2014-11-22-i386-linux-opt
-- wget www.galois.com/~leepike/$CVC4
-- sudo mv $CVC4 /usr/local/bin/cvc4
-- sudo chmod a+x /usr/local/bin/cvc4
+- mkdir -p bin
+- wget http://www.galois.com/~leepike/$CVC4 -O bin/cvc4
+- chmod a+x bin/cvc4
+- PATH="$PWD/bin:$PATH"
 - cvc4 --version
 install:
 - cabal install alex happy
