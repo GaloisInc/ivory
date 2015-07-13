@@ -71,10 +71,14 @@ incr_def = proc "incr_def" $ \r -> body $ do
   ret v
 \end{code}
 \noindent
-The procedure \cd{incr\_def} calls the Haskell function \cd{incr\_ref}
-above. The \cd{ret} statement returns a value from the Ivory procedure (we use
+The procedure \cd{incr\_def}, introduced by the use of \cd{proc}, calls the
+Haskell function \cd{incr\_ref} above.  The use of \cd{body} indicates that the
+procedure's definition will follow.  A more thorough treatment of \cd{proc} and
+\cd{body} is given in section \ref{sec:proc}.  The type of \cd{incr\_def} makes
+use of the data kinds extension, representing the argument list as a promoted
+list.  The \cd{ret} statement returns a value from the Ivory procedure (we use
 \cd{ret} rather than \cd{return} to avoid conflicting with Haskell's \cd{return}
-operator).
+function).
 
 %% \nonident
 %% The Ivory embedding uses standard Haskell techniques\cite{} to reuse
@@ -96,15 +100,17 @@ make_zero = local (ival 0)
 
 \subsection{Data structures}
 
-Ivory provides C-style arrays and data structures.  Arrays types are
-parameterised by their size, the type system ensures that array accesses
-are within bounds.  Data structures are defined using a quasi-quoter
-to specify the field names and their types.  Fields in data structures
-are accessed via the \cd{\mytilde>} operator which takes a
-reference to a struct and a field name, and returns a reference at the
-field's type. For example, the following code declares a structure
-type named \cd{position}, allocates an initialized instance, and then
-shows some basic operations on elements in the structure.
+Ivory provides C-style arrays and structures.  Array types are
+parameterised by their size and the type system ensures that array accesses are
+within bounds. Structures are defined using a quasi-quoter to specify the
+field names and their types. Arrays and structures belong to a special kind,
+\cd{Area}, whose values are only ever manipulated through references.  In order
+to lift the types of values that can be manipulated directly to \cd{Area}, the
+\cd{Stored} type constructor is used.  Fields in structures are accessed
+via the \cd{\mytilde>} operator which takes a reference to a struct and a field
+name, and returns a reference at the field's type. For example, the following
+code declares a structure type named \cd{position}, as well as a function that
+will allocate an instance, and perform some basic operations on it.
 
 \begin{code}
 [ivory|
@@ -144,7 +150,7 @@ abs2 = proc "abs2" $ \v -> body $ do
 \end{code}
 %$
 Ivory has two classes of iteration constructs: \cd{forever} for non-terminating
-loops such as OS tasks, and loops with a constant bounds. The prototypical
+loops such as OS tasks, and loops with constant bounds. The prototypical
 bounded loop in Ivory is the \cd{arrayMap}, which iterates over the elements of
 an array. For example, the following
 procedure adds \cd{x} to each element of the array \cd{arr}, noting

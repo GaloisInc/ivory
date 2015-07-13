@@ -48,8 +48,9 @@ allocating memory simply by removing allocation effects from its type.
 
 The Ivory effects system is implemented by a type-level tuple
 where each of the three effects correspond to a field of the
-tuple. Type equality constraints enforce that a particular effect is (or is not)
-allowed in a given function signature.
+tuple. As Ivory computations are always run with a concrete effect context, type
+equality constraints enforce that a particular effect is (or is not) allowed in
+a given setting.
 
 We use GHC's data kinds extension~\cite{data-kinds} to lift the following type
 declaration to a \emph{kind} declaration.
@@ -98,8 +99,10 @@ the particular effects in a context. For example, Ivory's \cd{break} statement
 has the type
 
 \begin{code}
-break :: (E.GetBreaks eff %*\mytilde*) E.Break) => Ivory eff ()
+break :: (GetBreaks eff %*\mytilde*) 'Break) => Ivory eff ()
 \end{code}
+which requires that the \cd{'Break} effect be present in the current effect
+context.
 
 \subsection{Types}
 \label{sec:types}
@@ -135,18 +138,18 @@ instance IvoryArea ...
 
 The \cd{IvoryVar} and \cd{IvoryExpr} class further stratify Ivory types that
 have values.  The \cd{IvoryVar} class, which is a superclass of \cd{IvoryExpr},
-describes all types that can have an Ivory expression extracted from them, as
-well as be created from a fresh name.  This roughly corresponds to types that
-can be used as an L-value in assignments as well as formal parameters.  The
-\cd{IvoryExpr} class includes types that can be constructed from full
-expressions, and corresponds to the set of types whose values can be used in the
-position of an R-value.  It might be tempting to say that the functionality of
-the \cd{IvoryVar} belongs in the \cd{IvoryType} class. However, Ivory has a void
-type (\cd{()}) so we do require this distinction to prevent void values from
-being created.  Most types used in Ivory provide instances for all three
-classes, \cd{IvoryType}, \cd{IvoryVar}, and \cd{IvoryExpr}, with only a few
-exceptions like \cd{()} defining a subset.  See Figure~\ref{fig:types} for the
-relationship between these classes.
+describes all types whose values can have an Ivory expression extracted from
+them, as well as be created from a fresh name.  This roughly corresponds to
+values that can be used as an L-value in assignments as well as formal
+parameters.  The \cd{IvoryExpr} class includes types whose values can be
+constructed from full expressions, and corresponds to the set of values that can
+be used in the position of an R-value.  It might be tempting to say that the
+functionality of the \cd{IvoryVar} belongs in the \cd{IvoryType} class.
+However, Ivory has a void type (\cd{()}) so we do require this distinction to
+prevent void values from being created.  Most types used in Ivory provide
+instances for all three classes, \cd{IvoryType}, \cd{IvoryVar}, and
+\cd{IvoryExpr}, with only a few exceptions like \cd{()} defining a subset.  See
+Figure~\ref{fig:types} for the relationship between these classes.
 
 
 \subsection{Memory Management}
@@ -170,7 +173,7 @@ top-level declaration, then converted to a reference through the use of the
 declaration, it also requires a symbol to use as the name of the allocated
 memory.  Data allocated within a procedure is allocated through the use of the
 \cd{local} function, and are tagged with the region of that function.  Since
-procedure definition introduces a fresh region, with the constraint that no
+each procedure definition introduces a fresh region, with the constraint that no
 reference allocated in that region should show up in the return type of that
 procedure, Ivory avoids the introduction of dangling pointers.  The embedding of
 this feature in Haskell will be described in more detail in
@@ -196,7 +199,7 @@ store :: IvoryStore a
 deref :: IvoryStore a
       => Ref s (Stored a) -> Ivory eff a
 
-data Label (struct :: Symbol) (area :: Area *)
+data Label (sym :: Symbol) (area :: Area *)
 (%*\mytilde*)>) :: Ref s (Struct sym) -> Label sym a -> Ref s a
 (!)  :: Ref s (Array n area) -> Ix n -> Ref s area
 
@@ -446,7 +449,9 @@ it \emph{cannot} appear in the type of the result, \cd{r}.  This
 prevents anything allocated within the implementation function from
 being returned, a source of dangling pointer bugs.  The same technique was
 used by Launchbury and Peyton Jones~\cite{stmonad} to prevent mutable state
-from leaking out of the context of the run function for the \cd{ST} monad.
+from leaking out of the context of the run function for the \cd{ST} monad, and
+by Kiselyov and Shan~\cite{lightweight-regions} for region-based resource
+management.
 
 For example, the procedure \cd{f} defined in Figure~\ref{fig:proc-def} will
 produce a type error, as it attempts to return a locally-allocated reference;
@@ -726,6 +731,6 @@ integer.\footnote{In practice, the C we generate does contain a warning, since
   it contains additional type annotations.} The result is a
 null-pointer dereference.
 
-To ensure this does not happen, a simple type-check pass over the Ivory AST is
-performed before compilation. The type-check pass ensures that the prototype of
-a function matches the types of the arguments.
+To ensure this does not happen, a simple consistency-check over the Ivory AST is
+performed before compilation. The consistency-check ensures that the prototype
+of a function matches the types of the arguments.
