@@ -154,5 +154,9 @@ outputProcSyms mods = putStrLn $ unwords $ concatMap go mods
 
 --------------------------------------------------------------------------------
 
+-- This is generated code, and sometimes, we have large expressions. In
+-- practice, this means that once the width is reached, one token is placed per
+-- line(!). So we'll make a high limit for width, somewhat ironically making
+-- generated C more readable.
 width :: Int
-width = 80
+width = 400
