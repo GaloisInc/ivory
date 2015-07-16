@@ -649,12 +649,12 @@
     not made or distributed for profit or commercial advantage and that copies
     bear this notice and the full citation on the first page. Copyrights for
     third-party components of this work must be honored. 
-    For all other uses, contact the owner/author(s). Copyright is held by the
-    author/owner(s).}%
+    For all other uses, contact the owner/author(s).}%
   \toappear{%
     \noindent \@permission \par
     \vspace{2pt}
     \noindent \textsl{\@conferencename}, \quad \@conferenceinfo. \par
+    \noindent Copyright is held by the owner/author(s). \par
     \noindent ACM \@copyrightdata.\par
     \noindent http://dx.doi.org/10.1145/\@doi}}
 
