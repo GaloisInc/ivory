@@ -700,7 +700,8 @@ Ivory~\cite{smaccm}, the error can take several minutes to detect.
 foo :: Def ('[Sint32] :-> Sint32)
 foo = proc "foo" $ \_ -> body $ ret 0
 
-fooInternal :: Def ('[Ref s (Stored Sint32)] :-> Sint32)
+fooInternal :: Def ('[Ref s (Stored Sint32)]
+                    :-> Sint32)
 fooInternal = proc "foo" $ \ref -> body $ do
  x <- deref ref
  ret x
