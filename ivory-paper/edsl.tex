@@ -133,14 +133,7 @@ Ivory programs are comprised of Haskell expressions and Haskell is
 pure--functions cannot depend on their call-site--so we must look outside the
 language proper to obtain source locations.
 
-A common approach for writing location-aware functions in Haskell, epitomized by
-the \cd{file-location} package~\cite{file-location}, is to use a Template
-Haskell splice to query the compiler for the current source location and insert
-it into the AST. This approach did not appeal to us as Template Haskell incurs
-considerable syntactic overhead and is incompatible with the concrete syntax
-described above.  
-
-Instead, we opted to write a compiler plugin that rewrites GHC's intermediate
+We opted to write a compiler plugin that rewrites GHC's intermediate
 representation to add the source locations. To do so, we extended the \cd{Ivory} statement type with a new
 \cd{Location} constructor that contains a location in the Haskell source,
 essentially a special type of comment. The plugin then extracts the source
