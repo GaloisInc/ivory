@@ -1,6 +1,7 @@
 
 module Ivory.Artifact.Template
   ( artifactCabalFileTemplate
+  , artifactCabalFileTemplate'
   ) where
 
 import Ivory.Artifact
@@ -10,13 +11,20 @@ import System.FilePath
 artifactCabalFileTemplate :: IO FilePath -> FilePath -> [(String, String)]
                           -> Artifact
 artifactCabalFileTemplate datadir templatepath attrs =
-  artifactTransformErrString applyconf af
+  artifactCabalFileTemplate' datadir templatepath outputpath attrs
   where
-  af = artifactFile outputpath (fmap (\f -> f </> templatepath) datadir)
   templatename = takeFileName templatepath
   outputpath = case splitExtension templatename of
     (a, ext) | ext == ".template" -> a
     _ -> templatename
+
+artifactCabalFileTemplate' :: IO FilePath -> FilePath -> FilePath -> [(String, String)]
+                          -> Artifact
+artifactCabalFileTemplate' datadir templatepath outputpath attrs =
+  artifactTransformErrString applyconf af
+  where
+  af = artifactFile outputpath (fmap (\f -> f </> templatepath) datadir)
+  templatename = takeFileName templatepath
 
   applyconf s =
     let t  = newSTMP s :: StringTemplate String
