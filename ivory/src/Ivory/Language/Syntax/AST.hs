@@ -183,7 +183,7 @@ data Stmt
     -- references are allocated separately to the stack-allocated data.
 
   | RefCopy Type Expr Expr
-    -- ^ Ref copy.  Copy the second variable reference to the fist (like
+    -- ^ Ref copy.  Copy the second variable reference to the first (like
     -- memcopy).  The type is the dereferenced value of the variables.
 
   | AllocRef Type Var Name

@@ -9,11 +9,11 @@ import qualified Ivory.Language.Syntax as AST
 
 -- Ivory Types -----------------------------------------------------------------
 
--- | The connection between haskell and ivory types.
+-- | The connection between Haskell and Ivory types.
 class IvoryType t where
   ivoryType :: Proxy t -> AST.Type
 
--- void
+-- | @void@ type
 instance IvoryType () where
   ivoryType _ = AST.TyVoid
 
@@ -22,7 +22,7 @@ class IvoryType t => IvoryVar t where
   wrapVar    :: AST.Var -> t
   unwrapExpr :: t -> AST.Expr
 
--- | Unwrapping for ivory expressions.
+-- | Unwrapping for Ivory expressions.
 class IvoryVar t => IvoryExpr t where
   wrapExpr   :: AST.Expr -> t
 
