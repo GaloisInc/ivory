@@ -27,12 +27,21 @@ import qualified Ivory.Language.Syntax as AST
 -- | The kind of procedures.
 data Proc k = [k] :-> k
 
+-- | Typeclass for procedure types, parametrized over the C procedure's
+-- signature, to produce a value representing their signature.
 class ProcType (sig :: Proc *) where
+
+  -- | Turn a type-level description of the signature into a (return
+  -- type, [argument types]) value.
   procType :: Proxy sig -> (AST.Type,[AST.Type])
 
+-- Base case: C procedure taking no arguments and returning an
+-- 'IvoryType'.
 instance IvoryType r => ProcType ('[] :-> r) where
   procType _ = (ivoryType (Proxy :: Proxy r),[])
 
+-- Inductive case: Anything in 'ProcType' is still in 'ProcType' if it
+-- has another 'IvoryType' argument prepended to its signature.
 instance (IvoryType a, ProcType (args :-> r))
       => ProcType ((a ': args) :-> r) where
   procType _ = (r, ivoryType (Proxy :: Proxy a) : args)
@@ -110,7 +119,8 @@ proc name impl = defproc
 -- procedure, but for void procedures there's often nothing to constrain
 -- the return type. This function is a type-constrained version of
 -- 'proc' that just forces the return type to be '()'.
-voidProc :: IvoryProcDef (args :-> ()) impl => AST.Sym -> impl -> Def (args :-> ())
+voidProc :: IvoryProcDef (args :-> ()) impl =>
+            AST.Sym -> impl -> Def (args :-> ())
 voidProc = proc
 
 
@@ -137,19 +147,30 @@ body m = Body m
 data Definition = Defined CodeBlock
                 | Imported FilePath [AST.Require] [AST.Ensure]
 
+-- | Typeclass for an Ivory procedure definition to produce ;
+-- the type is parametrized over:
+--
+--   * The procedure type 'proc', encoding the C procedure's signature
+--   via the 'Proc' kind,
+--   * The implementation type 'impl' - either 'Body' for the return
+--   value, or else a Haskell function type whose arguments correspond
+--   to the C arguments and whose return type is @Body r@ on the return
+--   type @r@.
 class ProcType proc => IvoryProcDef (proc :: Proc *) impl | impl -> proc where
   procDef :: Closure -> Proxy proc -> impl -> ([AST.Var], Definition)
 
+-- Base case: No arguments in C signature
 instance IvoryType ret => IvoryProcDef ('[] :-> ret) (Body ret) where
   procDef env _ b = (getEnv env, Defined (snd (primRunIvory (runBody b))))
 
+-- Inductive case: Remove first argument from C signature, and
+-- parametrize 'impl' over another argument of the same type.
 instance (IvoryVar a, IvoryProcDef (args :-> ret) k)
       => IvoryProcDef ((a ': args) :-> ret) (a -> k) where
   procDef env _ k = procDef env' (Proxy :: Proxy (args :-> ret)) (k arg)
     where
     (var,env') = genVar env
     arg        = wrapVar var
-
 
 -- | A variable name supply, and the typed values that have been generated.
 data Closure = Closure
@@ -226,11 +247,32 @@ indirect :: forall proc eff impl. IvoryCall proc eff impl
          => ProcPtr proc -> impl
 indirect ptr = callAux (getProcPtr ptr) (Proxy :: Proxy proc) []
 
+-- | Typeclass for something callable in Ivory (and returning a
+-- result).  Parameter 'proc' is the procedure type (encoding the
+-- arguments and return of the C procedure via the 'Proc' kind, as in
+-- 'IvoryProcDef'), parameter 'eff' is the effect context (which
+-- remains unchanged through the calls here), and parameter 'impl', as
+-- in 'IvoryProcDef', is the implementation type.
 class IvoryCall (proc :: Proc *) (eff :: E.Effects) impl
     | proc eff -> impl, impl -> eff where
+
+  -- | Recursive helper call.  'proc' encodes a C procedure type, and
+  -- this call has two main parts:
+  -- 
+  --   * If 'proc' contains arguments, then 'impl' must be a function
+  --   type causing this whole call to expect an Ivory value that was
+  --   passed in to apply to the C procedure.  In this case, 'proc' is
+  --   reduced by removing the first C argument from the type itself,
+  --   and the argument to 'impl' is accumulated onto the list of
+  --   typed expressions.
+  --   * If 'proc' contains no arguments, then this returns the Ivory
+  --   effect which calls the function with all the arguments in the
+  --   list applied to it, and captures and returns the result.
   callAux :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
 instance IvoryVar r => IvoryCall ('[] :-> r) eff (Ivory eff r) where
+  -- Base case ('proc' takes no arguments, 'impl' is just an Ivory
+  -- effect):
   callAux sym _ args = do
     r <- freshVar "r"
     emit (AST.Call (ivoryType (Proxy :: Proxy r)) (Just r) sym (reverse args))
@@ -238,6 +280,9 @@ instance IvoryVar r => IvoryCall ('[] :-> r) eff (Ivory eff r) where
 
 instance (IvoryVar a, IvoryVar r, IvoryCall (args :-> r) eff impl)
     => IvoryCall ((a ': args) :-> r) eff (a -> impl) where
+  -- Inductive case: note that 'proc' reduces from ((a ': args) :-> r)
+  -- down to (args :-> r) in the proxy, and that 'impl' is (a -> impl)
+  -- and we put that 'a' onto the list of arguments.  
   callAux sym _ args a = callAux sym rest args'
     where
     rest  = Proxy :: Proxy (args :-> r)
@@ -255,6 +300,8 @@ indirect_ :: forall proc eff impl. IvoryCall_ proc eff impl
           => ProcPtr proc -> impl
 indirect_ ptr = callAux_ (getProcPtr ptr) (Proxy :: Proxy proc) []
 
+-- | Typeclass for something callable in Ivory without a return value
+-- needed.  This is otherwise identical to 'IvoryCall'.
 class IvoryCall_ (proc :: Proc *) (eff :: E.Effects) impl
     | proc eff -> impl, impl -> eff
   where
