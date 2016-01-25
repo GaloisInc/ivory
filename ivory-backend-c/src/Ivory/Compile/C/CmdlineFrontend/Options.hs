@@ -48,7 +48,6 @@ data Opts = Opts
   -- ^ output directory for all files (or standard out).
   , outHdrDir   :: Maybe FilePath
   -- ^ if set, output directory for headers. Otherwise, use @outDir@.
-  -- optimization passes
   , outArtDir   :: Maybe FilePath
   -- ^ if set, output directory for artifacts. Otherwise, use @outDir@.
 
