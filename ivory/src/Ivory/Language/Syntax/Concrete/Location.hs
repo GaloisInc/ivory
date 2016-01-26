@@ -15,9 +15,9 @@ import Control.Monad (mplus)
 import Data.Function (on)
 import Data.List (foldl')
 import Data.Maybe (maybeToList)
-import Data.Monoid
-import Data.Foldable (Foldable, foldMap)
-import Data.Traversable
+import qualified Data.Monoid as M
+import qualified Data.Foldable as F
+import qualified Data.Traversable as T
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Pretty
@@ -30,21 +30,21 @@ class HasLocation a where
 
 instance HasLocation a => HasLocation [a] where
   {-# INLINE getLoc #-}
-  getLoc = foldMap getLoc
+  getLoc = F.foldMap getLoc
 
   {-# INLINE stripLoc #-}
   stripLoc = fmap stripLoc
 
 instance (HasLocation a, HasLocation b) => HasLocation (a,b) where
   {-# INLINE getLoc #-}
-  getLoc (a,b) = getLoc a <> getLoc b
+  getLoc (a,b) = getLoc a M.<> getLoc b
 
   {-# INLINE stripLoc #-}
   stripLoc (a,b) = (stripLoc a, stripLoc b)
 
 instance HasLocation a => HasLocation (Maybe a) where
   {-# INLINE getLoc #-}
-  getLoc = foldMap getLoc
+  getLoc = F.foldMap getLoc
 
   {-# INLINE stripLoc #-}
   stripLoc = fmap stripLoc
@@ -59,7 +59,7 @@ locEnd a = srcEnd (getLoc a)
 data Located a = Located
   { locRange :: !SrcLoc
   , locValue ::  a
-  } deriving (Show,Read,Functor,Ord,Eq,Foldable,Traversable)
+  } deriving (Show,Read,Functor,Ord,Eq,F.Foldable,T.Traversable)
 
 instance HasLocation (Located a) where
   {-# INLINE getLoc #-}
@@ -85,11 +85,11 @@ at a loc = Located
 -- | `at` helper for binary operators.
 atBin :: (HasLocation loc0, HasLocation loc1)
       => a -> loc0 -> loc1 -> Located a
-atBin a l0 l1 = a `at` (getLoc l0 <> getLoc l1)
+atBin a l0 l1 = a `at` (getLoc l0 M.<> getLoc l1)
 
 -- | `at` helper for list args.
 atList :: a -> [SrcLoc] -> Located a
-atList a locs = a `at` mconcat locs
+atList a locs = a `at` M.mconcat locs
 
 -- | Strip off location information.
 unLoc :: Located a -> a
@@ -97,7 +97,7 @@ unLoc  = locValue
 
 -- | Extend the range of a located thing.
 extendLoc :: SrcLoc -> Located a -> Located a
-extendLoc r loc = loc { locRange = locRange loc `mappend` r }
+extendLoc r loc = loc { locRange = locRange loc `M.mappend` r }
 
 -- Source Locations ------------------------------------------------------------
 
@@ -122,11 +122,11 @@ instance HasLocation SrcLoc where
   {-# INLINE stripLoc #-}
   stripLoc _ = NoLoc
 
-instance Monoid SrcLoc where
+instance M.Monoid SrcLoc where
   mempty = NoLoc
 
   -- widen source ranges, and prefer source names from the left
-  mappend (SrcLoc lr ls) (SrcLoc rr rs) = SrcLoc (mappend lr rr) (mplus ls rs)
+  mappend (SrcLoc lr ls) (SrcLoc rr rs) = SrcLoc (M.mappend lr rr) (mplus ls rs)
   mappend NoLoc          r              = r
   mappend l              NoLoc          = l
 
@@ -141,7 +141,7 @@ srcLoclinePragma srcloc = case srcloc of
 srcRange :: SrcLoc -> Range
 srcRange loc = case loc of
   SrcLoc r _ -> r
-  NoLoc      -> mempty
+  NoLoc      -> M.mempty
 
 -- | Starting Position of a 'SrcLoc'.
 srcStart :: SrcLoc -> Position
@@ -164,7 +164,7 @@ data Range = Range
   , rangeEnd   :: !Position
   } deriving (Show,Read,Eq,Ord)
 
-instance Monoid Range where
+instance M.Monoid Range where
   mempty = Range zeroPosition zeroPosition
 
   -- widen the range

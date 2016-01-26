@@ -10,7 +10,7 @@
 module Ivory.Language.Syntax.Concrete.ParseCore where
 
 import MonadLib
-import Control.Applicative ( Applicative(..) )
+import qualified Control.Applicative as A
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Location
@@ -29,7 +29,7 @@ initParserState ls =
 
 newtype Parser a = Parser
   { unParser :: StateT ParserState Id a
-  } deriving (Functor,Applicative,Monad)
+  } deriving (Functor,A.Applicative,Monad)
 
 -- | Run the parser over the file given.
 runParser :: [Lexeme] -> Parser a -> a

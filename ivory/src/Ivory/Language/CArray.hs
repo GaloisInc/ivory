@@ -18,7 +18,7 @@ import qualified Ivory.Language.Syntax as I
 
 --------------------------------------------------------------------------------
 
-instance IvoryArea a => IvoryArea (CArray a) where
+instance IvoryArea a => IvoryArea ('CArray a) where
   ivoryArea _ = I.TyCArray (ivoryArea (Proxy :: Proxy a))
 
 
@@ -27,15 +27,15 @@ class (IvoryArea area, IvoryArea rep)
   => ToCArray (area :: Area *) (rep :: Area *) | area -> rep
 
 instance (ANat len, ToCArray area rep)
-    => ToCArray (Array len area) (CArray rep)
-instance IvoryType a => ToCArray (Stored a) (Stored a)
-instance IvoryStruct sym => ToCArray (Struct sym) (Struct sym)
+    => ToCArray ('Array len area) ('CArray rep)
+instance IvoryType a => ToCArray ('Stored a) ('Stored a)
+instance IvoryStruct sym => ToCArray ('Struct sym) ('Struct sym)
 
 -- | Convert from a checked array to one that can be given to a c function.
 toCArray :: forall s len area rep ref.
             ( ANat len, ToCArray area rep, IvoryRef ref
-            , IvoryExpr (ref s (Array len area))
-            , IvoryExpr (ref s (CArray rep)))
-         => ref s (Array len area) -> ref s (CArray rep)
+            , IvoryExpr (ref s ('Array len area))
+            , IvoryExpr (ref s ('CArray rep)))
+         => ref s ('Array len area) -> ref s ('CArray rep)
 toCArray ref = wrapExpr $ I.ExpSafeCast ty (unwrapExpr ref)
-  where ty = ivoryType (Proxy :: Proxy (ref s (CArray rep)))
+  where ty = ivoryType (Proxy :: Proxy (ref s ('CArray rep)))

@@ -15,7 +15,7 @@ import Ivory.Language.Scope
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
-import Control.Applicative
+import qualified Control.Applicative as A
 
 import qualified MonadLib        as M
 import qualified MonadLib.Derive as M
@@ -31,21 +31,29 @@ areaInit_iso = M.Iso AreaInitM unAreaInitM
 
 instance Functor AreaInitM where
   fmap = M.derive_fmap areaInit_iso
+  {-# INLINE fmap #-}
 
-instance Applicative AreaInitM where
+instance A.Applicative AreaInitM where
   pure  = M.derive_pure areaInit_iso
   (<*>) = M.derive_apply areaInit_iso
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Monad AreaInitM where
-  return  = M.derive_return areaInit_iso
+  return  = A.pure
   (>>=)   = M.derive_bind   areaInit_iso
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance M.ReaderM AreaInitM String where
   ask = M.derive_ask areaInit_iso
+  {-# INLINE ask #-}
 
 instance M.StateM AreaInitM Int where
   get = M.derive_get areaInit_iso
   set = M.derive_set areaInit_iso
+  {-# INLINE get #-}
+  {-# INLINE set #-}
 
 instance FreshName AreaInitM where
   freshName s = do
@@ -141,7 +149,7 @@ importConstArea name header = ConstMemArea $ MemImport I.AreaImport
 
 -- | Turn a memory area into a reference.
 class IvoryAddrOf (mem :: Area * -> *) ref | mem -> ref, ref -> mem  where
-  addrOf :: IvoryArea area => mem area -> ref Global area
+  addrOf :: IvoryArea area => mem area -> ref 'Global area
 
 -- XXX do not export
 primAddrOf :: IvoryArea area => MemArea area -> I.Expr

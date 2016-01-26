@@ -34,7 +34,7 @@ instance IvoryArea area => IvoryExpr (Ptr s area) where
 instance IvoryArea area => IvoryEq (Ptr s area)
 
 -- Only allow global pointers to be stored in structures.
-instance IvoryArea a => IvoryStore (Ptr Global a)
+instance IvoryArea a => IvoryStore (Ptr 'Global a)
 
 nullPtr :: IvoryArea area => Ptr s area
 nullPtr  = Ptr (I.ExpLit I.LitNull)

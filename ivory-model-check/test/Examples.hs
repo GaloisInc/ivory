@@ -17,7 +17,7 @@ import qualified FibLoop
 -- import qualified FibTutorial
 import qualified Float
 -- import qualified Forever
-import qualified FunPtr
+-- import qualified FunPtr
 import qualified Overflow
 import qualified PID
 import qualified PublicPrivate

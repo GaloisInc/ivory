@@ -27,14 +27,14 @@ e = (4::Sint32) >? 3
 type SomeInt = Uint32
 
 macroStmts ::
-     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ Scope s)
+     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ 'Scope s)
   => a -> a -> Ivory eff ()
 macroStmts x y = do
   a <- local (ival 0)
   store a (x + y)
 
 macroStmtsRet ::
-     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ Scope s)
+     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ 'Scope s)
   => a -> a -> Ivory eff a
 macroStmtsRet x y = do
   a <- local (ival 0)

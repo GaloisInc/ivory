@@ -8,10 +8,22 @@ module Ivory.Serialize.PackRep where
 import Ivory.Language
 
 data PackRep t = PackRep
-  { packGetLE :: forall s0 s1 s2 r b. ConstRef s1 (CArray (Stored Uint8)) -> Uint32 -> Ref s2 t -> Ivory ('Effects r b (Scope s0)) ()
-  , packGetBE :: forall s0 s1 s2 r b. ConstRef s1 (CArray (Stored Uint8)) -> Uint32 -> Ref s2 t -> Ivory ('Effects r b (Scope s0)) ()
-  , packSetLE :: forall s0 s1 s2 r b. Ref s1 (CArray (Stored Uint8)) -> Uint32 -> ConstRef s2 t -> Ivory ('Effects r b (Scope s0)) ()
-  , packSetBE :: forall s0 s1 s2 r b. Ref s1 (CArray (Stored Uint8)) -> Uint32 -> ConstRef s2 t -> Ivory ('Effects r b (Scope s0)) ()
+  { packGetLE :: forall s0 s1 s2 r b.
+                 ConstRef s1 ('CArray ('Stored Uint8))
+              -> Uint32 -> Ref s2 t -> Ivory ('Effects r b ('Scope s0)) ()
+
+  , packGetBE :: forall s0 s1 s2 r b.
+                 ConstRef s1 ('CArray ('Stored Uint8))
+              -> Uint32 -> Ref s2 t -> Ivory ('Effects r b ('Scope s0)) ()
+
+  , packSetLE :: forall s0 s1 s2 r b.
+                 Ref s1 ('CArray ('Stored Uint8))
+              -> Uint32 -> ConstRef s2 t -> Ivory ('Effects r b ('Scope s0)) ()
+
+  , packSetBE :: forall s0 s1 s2 r b.
+                 Ref s1 ('CArray ('Stored Uint8))
+              -> Uint32 -> ConstRef s2 t -> Ivory ('Effects r b ('Scope s0)) ()
+
   , packSize :: Integer
   }
 
@@ -43,8 +55,8 @@ repack reget reset rep = PackRep
 repackV :: (IvoryZeroVal a, IvoryStore a, IvoryStore b)
         => (a -> b)
         -> (b -> a)
-        -> PackRep (Stored a)
-        -> PackRep (Stored b)
+        -> PackRep ('Stored a)
+        -> PackRep ('Stored b)
 repackV reget reset = repack (liftRef reget) (liftRef reset)
   where
   liftRef f src dst = do
@@ -64,16 +76,16 @@ wrapPackRep name rep = WrappedPackRep
        , packSetBE = call_ doSetBE })
   defs
   where
-  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] :-> ())
+  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] ':-> ())
   doGetLE = proc (name ++ "_get_le") $ \ buf offs base -> body $ packGetLE rep buf offs base
 
-  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] :-> ())
+  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] ':-> ())
   doGetBE = proc (name ++ "_get_be") $ \ buf offs base -> body $ packGetBE rep buf offs base
 
-  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] :-> ())
+  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] ':-> ())
   doSetLE = proc (name ++ "_set_le") $ \ buf offs base -> body $ packSetLE rep buf offs base
 
-  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] :-> ())
+  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] ':-> ())
   doSetBE = proc (name ++ "_set_be") $ \ buf offs base -> body $ packSetBE rep buf offs base
 
   defs = do

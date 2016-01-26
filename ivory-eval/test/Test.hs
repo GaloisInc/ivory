@@ -3,7 +3,9 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Main where
 
 import Ivory.Language
@@ -11,9 +13,11 @@ import Ivory.Language.Monad
 
 import Ivory.Eval
 
-import qualified Data.Map as Map
+#if __GLASGOW_HASKELL__ <= 708
 import Data.Monoid
+#endif
 
+import qualified Data.Map as Map
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -32,7 +36,7 @@ sumTest = testCase "sum" $ do
   let Right (_, EvalState st _ _)
         = runEvalStartingFrom (initState mempty)
         $ evalBlock $ blockStmts $ snd $ runIvory $ do
-            r <- local (izero :: Init (Stored Sint32))
+            r <- local (izero :: Init ('Stored Sint32))
             11 `times` \(i :: Ix 11) -> do -- sum [ 10 .. 0 ]
               v <- deref r
               store r (v + safeCast i)

@@ -14,7 +14,8 @@ import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
-import Data.Monoid(Monoid(..))
+
+import qualified Data.Monoid as M
 
 -- Effects ---------------------------------------------------------------------
 
@@ -22,13 +23,13 @@ import Data.Monoid(Monoid(..))
 --
 -- XXX do not export
 emitPreCond :: I.Require -> Ivory eff ()
-emitPreCond r = emits mempty { blockRequires = [r] }
+emitPreCond r = emits M.mempty { blockRequires = [r] }
 
 -- | Emit a post-condition.
 --
 -- XXX do not export
 emitPostCond :: I.Ensure -> Ivory eff ()
-emitPostCond e = emits mempty { blockEnsures = [e] }
+emitPostCond e = emits M.mempty { blockEnsures = [e] }
 
 -- Condition Notation ----------------------------------------------------------
 
@@ -45,8 +46,8 @@ checkStored' :: forall ref s a c.
      ( CheckStored c
      , IvoryVar a
      , IvoryRef ref
-     , IvoryVar (ref s (Stored a))
-     ) => (c -> Cond) -> ref s (Stored a) -> (a -> c) -> Cond
+     , IvoryVar (ref s ('Stored a))
+     ) => (c -> Cond) -> ref s ('Stored a) -> (a -> c) -> Cond
 checkStored' c ref prop = Cond $ do
   n <- freshVar "pre"
   let ty = ivoryType (Proxy :: Proxy a)
@@ -54,7 +55,8 @@ checkStored' c ref prop = Cond $ do
   return (I.CondDeref ty (unwrapExpr ref) n b)
 
 class CheckStored c where
-  checkStored :: (IvoryVar a, IvoryRef ref, IvoryVar (ref s (Stored a))) => ref s (Stored a) -> (a -> c) -> Cond
+  checkStored :: (IvoryVar a, IvoryRef ref, IvoryVar (ref s ('Stored a)))
+              => ref s ('Stored a) -> (a -> c) -> Cond
 
 instance CheckStored IBool where
   checkStored = checkStored' check

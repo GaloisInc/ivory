@@ -59,7 +59,7 @@ instance IvoryArea area => IvoryExpr (ConstRef s area) where
 -- Dereferencing ---------------------------------------------------------------
 
 class IvoryRef (ref ::  RefScope -> Area * -> *) where
-  unwrapRef :: IvoryVar a => ref s (Stored a) -> I.Expr
+  unwrapRef :: IvoryVar a => ref s ('Stored a) -> I.Expr
 
 instance IvoryRef Ref where
   unwrapRef = unwrapExpr
@@ -69,8 +69,8 @@ instance IvoryRef ConstRef where
 
 -- | Dereferenceing.
 deref :: forall eff ref s a.
-         (IvoryStore a, IvoryVar a, IvoryVar (ref s (Stored a)), IvoryRef ref)
-      => ref s (Stored a) -> Ivory eff a
+         (IvoryStore a, IvoryVar a, IvoryVar (ref s ('Stored a)), IvoryRef ref)
+      => ref s ('Stored a) -> Ivory eff a
 deref ref = do
   r <- freshVar "deref"
   emit (I.Deref (ivoryType (Proxy :: Proxy a)) r (unwrapRef ref))
@@ -88,7 +88,7 @@ refCopy destRef srcRef =
 
 -- Storing ---------------------------------------------------------------------
 
-store :: forall eff s a. IvoryStore a => Ref s (Stored a) -> a -> Ivory eff ()
+store :: forall eff s a. IvoryStore a => Ref s ('Stored a) -> a -> Ivory eff ()
 store ref a = emit (I.Store ty (unwrapExpr ref) (unwrapExpr a))
   where
   ty = ivoryType (Proxy :: Proxy a)

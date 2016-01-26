@@ -9,11 +9,7 @@ module RingBuffer where
 
 import           GHC.TypeLits
 import           Ivory.Language
-import qualified Ivory.Language.Syntax.AST as I
-import           Ivory.Language.Type
-import           Ivory.ModelCheck
 import           Ivory.Stdlib
--- import Ivory.Tower
 
 data RingBuffer (n :: Nat) a =
   RingBuffer
@@ -42,61 +38,63 @@ ringBuffer s = RingBuffer
   , ringbuffer_moddef = do
       incl push_proc
       incl pop_proc
-      defMemArea insert_area
-      defMemArea remove_area
-      defMemArea buf_area
+      defMemArea insert_area'
+      defMemArea remove_area'
+      defMemArea buf_area'
   }
   where
   named n = s ++ "_ringbuffer_" ++ n
 
-  remove_area :: MemArea (Stored (Ix n))
-  remove_area = area (named "remove") (Just (ival 0))
-  remove = addrOf remove_area
-  insert_area :: MemArea (Stored (Ix n))
-  insert_area = area (named "insert") (Just (ival 0))
-  insert = addrOf insert_area
-  buf_area :: MemArea (Array n a)
-  buf_area = area (named "buf") Nothing
-  buf = addrOf buf_area
+  remove_area' :: MemArea ('Stored (Ix n))
+  remove_area' = area (named "remove") (Just (ival 0))
+  remove' = addrOf remove_area'
 
-  incr :: (GetAlloc eff ~ Scope s')
-       => Ref s (Stored (Ix n)) -> Ivory eff (Ix n)
+  insert_area' :: MemArea ('Stored (Ix n))
+  insert_area' = area (named "insert") (Just (ival 0))
+  insert' = addrOf insert_area'
+
+  buf_area' :: MemArea ('Array n a)
+  buf_area' = area (named "buf") Nothing
+  buf' = addrOf buf_area'
+
+  incr :: (GetAlloc eff ~ 'Scope s')
+       => Ref s ('Stored (Ix n)) -> Ivory eff (Ix n)
   incr ix = do
     i <- deref ix
     ifte (i ==? (fromIntegral ((ixSize i) - 1)))
       (return 0)
       (return (i + 1))
 
-  full :: (GetAlloc eff ~ Scope s') => Ivory eff IBool
+  full :: (GetAlloc eff ~ 'Scope s') => Ivory eff IBool
   full = do
-    i <- incr insert
-    r <- deref remove
+    i <- incr insert'
+    r <- deref remove'
     return (i ==? r)
 
-  empty :: Ivory eff IBool
-  empty = do
-    i <- deref insert
-    r <- deref remove
+  isEmpty' :: Ivory eff IBool
+  isEmpty' = do
+    i <- deref insert'
+    r <- deref remove'
     return (i ==? r)
 
-  push_proc :: Def('[ConstRef s a]:->IBool)
+  push_proc :: Def('[ConstRef s a] ':-> IBool)
   push_proc = proc (named "push") $ \v ->
    -- requires/ensures in terms of hidden state?
    body $ do
     f <- full
     ifte_ f (ret false) $ do
-      i <- deref insert
-      refCopy (buf ! i) v
-      incr insert >>= store insert
+      i <- deref insert'
+      refCopy (buf' ! i) v
+      incr insert' >>= store insert'
       ret true
 
-  pop_proc :: Def('[Ref s a]:->IBool)
+  pop_proc :: Def('[Ref s a] ':-> IBool)
   pop_proc = proc (named "pop") $ \v -> body $ do
-    e <- empty
+    e <- isEmpty'
     ifte_ e (ret false) $ do
-      r <- deref remove
-      refCopy v (buf ! r)
-      incr remove >>= store remove
+      r <- deref remove'
+      refCopy v (buf' ! r)
+      incr remove' >>= store remove'
       ret true
 
 --------------------------------------------------------------------------------
@@ -104,50 +102,54 @@ ringBuffer s = RingBuffer
 --------------------------------------------------------------------------------
 
 -- A `RingBuffer n a` can hold `n-1` values!
-queue :: RingBuffer 3 (Stored Uint8)
+queue :: RingBuffer 3 ('Stored Uint8)
 queue = ringBuffer "queue"
 
-remove_area :: MemArea (Stored (Ix 3))
+remove_area :: MemArea ('Stored (Ix 3))
 remove_area = area "queue_ringbuffer_remove" (Just (ival 0))
-remove = addrOf remove_area
-insert_area :: MemArea (Stored (Ix 3))
+
+remove :: Ref 'Global ('Stored (Ix 3))
+remove  = addrOf remove_area
+
+insert_area :: MemArea ('Stored (Ix 3))
 insert_area = area "queue_ringbuffer_insert" (Just (ival 0))
-insert = addrOf insert_area
+
+insert :: Ref 'Global ('Stored (Ix 3))
+insert  = addrOf insert_area
 
 bounded :: ANat n => Ix n -> IBool
 bounded x = x >=? 0 .&& x <=? (fromIntegral $ ixSize x - 1)
 
-empty :: ANat n => Ix n -> Ix n -> IBool
-empty i r = i' ==? r'
+isEmpty :: ANat n => Ix n -> Ix n -> IBool
+isEmpty i r = i' ==? r'
   where
   i' = fromIx i
   r' = fromIx r
 
-push_pop_inv :: Def('[ConstRef s (Stored Uint8), ConstRef s (Stored Uint8)]:->())
+push_pop_inv :: Def('[ConstRef s ('Stored Uint8), ConstRef s ('Stored Uint8)] ':-> ())
 push_pop_inv = proc "push_pop_inv" $ \x y ->
   -- assume buffer is empty to start
   requires (checkStored insert (\i -> checkStored remove (\r ->
-     empty i r .&& bounded i .&& bounded r))) $
+     isEmpty i r .&& bounded i .&& bounded r))) $
   body $ do
     o <- local izero
+
+    let test ref =
+          do xv <- deref ref
+             ov <- deref o
+             assert (xv ==? ov)
 
     assert =<< ringbuffer_push queue x
     assert =<< ringbuffer_push queue y
     assert =<< ringbuffer_pop  queue o
-    xv <- deref x
-    ov <- deref o
-    assert (xv ==? ov)
+    test x
 
     assert =<< ringbuffer_push queue x
     assert =<< ringbuffer_pop  queue o
-    yv <- deref y
-    ov <- deref o
-    assert (yv ==? ov)
+    test y
 
     assert =<< ringbuffer_pop  queue o
-    xv <- deref x
-    ov <- deref o
-    assert (xv ==? ov)
+    test x
 
 testModule :: Module
 testModule = package "ringbuffer" $ do

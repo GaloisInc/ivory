@@ -8,9 +8,12 @@ import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Names
 import Ivory.Language.Syntax.Type
 
-import Data.Monoid (Monoid(..))
+import qualified Data.Monoid as M
 import Language.Haskell.TH.Lift (deriveLiftMany)
+
+#if __GLASGOW_HASKELL__ < 709
 import Language.Haskell.TH.Syntax (Lift(..))
+#endif
 
 import Data.Ratio (denominator, numerator)
 import qualified Data.Set as Set
@@ -27,7 +30,7 @@ data Visible a = Visible
   , private :: [a]
   } deriving (Show, Eq, Ord)
 
-instance Monoid (Visible a) where
+instance M.Monoid (Visible a) where
   mempty                                  = Visible [] []
   mappend (Visible l0 l1) (Visible m0 m1) = Visible (l0 ++ m0) (l1 ++ m1)
 
@@ -49,29 +52,29 @@ data Module = Module
   , modAreaImports :: [AreaImport]
   } deriving (Show, Eq, Ord)
 
-instance Monoid Module where
+instance M.Monoid Module where
   mempty = Module
     { modName        = ""
     , modHeaders     = Set.empty
     , modDepends     = Set.empty
     , modExterns     = []
     , modImports     = []
-    , modProcs       = mempty
-    , modStructs     = mempty
-    , modAreas       = mempty
+    , modProcs       = M.mempty
+    , modStructs     = M.mempty
+    , modAreas       = M.mempty
     , modAreaImports = []
     }
 
   mappend l r = Module
     { modName        = modName (if null (modName l) then r else l)
-    , modHeaders     = modHeaders     l `mappend` modHeaders     r
-    , modDepends     = modDepends     l `mappend` modDepends     r
-    , modExterns     = modExterns     l `mappend` modExterns     r
-    , modImports     = modImports     l `mappend` modImports     r
-    , modProcs       = modProcs       l `mappend` modProcs       r
-    , modStructs     = modStructs     l `mappend` modStructs     r
-    , modAreas       = modAreas       l `mappend` modAreas       r
-    , modAreaImports = modAreaImports l `mappend` modAreaImports r
+    , modHeaders     = modHeaders     l `M.mappend` modHeaders     r
+    , modDepends     = modDepends     l `M.mappend` modDepends     r
+    , modExterns     = modExterns     l `M.mappend` modExterns     r
+    , modImports     = modImports     l `M.mappend` modImports     r
+    , modProcs       = modProcs       l `M.mappend` modProcs       r
+    , modStructs     = modStructs     l `M.mappend` modStructs     r
+    , modAreas       = modAreas       l `M.mappend` modAreas       r
+    , modAreaImports = modAreaImports l `M.mappend` modAreaImports r
     }
 
 -- Imported Functions ----------------------------------------------------------

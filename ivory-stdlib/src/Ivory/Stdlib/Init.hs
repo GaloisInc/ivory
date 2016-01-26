@@ -9,7 +9,7 @@ import Ivory.Language
 -- ScopedTypeVariables extension in Ivory code.
 izerolen :: (IvoryArea area, IvoryZero area, ANat bound)
          => Proxy bound
-         -> Init (Array bound area)
+         -> Init ('Array bound area)
 izerolen _ = izero
 
 -- | Variant of 'iarray' that constrains the length of the array to
@@ -18,5 +18,5 @@ izerolen _ = izero
 iarraylen :: (IvoryArea area, IvoryZero area, ANat bound)
           => Proxy bound
           -> [Init area]
-          -> Init (Array bound area)
+          -> Init ('Array bound area)
 iarraylen _ = iarray

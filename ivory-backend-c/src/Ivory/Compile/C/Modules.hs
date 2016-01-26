@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE CPP #-}
 
 module Ivory.Compile.C.Modules where
 
@@ -12,9 +13,12 @@ import qualified Ivory.Language.Syntax.AST as I
 import Ivory.Compile.C.Gen
 import Ivory.Compile.C.Types
 
+#if __GLASGOW_HASKELL__ <= 708
+import Control.Applicative ((<$>))
+#endif
+
 import Data.Char (toUpper)
 import Data.Version (showVersion)
-import Control.Applicative ((<$>))
 import qualified Data.Set as S
 import Control.Monad
 import System.FilePath.Posix ((<.>)) -- Always use posix convention in C code

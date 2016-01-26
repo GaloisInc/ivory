@@ -13,8 +13,8 @@ module Ivory.Stdlib.Control
 import Ivory.Language
 
 ifte :: ( IvoryStore a
-        , IvoryZero (Stored a)
-        , GetAlloc eff ~ Scope s
+        , IvoryZero ('Stored a)
+        , GetAlloc eff ~ 'Scope s
         ) => IBool
           -> Ivory eff a
           -> Ivory eff a
@@ -75,8 +75,8 @@ cond_ [] = return ()
 cond_ ((Cond b f):cs) = ifte_ b f (cond_ cs)
 
 cond :: ( IvoryStore a
-        , IvoryZero (Stored a)
-        , GetAlloc eff ~ Scope s
+        , IvoryZero ('Stored a)
+        , GetAlloc eff ~ 'Scope s
         ) => [Cond eff a] -> Ivory eff a
 cond as = do
   r <- local izero

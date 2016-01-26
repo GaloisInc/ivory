@@ -1,8 +1,11 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE CPP #-}
 
 module Ivory.Compile.C.CmdlineFrontend.Options where
 
+#if __GLASGOW_HASKELL__ <= 708
 import Data.Monoid (Monoid(..),mconcat)
+#endif
+
 import System.Console.GetOpt
     (ArgOrder(Permute),OptDescr(..),ArgDescr(..),getOpt,usageInfo)
 
@@ -12,6 +15,7 @@ import System.Exit (exitFailure,exitSuccess)
 -- Option Parsing --------------------------------------------------------------
 
 data OptParser opt = OptParser [String] (opt -> opt)
+
 instance Monoid (OptParser opt) where
   mempty = OptParser [] id
   -- left-to-right composition makes the last option parsed take precedence

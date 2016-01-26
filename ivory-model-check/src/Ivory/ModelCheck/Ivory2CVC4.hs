@@ -4,11 +4,16 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP #-}
+
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
+#if __glasgow_haskell__ <= 708
 import           Control.Applicative
+#endif
+
 import           Control.Monad
 import           Data.List              (nub)
 import qualified Data.Map               as M
@@ -339,6 +344,7 @@ toExpr t exp = case exp of
   I.ExpMaxMin True           -> return $ intLit $ fromJust $ I.toMaxSize t
   I.ExpMaxMin False          -> return $ intLit $ fromJust $ I.toMinSize t
   I.ExpSizeOf _ty            -> error "Ivory.ModelCheck.Ivory2CVC4.toExpr: FIXME: handle sizeof expressions"
+  I.ExpExtern _              -> error "Ivory.ModelCheck.Ivory2CVC4.toExpr: can't handle external symbols"
 
 --------------------------------------------------------------------------------
 
@@ -631,6 +637,7 @@ subst su = loop
     I.ExpAddrOfGlobal{}    -> e
     I.ExpMaxMin{}          -> e
     I.ExpSizeOf{}          -> e
+    I.ExpExtern{}          -> e
 
 queryEnsures :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 queryEnsures ens t retE = forM_ ens $ \e -> addQuery =<< toEnsure e

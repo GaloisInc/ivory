@@ -37,16 +37,16 @@ class ProcType (sig :: Proc *) where
 
 -- Base case: C procedure taking no arguments and returning an
 -- 'IvoryType'.
-instance IvoryType r => ProcType ('[] :-> r) where
+instance IvoryType r => ProcType ('[] ':-> r) where
   procType _ = (ivoryType (Proxy :: Proxy r),[])
 
 -- Inductive case: Anything in 'ProcType' is still in 'ProcType' if it
 -- has another 'IvoryType' argument prepended to its signature.
-instance (IvoryType a, ProcType (args :-> r))
-      => ProcType ((a ': args) :-> r) where
+instance (IvoryType a, ProcType (args ':-> r))
+      => ProcType ((a ': args) ':-> r) where
   procType _ = (r, ivoryType (Proxy :: Proxy a) : args)
     where
-    (r,args) = procType (Proxy :: Proxy (args :-> r))
+    (r,args) = procType (Proxy :: Proxy (args ':-> r))
 
 
 -- Function Pointers -----------------------------------------------------------
@@ -119,8 +119,8 @@ proc name impl = defproc
 -- procedure, but for void procedures there's often nothing to constrain
 -- the return type. This function is a type-constrained version of
 -- 'proc' that just forces the return type to be '()'.
-voidProc :: IvoryProcDef (args :-> ()) impl =>
-            AST.Sym -> impl -> Def (args :-> ())
+voidProc :: IvoryProcDef (args ':-> ()) impl =>
+            AST.Sym -> impl -> Def (args ':-> ())
 voidProc = proc
 
 
@@ -160,14 +160,14 @@ class ProcType proc => IvoryProcDef (proc :: Proc *) impl | impl -> proc where
   procDef :: Closure -> Proxy proc -> impl -> ([AST.Var], Definition)
 
 -- Base case: No arguments in C signature
-instance IvoryType ret => IvoryProcDef ('[] :-> ret) (Body ret) where
+instance IvoryType ret => IvoryProcDef ('[] ':-> ret) (Body ret) where
   procDef env _ b = (getEnv env, Defined (snd (primRunIvory (runBody b))))
 
 -- Inductive case: Remove first argument from C signature, and
 -- parametrize 'impl' over another argument of the same type.
-instance (IvoryVar a, IvoryProcDef (args :-> ret) k)
-      => IvoryProcDef ((a ': args) :-> ret) (a -> k) where
-  procDef env _ k = procDef env' (Proxy :: Proxy (args :-> ret)) (k arg)
+instance (IvoryVar a, IvoryProcDef (args ':-> ret) k)
+      => IvoryProcDef ((a ': args) ':-> ret) (a -> k) where
+  procDef env _ k = procDef env' (Proxy :: Proxy (args ':-> ret)) (k arg)
     where
     (var,env') = genVar env
     arg        = wrapVar var
@@ -229,7 +229,7 @@ instance WrapIvory ImportFrom where
 importFrom :: String -> ImportFrom a
 importFrom h = ImportFrom (return h)
 
-instance IvoryType ret => IvoryProcDef ('[] :-> ret) (ImportFrom ret) where
+instance IvoryType ret => IvoryProcDef ('[] ':-> ret) (ImportFrom ret) where
   procDef env _ b = (getEnv env, Imported header reqs ens)
     where
     (header, block) = primRunIvory (runImportFrom b)
@@ -270,7 +270,7 @@ class IvoryCall (proc :: Proc *) (eff :: E.Effects) impl
   --   list applied to it, and captures and returns the result.
   callAux :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
-instance IvoryVar r => IvoryCall ('[] :-> r) eff (Ivory eff r) where
+instance IvoryVar r => IvoryCall ('[] ':-> r) eff (Ivory eff r) where
   -- Base case ('proc' takes no arguments, 'impl' is just an Ivory
   -- effect):
   callAux sym _ args = do
@@ -278,14 +278,14 @@ instance IvoryVar r => IvoryCall ('[] :-> r) eff (Ivory eff r) where
     emit (AST.Call (ivoryType (Proxy :: Proxy r)) (Just r) sym (reverse args))
     return (wrapVar r)
 
-instance (IvoryVar a, IvoryVar r, IvoryCall (args :-> r) eff impl)
-    => IvoryCall ((a ': args) :-> r) eff (a -> impl) where
-  -- Inductive case: note that 'proc' reduces from ((a ': args) :-> r)
-  -- down to (args :-> r) in the proxy, and that 'impl' is (a -> impl)
+instance (IvoryVar a, IvoryVar r, IvoryCall (args ':-> r) eff impl)
+    => IvoryCall ((a ': args) ':-> r) eff (a -> impl) where
+  -- Inductive case: note that 'proc' reduces from ((a ': args) ':-> r)
+  -- down to (args ':-> r) in the proxy, and that 'impl' is (a -> impl)
   -- and we put that 'a' onto the list of arguments.  
   callAux sym _ args a = callAux sym rest args'
     where
-    rest  = Proxy :: Proxy (args :-> r)
+    rest  = Proxy :: Proxy (args ':-> r)
     args' = typedExpr a : args
 
 
@@ -307,22 +307,22 @@ class IvoryCall_ (proc :: Proc *) (eff :: E.Effects) impl
   where
   callAux_ :: AST.Name -> Proxy proc -> [AST.Typed AST.Expr] -> impl
 
-instance IvoryType r => IvoryCall_ ('[] :-> r) eff (Ivory eff ()) where
+instance IvoryType r => IvoryCall_ ('[] ':-> r) eff (Ivory eff ()) where
   callAux_ sym _ args = do
     emit (AST.Call (ivoryType (Proxy :: Proxy r)) Nothing sym (reverse args))
 
-instance (IvoryVar a, IvoryType r, IvoryCall_ (args :-> r) eff impl)
-    => IvoryCall_ ((a ': args) :-> r) eff (a -> impl) where
+instance (IvoryVar a, IvoryType r, IvoryCall_ (args ':-> r) eff impl)
+    => IvoryCall_ ((a ': args) ':-> r) eff (a -> impl) where
   callAux_ sym _ args a = callAux_ sym rest args'
     where
-    rest  = Proxy :: Proxy (args :-> r)
+    rest  = Proxy :: Proxy (args ':-> r)
     args' = typedExpr a : args
 
 -- Return ----------------------------------------------------------------------
 -- | Primitive return from function.
-ret :: (GetReturn eff ~ Returns r, IvoryVar r) => r -> Ivory eff ()
+ret :: (GetReturn eff ~ 'Returns r, IvoryVar r) => r -> Ivory eff ()
 ret r = emit (AST.Return (typedExpr r))
 
 -- | Primitive void return from function.
-retVoid :: (GetReturn eff ~ Returns ()) => Ivory eff ()
+retVoid :: (GetReturn eff ~ 'Returns ()) => Ivory eff ()
 retVoid  = emit AST.ReturnVoid

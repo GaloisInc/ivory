@@ -16,8 +16,6 @@ import           Prelude hiding (exp, init)
 import Data.List (nub)
 import Control.Monad
 
-import Ivory.Language.Syntax.Concrete.QQ.Common
-
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
 import           Language.Haskell.TH.Quote()
@@ -37,9 +35,7 @@ import qualified Ivory.Language.Array     as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Location
-#if __GLASGOW_HASKELL__ >= 709
 import Ivory.Language.Syntax.Concrete.QQ.Common
-#endif
 
 --------------------------------------------------------------------------------
 -- Haskell type synonyms

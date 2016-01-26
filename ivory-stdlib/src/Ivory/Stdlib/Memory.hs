@@ -14,11 +14,11 @@ import Ivory.Stdlib.Control
 
 -- | handy shorthand for transfering members
 resultInto :: IvoryStore a =>
-     Ivory eff a -> Ref s (Stored a) -> Ivory eff ()
+     Ivory eff a -> Ref s ('Stored a) -> Ivory eff ()
 resultInto a b = store b =<< a
 
 into :: IvoryStore a =>
-     Ref s (Stored a) -> Ref s' (Stored a) -> Ivory eff ()
+     Ref s ('Stored a) -> Ref s' ('Stored a) -> Ivory eff ()
 into a b = store b =<< deref a
 
 -- XXX Belongs with Pack.hs and SafePack.hs.
@@ -31,12 +31,12 @@ into a b = store b =<< deref a
 -- @end@ equal 'arrayLen from'.
 arrayCopy ::
            ( ANat n, ANat m, IvoryRef r
-           , IvoryExpr (r s2 (Array m (Stored t)))
-           , IvoryExpr (r s2 (Stored t))
+           , IvoryExpr (r s2 ('Array m ('Stored t)))
+           , IvoryExpr (r s2 ('Stored t))
            , IvoryStore t
            )
-        => Ref s1 (Array n (Stored t))
-        -> r s2 (Array m (Stored t))
+        => Ref s1 ('Array n ('Stored t))
+        -> r s2 ('Array m ('Stored t))
         -> Sint32
         -> Sint32
         -> Ivory eff ()

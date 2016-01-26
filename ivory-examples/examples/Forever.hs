@@ -6,7 +6,7 @@ module Forever where
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
-factorial :: Def ('[Sint32] :-> Sint32)
+factorial :: Def ('[Sint32] ':-> Sint32)
 factorial  = proc "factorial" $ \ n ->
   -- These are made up requires/ensures for testing purposes.
   ensures (\r -> n <? r) $ body $ do
@@ -17,10 +17,10 @@ factorial  = proc "factorial" $ \ n ->
     (do ret n
     )
 
-printResult :: Def ('[Sint32] :-> ())
+printResult :: Def ('[Sint32] ':-> ())
 printResult = proc "print_result" $ \_ -> body retVoid
 
-foreverFactorial :: Def ('[Sint32] :-> ())
+foreverFactorial :: Def ('[Sint32] ':-> ())
 foreverFactorial = proc "forever_factorial" $ \ n -> body $ do
   forever $ do
     res <- call factorial n

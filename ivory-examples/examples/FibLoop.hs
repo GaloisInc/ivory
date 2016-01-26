@@ -3,19 +3,22 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE CPP #-}
 
 module FibLoop where
 
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
 
+#if __GLASGOW_HASKELL__ <= 708
 import Control.Applicative ((<$>),(<*>))
+#endif
 
 -- Recursive implementation of fib
-fib_rec :: Def ('[Uint32] :-> Uint64)
+fib_rec :: Def ('[Uint32] ':-> Uint64)
 fib_rec  = proc "fib_rec" (\n -> body (ret =<< call fib_rec_aux 0 1 n))
 
-fib_rec_aux :: Def ('[Uint32,Uint32,Uint32] :-> Uint64)
+fib_rec_aux :: Def ('[Uint32,Uint32,Uint32] ':-> Uint64)
 fib_rec_aux  = proc "fib_rec_aux" $ \ a b n -> body $ do
   ifte_ (n ==? 0)
     (ret (safeCast a))
@@ -23,7 +26,7 @@ fib_rec_aux  = proc "fib_rec_aux" $ \ a b n -> body $ do
 
 -- Loop implementation of fib.
 
-fib_loop :: Def ('[Ix 1000] :-> Uint32)
+fib_loop :: Def ('[Ix 1000] ':-> Uint32)
 fib_loop  = proc "fib_loop" $ \ n -> body $ do
   a <- local (ival 0)
   b <- local (ival 1)
@@ -50,7 +53,7 @@ struct Fibstate
   }
 |]
 
-fib_struct_loop :: Def ('[Ix 1000] :-> Uint32)
+fib_struct_loop :: Def ('[Ix 1000] ':-> Uint32)
 fib_struct_loop  = proc "fib_struct_loop" $ \ n -> body $ do
   state <- local (istruct [ sa .= ival 0 , sb .= ival 0 ])
 

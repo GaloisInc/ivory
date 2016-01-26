@@ -18,7 +18,7 @@ import qualified Ivory.Language.Syntax as AST
 
 --------------------------------------------------------------------------------
 
-breakOut :: (E.GetBreaks eff ~ E.Break) => Ivory eff ()
+breakOut :: (E.GetBreaks eff ~ 'E.Break) => Ivory eff ()
 breakOut = emit AST.Break
 
 -- XXX don't export.

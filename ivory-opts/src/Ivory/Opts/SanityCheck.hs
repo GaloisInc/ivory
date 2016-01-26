@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE CPP #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -23,9 +24,12 @@ module Ivory.Opts.SanityCheck
   , render
   ) where
 
+#if __GLASGOW_HASKELL__ <= 708
 import           Control.Applicative                     hiding (empty)
-import qualified Data.Map                                as M
 import           Data.Monoid                             hiding ((<>))
+#endif
+
+import qualified Data.Map                                as M
 import           MonadLib.Monads
 import           Text.PrettyPrint
 

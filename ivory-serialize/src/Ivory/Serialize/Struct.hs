@@ -13,7 +13,7 @@ import Ivory.Serialize.PackRep
 labelPackRep :: Packable t => Label sym t -> PackRep t
 labelPackRep _ = packRep
 
-newtype PackLabel sym = PackLabel (PackRep (Struct sym))
+newtype PackLabel sym = PackLabel (PackRep ('Struct sym))
 
 packLabel :: (IvoryStruct sym, IvoryArea t, Packable t) => Label sym t -> PackLabel sym
 packLabel label = packLabel' label $ labelPackRep label
@@ -27,7 +27,7 @@ packLabel' label rep = PackLabel $ PackRep
   , packSize = packSize rep
   }
 
-packStruct :: [PackLabel sym] -> PackRep (Struct sym)
+packStruct :: [PackLabel sym] -> PackRep ('Struct sym)
 packStruct labels = PackRep
   { packGetLE = foldPackLabels packGetLE labels
   , packGetBE = foldPackLabels packGetBE labels
@@ -36,7 +36,10 @@ packStruct labels = PackRep
   , packSize = sum $ map (\ (PackLabel rep) -> packSize rep) labels
   }
 
-foldPackLabels :: Monad m => (PackRep (Struct str) -> buf -> Uint32 -> strref -> m ()) -> [PackLabel str] -> buf -> Uint32 -> strref -> m ()
+foldPackLabels :: Monad m
+               => (PackRep ('Struct str) -> buf -> Uint32 -> strref -> m ())
+               -> [PackLabel str] -> buf -> Uint32 -> strref
+               -> m ()
 foldPackLabels f labels buf base str = foldl once (return 0) labels >> return ()
   where
   once m (PackLabel rep) = do

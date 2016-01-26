@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE CPP #-}
 
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
@@ -42,7 +43,10 @@
 
 module Ivory.QuickCheck (check, checkWith, contract) where
 
+#if __GLASGOW_HASKELL__ <= 708
 import           Control.Applicative
+#endif
+
 import           Control.Monad
 import           Data.IORef
 import           Data.List
@@ -68,7 +72,7 @@ checkWith :: Int                  -- ^ The number of inputs to generate.
           -> Opts                 -- ^ Options to pass to the Ivory compiler.
           -> [Module]             -- ^ Modules we need to have in scope.
           -> Module               -- ^ The defining module.
-          -> Def (args :-> IBool) -- ^ The property to check.
+          -> Def (args ':-> IBool) -- ^ The property to check.
           -> IO ()
 checkWith n opts deps m prop@(DefProc p) = do
   inputs <- sampleProc m p n
@@ -91,13 +95,13 @@ checkWith _ _ _ _ _ = error "I can only check normal Ivory procs!"
 check :: Int                  -- ^ The number of inputs to generate.
       -> [Module]             -- ^ Modules we need to have in scope.
       -> Module               -- ^ The defining module.
-      -> Def (args :-> IBool) -- ^ The property to check.
+      -> Def (args ':-> IBool) -- ^ The property to check.
       -> IO ()
 check n deps m p = checkWith n (initialOpts { outDir = Just "test"}) deps m p
 
 -- | Make a @check@able property from an arbitrary Ivory procedure. The
 -- property will simply check that the contracts are satisfied.
-contract :: Def (args :-> res) -> Def (args :-> IBool)
+contract :: Def (args ':-> res) -> Def (args ':-> IBool)
 contract (DefProc (I.Proc {..}))
   = DefProc I.Proc
       { I.procSym = procSym ++ "__contract_check"

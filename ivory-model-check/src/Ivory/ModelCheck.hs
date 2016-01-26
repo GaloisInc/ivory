@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE CPP #-}
 
 module Ivory.ModelCheck where
 
@@ -11,11 +12,14 @@ import           Ivory.ModelCheck.Ivory2CVC4
 import           Ivory.ModelCheck.Monad
 import           Ivory.ModelCheck.CVC4
 
+#if __GLASGOW_HASKELL__ <= 708
+import           Control.Applicative
+#endif
+
 import           System.FilePath.Posix
 import           System.Directory
 import           System.Process
 import           System.IO
-import           Control.Applicative
 import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 import           Data.List

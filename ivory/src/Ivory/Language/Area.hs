@@ -30,12 +30,12 @@ class IvoryArea (a :: Area *) where
   ivoryArea :: Proxy a -> I.Type
 
 instance (ANat len, IvoryArea area)
-      => IvoryArea (Array len area) where
+      => IvoryArea ('Array len area) where
   ivoryArea _ = I.TyArr len area
     where
     len  = fromInteger (fromTypeNat (aNat :: NatType len))
     area = ivoryArea (Proxy :: Proxy area)
 
-instance IvoryType a => IvoryArea (Stored a) where
+instance IvoryType a => IvoryArea ('Stored a) where
   ivoryArea _ = ivoryType (Proxy :: Proxy a)
 

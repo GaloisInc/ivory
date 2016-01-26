@@ -19,10 +19,10 @@ data PPMDecoder =
     { ppmd_init       :: forall eff    . Ivory eff ()
     , ppmd_no_sample  :: forall eff    . ITime -> Ivory eff ()
     , ppmd_new_sample :: forall eff s  . Ref s PPMs -> ITime -> Ivory eff ()
-    , ppmd_get_ui     :: forall eff cs . (GetAlloc eff ~ Scope cs)
-         => Ivory eff (ConstRef (Stack cs) (Struct "userinput_result"))
-    , ppmd_get_cl_req :: forall eff cs . (GetAlloc eff ~ Scope cs)
-         => Ivory eff (ConstRef (Stack cs) (Struct "control_law_request"))
+    , ppmd_get_ui     :: forall eff cs . (GetAlloc eff ~ 'Scope cs)
+         => Ivory eff (ConstRef ('Stack cs) ('Struct "userinput_result"))
+    , ppmd_get_cl_req :: forall eff cs . (GetAlloc eff ~ 'Scope cs)
+         => Ivory eff (ConstRef ('Stack cs) ('Struct "control_law_request"))
     }
 
 -- taskPPMDecoder :: Task p PPMDecoder
@@ -112,19 +112,19 @@ data PPMDecoder =
 useful_channels :: Ix 8
 useful_channels = 6
 
-ppm_valid_area :: MemArea (Stored IBool)
+ppm_valid_area :: MemArea ('Stored IBool)
 ppm_valid_area = area "ppm_valid" Nothing
-ppm_valid :: Ref Global (Stored IBool)
+ppm_valid :: Ref 'Global ('Stored IBool)
 ppm_valid = addrOf ppm_valid_area
 
-ppm_last_area :: MemArea (Array 8 (Stored PPM))
+ppm_last_area :: MemArea ('Array 8 ('Stored PPM))
 ppm_last_area = area "ppm_last" Nothing
-ppm_last :: Ref Global (Array 8 (Stored PPM))
+ppm_last :: Ref 'Global ('Array 8 ('Stored PPM))
 ppm_last = addrOf ppm_last_area
 
-ppm_last_time_area :: MemArea (Stored ITime)
+ppm_last_time_area :: MemArea ('Stored ITime)
 ppm_last_time_area = area "ppm_last_time" Nothing
-ppm_last_time :: Ref Global (Stored ITime)
+ppm_last_time :: Ref 'Global ('Stored ITime)
 ppm_last_time = addrOf ppm_last_time_area
 
 invalidate :: Ivory eff ()
@@ -133,7 +133,7 @@ invalidate = do
     -- ms_no_sample modeswitch
     -- am_no_sample armingmachine
 
-new_sample_proc :: Def('[Ref s PPMs, ITime ]:->())
+new_sample_proc :: Def('[Ref s PPMs, ITime ] ':-> ())
 new_sample_proc = proc "ppm_new_sample_proc" $ \ppms tm -> body $ do
   all_good <- local (ival true)
   arrayMap $ \ix -> when (ix <? useful_channels) $ do
@@ -172,7 +172,7 @@ ppmModule = package "ppm_userinput" $ do
   incl scale_proc
   incl ppm_decode_ui_proc
 
-failsafe :: Ref s (Struct "userinput_result") -> Ivory eff ()
+failsafe :: Ref s ('Struct "userinput_result") -> Ivory eff ()
 failsafe ui = do
   store (ui ~> roll)      0
   store (ui ~> pitch)     0
@@ -185,7 +185,7 @@ scale_ppm_channel input = call scale_proc ppmCenter 500 (-1.0) 1.0 input
 valid_ppm :: PPM -> IBool
 valid_ppm p = p >=? minBound .&& p <=? maxBound
 
-scale_proc :: Def ('[PPM, Uint16, IFloat, IFloat, PPM] :-> IFloat)
+scale_proc :: Def ('[PPM, Uint16, IFloat, IFloat, PPM] ':-> IFloat)
 scale_proc = proc "ppm_scale_proc" $ \center range outmin outmax input ->
   requires (    (range /=? 0)
             .&& valid_ppm input
@@ -207,10 +207,10 @@ scale_proc = proc "ppm_scale_proc" $ \center range outmin outmax input ->
 valid_ui :: IFloat -> IBool
 valid_ui f = f >=? (-1.0) .&& f <=? (1.0)
   
-ppm_decode_ui_proc :: Def ('[ Ref s0 (Array 8 (Stored PPM))
-                            , Ref s1 (Struct "userinput_result")
+ppm_decode_ui_proc :: Def ('[ Ref s0 ('Array 8 ('Stored PPM))
+                            , Ref s1 ('Struct "userinput_result")
                             , ITime
-                            ] :-> ())
+                            ] ':-> ())
 ppm_decode_ui_proc = proc "ppm_decode_userinput" $ \ppms ui now ->
   requires (checkStored (ppms ! 0) valid_ppm) $
   requires (checkStored (ppms ! 1) valid_ppm) $
@@ -223,7 +223,7 @@ ppm_decode_ui_proc = proc "ppm_decode_userinput" $ \ppms ui now ->
   body $ do
   -- Scale 1000-2000 inputs to -1 to 1 inputs.
   let chtransform :: Ix 8
-                  -> Label "userinput_result" (Stored IFloat)
+                  -> Label "userinput_result" ('Stored IFloat)
                   -> Ivory eff ()
       chtransform ix ofield = do
         p <- deref (ppms ! (ix :: Ix 8))
@@ -265,7 +265,7 @@ newtype PPM = PPM Uint16
   deriving ( IvoryType, IvoryOrd, IvoryVar, IvoryExpr
            , IvoryEq, IvoryStore, IvoryInit, Num)
 
-type PPMs = Array 8 (Stored PPM)
+type PPMs = 'Array 8 ('Stored PPM)
 
 instance SafeCast PPM IFloat
 

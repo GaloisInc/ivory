@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 
 -- {-# LANGUAGE DataKinds #-}
 -- {-# LANGUAGE TypeOperators #-}
@@ -25,8 +26,11 @@ import qualified Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Language.Syntax.Type as I
 import qualified Data.Graph.Inductive as G
 
-import Prelude hiding (lookup)
+#if __GLASGOW_HASKELL__ <= 708
 import Data.Monoid
+#endif
+
+import Prelude hiding (lookup)
 import System.FilePath
 import Data.Maybe
 import Data.List hiding (lookup)
@@ -408,17 +412,17 @@ graphviz :: (G.Graph g, Show a, Show b)
   -> String
 graphviz g t =
     let n = G.labNodes g
-	e = G.labEdges g
-	ns = concatMap sn n
-	es = concatMap se e
+        e = G.labEdges g
+        ns = concatMap sn n
+        es = concatMap se e
     in "digraph "++t++" {\n"
-	    ++ ns
-	    ++ es
-	++"}"
-    where sn (n, a) | sa == ""	= ""
-		    | otherwise	= '\t':(show n ++ sa ++ "\n")
-	    where sa = sl a
-	  se (n1, n2, b) = '\t':(show n1 ++ " -> " ++ show n2 ++ sl b ++ "\n")
+            ++ ns
+            ++ es
+        ++"}"
+    where sn (n, a) | sa == ""  = ""
+                    | otherwise = '\t':(show n ++ sa ++ "\n")
+            where sa = sl a
+          se (n1, n2, b) = '\t':(show n1 ++ " -> " ++ show n2 ++ sl b ++ "\n")
 
 sl :: (Show a) => a -> String
 sl a = let l = sq (show a)
@@ -427,9 +431,9 @@ sl a = let l = sq (show a)
 sq :: String -> String
 sq s@[_]                     = s
 sq ('"':s)  | last s == '"'  = init s
-	    | otherwise	     = s
+            | otherwise      = s
 sq ('\'':s) | last s == '\'' = init s
-	    | otherwise	     = s
+            | otherwise      = s
 sq s                         = s
 
 --------------------------------------------------------------------------------

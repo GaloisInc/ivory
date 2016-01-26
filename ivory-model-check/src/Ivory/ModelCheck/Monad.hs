@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP #-}
 
 module Ivory.ModelCheck.Monad
   ( runMC
@@ -37,13 +38,18 @@ module Ivory.ModelCheck.Monad
   )
  where
 
+#if __GLASGOW_HASKELL__ <= 708
+import           Control.Applicative
+import           Data.Monoid
+#else
+import           Data.Monoid ((<>))
+#endif
+
 import           Prelude hiding (exp)
 import           Data.Maybe
 import           Data.List
-import           Data.Monoid
 import           Data.Int
 import           Data.Word
-import           Control.Applicative
 import           MonadLib
 import qualified Data.Map.Lazy         as M
 

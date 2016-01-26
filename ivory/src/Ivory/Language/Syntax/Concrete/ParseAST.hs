@@ -8,7 +8,7 @@
 module Ivory.Language.Syntax.Concrete.ParseAST where
 
 import Prelude hiding (init)
-import Data.Monoid
+import qualified Data.Monoid as M
 
 import Ivory.Language.Syntax.Concrete.Location
 
@@ -346,7 +346,7 @@ data BitField = BitField
 -- Instances
 
 instance HasLocation GlobalSym where
-  getLoc = mempty
+  getLoc = M.mempty
   stripLoc g = case g of
     GlobalProc p     -> GlobalProc     (stripLoc p)
     GlobalInclProc p -> GlobalInclProc (stripLoc p)
@@ -358,26 +358,26 @@ instance HasLocation GlobalSym where
 
 instance HasLocation IncludeDef where
   getLoc = inclDefLoc
-  stripLoc incl = incl { inclDefLoc = mempty }
+  stripLoc incl = incl { inclDefLoc = M.mempty }
 
 instance HasLocation IncludeProc where
   getLoc = procInclLoc
-  stripLoc incl = incl { procInclLoc = mempty }
+  stripLoc incl = incl { procInclLoc = M.mempty }
 
 instance HasLocation ConstDef where
   getLoc = constDefLoc
-  stripLoc c = c { constDefLoc = mempty }
+  stripLoc c = c { constDefLoc = M.mempty }
 
 instance HasLocation TypeDef where
   getLoc = tyDefLoc
-  stripLoc td = td { tyDefLoc = mempty }
+  stripLoc td = td { tyDefLoc = M.mempty }
 
 instance HasLocation ProcDef where
   getLoc = procLoc
-  stripLoc p = p { procLoc = mempty }
+  stripLoc p = p { procLoc = M.mempty }
 
 instance HasLocation PrePost where
-  getLoc _ = mempty
+  getLoc _ = M.mempty
   stripLoc pp = case pp of
     PreCond e  -> PreCond (stripLoc e)
     PostCond e -> PostCond (stripLoc e)
@@ -385,7 +385,7 @@ instance HasLocation PrePost where
 instance HasLocation Type where
   getLoc ty = case ty of
                 LocTy t -> getLoc t
-                _       -> mempty
+                _       -> M.mempty
   stripLoc ty = case ty of
     TyVoid{}         -> ty
     TyInt{}          -> ty
@@ -407,7 +407,7 @@ instance HasLocation Type where
 instance HasLocation Exp where
   getLoc e = case e of
                LocExp le -> getLoc le
-               _         -> mempty
+               _         -> M.mempty
 
   stripLoc e = case e of
     ExpLit{}               -> e
@@ -423,14 +423,14 @@ instance HasLocation Exp where
     LocExp le              -> unLoc le
 
 instance HasLocation AllocRef where
-  getLoc _ = mempty
+  getLoc _ = M.mempty
   stripLoc a = case a of
     AllocBase v e      -> AllocBase v (stripLoc e)
     AllocArr v es      -> AllocArr v (stripLoc es)
     AllocStruct v init -> AllocStruct v (stripLoc init)
 
 instance HasLocation StructInit where
-  getLoc _ = mempty
+  getLoc _ = M.mempty
   stripLoc init = case init of
     Empty             -> Empty
     MacroInit (fn,es) -> MacroInit (fn, map stripLoc es)
@@ -439,7 +439,7 @@ instance HasLocation StructInit where
 instance HasLocation Stmt where
   getLoc s = case s of
                LocStmt s0 -> getLoc s0
-               _          -> mempty
+               _          -> M.mempty
   stripLoc s = case s of
     IfTE e s0 s1    -> IfTE (stripLoc e) (stripLoc s0) (stripLoc s1)
     Assert e        -> Assert (stripLoc e)
@@ -464,22 +464,22 @@ instance HasLocation StructDef where
                AbstractDef _ _ srcloc -> srcloc
                StringDef _ _   srcloc -> srcloc
   stripLoc s = case s of
-    StructDef s0 fs _   -> StructDef s0 (stripLoc fs) mempty
-    AbstractDef s0 fp _ -> AbstractDef s0 fp mempty
-    StringDef s0 i _    -> StringDef s0 i mempty
+    StructDef s0 fs _   -> StructDef s0 (stripLoc fs) M.mempty
+    AbstractDef s0 fp _ -> AbstractDef s0 fp M.mempty
+    StringDef s0 i _    -> StringDef s0 i M.mempty
 
 instance HasLocation Field where
   getLoc = fieldLoc
-  stripLoc (Field n t _) = Field n (stripLoc t) mempty
+  stripLoc (Field n t _) = Field n (stripLoc t) M.mempty
 
 instance HasLocation BitDataDef where
   getLoc = bdLoc
-  stripLoc (BitDataDef s t cs _) = BitDataDef s (stripLoc t) (stripLoc cs) mempty
+  stripLoc (BitDataDef s t cs _) = BitDataDef s (stripLoc t) (stripLoc cs) M.mempty
 
 instance HasLocation BitTy where
   getLoc bt = case bt of
                 LocBitTy bt' -> getLoc bt'
-                _            -> mempty
+                _            -> M.mempty
   stripLoc bt = case bt of
     Bit            -> bt
     Bits{}         -> bt
@@ -489,9 +489,9 @@ instance HasLocation BitTy where
 
 instance HasLocation Constr where
   getLoc = constrLoc
-  stripLoc (Constr n fs l _) = Constr n (stripLoc fs) l mempty
+  stripLoc (Constr n fs l _) = Constr n (stripLoc fs) l M.mempty
 
 instance HasLocation BitField where
   getLoc = bitFieldLoc
-  stripLoc (BitField n t _) = BitField n (stripLoc t) mempty
+  stripLoc (BitField n t _) = BitField n (stripLoc t) M.mempty
 

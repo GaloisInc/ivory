@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Type check to ensure there are no empty blocks in procedures, for non-void
@@ -21,9 +22,12 @@ module Ivory.Opts.TypeCheck
 
 
 import MonadLib.Monads
-import Control.Applicative
 import Data.List
+
+#if __GLASGOW_HASKELL__ <= 708
+import Control.Applicative
 import Data.Monoid
+#endif
 
 import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Concrete.Pretty

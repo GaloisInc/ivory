@@ -1,7 +1,7 @@
 -- # -*- mode: haskell -*-
 {
 
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-tabs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
@@ -15,11 +15,12 @@
 
 module Ivory.Language.Syntax.Concrete.Lexer where
 
+import Data.Char (ord)
 import Prelude hiding (lex, id)
 import Data.Word (Word8)
 import Data.Bits (shiftR,(.&.))
-import Data.Monoid (mempty)
-import Control.Applicative
+import qualified Data.Monoid as M
+import qualified Control.Applicative as A
 import MonadLib
 import qualified Data.Text.Lazy as L
 
@@ -276,7 +277,7 @@ utf8Encode = map fromIntegral . go . ord
 
 newtype Lexer a = Lexer
   { unLexer :: StateT LexerState Id a
-  } deriving (Functor,Monad,Applicative)
+  } deriving (Functor,Monad,A.Applicative)
 
 instance StateM Lexer LexerState where
   get = Lexer   get
@@ -313,7 +314,7 @@ scan source bytes = fst (runId (runStateT st0 (unLexer loop)))
         loop
 
       AlexEOF ->
-        return [Located mempty TokEOF]
+        return [Located M.mempty TokEOF]
 
       AlexError inp' ->
         return [Located (mkRange inp' "") (TokError "Lexical error")]

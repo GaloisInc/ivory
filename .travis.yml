@@ -1,26 +1,102 @@
+# This file has been generated -- see https://github.com/hvr/multi-ghc-travis
+language: c
 sudo: false
-language: haskell
-addons:
-  apt:
-    sources:
-      - hvr-ghc
-    packages:
-      - cabal-install-1.22
-      - alex-3.1.4
-      - happy-1.19.5
+
+git:
+  submodules: false
+
+cache:
+  directories:
+    - $HOME/.cabsnap
+    - $HOME/.cabal/packages
+    - $HOME/.cvc4
+
+before_cache:
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/build-reports.log
+  - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.tar
+
+matrix:
+  include:
+    - env: CABALVER=1.18 GHCVER=7.6.3
+      compiler: ": #GHC 7.6.3"
+      addons: {apt: {packages: [cabal-install-1.18,ghc-7.6.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=1.18 GHCVER=7.8.4
+      compiler: ": #GHC 7.8.4"
+      addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=1.22 GHCVER=7.10.3
+      compiler: ": #GHC 7.10.3"
+      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+    - env: CABALVER=1.24 GHCVER=8.0.1
+      compiler: ": #GHC 8.0.1"
+      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,alex-3.1.7,happy-1.19.5], sources: [hvr-ghc]}}
+
+  allow_failures:
+    - compiler: ": #GHC 8.0.1"
+
+before_install:
+# - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+ - git submodule update --init --recursive
+ - unset CC
+ - export HAPPYVER=1.19.5
+ - export ALEXVER=3.1.7
+ - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/alex/$ALEXVER/bin:/opt/happy/$HAPPYVER/bin:$PATH
+
 install:
-- mkdir -p bin
-- PATH="$PWD/bin:/opt/cabal/1.22/bin:/opt/alex/3.1.4/bin:/opt/happy/1.19.5/bin:$PATH"
-- CVC4=cvc4-2014-11-22-i386-linux-opt
-- wget http://www.galois.com/~leepike/$CVC4 -O bin/cvc4
-- chmod a+x bin/cvc4
-- cvc4 --version
+ - cabal --version
+ - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+ - if [ -f "$HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz" ];
+   then
+     zcat "$HOME/.cabal/packages/hackage.haskell.org/00-index.tar.gz" >
+          "$HOME/.cabal/packages/hackage.haskell.org/00-index.tar";
+   fi
+ - travis_retry cabal update -v
+
+ - sed -i 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
+ - make installplan.txt
+ - sed -i -e '1,/^Resolving /d' installplan.txt; cat installplan.txt
+
+# check whether current requested install-plan matches cached package-db snapshot
+ - if diff -u installplan.txt $HOME/.cabsnap/installplan.txt;
+   then
+     echo "cabal build-cache HIT";
+     rm -rfv .ghc;
+     cp -a $HOME/.cabsnap/ghc $HOME/.ghc;
+     cp -a $HOME/.cabsnap/lib $HOME/.cabsnap/share $HOME/.cabsnap/bin $HOME/.cabal/;
+   else
+     echo "cabal build-cache MISS";
+     rm -rf $HOME/.cabsnap;
+     mkdir -p $HOME/.ghc $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin;
+     make travis-install-dep;
+   fi
+
+# snapshot package-db on cache miss
+ - if [ ! -d $HOME/.cabsnap ];
+   then
+      echo "snapshotting package-db to build-cache";
+      mkdir $HOME/.cabsnap;
+      cp -a $HOME/.ghc $HOME/.cabsnap/ghc;
+      cp -a $HOME/.cabal/lib $HOME/.cabal/share $HOME/.cabal/bin installplan.txt $HOME/.cabsnap/;
+   fi
+
+# Setup/cache CVC4
+ - PATH="$HOME/.cvc4/:$PATH"
+ - CVC4=cvc4-2014-11-22-i386-linux-opt
+ - if [ ! -f "$HOME/.cvc4/cvc4" ];
+   then
+     wget http://www.galois.com/~leepike/$CVC4 -O $HOME/.cvc4/cvc4;
+     chmod a+x $HOME/.cvc4/cvc4;
+   fi
+ - cvc4 --version
+
+# Here starts the actual work to be performed for the package under test;
+# any command which exits with a non-zero exit code causes the build to fail.
 script:
-- make test
-ghc:
-- 7.6
-- 7.8
-notifications:
-  slack:
-    secure: IQnBCQNqSYIoHv9c668lpWTnJHCWhVTLLcdxIPFFxpiyoPQQO1JPhFHLdyhB2T/W4b7mVeU1X32PJ1jRDHVEbMTcPGoBS1lstI7avTkeDQ1b8ILut6GnjmaGWWpCYimoWgAZeM1IBdfJ6jbDA861sQkSnJEb79UidLE8xyRkXAk=
-    secure: AcS89vo55VciqY8nSD8KWrAuMfTnKqJmbthYNaAfoqiVqXTi4PJaFriWNshjjxRTkzi+N9/qSv+iVXVC4jGX53ALb+JZHkQHCyYj8pU4Ce9xaGzXkmRQ6N6MmpARoNXrqh9Z+oJJsni5OQefh6EgKopJW5sXDTGlutezf0QsmNw=
+ - make travis-install
+ - make travis-test
+
+# notifications:
+#   slack:
+#     secure: IQnBCQNqSYIoHv9c668lpWTnJHCWhVTLLcdxIPFFxpiyoPQQO1JPhFHLdyhB2T/W4b7mVeU1X32PJ1jRDHVEbMTcPGoBS1lstI7avTkeDQ1b8ILut6GnjmaGWWpCYimoWgAZeM1IBdfJ6jbDA861sQkSnJEb79UidLE8xyRkXAk=
+#     secure: AcS89vo55VciqY8nSD8KWrAuMfTnKqJmbthYNaAfoqiVqXTi4PJaFriWNshjjxRTkzi+N9/qSv+iVXVC4jGX53ALb+JZHkQHCyYj8pU4Ce9xaGzXkmRQ6N6MmpARoNXrqh9Z+oJJsni5OQefh6EgKopJW5sXDTGlutezf0QsmNw=
+
+# EOF
