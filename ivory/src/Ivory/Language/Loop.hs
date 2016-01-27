@@ -63,7 +63,7 @@ downTo = loop AST.DecrTo
 -- @
 --   n :: Ix m, 0 <= n <= m.
 -- @
--- Indexes increment from 0 to n-1 incluseively.
+-- Indexes increment from 0 to n-1 inclusively.
 for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 for n f = upTo 0 (n-1) f
