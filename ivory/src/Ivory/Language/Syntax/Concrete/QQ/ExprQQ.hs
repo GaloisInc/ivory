@@ -17,8 +17,9 @@ module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
   , toAddrOf
   ) where
 
-import           Prelude hiding (exp, init)
-import qualified Prelude as P
+import           Prelude ()
+import           Prelude.Compat hiding (exp, init)
+import qualified Prelude.Compat as P
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T

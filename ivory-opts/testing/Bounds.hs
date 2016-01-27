@@ -9,9 +9,11 @@
 
 --import Data.SBV.Bridge.CVC4
 
+import Prelude ()
+import Prelude.Compat hiding (min,max,signum,abs)
+
 import Data.SBV.Bridge.Z3
 
-import Prelude hiding (min, max, signum, abs)
 
 --------------------------------------------------------------------------------
 

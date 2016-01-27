@@ -8,9 +8,10 @@
 
 module Ivory.Opts.CSE (cseFold) where
 
-import Control.Applicative
+import Prelude ()
+import Prelude.Compat
+
 import qualified Data.DList as D
-import Data.Foldable
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import Data.IntSet (IntSet)
@@ -18,13 +19,10 @@ import qualified Data.IntSet as IntSet
 import Data.List (sort)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Monoid
 import Data.Reify
-import Data.Traversable
 import Ivory.Language.Array (ixRep)
 import qualified Ivory.Language.Syntax as AST
 import MonadLib (WriterT, StateT, Id, get, set, sets, sets_, put, collect, lift, runM)
-import Prelude hiding (foldr, mapM, mapM_)
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | Find each common sub-expression and extract it to a new variable,

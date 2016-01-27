@@ -21,20 +21,18 @@ module Ivory.Opts.CFG
   )
     where
 
+import Prelude ()
+import Prelude.Compat hiding (lookup)
+
 import qualified Ivory.Language.Array       as I
 import qualified Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Language.Syntax.Type as I
 import qualified Data.Graph.Inductive as G
 
-#if __GLASGOW_HASKELL__ <= 708
-import Data.Monoid
-#endif
-
-import Prelude hiding (lookup)
+import Control.Applicative (liftA2)
 import System.FilePath
 import Data.Maybe
-import Data.List hiding (lookup)
-import Control.Applicative
+import Data.List (find,(\\))
 import qualified Data.IntMap as M
 import MonadLib (StateT, get, set, Id, StateM, runM)
 import MonadLib.Derive (derive_get, derive_set, Iso(..))

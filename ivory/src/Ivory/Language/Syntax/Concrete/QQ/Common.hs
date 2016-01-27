@@ -39,7 +39,8 @@ module Ivory.Language.Syntax.Concrete.QQ.Common
 #endif
   ) where
 
-import Prelude hiding (exp)
+import Prelude ()
+import Prelude.Compat hiding (exp)
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -47,9 +48,7 @@ import qualified Language.Haskell.TH as T
 import           Data.List  (nub)
 import           MonadLib   (set, get)
 import qualified MonadLib   as M
-import qualified Data.Monoid as M
 import qualified Data.DList as D
-import qualified Control.Applicative as A
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Location
@@ -59,7 +58,7 @@ import Ivory.Language.Syntax.Concrete.Location
 
 newtype QStM a b = QStM
   { unQStM :: M.StateT (D.DList a) T.Q b
-  } deriving (Functor, Monad, A.Applicative)
+  } deriving (Functor, Monad, Applicative)
 
 instance M.StateM (QStM a) (D.DList a) where
   get = QStM M.get
@@ -72,7 +71,7 @@ insert a = do
 
 runToQ :: QStM a b -> Q (b, [a])
 runToQ m = do
-  (r, st) <- M.runStateT M.mempty (unQStM m)
+  (r, st) <- M.runStateT mempty (unQStM m)
   return (r, D.toList st)
 
 liftQ :: Q b -> QStM a b

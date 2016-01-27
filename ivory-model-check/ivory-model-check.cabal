@@ -12,6 +12,7 @@ library
                         Ivory.ModelCheck.CVC4
                         Ivory.ModelCheck.Ivory2CVC4
   build-depends:        base >= 4.6,
+                        base-compat,
                         containers,
                         filepath,
                         process,
@@ -34,6 +35,7 @@ test-suite test
   else
     ghc-options:        -Wall
   build-depends:  base
+               ,  base-compat
                ,  tasty >= 0.10
                ,  tasty-hunit
                ,  monadLib
@@ -45,3 +47,22 @@ test-suite test
                ,  ivory-stdlib
 
   default-language: Haskell2010
+
+  other-modules: AddrOfRegression
+                 Alloc
+                 Area
+                 Array
+                 Bits
+                 Cond
+                 Examples
+                 Extern
+                 Factorial
+                 FibLoop
+                 Float
+                 Heartbeat
+                 Overflow
+                 PID
+                 PPM
+                 PublicPrivate
+                 RingBuffer
+                 String

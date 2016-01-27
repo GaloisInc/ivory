@@ -12,11 +12,11 @@
 
 module Ivory.Language.BitData.Monad where
 
-import Data.List (intercalate)
+import Prelude ()
+import Prelude.Compat
 
+import           Data.List (intercalate)
 import qualified MonadLib as M
-
-import qualified Control.Applicative as A
 
 import Ivory.Language.BitData.Bits
 import Ivory.Language.BitData.BitData
@@ -31,7 +31,7 @@ import Ivory.Language.Comment
 -- the "body" argument to "withBits" etc.
 newtype BitDataM d a = BitDataM
   { runBitDataM :: M.StateT d (M.WriterT [String] M.Id) a
-  } deriving (Functor, Monad, A.Applicative)
+  } deriving (Functor, Monad, Applicative)
 
 -- | Clear the value of the current bit data value.
 clear :: BitData d => BitDataM d ()

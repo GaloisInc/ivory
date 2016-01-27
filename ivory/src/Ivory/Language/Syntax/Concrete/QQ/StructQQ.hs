@@ -9,7 +9,8 @@ module Ivory.Language.Syntax.Concrete.QQ.StructQQ
   ( fromStruct
   ) where
 
-import qualified Data.Monoid as M
+import Prelude ()
+import Prelude.Compat
 
 import qualified Ivory.Language.Area  as A
 import           Ivory.Language.Proxy
@@ -118,9 +119,9 @@ mkStringDef ty_s len = do
   let data_n     = mkName data_s
   let len_s      = struct_s ++ "_len"
   let len_n      = mkName len_s
-  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) len) M.mempty
-  let len_f      = Field len_s (TyStored (TyInt Int32)) M.mempty
-  let struct_def = StructDef struct_s [data_f, len_f] M.mempty
+  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) len) mempty
+  let len_f      = Field len_s (TyStored (TyInt Int32)) mempty
+  let struct_def = StructDef struct_s [data_f, len_f] mempty
 
   d1 <- fromStruct struct_def
   d2 <- sequence

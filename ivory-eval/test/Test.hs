@@ -8,14 +8,13 @@
 
 module Main where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language
 import Ivory.Language.Monad
 
 import Ivory.Eval
-
-#if __GLASGOW_HASKELL__ <= 708
-import Data.Monoid
-#endif
 
 import qualified Data.Map as Map
 import Test.Tasty

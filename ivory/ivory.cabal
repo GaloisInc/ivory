@@ -80,6 +80,7 @@ library
                         Ivory.Language.Type,
                         Ivory.Language.Uint
   build-depends:        base >= 4.6,
+                        base-compat,
                         pretty >= 1.1,
                         containers >= 0.5,
                         monadLib >= 3.7,

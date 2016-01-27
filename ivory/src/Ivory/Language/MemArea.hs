@@ -7,6 +7,9 @@
 
 module Ivory.Language.MemArea where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language.Area
 import Ivory.Language.Init
 import Ivory.Language.Proxy
@@ -14,8 +17,6 @@ import Ivory.Language.Ref
 import Ivory.Language.Scope
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
-
-import qualified Control.Applicative as A
 
 import qualified MonadLib        as M
 import qualified MonadLib.Derive as M
@@ -33,14 +34,14 @@ instance Functor AreaInitM where
   fmap = M.derive_fmap areaInit_iso
   {-# INLINE fmap #-}
 
-instance A.Applicative AreaInitM where
+instance Applicative AreaInitM where
   pure  = M.derive_pure areaInit_iso
   (<*>) = M.derive_apply areaInit_iso
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
 
 instance Monad AreaInitM where
-  return  = A.pure
+  return  = pure
   (>>=)   = M.derive_bind   areaInit_iso
   {-# INLINE return #-}
   {-# INLINE (>>=) #-}

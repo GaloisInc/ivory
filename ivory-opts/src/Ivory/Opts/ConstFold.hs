@@ -23,7 +23,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.DList as D
-import MonadLib
+import MonadLib (StateM(..),Id,StateT,runId,runStateT)
 
 --------------------------------------------------------------------------------
 -- Constant folding

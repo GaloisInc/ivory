@@ -2,7 +2,6 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE CPP #-}
 
 -- | Fold over expressions that collect up assertions about the expressions.
 
@@ -14,12 +13,10 @@ module Ivory.Opts.AssertFold
   , freshVar
   ) where
 
-#if __GLASGOW_HASKELL__ <= 708
-import           Control.Applicative
-import           Data.Monoid
-#endif
+import Prelude ()
+import Prelude.Compat
 
-import           MonadLib hiding (collect)
+import           MonadLib (StateM(..),StateT,Id,runStateT,runId)
 import qualified Data.DList as D
 import           Ivory.Opts.Utils
 import qualified Ivory.Language.Array        as I

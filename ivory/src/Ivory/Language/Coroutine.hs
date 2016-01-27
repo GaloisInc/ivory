@@ -31,13 +31,14 @@ module Ivory.Language.Coroutine (
   Coroutine(..), CoroutineBody(..), coroutine,
   ) where
 
-import qualified Control.Applicative as A
-import Control.Monad
-import Control.Monad.Fix
+import Prelude ()
+import Prelude.Compat
+
+import Control.Monad (unless,when)
+import Control.Monad.Fix (mfix)
 import qualified Data.DList as D
 import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
-import qualified Data.Monoid as M
 import Ivory.Language.Area
 import Ivory.Language.Array
 import Ivory.Language.Effects
@@ -184,7 +185,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
 
   coroutineRun :: IBool -> ConstRef s a -> Ivory eff ()
   coroutineRun doInit arg = do
-    ifte_ doInit (emits M.mempty { blockStmts = genBB initBB }) (return ())
+    ifte_ doInit (emits mempty { blockStmts = genBB initBB }) (return ())
     emit $ AST.Forever $ (AST.Deref stateType (AST.VarName stateName) $ getCont params stateName) : do
       (label, block) <- keepUsedBlocks initLabel $ zip [0..] $ map joinTerminators $ (BasicBlock [] $ BranchTo True 0) : reverse (labels finalState)
       let cond = AST.ExpOp (AST.ExpEq stateType)
@@ -196,7 +197,7 @@ coroutine name (CoroutineBody fromYield) = Coroutine { .. }
 
   coroutineDef = do
     visibility <- MonadLib.ask
-    MonadLib.put $ M.mempty
+    MonadLib.put $ mempty
       { AST.modStructs = visAcc visibility strDef
       , AST.modAreas = visAcc visibility contArea
       }
@@ -288,28 +289,28 @@ extractLocals :: AST.Stmt
                  -> CoroutineMonad Terminator
 extractLocals (AST.IfTE cond tb fb) rest = do
   after <- makeLabel rest
-  CondBranchTo A.<$> runUpdateExpr (updateExpr cond)
-    A.<*> getBlock tb (return after)
-    A.<*> getBlock fb (return after)
+  CondBranchTo <$> runUpdateExpr (updateExpr cond)
+    <*> getBlock tb (return after)
+    <*> getBlock fb (return after)
 extractLocals (AST.Assert cond) rest =
-  (AST.Assert A.<$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
+  (AST.Assert <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
 extractLocals (AST.CompilerAssert cond) rest =
-  (AST.CompilerAssert A.<$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
+  (AST.CompilerAssert <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
 extractLocals (AST.Assume cond) rest =
-  (AST.Assume A.<$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
+  (AST.Assume <$> runUpdateExpr (updateExpr cond)) >>= stmt >> rest
 extractLocals (AST.Return {}) _ =
   error "Ivory.Language.Coroutine: can't return a value from the coroutine body"
 -- XXX: this discards any code after a return. is that OK?
 extractLocals (AST.ReturnVoid) _ = resumeAt 0
 extractLocals (AST.Deref ty var ex) rest =
-  (AST.RefCopy ty A.<$> addLocal ty var A.<*> runUpdateExpr (updateExpr ex)) >>=
+  (AST.RefCopy ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)) >>=
   stmt >> rest
   -- Note here that an 'AST.Deref' also emits a 'RefCopy' and another local.
 extractLocals (AST.Store ty lhs rhs) rest =
-  (runUpdateExpr $ AST.Store ty A.<$> updateExpr lhs A.<*> updateExpr rhs) >>=
+  (runUpdateExpr $ AST.Store ty <$> updateExpr lhs <*> updateExpr rhs) >>=
   stmt >> rest
 extractLocals (AST.Assign ty var ex) rest =
-  (AST.Store ty A.<$> addLocal ty var A.<*> runUpdateExpr (updateExpr ex)) >>=
+  (AST.Store ty <$> addLocal ty var <*> runUpdateExpr (updateExpr ex)) >>=
   stmt >> rest
 extractLocals (AST.Call ty mvar name args) rest
   -- 'yieldName' is the pseudo-function call which we handle specially at this
@@ -322,7 +323,7 @@ extractLocals (AST.Call ty mvar name args) rest
       -- All other function calls pass through normally, but have their
       -- arguments run through 'updateTypedExpr' and have their results saved
       -- into the continuation:
-      stmt =<< AST.Call ty mvar name A.<$>
+      stmt =<< AST.Call ty mvar name <$>
         runUpdateExpr (mapM updateTypedExpr args)
       case mvar of
        Nothing -> return ()
@@ -342,7 +343,7 @@ extractLocals (AST.Local ty var initex) rest = do
     ]
   rest
 extractLocals (AST.RefCopy ty lhs rhs) rest =
-  (runUpdateExpr $ AST.RefCopy ty A.<$> updateExpr lhs A.<*> updateExpr rhs) >>=
+  (runUpdateExpr $ AST.RefCopy ty <$> updateExpr lhs <*> updateExpr rhs) >>=
   stmt >> rest
 extractLocals (AST.AllocRef _ty refvar name) rest = do
   let AST.NameVar var = name -- XXX: AFAICT, AllocRef can't have a NameSym argument.
@@ -351,7 +352,7 @@ extractLocals (AST.AllocRef _ty refvar name) rest = do
 extractLocals (AST.Loop var initEx incr b) rest = do
   let ty = ivoryType (Proxy :: Proxy IxRep)
   cont <- addLocal ty var
-  stmt =<< AST.Store ty cont A.<$> runUpdateExpr (updateExpr initEx)
+  stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr initEx)
   after <- makeLabel rest
   mfix $ \ loop -> makeLabel $ do
     let (condOp, incOp, limitEx) = case incr of
@@ -359,9 +360,9 @@ extractLocals (AST.Loop var initEx incr b) rest = do
           AST.DecrTo ex -> (AST.ExpLt, AST.ExpSub, ex)
     cond <- runUpdateExpr $ updateExpr $
             AST.ExpOp (condOp False ty) [AST.ExpVar var, limitEx]
-    CondBranchTo cond (BasicBlock [] after) A.<$> do
+    CondBranchTo cond (BasicBlock [] after) <$> do
       setBreakLabel after $ getBlock b $ do
-        stmt =<< AST.Store ty cont A.<$>
+        stmt =<< AST.Store ty cont <$>
           runUpdateExpr (updateExpr $ AST.ExpOp incOp
                          [AST.ExpVar var, AST.ExpLit (AST.LitInteger 1)])
         return loop
@@ -404,12 +405,12 @@ resumeAt = return . BranchTo True
 contRef :: AST.Var -> CoroutineMonad AST.Expr
 contRef var = do
   let AST.VarName varStr = var
-  MonadLib.asks getCont A.<*> A.pure varStr
+  MonadLib.asks getCont <*> pure varStr
 
 addLocal :: AST.Type -> AST.Var -> CoroutineMonad AST.Expr
 addLocal ty var = do
   let AST.VarName varStr = var
-  MonadLib.lift $ MonadLib.put (D.singleton $ AST.Typed ty varStr, M.mempty)
+  MonadLib.lift $ MonadLib.put (D.singleton $ AST.Typed ty varStr, mempty)
   cont <- contRef var
   var `rewriteTo` do
     idx <- MonadLib.sets $ \state ->
@@ -426,12 +427,12 @@ addYield ty var rest = do
   let AST.TyRef derefTy = ty
       AST.VarName varStr = var
   MonadLib.lift $ MonadLib.put
-    (D.singleton $ AST.Typed derefTy varStr, M.mempty)
+    (D.singleton $ AST.Typed derefTy varStr, mempty)
   cont <- contRef var
   var `rewriteTo` return cont
   after <- makeLabel' =<< getBlock [] rest
   let resume arg = [AST.RefCopy derefTy cont arg]
-  MonadLib.lift $ MonadLib.put (M.mempty, Map.singleton after resume)
+  MonadLib.lift $ MonadLib.put (mempty, Map.singleton after resume)
   resumeAt after
 
 setBreakLabel :: Terminator -> CoroutineMonad a -> CoroutineMonad a
@@ -496,15 +497,15 @@ updateExpr ex@(AST.ExpVar var) = do
       MonadLib.sets_ $ Map.insert var ex'
       return ex'
 updateExpr (AST.ExpLabel ty ex label) =
-  AST.ExpLabel ty A.<$> updateExpr ex A.<*> A.pure label
+  AST.ExpLabel ty <$> updateExpr ex <*> pure label
 updateExpr (AST.ExpIndex ty1 ex1 ty2 ex2) =
-  AST.ExpIndex A.<$> A.pure ty1 A.<*> updateExpr ex1 A.<*> A.pure ty2 A.<*> updateExpr ex2
+  AST.ExpIndex <$> pure ty1 <*> updateExpr ex1 <*> pure ty2 <*> updateExpr ex2
 updateExpr (AST.ExpToIx ex bound) =
-  AST.ExpToIx A.<$> updateExpr ex A.<*> A.pure bound
+  AST.ExpToIx <$> updateExpr ex <*> pure bound
 updateExpr (AST.ExpSafeCast ty ex) =
-  AST.ExpSafeCast ty A.<$> updateExpr ex
+  AST.ExpSafeCast ty <$> updateExpr ex
 updateExpr (AST.ExpOp op args) =
-  AST.ExpOp op A.<$> mapM updateExpr args
+  AST.ExpOp op <$> mapM updateExpr args
 updateExpr ex = return ex
 
 -- | Basically 'updateExpr', but on an initializer.
@@ -512,15 +513,15 @@ updateInit :: AST.Init -> UpdateExpr AST.Init
 updateInit AST.InitZero = return AST.InitZero
 updateInit (AST.InitExpr ty ex) =
   -- 'AST.InitExpr' contains an expression that 'updateExpr' needs to handle:
-  AST.InitExpr ty A.<$> updateExpr ex
+  AST.InitExpr ty <$> updateExpr ex
 updateInit (AST.InitStruct fields) =
   -- Every field of a @struct@ in an 'AST.InitStruct' contains an expression
   -- that must go through 'updateExpr':
-  AST.InitStruct A.<$> mapM (\ (name, ex) -> (,) name A.<$> updateInit ex) fields
+  AST.InitStruct <$> mapM (\ (name, ex) -> (,) name <$> updateInit ex) fields
 updateInit (AST.InitArray elems) =
   -- An 'AST.InitArray' is a list of 'AST.Init' which we must recurse over:
-  AST.InitArray A.<$> mapM updateInit elems
+  AST.InitArray <$> mapM updateInit elems
 
 -- | Basically 'updateExpr', but on a typed expression.
 updateTypedExpr :: AST.Typed AST.Expr -> UpdateExpr (AST.Typed AST.Expr)
-updateTypedExpr (AST.Typed ty ex) = AST.Typed ty A.<$> updateExpr ex
+updateTypedExpr (AST.Typed ty ex) = AST.Typed ty <$> updateExpr ex

@@ -20,14 +20,13 @@ module Ivory.Opts.TypeCheck
   , Results()
   ) where
 
+import Prelude ()
+import Prelude.Compat
 
-import MonadLib.Monads
-import Data.List
-
-#if __GLASGOW_HASKELL__ <= 708
-import Control.Applicative
-import Data.Monoid
-#endif
+import Control.Monad (when,void)
+import MonadLib
+           (WriterM(..),StateM(..),runId,runStateT,runWriterT,Id,StateT,WriterT)
+import Data.List (nub)
 
 import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Concrete.Pretty
@@ -103,7 +102,7 @@ mkOut sym kind sh ls = nm : map go ls
 --------------------------------------------------------------------------------
 -- Writer Monad
 
-newtype TCResults a = TCResults { unTC :: WriterT Results (State SrcLoc) a }
+newtype TCResults a = TCResults { unTC :: WriterT Results (StateT SrcLoc Id) a }
   deriving (Functor, Applicative, Monad)
 
 instance WriterM TCResults Results where
@@ -124,7 +123,7 @@ putWarn warn = do
   put (Results [] [warn `at` loc])
 
 runTCResults :: TCResults a -> (a, Results)
-runTCResults tc = fst $ runState NoLoc $ runWriterT (unTC tc)
+runTCResults tc = fst $ runId $ runStateT NoLoc $ runWriterT (unTC tc)
 
 --------------------------------------------------------------------------------
 

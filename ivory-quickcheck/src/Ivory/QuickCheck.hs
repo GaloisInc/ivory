@@ -43,19 +43,18 @@
 
 module Ivory.QuickCheck (check, checkWith, contract) where
 
-#if __GLASGOW_HASKELL__ <= 708
-import           Control.Applicative
-#endif
+import           Prelude ()
+import           Prelude.Compat
 
-import           Control.Monad
-import           Data.IORef
-import           Data.List
+import           Control.Monad (replicateM,forM)
+import           Data.IORef (IORef,newIORef,readIORef,writeIORef)
+import           Data.List (transpose,find)
 import           Ivory.Compile.C.CmdlineFrontend
 import qualified Ivory.Eval                      as E
 import           Ivory.Language
 import           Ivory.Language.Proc
 import qualified Ivory.Language.Syntax           as I
-import System.IO.Unsafe
+import           System.IO.Unsafe (unsafeInterleaveIO)
 
 import qualified Test.QuickCheck.Arbitrary       as A
 import qualified Test.QuickCheck.Gen             as G

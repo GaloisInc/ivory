@@ -5,6 +5,9 @@
 
 module Ivory.Language.Module where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language.Area (IvoryArea)
 import Ivory.Language.MemArea (MemArea(..),ConstMemArea(..))
 import Ivory.Language.Proc (Def(..))
@@ -15,8 +18,6 @@ import Ivory.Language.Type (IvoryExpr, unwrapExpr)
 import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)
-import qualified Control.Applicative as A
-import qualified Data.Monoid as M
 import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
 import MonadLib.Derive (Iso (..),derive_ask,derive_put)
 import qualified Data.Set as Set
@@ -28,7 +29,7 @@ data Visible = Public | Private deriving (Show)
 
 newtype ModuleM a = Module
   { unModule :: ReaderT Visible (WriterT I.Module Id) a
-  } deriving (Functor,Monad,A.Applicative)
+  } deriving (Functor,Monad,Applicative)
 
 instance ReaderM ModuleM Visible where
   ask = derive_ask (Iso Module unModule)
@@ -40,7 +41,7 @@ instance WriterM ModuleM I.Module where
 
 type ModuleDef = ModuleM ()
 
-instance M.Monoid (ModuleM ()) where
+instance Monoid (ModuleM ()) where
   mempty  = return ()
   mappend = (>>)
   {-# INLINE mempty #-}
@@ -56,23 +57,23 @@ visAcc vis e = case vis of
 incl :: Def a -> ModuleDef
 incl (DefProc p)    = do
   visibility <- ask
-  put (M.mempty { I.modProcs   = visAcc visibility p })
+  put (mempty { I.modProcs   = visAcc visibility p })
 incl (DefImport i)
   | null (I.importFile i) = error $ "Empty header name for " ++ show i
-  | otherwise = put (M.mempty { I.modImports = [i] })
+  | otherwise = put (mempty { I.modImports = [i] })
 
 -- | Import an externally-defined symbol.
 inclSym :: IvoryExpr t => t -> ModuleDef
 inclSym t = case unwrapExpr t of
   I.ExpExtern sym
     | null (I.externFile sym) -> error $ "Empty header name for " ++ show sym
-    | otherwise -> put (M.mempty { I.modExterns = [sym] })
+    | otherwise -> put (mempty { I.modExterns = [sym] })
   e -> error $ "Cannot import expression " ++ show e
 
 -- | Add a dependency on another module.
 depend :: I.Module -> ModuleDef
 depend m =
-  put (M.mempty { I.modDepends = Set.singleton (I.modName m) })
+  put (mempty { I.modDepends = Set.singleton (I.modName m) })
 
 -- | Include the definition of a structure in the module.
 defStruct :: forall sym. (IvoryStruct sym, ASymbol sym) =>
@@ -81,7 +82,7 @@ defStruct _ = case getStructDef def of
   I.Abstract n "" -> error $ "Empty header name for struct " ++ n
   str -> do
     visibility <- ask
-    put (M.mempty { I.modStructs = visAcc visibility str })
+    put (mempty { I.modStructs = visAcc visibility str })
   where
   def :: StructDef sym
   def  = structDef
@@ -95,12 +96,12 @@ defMemArea :: IvoryArea area => MemArea area -> ModuleDef
 defMemArea m = case m of
   MemImport ia
     | null (I.aiFile ia) -> error $ "Empty header name for " ++ show ia
-    | otherwise -> put (M.mempty { I.modAreaImports = [ia] })
+    | otherwise -> put (mempty { I.modAreaImports = [ia] })
   MemArea a as -> do
     visibility <- ask
-    put (M.mempty { I.modAreas = visAcc visibility a })
+    put (mempty { I.modAreas = visAcc visibility a })
     forM_ as $ \aux -> do
-      put (M.mempty { I.modAreas = visAcc Private aux })
+      put (mempty { I.modAreas = visAcc Private aux })
 
 -- | Include the definition of a constant memory area.
 defConstMemArea :: IvoryArea area => ConstMemArea area -> ModuleDef

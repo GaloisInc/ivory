@@ -5,6 +5,9 @@ module Ivory.Compile.C.Modules where
 
 import Paths_ivory_backend_c (version)
 
+import Prelude ()
+import Prelude.Compat
+
 import qualified Text.PrettyPrint.Mainland as PP
 import Text.PrettyPrint.Mainland hiding (width)
 
@@ -13,14 +16,10 @@ import qualified Ivory.Language.Syntax.AST as I
 import Ivory.Compile.C.Gen
 import Ivory.Compile.C.Types
 
-#if __GLASGOW_HASKELL__ <= 708
-import Control.Applicative ((<$>))
-#endif
-
 import Data.Char (toUpper)
 import Data.Version (showVersion)
 import qualified Data.Set as S
-import Control.Monad
+import Control.Monad (unless)
 import System.FilePath.Posix ((<.>)) -- Always use posix convention in C code
 import MonadLib (put,runM)
 

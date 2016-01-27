@@ -4,17 +4,16 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE CPP #-}
 
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
-#if __glasgow_haskell__ <= 708
-import           Control.Applicative
-#endif
+import Prelude ()
+import Prelude.Compat hiding (exp)
 
-import           Control.Monad
+
+import           Control.Monad (when,void,forM,forM_)
 import           Data.List              (nub)
 import qualified Data.Map               as M
 import           Data.Maybe
@@ -26,7 +25,6 @@ import           Ivory.Opts.ConstFold   (constFold)
 import           Ivory.Opts.DivZero     (divZeroFold)
 import           Ivory.Opts.Index       (ixFold)
 import           Ivory.Opts.Overflow    (overflowFold)
-import           Prelude                hiding (exp)
 
 import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad

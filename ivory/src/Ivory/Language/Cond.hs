@@ -6,6 +6,9 @@
 
 module Ivory.Language.Cond where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language.Area
 import Ivory.Language.IBool
 import Ivory.Language.Monad
@@ -15,7 +18,6 @@ import Ivory.Language.Ref
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
-import qualified Data.Monoid as M
 
 -- Effects ---------------------------------------------------------------------
 
@@ -23,13 +25,13 @@ import qualified Data.Monoid as M
 --
 -- XXX do not export
 emitPreCond :: I.Require -> Ivory eff ()
-emitPreCond r = emits M.mempty { blockRequires = [r] }
+emitPreCond r = emits mempty { blockRequires = [r] }
 
 -- | Emit a post-condition.
 --
 -- XXX do not export
 emitPostCond :: I.Ensure -> Ivory eff ()
-emitPostCond e = emits M.mempty { blockEnsures = [e] }
+emitPostCond e = emits mempty { blockEnsures = [e] }
 
 -- Condition Notation ----------------------------------------------------------
 

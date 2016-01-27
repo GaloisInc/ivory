@@ -1,17 +1,14 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE CPP #-}
 
 module Ivory.Compile.C.Types where
 
+import Prelude ()
+import Prelude.Compat
+
 import Language.C.Quote.GCC
 import qualified "language-c-quote" Language.C.Syntax as C
-
-#if __GLASGOW_HASKELL__ <= 708
-import Data.Monoid
-import Control.Applicative
-#endif
 
 import MonadLib (WriterT,Id,put)
 import qualified Data.Set as S

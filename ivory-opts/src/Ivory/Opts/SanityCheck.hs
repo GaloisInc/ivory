@@ -4,7 +4,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE CPP #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -24,13 +23,14 @@ module Ivory.Opts.SanityCheck
   , render
   ) where
 
-#if __GLASGOW_HASKELL__ <= 708
-import           Control.Applicative                     hiding (empty)
-import           Data.Monoid                             hiding ((<>))
-#endif
+import Prelude ()
+import Prelude.Compat
 
+import           Control.Monad (unless)
 import qualified Data.Map                                as M
-import           MonadLib.Monads
+import           MonadLib
+                     (WriterM(..),StateM(..),sets_,runId,runStateT,runWriterT
+                     ,Id,StateT,WriterT)
 import           Text.PrettyPrint
 
 import           Ivory.Language.Syntax.Concrete.Location
@@ -104,7 +104,7 @@ data MaybeType = Imported | Defined I.Type
 
 data St = St { loc :: SrcLoc, env :: M.Map String MaybeType }
 
-newtype SCResults a = SCResults { unTC :: WriterT Results (State St) a }
+newtype SCResults a = SCResults { unTC :: WriterT Results (StateT St Id) a }
   deriving (Functor, Applicative, Monad)
 
 instance WriterM SCResults Results where
@@ -147,7 +147,7 @@ putError err = do
   put (Results [err `at` loc] [])
 
 runSCResults :: SCResults a -> (a, Results)
-runSCResults tc = fst $ runState (St NoLoc M.empty) $ runWriterT (unTC tc)
+runSCResults tc = fst $ runId $ runStateT (St NoLoc M.empty) $ runWriterT (unTC tc)
 
 --------------------------------------------------------------------------------
 

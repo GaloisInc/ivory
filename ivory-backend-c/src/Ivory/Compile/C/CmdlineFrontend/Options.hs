@@ -1,10 +1,7 @@
-{-# LANGUAGE CPP #-}
-
 module Ivory.Compile.C.CmdlineFrontend.Options where
 
-#if __GLASGOW_HASKELL__ <= 708
-import Data.Monoid (Monoid(..),mconcat)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 import System.Console.GetOpt
     (ArgOrder(Permute),OptDescr(..),ArgDescr(..),getOpt,usageInfo)

@@ -41,14 +41,15 @@ module Ivory.Language.Monad (
   , withLocation
   ) where
 
+import Prelude ()
+import Prelude.Compat
+
 import qualified Ivory.Language.Effects as E
 import Ivory.Language.Proxy
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as AST
 import Ivory.Language.Syntax.Concrete.Location
 
-import qualified Control.Applicative as A
-import qualified Data.Monoid as M
 import MonadLib (StateT,WriterT,Id)
 import qualified MonadLib
 
@@ -57,7 +58,7 @@ import qualified MonadLib
 
 newtype Ivory (eff :: E.Effects) a = Ivory
   { unIvory :: WriterT CodeBlock (StateT Int Id) a
-  } deriving (Functor,A.Applicative,Monad)
+  } deriving (Functor,Applicative,Monad)
 
 data CodeBlock = CodeBlock
   { blockStmts    :: AST.Block
@@ -65,16 +66,16 @@ data CodeBlock = CodeBlock
   , blockEnsures  :: [AST.Ensure]
   } deriving (Show)
 
-instance M.Monoid CodeBlock where
+instance Monoid CodeBlock where
   mempty = CodeBlock
     { blockStmts    = []
     , blockRequires = []
     , blockEnsures  = []
     }
   mappend l r = l `seq` r `seq` CodeBlock
-    { blockStmts    = blockStmts l    `M.mappend` blockStmts r
-    , blockRequires = blockRequires l `M.mappend` blockRequires r
-    , blockEnsures  = blockEnsures l  `M.mappend` blockEnsures r
+    { blockStmts    = blockStmts l    `mappend` blockStmts r
+    , blockRequires = blockRequires l `mappend` blockRequires r
+    , blockEnsures  = blockEnsures l  `mappend` blockEnsures r
     }
 
 
@@ -109,7 +110,7 @@ emits  = Ivory . MonadLib.put
 --
 -- XXX do not export
 emit :: AST.Stmt -> Ivory eff ()
-emit s = emits M.mempty { blockStmts = [s] }
+emit s = emits mempty { blockStmts = [s] }
 
 -- | Generate a fresh variable name.
 --

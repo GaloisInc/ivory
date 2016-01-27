@@ -7,12 +7,11 @@
 
 module FibLoop where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Compile.C.CmdlineFrontend
 import Ivory.Language
-
-#if __GLASGOW_HASKELL__ <= 708
-import Control.Applicative ((<$>),(<*>))
-#endif
 
 -- Recursive implementation of fib
 fib_rec :: Def ('[Uint32] ':-> Uint64)

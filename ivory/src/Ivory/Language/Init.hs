@@ -8,6 +8,9 @@
 
 module Ivory.Language.Init where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language.Area
 import Ivory.Language.Array
 import Ivory.Language.Float
@@ -27,7 +30,6 @@ import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Effects as E
 
 import Control.Monad (forM_)
-import qualified Data.Monoid as M
 
 import GHC.TypeLits(Symbol)
 
@@ -191,14 +193,14 @@ newtype InitStruct (sym :: Symbol) = InitStruct
 
 -- Much like the C initializers, the furthest right field initializer will take
 -- precidence, and fields not mentioned will be left as zero.
-instance IvoryStruct sym => M.Monoid (InitStruct sym) where
+instance IvoryStruct sym => Monoid (InitStruct sym) where
   mempty      = InitStruct []
-  mappend l r = InitStruct (M.mappend (getInitStruct l) (getInitStruct r))
+  mappend l r = InitStruct (mappend (getInitStruct l) (getInitStruct r))
 
 istruct :: forall sym. IvoryStruct sym => [InitStruct sym] -> Init ('Struct sym)
 istruct is = Init (IStruct ty fields)
   where
-  fields = [ (l,i) | (l,i) <- getInitStruct (M.mconcat is) ]
+  fields = [ (l,i) | (l,i) <- getInitStruct (mconcat is) ]
   ty = ivoryArea (Proxy :: Proxy ('Struct sym))
 
 (.=) :: Label sym area -> Init area -> InitStruct sym

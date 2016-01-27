@@ -15,12 +15,13 @@
 
 module Ivory.Language.Syntax.Concrete.Lexer where
 
+import Prelude ()
+import Prelude.Compat
+
 import Data.Char (ord)
 import Prelude hiding (lex, id)
 import Data.Word (Word8)
 import Data.Bits (shiftR,(.&.))
-import qualified Data.Monoid as M
-import qualified Control.Applicative as A
 import MonadLib
 import qualified Data.Text.Lazy as L
 
@@ -277,7 +278,7 @@ utf8Encode = map fromIntegral . go . ord
 
 newtype Lexer a = Lexer
   { unLexer :: StateT LexerState Id a
-  } deriving (Functor,Monad,A.Applicative)
+  } deriving (Functor,Monad,Applicative)
 
 instance StateM Lexer LexerState where
   get = Lexer   get
@@ -306,7 +307,7 @@ scan source bytes = fst (runId (runStateT st0 (unLexer loop)))
         mb   <- action inp len
         rest <- loop
         case mb of
-          Just lex -> return (lex:rest)
+          Just l   -> return (l:rest)
           Nothing  -> return rest
 
       AlexSkip inp' _len -> do
@@ -314,7 +315,7 @@ scan source bytes = fst (runId (runStateT st0 (unLexer loop)))
         loop
 
       AlexEOF ->
-        return [Located M.mempty TokEOF]
+        return [Located mempty TokEOF]
 
       AlexError inp' ->
         return [Located (mkRange inp' "") (TokError "Lexical error")]
