@@ -4,7 +4,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Ivory.Language.Loop where
+module Ivory.Language.Loop (
+    breakOut,
+    upTo,
+    downTo,
+    for,
+    times,
+    arrayMap,
+    forever
+  ) where
 
 import Ivory.Language.IIntegral
 import Ivory.Language.IBool
