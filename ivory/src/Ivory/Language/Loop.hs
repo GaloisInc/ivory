@@ -14,7 +14,6 @@ module Ivory.Language.Loop (
     forever
   ) where
 
-import Ivory.Language.IIntegral
 import Ivory.Language.IBool
 import Ivory.Language.Assert
 import Ivory.Language.Array
@@ -32,32 +31,34 @@ breakOut = emit AST.Break
 -- XXX don't export.
 loop :: forall eff n a. (ANat n)
      => (AST.Expr -> AST.LoopIncr)
-     -> Ix n
-     -> Ix n
+     -> IxRep
+     -> IxRep
      -> (Ix n -> Ivory (E.AllowBreak eff) a)
      -> Ivory eff ()
-loop incr fromIdx toIdx body = do
+loop incr from to body = do
   let maxSz :: IxRep
       maxSz = fromInteger $ ixSize (undefined :: Ix n)
-  let trans v = unwrapExpr $ wrapExpr v .% maxSz
-  let from  = rawIxVal fromIdx
-  let to    = rawIxVal toIdx
   ix        <- freshVar "ix"
   let ixVar = wrapExpr (AST.ExpVar ix)
   (_,block) <- collect (body ixVar)
   -- XXX TODO: are these still needed??
-  let asst v = compilerAssert (wrapExpr v <? maxSz .&& (-1::IxRep) <=? wrapExpr v)
+  let asst v = compilerAssert (v <? maxSz .&& (-1 :: IxRep) <=? v)
   asst from
   asst to
-  emit (AST.Loop ix (trans from) (incr $ trans to) (blockStmts block))
+  emit (AST.Loop ix (unwrapExpr from) (incr $ unwrapExpr to) (blockStmts block))
 
+
+-- | Loop over the range of indexes @[start, start + 1 .. end]@. If
+-- @end > start@, the loop body will never execute.
 upTo :: ANat n
      => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-upTo = loop AST.IncrTo
+upTo from to = loop AST.IncrTo (fromIx from) (fromIx to)
 
+-- | Loop over the range of indexes @[end, end - 1 .. start]@. If
+-- @start > end@, the loop body will never execute.
 downTo :: ANat n
        => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-downTo = loop AST.DecrTo
+downTo from to = loop AST.DecrTo (fromIx from) (fromIx to)
 
 -- | Run the computation n times, where
 -- @
@@ -66,7 +67,7 @@ downTo = loop AST.DecrTo
 -- Indexes increment from 0 to n-1 inclusively.
 for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-for n f = upTo 0 (n-1) f
+for n f = loop AST.IncrTo 0 (fromIx n - 1) f
 
 -- | Run the computation n times, where
 -- @
@@ -75,13 +76,11 @@ for n f = upTo 0 (n-1) f
 -- Indexes decrement from n-1 to 0 inclusively.
 times :: forall eff n a. ANat n
       => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-times n f = downTo (n-1) 0 f
+times n = loop AST.DecrTo (fromIx n - 1) 0
 
 arrayMap :: forall eff n a . ANat n
          => (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
-arrayMap = upTo 0 hi
-  where
-  hi = fromInteger ((fromTypeNat (aNat :: NatType n)) - 1)
+arrayMap = loop AST.IncrTo 0 (fromIntegral (fromTypeNat (aNat :: NatType n)) - 1)
 
 forever :: Ivory (E.AllowBreak eff) () -> Ivory eff ()
 forever body = do

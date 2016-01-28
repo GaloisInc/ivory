@@ -5,7 +5,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Ivory.Language.Array where
+module Ivory.Language.Array (
+    Ix(),
+    IxRep, ixRep,
+    fromIx,
+    toIx,
+    ixSize,
+    arrayLen,
+    (!),
+  ) where
 
 import Ivory.Language.IBool
 import Ivory.Language.Area
