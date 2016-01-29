@@ -167,7 +167,7 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
          if b0 && b1 then tyChk' (sb, True) ss
            else do when (b0 `xor` b1) (putWarn IfTEWarn)
                    tyChk' (sb, False) ss
-  tyChk' (sb, False) (I.Loop _ _ _ ss0 : ss)
+  tyChk' (sb, False) (I.Loop _ _ _ _ ss0 : ss)
     = do b <- tyChk' (True, False) ss0
          when b (putWarn LoopWarn)
          tyChk' (sb, False) ss

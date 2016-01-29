@@ -174,9 +174,9 @@ toAlloc stmt =
     I.IfTE _ blk0 blk1                  -> [ Branch (concatMap toAlloc blk0)
                                                     (concatMap toAlloc blk1) ]
                                            -- For the loop variable.
-    I.Loop _ e _ blk                    ->
+    I.Loop m _ e _ blk                  ->
       let ty = I.ixRep in
-      [Stmt (toStackType ty), Loop (getIdx e) (concatMap toAlloc blk)]
+      [Stmt (toStackType ty), Loop (Just (loopIdx m e)) (concatMap toAlloc blk)]
     I.Forever blk                       ->
       [Loop Nothing (concatMap toAlloc blk)]
     _                                   -> []
@@ -189,8 +189,12 @@ toCall stmt =
     I.Call _ _ nm _  -> case nm of
                           I.NameSym sym -> [Stmt sym]
                           I.NameVar _   -> error $ "XXX need to implement function pointers."
-    I.Loop _ e _ blk   -> [Loop (getIdx e) (concatMap toCall blk)]
+    I.Loop m _ e _ blk -> [Loop (Just (loopIdx m e)) (concatMap toCall blk)]
     _                  -> []
+
+loopIdx :: Integer -> I.Expr -> Integer
+loopIdx _ (I.ExpLit (I.LitInteger i)) = i
+loopIdx m _                           = m
 
 getIdx :: I.Expr -> Maybe Integer
 getIdx e = case e of

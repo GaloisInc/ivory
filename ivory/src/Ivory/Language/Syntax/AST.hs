@@ -195,9 +195,10 @@ data Stmt
     -- ^ Reference allocation.  The type parameter is not a reference, but the
     -- referenced type.
 
-  | Loop Var Expr LoopIncr Block
-    -- ^ Looping: arguments are the loop variable, start value,
-    -- break condition (for increment or decrement), and block.
+  | Loop Integer Var Expr LoopIncr Block
+    -- ^ Looping: arguments are the maximum number of iterations of the loop,
+    -- loop variable, start value, break condition (for increment or decrement),
+    -- and block.
 
   | Forever Block
     -- ^ Nonterminting loop

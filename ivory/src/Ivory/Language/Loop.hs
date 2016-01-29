@@ -36,16 +36,18 @@ loop :: forall eff n a. (ANat n)
      -> (Ix n -> Ivory (E.AllowBreak eff) a)
      -> Ivory eff ()
 loop incr from to body = do
+  let maxVal = ixSize (undefined :: Ix n)
+
   let maxSz :: IxRep
-      maxSz = fromInteger $ ixSize (undefined :: Ix n)
+      maxSz = fromInteger maxVal
   ix        <- freshVar "ix"
   let ixVar = wrapExpr (AST.ExpVar ix)
   (_,block) <- collect (body ixVar)
   -- XXX TODO: are these still needed??
-  let asst v = compilerAssert (v <? maxSz .&& (-1 :: IxRep) <=? v)
+  let asst v = compilerAssert (v <? maxSz .&& 0 <=? v)
   asst from
   asst to
-  emit (AST.Loop ix (unwrapExpr from) (incr $ unwrapExpr to) (blockStmts block))
+  emit (AST.Loop maxVal ix (unwrapExpr from) (incr $ unwrapExpr to) (blockStmts block))
 
 
 -- | Loop over the range of indexes @[start, start + 1 .. end]@. If

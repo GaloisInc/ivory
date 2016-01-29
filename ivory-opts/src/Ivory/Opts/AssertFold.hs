@@ -132,10 +132,10 @@ stmtFold ef stmt = case stmt of
                                         insert stmt
   I.Call _ty _mv _nm args         -> do mapM_ efTyped args
                                         insert stmt
-  I.Loop v e incr blk             -> do ef (I.ixRep) e
+  I.Loop m v e incr blk           -> do ef (I.ixRep) e
                                         efIncr incr
                                         blk' <- runFreshStmts ef blk
-                                        insert (I.Loop v e incr blk')
+                                        insert (I.Loop m v e incr blk')
   I.Break                         -> insert stmt
   I.Local _ty _v init'            -> do efInit init'
                                         insert stmt

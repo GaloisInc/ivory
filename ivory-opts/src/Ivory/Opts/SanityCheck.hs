@@ -225,7 +225,7 @@ check = mapM_ go
       -> checkExpr e1 >> checkExpr e2
     I.AllocRef t v _
       -> varString v `hasType` t
-    I.Loop v _ _ stmts
+    I.Loop _ v _ _ stmts
       -> localEnv $ do varString v `hasType` I.ixRep
                        check stmts
     I.Forever stmts

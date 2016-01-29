@@ -277,7 +277,7 @@ evalStmt stmt = case stmt of
           writeStore (varSym var) val
   I.AllocRef _ty var ref
     -> writeStore (varSym var) (Ref $ nameSym ref)
-  I.Loop var expr incr body
+  I.Loop _ var expr incr body
     -> do val <- evalExpr I.ixRep expr
           writeStore (varSym var) val
           let (stepFn, doneExpr) = case incr of

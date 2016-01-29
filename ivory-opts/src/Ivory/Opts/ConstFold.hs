@@ -113,7 +113,7 @@ stmtFold cxt opt stmt =
       copies <- get
       return $ D.singleton $ I.RefCopy t (opt copies t e0) (opt copies t e1)
     I.AllocRef{}         -> return $ D.singleton stmt
-    I.Loop v e incr blk' -> do
+    I.Loop m v e incr blk' -> do
       copies <- get
       let ty = I.ixRep
       case opt copies ty e of
@@ -123,7 +123,7 @@ stmtFold cxt opt stmt =
                else error $ "Constant folding evaluated False expression "
                           ++ "in a loop bound.  The loop will never execute!"
         _                      ->
-          return $ D.singleton $ I.Loop v (opt copies ty e) (loopIncrFold (opt copies ty) incr)
+          return $ D.singleton $ I.Loop m v (opt copies ty e) (loopIncrFold (opt copies ty) incr)
                         (newFold copies blk')
     I.Break              -> return $ D.singleton stmt
     I.Forever b          -> do

@@ -349,7 +349,7 @@ extractLocals (AST.AllocRef _ty refvar name) rest = do
   let AST.NameVar var = name -- XXX: AFAICT, AllocRef can't have a NameSym argument.
   refvar `rewriteTo` contRef var
   rest
-extractLocals (AST.Loop var initEx incr b) rest = do
+extractLocals (AST.Loop _ var initEx incr b) rest = do
   let ty = ivoryType (Proxy :: Proxy IxRep)
   cont <- addLocal ty var
   stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr initEx)
