@@ -36,7 +36,7 @@ sumTest = testCase "sum" $ do
         = runEvalStartingFrom (initState mempty)
         $ evalBlock $ blockStmts $ snd $ runIvory $ do
             r <- local (izero :: Init ('Stored Sint32))
-            11 `times` \(i :: Ix 11) -> do -- sum [ 10 .. 0 ]
+            11 `times` \(i :: Ix 12) -> do -- sum [ 10 .. 0 ]
               v <- deref r
               store r (v + safeCast i)
   assertEqual "wrong state!"
