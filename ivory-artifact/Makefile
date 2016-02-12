@@ -1,1 +1,1 @@
-include ../Makefile.sandbox
+include ../stack.mk

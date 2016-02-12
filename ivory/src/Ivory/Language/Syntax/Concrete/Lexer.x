@@ -1,7 +1,7 @@
 -- # -*- mode: haskell -*-
 {
 
-{-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-tabs #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-tabs -fno-warn-unused-matches -fno-warn-unused-imports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
@@ -19,7 +19,6 @@ import Prelude ()
 import Prelude.Compat
 
 import Data.Char (ord)
-import Prelude hiding (lex, id)
 import Data.Word (Word8)
 import Data.Bits (shiftR,(.&.))
 import MonadLib

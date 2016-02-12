@@ -17,7 +17,7 @@ source-repository    this
   tag:      hackage-examples-0102
 
 executable ivory-c-clang-test
-  main-is:              Test.hs
+  main-is:              TestExamples.hs
   other-modules:        PID,
                         FibLoop,
                         Factorial,

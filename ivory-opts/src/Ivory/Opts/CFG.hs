@@ -196,8 +196,8 @@ loopIdx :: Integer -> I.Expr -> Integer
 loopIdx _ (I.ExpLit (I.LitInteger i)) = i
 loopIdx m _                           = m
 
-getIdx :: I.Expr -> Maybe Integer
-getIdx e = case e of
+_getIdx :: I.Expr -> Maybe Integer
+_getIdx e = case e of
              I.ExpLit (I.LitInteger i) -> Just i
              _                         -> Nothing
 

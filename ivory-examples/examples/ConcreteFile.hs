@@ -6,7 +6,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-unused-binds -fno-warn-unused-matches #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-missing-signatures #-}
 
 --
 -- C-like syntax for Ivory, parsed from a file.

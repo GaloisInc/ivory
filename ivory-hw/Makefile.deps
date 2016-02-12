@@ -1,5 +1,0 @@
-$(call add-cabal-package-source, \
-  $(IVORY_REPO)/ivory \
-  $(IVORY_REPO)/ivory-artifact \
-  $(IVORY_REPO)/ivory-backend-c \
-)
