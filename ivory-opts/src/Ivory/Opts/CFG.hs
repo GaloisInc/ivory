@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 
 -- {-# LANGUAGE DataKinds #-}
 -- {-# LANGUAGE TypeOperators #-}
@@ -20,17 +21,18 @@ module Ivory.Opts.CFG
   )
     where
 
+import Prelude ()
+import Prelude.Compat hiding (lookup)
+
 import qualified Ivory.Language.Array       as I
 import qualified Ivory.Language.Syntax.AST  as I
 import qualified Ivory.Language.Syntax.Type as I
 import qualified Data.Graph.Inductive as G
 
-import Prelude hiding (lookup)
-import Data.Monoid
+import Control.Applicative (liftA2)
 import System.FilePath
 import Data.Maybe
-import Data.List hiding (lookup)
-import Control.Applicative
+import Data.List (find,(\\))
 import qualified Data.IntMap as M
 import MonadLib (StateT, get, set, Id, StateM, runM)
 import MonadLib.Derive (derive_get, derive_set, Iso(..))
@@ -172,9 +174,9 @@ toAlloc stmt =
     I.IfTE _ blk0 blk1                  -> [ Branch (concatMap toAlloc blk0)
                                                     (concatMap toAlloc blk1) ]
                                            -- For the loop variable.
-    I.Loop _ e _ blk                    ->
+    I.Loop m _ e _ blk                  ->
       let ty = I.ixRep in
-      [Stmt (toStackType ty), Loop (getIdx e) (concatMap toAlloc blk)]
+      [Stmt (toStackType ty), Loop (Just (loopIdx m e)) (concatMap toAlloc blk)]
     I.Forever blk                       ->
       [Loop Nothing (concatMap toAlloc blk)]
     _                                   -> []
@@ -187,11 +189,15 @@ toCall stmt =
     I.Call _ _ nm _  -> case nm of
                           I.NameSym sym -> [Stmt sym]
                           I.NameVar _   -> error $ "XXX need to implement function pointers."
-    I.Loop _ e _ blk   -> [Loop (getIdx e) (concatMap toCall blk)]
+    I.Loop m _ e _ blk -> [Loop (Just (loopIdx m e)) (concatMap toCall blk)]
     _                  -> []
 
-getIdx :: I.Expr -> Maybe Integer
-getIdx e = case e of
+loopIdx :: Integer -> I.Expr -> Integer
+loopIdx _ (I.ExpLit (I.LitInteger i)) = i
+loopIdx m _                           = m
+
+_getIdx :: I.Expr -> Maybe Integer
+_getIdx e = case e of
              I.ExpLit (I.LitInteger i) -> Just i
              _                         -> Nothing
 
@@ -408,17 +414,17 @@ graphviz :: (G.Graph g, Show a, Show b)
   -> String
 graphviz g t =
     let n = G.labNodes g
-	e = G.labEdges g
-	ns = concatMap sn n
-	es = concatMap se e
+        e = G.labEdges g
+        ns = concatMap sn n
+        es = concatMap se e
     in "digraph "++t++" {\n"
-	    ++ ns
-	    ++ es
-	++"}"
-    where sn (n, a) | sa == ""	= ""
-		    | otherwise	= '\t':(show n ++ sa ++ "\n")
-	    where sa = sl a
-	  se (n1, n2, b) = '\t':(show n1 ++ " -> " ++ show n2 ++ sl b ++ "\n")
+            ++ ns
+            ++ es
+        ++"}"
+    where sn (n, a) | sa == ""  = ""
+                    | otherwise = '\t':(show n ++ sa ++ "\n")
+            where sa = sl a
+          se (n1, n2, b) = '\t':(show n1 ++ " -> " ++ show n2 ++ sl b ++ "\n")
 
 sl :: (Show a) => a -> String
 sl a = let l = sq (show a)
@@ -427,9 +433,9 @@ sl a = let l = sq (show a)
 sq :: String -> String
 sq s@[_]                     = s
 sq ('"':s)  | last s == '"'  = init s
-	    | otherwise	     = s
+            | otherwise      = s
 sq ('\'':s) | last s == '\'' = init s
-	    | otherwise	     = s
+            | otherwise      = s
 sq s                         = s
 
 --------------------------------------------------------------------------------

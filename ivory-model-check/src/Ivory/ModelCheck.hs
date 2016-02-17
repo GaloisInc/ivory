@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE CPP #-}
 
 module Ivory.ModelCheck where
+
+import Prelude ()
+import Prelude.Compat
 
 import qualified Ivory.Language.Proc         as I
 import qualified Ivory.Language.Syntax       as I
@@ -11,14 +15,13 @@ import           Ivory.ModelCheck.Ivory2CVC4
 import           Ivory.ModelCheck.Monad
 import           Ivory.ModelCheck.CVC4
 
-import           System.FilePath.Posix
-import           System.Directory
-import           System.Process
-import           System.IO
-import           Control.Applicative
-import           Control.Monad
+import           System.FilePath.Posix ((</>))
+import           System.Directory (getTemporaryDirectory,createDirectoryIfMissing)
+import           System.Process (createProcess,proc,StdStream(CreatePipe),std_out)
+import           System.IO (hGetContents,hClose,openTempFile)
+import           Control.Monad (when)
 import qualified Data.ByteString.Char8       as B
-import           Data.List
+import           Data.List (intercalate)
 import qualified Data.Map                    as M
 
 --------------------------------------------------------------------------------

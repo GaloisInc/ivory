@@ -4,13 +4,18 @@
 
 module Ivory.Language.Syntax.AST where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Names
 import Ivory.Language.Syntax.Type
 
-import Data.Monoid (Monoid(..))
 import Language.Haskell.TH.Lift (deriveLiftMany)
+
+#if __GLASGOW_HASKELL__ < 709
 import Language.Haskell.TH.Syntax (Lift(..))
+#endif
 
 import Data.Ratio (denominator, numerator)
 import qualified Data.Set as Set
@@ -190,9 +195,10 @@ data Stmt
     -- ^ Reference allocation.  The type parameter is not a reference, but the
     -- referenced type.
 
-  | Loop Var Expr LoopIncr Block
-    -- ^ Looping: arguments are the loop variable, start value,
-    -- break condition (for increment or decrement), and block.
+  | Loop Integer Var Expr LoopIncr Block
+    -- ^ Looping: arguments are the maximum number of iterations of the loop,
+    -- loop variable, start value, break condition (for increment or decrement),
+    -- and block.
 
   | Forever Block
     -- ^ Nonterminting loop

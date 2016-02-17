@@ -39,7 +39,8 @@ module Ivory.Language.Syntax.Concrete.QQ.Common
 #endif
   ) where
 
-import Prelude hiding (exp)
+import Prelude ()
+import Prelude.Compat hiding (exp)
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -47,9 +48,7 @@ import qualified Language.Haskell.TH as T
 import           Data.List  (nub)
 import           MonadLib   (set, get)
 import qualified MonadLib   as M
-import           Data.Monoid
 import qualified Data.DList as D
-import           Control.Applicative
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Location

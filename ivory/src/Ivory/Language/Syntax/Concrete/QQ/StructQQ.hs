@@ -9,7 +9,8 @@ module Ivory.Language.Syntax.Concrete.QQ.StructQQ
   ( fromStruct
   ) where
 
-import Data.Monoid
+import Prelude ()
+import Prelude.Compat
 
 import qualified Ivory.Language.Area  as A
 import           Ivory.Language.Proxy
@@ -36,8 +37,8 @@ fromStruct def = case def of
     defs <- sequence (mkIvoryStruct sym def ++ mkFields sym fs)
     ln <- lnPragma srcloc
     return (ln ++ defs)
-  StringDef name len srcloc -> mkStringDef name len
-  AbstractDef n _hdr srcloc -> sequence (mkIvoryStruct (mkSym n) def)
+  StringDef name len _srcloc -> mkStringDef name len
+  AbstractDef n _hdr _srcloc -> sequence (mkIvoryStruct (mkSym n) def)
 #else
   StructDef n fs _srcloc -> do
     let sym = mkSym n
@@ -113,7 +114,7 @@ mkStringDef :: String -> Integer -> Q [Dec]
 mkStringDef ty_s len = do
   let ty_n       = mkName ty_s
   let struct_s   = ivoryStringStructName ty_s
-  let struct_t   = [t| A.Struct $(litT (strTyLit struct_s)) |]
+  let struct_t   = [t| 'A.Struct $(litT (strTyLit struct_s)) |]
   let data_s     = struct_s ++ "_data"
   let data_n     = mkName data_s
   let len_s      = struct_s ++ "_len"

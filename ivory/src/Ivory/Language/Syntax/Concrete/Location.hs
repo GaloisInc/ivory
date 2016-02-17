@@ -11,13 +11,14 @@
 
 module Ivory.Language.Syntax.Concrete.Location where
 
+import Prelude ()
+import Prelude.Compat
+
 import Control.Monad (mplus)
 import Data.Function (on)
 import Data.List (foldl')
 import Data.Maybe (maybeToList)
-import Data.Monoid
-import Data.Foldable (Foldable, foldMap)
-import Data.Traversable
+import Data.Monoid.Compat ((<>))
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Pretty
@@ -37,7 +38,7 @@ instance HasLocation a => HasLocation [a] where
 
 instance (HasLocation a, HasLocation b) => HasLocation (a,b) where
   {-# INLINE getLoc #-}
-  getLoc (a,b) = getLoc a <> getLoc b
+  getLoc (a,b) = getLoc a `mappend` getLoc b
 
   {-# INLINE stripLoc #-}
   stripLoc (a,b) = (stripLoc a, stripLoc b)

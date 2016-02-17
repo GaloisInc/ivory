@@ -8,9 +8,10 @@
 
 module Ivory.Opts.CSE (cseFold) where
 
-import Control.Applicative
+import Prelude ()
+import Prelude.Compat
+
 import qualified Data.DList as D
-import Data.Foldable
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import Data.IntSet (IntSet)
@@ -18,13 +19,10 @@ import qualified Data.IntSet as IntSet
 import Data.List (sort)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Monoid
 import Data.Reify
-import Data.Traversable
 import Ivory.Language.Array (ixRep)
 import qualified Ivory.Language.Syntax as AST
 import MonadLib (WriterT, StateT, Id, get, set, sets, sets_, put, collect, lift, runM)
-import Prelude hiding (foldr, mapM, mapM_)
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | Find each common sub-expression and extract it to a new variable,
@@ -143,7 +141,7 @@ data BlockF t
   | StmtCall AST.Type (Maybe AST.Var) AST.Name [AST.Typed t]
   | StmtLocal AST.Type AST.Var (InitF t)
   | StmtRefCopy AST.Type t t
-  | StmtLoop AST.Var t (LoopIncrF t) t
+  | StmtLoop Integer AST.Var t (LoopIncrF t) t
   | StmtForever t
   | Block [t]
   deriving (Show, Eq, Ord, Functor)
@@ -174,7 +172,7 @@ instance MuRef AST.Stmt where
     AST.Call ty mv nm args -> StmtCall ty mv nm <$> traverse (\ (AST.Typed argTy argEx) -> AST.Typed argTy <$> child argEx) args
     AST.Local ty var initex -> StmtLocal ty var <$> mapInit initex
     AST.RefCopy ty dst src -> StmtRefCopy ty <$> child dst <*> child src
-    AST.Loop var ex incr lb -> StmtLoop var <$> child ex <*> mapIncr incr <*> child lb
+    AST.Loop m var ex incr lb -> StmtLoop m var <$> child ex <*> mapIncr incr <*> child lb
     AST.Forever lb -> StmtForever <$> child lb
     -- These kinds of statements can't contain other statements or expressions.
     AST.ReturnVoid -> pure $ StmtSimple stmt
@@ -212,7 +210,7 @@ toBlock expr block b = case b of
   StmtLocal ty var initex -> stmt $ AST.Local ty var <$> toInit initex
   -- XXX: See deref and store comments above.
   StmtRefCopy ty dst src -> stmt $ AST.RefCopy ty <$> expr dst (AST.TyRef ty) <*> expr src (AST.TyConstRef ty)
-  StmtLoop var ex incr lb -> stmt $ AST.Loop var <$> expr ex ixRep <*> toIncr incr <*> genBlock (block lb)
+  StmtLoop m var ex incr lb -> stmt $ AST.Loop m var <$> expr ex ixRep <*> toIncr incr <*> genBlock (block lb)
   StmtForever lb -> stmt $ AST.Forever <$> genBlock (block lb)
   Block stmts -> mapM_ block stmts
   where

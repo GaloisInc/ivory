@@ -19,18 +19,18 @@ struct Foo { foo_i   :: Stored Sint32
            }
 |]
 
-privateFoo :: MemArea (Struct "Foo")
+privateFoo :: MemArea ('Struct "Foo")
 privateFoo  = area "private_foo" $
   Just (istruct [foo_i .= ival 0, foo_cnt .= ival 0])
 
-privUpdate :: Def ('[Sint32] :-> ())
+privUpdate :: Def ('[Sint32] ':-> ())
 privUpdate = proc "privUpdate" $ \v -> body $ do
   let foo = addrOf privateFoo
   curr <- deref (foo ~> foo_cnt)
   store (foo ~> foo_i) v
   store (foo~> foo_cnt) (curr+1)
 
-pubUpdate :: Def ('[Sint32] :-> ())
+pubUpdate :: Def ('[Sint32] ':-> ())
 pubUpdate = proc "pubUpdate" $ \v -> body $ do
   call_ privUpdate v
 

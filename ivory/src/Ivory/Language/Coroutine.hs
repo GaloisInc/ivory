@@ -31,13 +31,14 @@ module Ivory.Language.Coroutine (
   Coroutine(..), CoroutineBody(..), coroutine,
   ) where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Fix
+import Prelude ()
+import Prelude.Compat
+
+import Control.Monad (unless,when)
+import Control.Monad.Fix (mfix)
 import qualified Data.DList as D
 import qualified Data.IntMap as IntMap
 import qualified Data.Map as Map
-import Data.Monoid
 import Ivory.Language.Area
 import Ivory.Language.Array
 import Ivory.Language.Effects
@@ -111,7 +112,7 @@ data Coroutine a = Coroutine
     -- 'true'), or resuming it (if first argument is 'false').  The second
     -- argument is passed to the coroutine when resuming, and ignored when
     -- initializing.
-  , coroutineRun :: forall eff s s'. GetAlloc eff ~ Scope s' =>
+  , coroutineRun :: forall eff s s'. GetAlloc eff ~ 'Scope s' =>
                     IBool -> ConstRef s a -> Ivory eff ()
     -- | The components a 'Module' will need for this coroutine
   , coroutineDef :: ModuleDef
@@ -124,7 +125,7 @@ data Coroutine a = Coroutine
 newtype CoroutineBody a =
   CoroutineBody (forall s1 s2 .
                  (forall b .
-                  Ivory ('Effects (Returns ()) b (Scope s2)) (Ref s1 a)) ->
+                  Ivory ('Effects ('Returns ()) b ('Scope s2)) (Ref s1 a)) ->
                          Ivory (ProcEffects s2 ()) ())
 
 -- | Smart constructor for a 'Coroutine'
@@ -348,7 +349,7 @@ extractLocals (AST.AllocRef _ty refvar name) rest = do
   let AST.NameVar var = name -- XXX: AFAICT, AllocRef can't have a NameSym argument.
   refvar `rewriteTo` contRef var
   rest
-extractLocals (AST.Loop var initEx incr b) rest = do
+extractLocals (AST.Loop _ var initEx incr b) rest = do
   let ty = ivoryType (Proxy :: Proxy IxRep)
   cont <- addLocal ty var
   stmt =<< AST.Store ty cont <$> runUpdateExpr (updateExpr initEx)

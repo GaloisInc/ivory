@@ -37,14 +37,18 @@ module Ivory.ModelCheck.Monad
   )
  where
 
-import           Prelude hiding (exp)
-import           Data.Maybe
-import           Data.List
-import           Data.Monoid
-import           Data.Int
-import           Data.Word
-import           Control.Applicative
+import Prelude ()
+import Prelude.Compat hiding (exp)
+import Data.Monoid.Compat
+
+import           Control.Monad (unless,forM_)
+import           Data.List (stripPrefix)
+import           Data.Maybe (fromMaybe,isJust)
+import           Data.Int (Int8,Int16,Int32,Int64)
+import           Data.Word (Word8,Word16,Word32,Word64)
 import           MonadLib
+                     (StateM(..),ReaderM(..),Id,StateT,ReaderT,runId,runStateT
+                     ,runReaderT,sets_,asks)
 import qualified Data.Map.Lazy         as M
 
 import Ivory.Language.Syntax.Concrete.Location

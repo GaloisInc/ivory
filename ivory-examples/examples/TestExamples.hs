@@ -18,6 +18,7 @@ import qualified AddrOfRegression
 import qualified Array
 import qualified ConcreteFile
 import qualified Coroutine
+import qualified Loop
 
 import Control.Monad (when)
 import Ivory.Compile.C.CmdlineFrontend
@@ -58,5 +59,6 @@ modules = [ PID.cmodule
           , Coroutine.cmodule
           , ConcreteFile.concreteIvory
           , ConcreteFile.examplesfile
+          , Loop.cmodule
           , stdlibStringModule
           ] ++ stdlibModules

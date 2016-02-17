@@ -27,13 +27,13 @@ available on [ivorylang.org](http://ivorylang.org).
 ## Installing
 
 Ivory is written in Haskell and uses several recent GHC extensions.  It is known
-to work with with GHC 7.6.2,  7.6.3, and the 7.8.x series.
+to work with with the GHC 7.8.x series.
 
 Ivory is not yet compatible with GHC 7.10. If this prevents you from making use
 of Ivory, please file a bug on github telling us so.
 
-We recommend using a cabal sandbox containing these Ivory language packages and
-any programs which use them.
+We recommend using the [Stack][stack] build tool for Ivory language
+packages and any programs which use them.
 
 ## Copyright and license
 Copyright 2013-2015 [Galois, Inc.][galois]
@@ -45,7 +45,7 @@ file.
 [ivory]: http://github.com/GaloisInc/ivory
 [userguide]: http://github.com/GaloisInc/ivory/blob/master/ivory/user-guide.md
 [examples]: http://github.com/GaloisInc/ivory/tree/master/ivory-examples/examples
-[cabaldev]: http://hackage.haskell.org/package/cabal-dev
+[stack]: http://www.haskellstack.org/
 [galois]: http://galois.com
 
 ## Contributing

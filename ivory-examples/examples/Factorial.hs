@@ -6,7 +6,7 @@ module Factorial where
 import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
-factorial :: Def ('[Sint32] :-> Sint32)
+factorial :: Def ('[Sint32] ':-> Sint32)
 factorial  = proc "factorial" $ \ n ->
   -- These are made up requires/ensures for testing purposes.
   ensures (\r -> n <? r) $

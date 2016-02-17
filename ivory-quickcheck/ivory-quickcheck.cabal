@@ -19,6 +19,7 @@ source-repository    this
 library
   exposed-modules:      Ivory.QuickCheck
   build-depends:        base >= 4.6,
+                        base-compat,
                         monadLib,
                         random,
                         QuickCheck >= 2.7,
@@ -35,6 +36,7 @@ test-suite test
   main-is:        Test.hs
   ghc-options:    -Wall
   build-depends:  base
+               ,  base-compat
                ,  filepath
                ,  directory
                ,  process

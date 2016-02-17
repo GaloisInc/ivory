@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Type check to ensure there are no empty blocks in procedures, for non-void
@@ -19,11 +20,13 @@ module Ivory.Opts.TypeCheck
   , Results()
   ) where
 
+import Prelude ()
+import Prelude.Compat
 
-import MonadLib.Monads
-import Control.Applicative
-import Data.List
-import Data.Monoid
+import Control.Monad (when,void)
+import MonadLib
+           (WriterM(..),StateM(..),runId,runStateT,runWriterT,Id,StateT,WriterT)
+import Data.List (nub)
 
 import Ivory.Language.Syntax.Concrete.Location
 import Ivory.Language.Syntax.Concrete.Pretty
@@ -99,7 +102,7 @@ mkOut sym kind sh ls = nm : map go ls
 --------------------------------------------------------------------------------
 -- Writer Monad
 
-newtype TCResults a = TCResults { unTC :: WriterT Results (State SrcLoc) a }
+newtype TCResults a = TCResults { unTC :: WriterT Results (StateT SrcLoc Id) a }
   deriving (Functor, Applicative, Monad)
 
 instance WriterM TCResults Results where
@@ -120,7 +123,7 @@ putWarn warn = do
   put (Results [] [warn `at` loc])
 
 runTCResults :: TCResults a -> (a, Results)
-runTCResults tc = fst $ runState NoLoc $ runWriterT (unTC tc)
+runTCResults tc = fst $ runId $ runStateT NoLoc $ runWriterT (unTC tc)
 
 --------------------------------------------------------------------------------
 
@@ -164,7 +167,7 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
          if b0 && b1 then tyChk' (sb, True) ss
            else do when (b0 `xor` b1) (putWarn IfTEWarn)
                    tyChk' (sb, False) ss
-  tyChk' (sb, False) (I.Loop _ _ _ ss0 : ss)
+  tyChk' (sb, False) (I.Loop _ _ _ _ ss0 : ss)
     = do b <- tyChk' (True, False) ss0
          when b (putWarn LoopWarn)
          tyChk' (sb, False) ss

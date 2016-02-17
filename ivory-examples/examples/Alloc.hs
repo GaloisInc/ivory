@@ -26,26 +26,27 @@ struct Str {
 
 |]
 
-test :: Def ('[Ref s (Struct "Foo")] :-> Ref s (Stored Uint32))
+test :: Def ('[Ref s ('Struct "Foo")] ':-> Ref s ('Stored Uint32))
 test  = proc "alloc_test" (\ pid -> body (ret (pid ~> i)))
 
-get_p :: Def ('[] :-> Uint32)
+get_p :: Def ('[] ':-> Uint32)
 get_p  = proc "get_p" $ body $ do
   pid <- local (istruct [])
   ret =<< deref (pid ~> d)
 
-memcpy1 :: Def ('[ Ref a (Struct "Foo"), Ref a (Struct "Foo") ] :-> Uint32)
+memcpy1 :: Def ('[ Ref a ('Struct "Foo"), Ref a ('Struct "Foo") ] ':-> Uint32)
 memcpy1 = proc "memcpy1" $ \a b -> body $ do
   refCopy b a
   ret =<< deref (b ~> i)
 
-memcpy2 :: Def ('[ Ref a (Array 10 (Stored Uint32)), Ref a (Array 10 (Stored Uint32)) ] :-> ())
+memcpy2 :: Def ('[ Ref a ('Array 10 ('Stored Uint32))
+                 , Ref a ('Array 10 ('Stored Uint32)) ] ':-> ())
 memcpy2 = proc "memcpy2" $ \a b -> body $ do
   refCopy b a
   arrayMap (\ix -> store (a ! (ix :: Ix 10)) 1)
   retVoid
 
-memcpy3 :: Def ('[ Ref Global (Array 10 (Stored Uint32))] :-> ())
+memcpy3 :: Def ('[ Ref 'Global ('Array 10 ('Stored Uint32))] ':-> ())
 memcpy3 = proc "memcpy3" $ \a -> body $ do
   b <- local (iarray $ replicate 10 (ival $ 0))
   refCopy b a
@@ -69,59 +70,61 @@ bad_alloc = proc "bad_alloc" $ body $ do
   ret (pid~>i)
 -}
 
-arrMap :: Def ('[Ref s (Array 15 (Stored Sint32))] :-> ())
+arrMap :: Def ('[Ref s ('Array 15 ('Stored Sint32))] ':-> ())
 arrMap = proc "arrMap" $ \ arr -> body $ do
   arrayMap (\ix -> store (arr ! (ix :: Ix 15)) 1)
   retVoid
 
 -- String copy test -------------------------
-ptrstrcpy :: Def ('[Ref s (CArray (Stored IChar)), IString, Uint32] :-> ())
+ptrstrcpy :: Def ('[ Ref s ('CArray ('Stored IChar))
+                   , IString
+                   , Uint32] ':-> ())
 ptrstrcpy = proc "ptrstrcpy" $ \ _ _ _ ->  body $ do
   retVoid
 
-callstrcpy :: Def ('[] :-> ())
+callstrcpy :: Def ('[] ':-> ())
 callstrcpy  = proc "callstrcpy" $ body $ do
   buf' <- local (iarray [])
   call_ mystrcpy buf' "hello"
   retVoid
 
 -- | Safely copy a string literal into a character array.
-mystrcpy :: Def ('[Ref s (Array 10 (Stored IChar)), IString] :-> ())
+mystrcpy :: Def ('[Ref s ('Array 10 ('Stored IChar)), IString] ':-> ())
 mystrcpy = proc "mystrcpy" $ \ buf s -> body $ do
   buf' <- assign $ toCArray buf
   call_ ptrstrcpy buf' s (arrayLen buf)
   retVoid
 
-assign_test :: Def ('[] :-> ())
+assign_test :: Def ('[] ':-> ())
 assign_test  = proc "assign_test" $ body $ do
   val <- local (istruct [])
   _ <- assign (val ~> p)
   retVoid
 
-bar :: Def ('[] :-> ())
+bar :: Def ('[] ':-> ())
 bar = proc "bar" $ body $ do
   pid <- local $ istruct [i .= ival 3]
   arr <- local $ iarray [ ival c | c <- replicate 10 (char 'a') ]
   call_ mystrcpy arr "hello"
   store (pid~>i) 4
 
-castIx :: Def ('[Ix 253] :-> Uint8)
+castIx :: Def ('[Ix 253] ':-> Uint8)
 castIx = proc "castIx" $ \ix -> body $ do
   ret $ safeCast (ix :: Ix 253)
 
-loopTest :: Def ('[Ref s (Array 15 (Stored Sint32))] :-> ())
+loopTest :: Def ('[Ref s ('Array 15 ('Stored Sint32))] ':-> ())
 loopTest = proc "loopTest" $ \ arr -> body $ do
   arrayMap (\ix -> store (arr ! (ix :: Ix 15)) 1)
   times 3 (\ix -> store (arr ! (ix :: Ix 15)) 1)
   for 0 (\ix -> store (arr ! (ix :: Ix 15)) 1)
   retVoid
 
-testToIx :: Def ('[Sint32, Ref s (Array 10 (Stored Uint32))] :-> Ref s (Stored Uint32))
+testToIx :: Def ('[Sint32, Ref s ('Array 10 ('Stored Uint32))] ':-> Ref s ('Stored Uint32))
 testToIx = proc "testToIx" $ \ ind arr -> body $ do
   let idx = toIx ind :: Ix 10
   ret (arr ! idx)
 
-arrayTest :: MemArea (Array 10 (Struct "Foo"))
+arrayTest :: MemArea ('Array 10 ('Struct "Foo"))
 arrayTest  = area "arrayTest" $ Just $ iarray
   [ istruct [ i .= ival 10 ]
   ]
@@ -136,7 +139,7 @@ arrayTest  = area "arrayTest" $ Just $ iarray
 -- ], procRequires = [], procEnsures = Nothing})
 
 -- uint32_t n_deref0 = *&n_var0->i;
-foo :: Def ('[Ref s (Struct "Foo")] :-> Uint32)
+foo :: Def ('[Ref s ('Struct "Foo")] ':-> Uint32)
 foo = proc "foo" $ \str -> body $ do
   ret =<< deref (str ~> i)
 
@@ -152,7 +155,7 @@ foo = proc "foo" $ \str -> body $ do
 -- [], procEnsures = Nothing})
 
 -- uint32_t n_deref0 = *&n_var0->p[0 % 10];
-foo2 :: Def ('[Ref s (Struct "Foo")] :-> Uint32)
+foo2 :: Def ('[Ref s ('Struct "Foo")] ':-> Uint32)
 foo2 = proc "foo2" $ \str -> body $ do
   let arr = (str ~> p)
   let x = arr ! (0 :: Ix 10)

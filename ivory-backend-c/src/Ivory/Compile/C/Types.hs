@@ -4,12 +4,13 @@
 
 module Ivory.Compile.C.Types where
 
+import Prelude ()
+import Prelude.Compat
+
 import Language.C.Quote.GCC
 import qualified "language-c-quote" Language.C.Syntax as C
 
 import MonadLib (WriterT,Id,put)
-import Data.Monoid
-import Control.Applicative
 import qualified Data.Set as S
 
 --------------------------------------------------------------------------------

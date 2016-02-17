@@ -5,7 +5,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Ivory.Language.Array where
+module Ivory.Language.Array (
+    Ix(),
+    IxRep, ixRep,
+    fromIx,
+    toIx,
+    ixSize,
+    arrayLen,
+    (!),
+  ) where
 
 import Ivory.Language.IBool
 import Ivory.Language.Area
@@ -112,14 +120,14 @@ rawIxVal n = case unwrapExpr n of
 
 arrayLen :: forall s len area n ref.
             (Num n, ANat len, IvoryArea area, IvoryRef ref)
-         => ref s (Array len area) -> n
+         => ref s ('Array len area) -> n
 arrayLen _ = fromInteger (fromTypeNat (aNat :: NatType len))
 
 -- | Array indexing.
 (!) :: forall s len area ref.
        ( ANat len, IvoryArea area, IvoryRef ref
-       , IvoryExpr (ref s (Array len area)), IvoryExpr (ref s area))
-    => ref s (Array len area) -> Ix len -> ref s area
+       , IvoryExpr (ref s ('Array len area)), IvoryExpr (ref s area))
+    => ref s ('Array len area) -> Ix len -> ref s area
 arr ! ix = wrapExpr (I.ExpIndex ty (unwrapExpr arr) ixRep (getIx ix))
   where
-  ty    = ivoryArea (Proxy :: Proxy (Array len area))
+  ty    = ivoryArea (Proxy :: Proxy ('Array len area))

@@ -17,7 +17,7 @@ source-repository    this
   tag:      hackage-examples-0102
 
 executable ivory-c-clang-test
-  main-is:              Test.hs
+  main-is:              TestExamples.hs
   other-modules:        PID,
                         FibLoop,
                         Factorial,
@@ -38,9 +38,11 @@ executable ivory-c-clang-test
                         BitData,
                         BitDataTypes,
                         ConcreteFile,
-                        Coroutine
+                        Coroutine,
+                        Loop
   hs-source-dirs:       examples
   build-depends:        base >= 4.6,
+                        base-compat,
                         pretty >= 1.1,
                         monadLib >= 3.7,
                         template-haskell >= 2.8,

@@ -5,6 +5,9 @@
 
 module Ivory.Language.Module where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language.Area (IvoryArea)
 import Ivory.Language.MemArea (MemArea(..),ConstMemArea(..))
 import Ivory.Language.Proc (Def(..))
@@ -15,8 +18,6 @@ import Ivory.Language.Type (IvoryExpr, unwrapExpr)
 import qualified Ivory.Language.Syntax as I
 
 import Control.Monad (forM_)
-import Control.Applicative
-import Data.Monoid
 import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
 import MonadLib.Derive (Iso (..),derive_ask,derive_put)
 import qualified Data.Set as Set
@@ -32,15 +33,19 @@ newtype ModuleM a = Module
 
 instance ReaderM ModuleM Visible where
   ask = derive_ask (Iso Module unModule)
+  {-# INLINE ask #-}
 
 instance WriterM ModuleM I.Module where
   put = derive_put (Iso Module unModule)
+  {-# INLINE put #-}
 
 type ModuleDef = ModuleM ()
 
 instance Monoid (ModuleM ()) where
-  mempty = return ()
-  mappend a b = a >> b
+  mempty  = return ()
+  mappend = (>>)
+  {-# INLINE mempty #-}
+  {-# INLINE mappend #-}
 
 -- | Add an element to the public/private list, depending on visibility
 visAcc :: Visible -> a -> I.Visible a

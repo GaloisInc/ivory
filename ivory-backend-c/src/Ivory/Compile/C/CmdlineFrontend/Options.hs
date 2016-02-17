@@ -1,8 +1,8 @@
-{-# LANGUAGE GADTs #-}
-
 module Ivory.Compile.C.CmdlineFrontend.Options where
 
-import Data.Monoid (Monoid(..),mconcat)
+import Prelude ()
+import Prelude.Compat
+
 import System.Console.GetOpt
     (ArgOrder(Permute),OptDescr(..),ArgDescr(..),getOpt,usageInfo)
 
@@ -12,6 +12,7 @@ import System.Exit (exitFailure,exitSuccess)
 -- Option Parsing --------------------------------------------------------------
 
 data OptParser opt = OptParser [String] (opt -> opt)
+
 instance Monoid (OptParser opt) where
   mempty = OptParser [] id
   -- left-to-right composition makes the last option parsed take precedence

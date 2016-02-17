@@ -9,8 +9,10 @@
 
 module Ivory.Language.Syntax.Concrete.ParseCore where
 
+import Prelude ()
+import Prelude.Compat
+
 import MonadLib
-import Control.Applicative ( Applicative(..) )
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Location

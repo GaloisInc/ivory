@@ -6,6 +6,9 @@
 
 module Ivory.Language.Cond where
 
+import Prelude ()
+import Prelude.Compat
+
 import Ivory.Language.Area
 import Ivory.Language.IBool
 import Ivory.Language.Monad
@@ -14,7 +17,7 @@ import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
-import Data.Monoid(Monoid(..))
+
 
 -- Effects ---------------------------------------------------------------------
 
@@ -45,8 +48,8 @@ checkStored' :: forall ref s a c.
      ( CheckStored c
      , IvoryVar a
      , IvoryRef ref
-     , IvoryVar (ref s (Stored a))
-     ) => (c -> Cond) -> ref s (Stored a) -> (a -> c) -> Cond
+     , IvoryVar (ref s ('Stored a))
+     ) => (c -> Cond) -> ref s ('Stored a) -> (a -> c) -> Cond
 checkStored' c ref prop = Cond $ do
   n <- freshVar "pre"
   let ty = ivoryType (Proxy :: Proxy a)
@@ -54,7 +57,8 @@ checkStored' c ref prop = Cond $ do
   return (I.CondDeref ty (unwrapExpr ref) n b)
 
 class CheckStored c where
-  checkStored :: (IvoryVar a, IvoryRef ref, IvoryVar (ref s (Stored a))) => ref s (Stored a) -> (a -> c) -> Cond
+  checkStored :: (IvoryVar a, IvoryRef ref, IvoryVar (ref s ('Stored a)))
+              => ref s ('Stored a) -> (a -> c) -> Cond
 
 instance CheckStored IBool where
   checkStored = checkStored' check

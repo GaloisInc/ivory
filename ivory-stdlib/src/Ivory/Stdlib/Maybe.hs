@@ -64,12 +64,12 @@ import Ivory.Language
 class (IvoryStruct sym, IvoryExpr t, IvoryStore t, IvoryInit t) =>
       MaybeType (sym :: Symbol) t | sym -> t where
   -- | Return a boolean field indicating whether the value is valid.
-  maybeValidLabel :: Label sym (Stored IBool)
+  maybeValidLabel :: Label sym ('Stored IBool)
   -- | Return the field containing a value, if it is valid.
-  maybeValueLabel :: Label sym (Stored t)
+  maybeValueLabel :: Label sym ('Stored t)
 
 -- | Return an initializer for a maybe type with a valid value.
-initJust :: MaybeType sym a => a -> Init (Struct sym)
+initJust :: MaybeType sym a => a -> Init ('Struct sym)
 initJust x =
   istruct
     [ maybeValidLabel .= ival true
@@ -77,7 +77,7 @@ initJust x =
     ]
 
 -- | Return an initializer for a maybe type with no value.
-initNothing :: MaybeType sym a => Init (Struct sym)
+initNothing :: MaybeType sym a => Init ('Struct sym)
 initNothing =
   istruct
     [ maybeValidLabel .= ival false
@@ -85,7 +85,7 @@ initNothing =
 
 -- | Retrieve a maybe's value given a default if it is nothing.
 getMaybe :: MaybeType sym a
-         => ConstRef s1 (Struct sym)
+         => ConstRef s1 ('Struct sym)
          -> a
          -> Ivory eff a
 getMaybe ref def = do
@@ -96,7 +96,7 @@ getMaybe ref def = do
 -- | Set a maybe's value to a default if it is nothing, returning
 -- the current value.
 setDefault :: MaybeType sym a
-           => Ref s1 (Struct sym)
+           => Ref s1 ('Struct sym)
            -> a
            -> Ivory eff a
 setDefault ref def = do
@@ -105,7 +105,7 @@ setDefault ref def = do
 
 -- | Set a maybe's value to a default value if it is nothing.
 setDefault_ :: MaybeType sym a
-            => Ref s1 (Struct sym)
+            => Ref s1 ('Struct sym)
             -> a
             -> Ivory eff ()
 setDefault_ ref def = do
@@ -118,14 +118,14 @@ setDefault_ ref def = do
 -- | Modify a maybe value by an expression if it is not nothing.
 mapMaybe :: MaybeType sym a
          => (a -> a)
-         -> Ref s1 (Struct sym)
+         -> Ref s1 ('Struct sym)
          -> Ivory eff ()
 mapMaybe f ref = mapMaybeM (return . f) ref
 
 -- | Modify a maybe value by an action if it is not nothing.
 mapMaybeM :: MaybeType sym a
           => (a -> Ivory eff a)
-          -> Ref s1 (Struct sym)
+          -> Ref s1 ('Struct sym)
           -> Ivory eff ()
 mapMaybeM f ref = do
   valid <- deref (ref ~> maybeValidLabel)
@@ -137,7 +137,7 @@ mapMaybeM f ref = do
 
 -- | Flipped version of 'mapMaybeM'.
 forMaybeM :: MaybeType sym a
-          => Ref s1 (Struct sym)
+          => Ref s1 ('Struct sym)
           -> (a -> Ivory eff a)
           -> Ivory eff ()
 forMaybeM = flip mapMaybeM
@@ -145,7 +145,7 @@ forMaybeM = flip mapMaybeM
 -- | Call an action with a maybe value if it is not nothing.
 mapMaybeM_ :: MaybeType sym a
            => (a -> Ivory eff ())
-           -> Ref s1 (Struct sym)
+           -> Ref s1 ('Struct sym)
            -> Ivory eff ()
 mapMaybeM_ f ref = do
   valid <- deref (ref ~> maybeValidLabel)
@@ -156,14 +156,14 @@ mapMaybeM_ f ref = do
 
 -- | Flipped version of 'mapMaybeM_'.
 forMaybeM_ :: MaybeType sym a
-           => Ref s1 (Struct sym)
+           => Ref s1 ('Struct sym)
            -> (a -> Ivory eff ())
            -> Ivory eff ()
 forMaybeM_ = flip mapMaybeM_
 
 -- | Set a maybe value to a valid value.
 setJust :: MaybeType sym a
-        => Ref s1 (Struct sym)
+        => Ref s1 ('Struct sym)
         -> a
         -> Ivory eff ()
 setJust ref x = do
@@ -172,7 +172,7 @@ setJust ref x = do
 
 -- | Set a maybe value to an invalid value.
 setNothing :: MaybeType sym a
-           => Ref s1 (Struct sym)
+           => Ref s1 ('Struct sym)
            -> Ivory eff ()
 setNothing ref = store (ref ~> maybeValidLabel) false
 

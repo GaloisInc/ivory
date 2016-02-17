@@ -9,3 +9,5 @@ ghc-switch.sh
 *.log
 .hpc
 clang-test-dir
+.stack-work
+/test-dir-c-files

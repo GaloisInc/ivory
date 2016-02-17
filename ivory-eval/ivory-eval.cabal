@@ -18,6 +18,7 @@ source-repository    head
 library
   exposed-modules:      Ivory.Eval
   build-depends:        base >= 4.6,
+                        base-compat,
                         containers,
                         monadLib,
                         ivory
@@ -35,6 +36,7 @@ test-suite test
     ghc-options:        -Wall
 
   build-depends: base
+               , base-compat
                , containers
                , tasty >= 0.10
                , tasty-hunit

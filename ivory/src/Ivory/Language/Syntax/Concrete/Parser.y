@@ -12,13 +12,16 @@
 
 module Ivory.Language.Syntax.Concrete.Parser where
 
-import Data.Monoid
+import Prelude ()
+import Prelude.Compat
 
 import Ivory.Language.Syntax.Concrete.ParseCore
 import Ivory.Language.Syntax.Concrete.ParseAST
 import Ivory.Language.Syntax.Concrete.Lexer
 import Ivory.Language.Syntax.Concrete.Lexeme ( Token(..), Lexeme )
 import Ivory.Language.Syntax.Concrete.Location
+
+import Data.Monoid.Compat
 
 }
 

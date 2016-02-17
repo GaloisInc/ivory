@@ -1,26 +1,59 @@
+# This file has been generated -- see https://github.com/hvr/multi-ghc-travis
+language: c
 sudo: false
-language: haskell
-addons:
-  apt:
-    sources:
-      - hvr-ghc
-    packages:
-      - cabal-install-1.22
-      - alex-3.1.4
-      - happy-1.19.5
+
+git:
+  submodules: false
+
+cache:
+  directories:
+    - $HOME/.stack
+    - $HOME/.cvc4
+
+matrix:
+  include:
+    - env: GHCVER=7.8.4 STACK_YAML=stack.yaml
+      addons: {apt: {packages: [ghc-7.8.4], sources: [hvr-ghc]}}
+    - env: GHCVER=7.10.3 STACK_YAML=stack-7.10.yaml
+      addons: {apt: {packages: [ghc-7.10.3], sources: [hvr-ghc]}}
+    - env: GHCVER=8.0.1 STACK_YAML=stack-8.0.yaml
+      addons: {apt: {packages: [ghc-8.0.1], sources: [hvr-ghc]}}
+
+  allow_failures:
+    - env: GHCVER=8.0.1 STACK_YAML=stack-8.0.yaml
+
+before_install:
+ # Download and unpack the stack executable
+ - mkdir -p ~/.local/bin
+ - export PATH=$HOME/.local/bin:$PATH
+ - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+# Setup/cache CVC4
+ - export PATH="$HOME/.cvc4/:$PATH"
+ - CVC4=cvc4-2014-11-22-i386-linux-opt
+ - if [ ! -f "$HOME/.cvc4/cvc4" ];
+   then
+     wget http://www.galois.com/~leepike/$CVC4 -O $HOME/.cvc4/cvc4;
+     chmod a+x $HOME/.cvc4/cvc4;
+   fi
+# - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+ - git submodule update --init --recursive
+ - unset CC
+ - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+
+
 install:
-- mkdir -p bin
-- PATH="$PWD/bin:/opt/cabal/1.22/bin:/opt/alex/3.1.4/bin:/opt/happy/1.19.5/bin:$PATH"
-- CVC4=cvc4-2014-11-22-i386-linux-opt
-- wget http://www.galois.com/~leepike/$CVC4 -O bin/cvc4
-- chmod a+x bin/cvc4
-- cvc4 --version
+ - stack --version
+ - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+ - cvc4 --version
+
+# Here starts the actual work to be performed for the package under test;
+# any command which exits with a non-zero exit code causes the build to fail.
 script:
-- make test
-ghc:
-- 7.6
-- 7.8
-notifications:
-  slack:
-    secure: IQnBCQNqSYIoHv9c668lpWTnJHCWhVTLLcdxIPFFxpiyoPQQO1JPhFHLdyhB2T/W4b7mVeU1X32PJ1jRDHVEbMTcPGoBS1lstI7avTkeDQ1b8ILut6GnjmaGWWpCYimoWgAZeM1IBdfJ6jbDA861sQkSnJEb79UidLE8xyRkXAk=
-    secure: AcS89vo55VciqY8nSD8KWrAuMfTnKqJmbthYNaAfoqiVqXTi4PJaFriWNshjjxRTkzi+N9/qSv+iVXVC4jGX53ALb+JZHkQHCyYj8pU4Ce9xaGzXkmRQ6N6MmpARoNXrqh9Z+oJJsni5OQefh6EgKopJW5sXDTGlutezf0QsmNw=
+ - make travis-test
+
+# notifications:
+#   slack:
+#     secure: IQnBCQNqSYIoHv9c668lpWTnJHCWhVTLLcdxIPFFxpiyoPQQO1JPhFHLdyhB2T/W4b7mVeU1X32PJ1jRDHVEbMTcPGoBS1lstI7avTkeDQ1b8ILut6GnjmaGWWpCYimoWgAZeM1IBdfJ6jbDA861sQkSnJEb79UidLE8xyRkXAk=
+#     secure: AcS89vo55VciqY8nSD8KWrAuMfTnKqJmbthYNaAfoqiVqXTi4PJaFriWNshjjxRTkzi+N9/qSv+iVXVC4jGX53ALb+JZHkQHCyYj8pU4Ce9xaGzXkmRQ6N6MmpARoNXrqh9Z+oJJsni5OQefh6EgKopJW5sXDTGlutezf0QsmNw=
+
+# EOF

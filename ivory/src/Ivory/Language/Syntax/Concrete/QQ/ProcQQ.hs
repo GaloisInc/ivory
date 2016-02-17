@@ -20,7 +20,9 @@ import qualified Ivory.Language.Proc as I
 
 import Ivory.Language.Syntax.Concrete.ParseAST
 
+#if __GLASGOW_HASKELL__ >= 709
 import Ivory.Language.Syntax.Concrete.QQ.Common
+#endif
 import Ivory.Language.Syntax.Concrete.QQ.CondQQ
 import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ

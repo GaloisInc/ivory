@@ -63,7 +63,7 @@ string_lit_store s str = do
 -- | Copy a Haskell string directly to an array of uint8s.
 string_lit_array :: ANat n
                  => String
-                 -> Ref s (Array n (Stored Uint8))
+                 -> Ref s ('Array n ('Stored Uint8))
                  -> Ivory eff ()
 string_lit_array s arr =
   let go (ix, c) = store (arr ! fromInteger ix) c in
@@ -84,8 +84,8 @@ stringArray = map (fromIntegral . ord)
 
 stringCapacity :: ( IvoryString str
                   , IvoryRef ref
-                  , IvoryExpr (ref s (Struct (StructName str)))
-                  , IvoryExpr (ref s (Array (Capacity (Struct (StructName str))) (Stored Uint8)))
+                  , IvoryExpr (ref s ('Struct (StructName str)))
+                  , IvoryExpr (ref s ('Array (Capacity ('Struct (StructName str))) ('Stored Uint8)))
                   , Num n
                   )
                => ref s str -> n
@@ -93,24 +93,24 @@ stringCapacity str = arrayLen (str ~> stringDataL)
 
 stringData :: ( IvoryString str
               , IvoryRef ref
-              , IvoryExpr (ref s (Array (Capacity str) (Stored Uint8)))
-              , IvoryExpr (ref s (CArray (Stored Uint8)))
+              , IvoryExpr (ref s ('Array (Capacity str) ('Stored Uint8)))
+              , IvoryExpr (ref s ('CArray ('Stored Uint8)))
               , IvoryExpr (ref s str))
-           => ref s str -> ref s (CArray (Stored Uint8))
+           => ref s str -> ref s ('CArray ('Stored Uint8))
 stringData x = toCArray (x ~> stringDataL)
 
 -- XXX don't export
 -- | Binding to the C "memcmp" function.
-memcmp :: Def ('[ ConstRef s1 (CArray (Stored Uint8))
-                , ConstRef s2 (CArray (Stored Uint8))
-                , Len] :-> Len)
+memcmp :: Def ('[ ConstRef s1 ('CArray ('Stored Uint8))
+                , ConstRef s2 ('CArray ('Stored Uint8))
+                , Len] ':-> Len)
 memcmp = importProc "memcmp" "string.h"
 
 -- XXX don't export
 -- | Binding to the C "memcpy" function.
-memcpy :: Def ('[ Ref      s1 (CArray (Stored Uint8))
-                , ConstRef s2 (CArray (Stored Uint8))
-                , Len] :-> Len)
+memcpy :: Def ('[ Ref      s1 ('CArray ('Stored Uint8))
+                , ConstRef s2 ('CArray ('Stored Uint8))
+                , Len] ':-> Len)
 memcpy = importProc "memcpy" "string.h"
 
 -- | Return the length of a string.
@@ -130,11 +130,11 @@ istr_copy dest src = do
   store (dest ~> stringLengthL) len
 
 -- | Internal function to compare strings for equality.
-do_istr_eq :: Def ('[ ConstRef s1 (CArray (Stored Uint8))
+do_istr_eq :: Def ('[ ConstRef s1 ('CArray ('Stored Uint8))
                     , Len
-                    , ConstRef s2 (CArray (Stored Uint8))
+                    , ConstRef s2 ('CArray ('Stored Uint8))
                     , Len
-                    ] :-> IBool)
+                    ] ':-> IBool)
 do_istr_eq = proc "ivory_string_eq" $ \s1 len1 s2 len2 -> body $ do
   ifte_ (len1 ==? len2)
     (do r <- call memcmp s1 s2 len1
@@ -156,10 +156,10 @@ istr_eq s1 s2 = do
   call do_istr_eq ptr1 len1 ptr2 len2
 
 -- | Primitive function to do a bounded null-terminated string copy.
-string_copy_z :: Def ('[ Ref s1 (CArray (Stored Uint8))
+string_copy_z :: Def ('[ Ref s1 ('CArray ('Stored Uint8))
                        , Len
-                       , ConstRef s2 (CArray (Stored Uint8))
-                       , Len] :-> Len)
+                       , ConstRef s2 ('CArray ('Stored Uint8))
+                       , Len] ':-> Len)
 string_copy_z = importProc "ivory_stdlib_string_copy_z"
                            "ivory_stdlib_string_prim.h"
 
@@ -171,7 +171,7 @@ string_copy_z = importProc "ivory_stdlib_string_copy_z"
 -- FIXME: This should return false if the string was truncated.
 istr_from_sz :: (ANat len, IvoryString str)
              => Ref      s1 str
-             -> ConstRef s2 (Array len (Stored Uint8))
+             -> ConstRef s2 ('Array len ('Stored Uint8))
              -> Ivory eff ()
 istr_from_sz dest src = do
   let len1 = stringCapacity dest
@@ -187,7 +187,7 @@ istr_from_sz dest src = do
 --
 -- FIXME: This should return false if the string was truncated.
 sz_from_istr :: (ANat len, IvoryString str)
-             => Ref      s1 (Array len (Stored Uint8))
+             => Ref      s1 ('Array len ('Stored Uint8))
              -> ConstRef s2 str
              -> Ivory eff ()
 sz_from_istr dest src = do

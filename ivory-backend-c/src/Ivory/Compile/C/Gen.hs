@@ -288,7 +288,7 @@ toBody ens stmt =
                    , I.tValue = v }
           = toExpr t' v
     -- Assume that ty is a signed and sufficiently big (int).
-    I.Loop var start incr blk ->
+    I.Loop _ var start incr blk ->
       let loopBd =  concatMap toBody' blk in
       [C.BlockStm [cstm| for( $ty:(toType ty) $id:(toVar var)
                                 = $exp:(toExpr ty start);

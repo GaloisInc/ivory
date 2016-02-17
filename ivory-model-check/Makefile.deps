@@ -1,7 +1,0 @@
-$(call add-cabal-package-source, \
-  $(IVORY_REPO)/ivory \
-  $(IVORY_REPO)/ivory-backend-c \
-  $(IVORY_REPO)/ivory-opts \
-  $(IVORY_REPO)/ivory-serialize \
-  $(IVORY_REPO)/ivory-stdlib \
-)

@@ -17,8 +17,9 @@ module Ivory.Language.Syntax.Concrete.QQ.ExprQQ
   , toAddrOf
   ) where
 
-import           Prelude hiding (exp, init)
-import qualified Prelude as P
+import           Prelude ()
+import           Prelude.Compat hiding (exp, init)
+import qualified Prelude.Compat as P
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
 import qualified Language.Haskell.TH as T
@@ -53,14 +54,14 @@ fromConstDef def = case def of
 #if __GLASGOW_HASKELL__ >= 709
   ConstDef sym e mtype srcloc -> do
     n <- newName sym
-    let def = ValD (VarP n) (NormalB $ toExp [] e) []
+    let def' = ValD (VarP n) (NormalB $ toExp [] e) []
     case mtype of
-      Nothing -> return [def]
+      Nothing -> return [def']
       Just ty -> do tyQ <- runToQ (fromType ty)
                     -- Ignore possible type variables---should be any for a
                     -- top-level constant.
                     ln <- lnPragma srcloc
-                    return (ln ++ [SigD n (fst tyQ), def])
+                    return (ln ++ [SigD n (fst tyQ), def'])
 #else
   ConstDef sym e mtype _srcloc -> do
     n <- newName sym

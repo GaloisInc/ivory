@@ -1,11 +1,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverlappingInstances #-}
-
 -- Needed to check (SafeCast to from) in the instance constraints for
 -- RuntimeCast.
 {-# LANGUAGE UndecidableInstances #-}
+
+{-# LANGUAGE CPP #-}
+#if __GLASGOW_HASKELL__ < 710
+{-# LANGUAGE OverlappingInstances #-}
+#endif
 
 -- | Safe casting.  We assume Floats have 32 bits and Doubles have 64.
 
@@ -192,7 +195,11 @@ instance SafeCast IChar IChar     where
 -- Runtime check instances.
 
 -- All other casts, for going to a Num type.
-instance ( Bounded   from, Bounded   to
+instance
+#if __GLASGOW_HASKELL__ >= 710
+    {-# OVERLAPPABLE #-}
+#endif
+         ( Bounded   from, Bounded   to
          , IvoryOrd  from, IvoryOrd  to
          , IvoryExpr from, IvoryExpr to
          , Default   from, Default   to

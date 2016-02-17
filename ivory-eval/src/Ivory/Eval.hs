@@ -24,17 +24,20 @@ module Ivory.Eval
   , evalStmt
   ) where
 
-import           Control.Applicative
-import           Data.Maybe
-import qualified Prelude
-import           Prelude                                 hiding (negate, div, mod, not, and, or, mapM)
+import           Prelude ()
+import qualified Prelude.Compat as Prelude
+import           Prelude.Compat hiding (negate, div, mod, not, and, or)
 
+
+import           Control.Monad (unless,foldM,void)
 import           Data.Int
 import qualified Data.Map                                as Map
+import           Data.Maybe
 import qualified Data.Sequence                           as Seq
-import           Data.Traversable                        (mapM)
 import           Data.Word
-import           MonadLib.Monads                         hiding (mapM)
+import           MonadLib
+                     (ExceptionM(..),runId,Id,ExceptionT,runExceptionT,sets_
+                     ,StateT,runStateT,StateM(..))
 import           Ivory.Language.Syntax.Concrete.Location
 import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax                   as I
@@ -43,13 +46,13 @@ import qualified Ivory.Language.Syntax                   as I
 -- import Debug.Trace
 
 type Error  = String
-type Eval a = StateT EvalState (Exception Error) a
+type Eval a = StateT EvalState (ExceptionT Error Id) a
 
 runEval :: Eval a -> Either Error a
 runEval doThis = fmap fst (runEvalStartingFrom (initState Map.empty) doThis)
 
 runEvalStartingFrom :: EvalState -> Eval a -> Either Error (a, EvalState)
-runEvalStartingFrom st doThis = runException (runStateT st doThis) 
+runEvalStartingFrom st doThis = runId (runExceptionT (runStateT st doThis))
 
 data EvalState = EvalState
   { store   :: Map.Map I.Sym Value
@@ -91,7 +94,7 @@ data Value
   | Array  (Seq.Seq Value)
   | Struct (Map.Map I.Sym Value)
   | Ref    I.Sym
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 eq :: Value -> Value -> Value
 eq x y = Bool (x == y)
@@ -274,16 +277,16 @@ evalStmt stmt = case stmt of
           writeStore (varSym var) val
   I.AllocRef _ty var ref
     -> writeStore (varSym var) (Ref $ nameSym ref)
-  I.Loop var expr incr body
+  I.Loop _ var expr incr body
     -> do val <- evalExpr I.ixRep expr
           writeStore (varSym var) val
-          let (stepFn, doneExpr) = case incr of
-                I.IncrTo expr -> ((`add` Sint32 1), expr) -- XXX: don't hard-code ixrep
-                I.DecrTo expr -> ((`sub` Sint32 1), expr)
+          let (checkDone, stepFn, doneExpr) = case incr of
+                I.IncrTo expr -> ((>=), (`add` Sint32 1), expr) -- XXX: don't hard-code ixrep
+                I.DecrTo expr -> ((<=), (`sub` Sint32 1), expr)
           let step = modifyStore (varSym var) stepFn
           let done = do curVal  <- readStore (varSym var)
                         doneVal <- evalExpr I.ixRep doneExpr
-                        return (curVal == doneVal)
+                        return (checkDone curVal doneVal)
           untilM done (evalBlock body >> step)
   I.Return (I.Typed  _ty expr)
     -> void $ evalExpr _ty expr

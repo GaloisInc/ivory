@@ -6,7 +6,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -fno-warn-unused-binds -fno-warn-unused-matches #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-missing-signatures #-}
 
 --
 -- C-like syntax for Ivory, parsed from a file.
@@ -27,14 +28,14 @@ e = (4::Sint32) >? 3
 type SomeInt = Uint32
 
 macroStmts ::
-     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ Scope s)
+     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ 'Scope s)
   => a -> a -> Ivory eff ()
 macroStmts x y = do
   a <- local (ival 0)
   store a (x + y)
 
 macroStmtsRet ::
-     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ Scope s)
+     (Num a, IvoryStore a, IvoryInit a, GetAlloc eff ~ 'Scope s)
   => a -> a -> Ivory eff a
 macroStmtsRet x y = do
   a <- local (ival 0)

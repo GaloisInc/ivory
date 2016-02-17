@@ -6,13 +6,14 @@
 
 module Ivory.ModelCheck.CVC4 where
 
+import Prelude ()
+import Prelude.Compat hiding (exp)
+import Data.Monoid.Compat
+
 import qualified Data.ByteString.Char8 as B
 import           Data.Int
 import           Data.List             (intersperse)
-import           Data.Monoid
-import           Data.String
 import           Data.Word
-import           Prelude               hiding (exp)
 
 import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.Language.Syntax.Concrete.Pretty

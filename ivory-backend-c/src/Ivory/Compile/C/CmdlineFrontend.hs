@@ -248,7 +248,7 @@ dropSrcLocs p = p { I.procBody = dropSrcLocsBlock (I.procBody p) }
   go stmt = case stmt of
     I.IfTE b t f              -> Just $ I.IfTE b (dropSrcLocsBlock t)
                                                  (dropSrcLocsBlock f)
-    I.Loop v e i b            -> Just $ I.Loop v e i (dropSrcLocsBlock b)
+    I.Loop m v e i b          -> Just $ I.Loop m v e i (dropSrcLocsBlock b)
     I.Forever b               -> Just $ I.Forever (dropSrcLocsBlock b)
     I.Comment (I.SourcePos _) -> Nothing
     _                         -> Just stmt

@@ -4,12 +4,16 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
 {-# LANGUAGE TupleSections #-}
+
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
-import           Control.Applicative
-import           Control.Monad
+import Prelude ()
+import Prelude.Compat hiding (exp)
+
+
+import           Control.Monad (when,void,forM,forM_)
 import           Data.List              (nub)
 import qualified Data.Map               as M
 import           Data.Maybe
@@ -21,7 +25,6 @@ import           Ivory.Opts.ConstFold   (constFold)
 import           Ivory.Opts.DivZero     (divZeroFold)
 import           Ivory.Opts.Index       (ixFold)
 import           Ivory.Opts.Overflow    (overflowFold)
-import           Prelude                hiding (exp)
 
 import           Ivory.ModelCheck.CVC4
 import           Ivory.ModelCheck.Monad
@@ -125,7 +128,7 @@ toBody ens stmt =
 
     I.AllocRef t ref name  -> toAlloc t ref name
 
-    I.Loop v exp inc blk   -> toLoop ens v exp inc blk
+    I.Loop m v exp inc blk -> toLoop ens m v exp inc blk
     I.Comment (I.SourcePos src)
       -> setSrcLoc src
     I.Comment _            -> return ()
@@ -274,8 +277,8 @@ toCallContract t retV pc args = do
 
 -- XXX Abstraction (to implement): If there is load/stores in the block, the we
 -- don't care how many times it iterates.  It's pure.
-toLoop :: [I.Ensure] -> I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
-toLoop ens v start end blk =
+toLoop :: [I.Ensure] -> Integer -> I.Var -> I.Expr -> I.LoopIncr -> [I.Stmt] -> ModelCheck ()
+toLoop ens maxIx v start end blk =
   mapM_ go ixs
   where
   go :: Integer -> ModelCheck ()
@@ -286,7 +289,7 @@ toLoop ens v start end blk =
 
   t = I.ixRep
 
-  loopData = loopIterations start end
+  loopData = loopIterations maxIx start end
 
   ixs | loopOp loopData == Incr
       = takeWhile (<= endVal loopData) $
@@ -339,6 +342,7 @@ toExpr t exp = case exp of
   I.ExpMaxMin True           -> return $ intLit $ fromJust $ I.toMaxSize t
   I.ExpMaxMin False          -> return $ intLit $ fromJust $ I.toMinSize t
   I.ExpSizeOf _ty            -> error "Ivory.ModelCheck.Ivory2CVC4.toExpr: FIXME: handle sizeof expressions"
+  I.ExpExtern _              -> error "Ivory.ModelCheck.Ivory2CVC4.toExpr: can't handle external symbols"
 
 --------------------------------------------------------------------------------
 
@@ -513,25 +517,25 @@ data Loop = Loop
 
 -- Compute the number of iterations in a loop.  Assume the constant folder has
 -- run.
-loopIterations :: I.Expr -> I.LoopIncr -> Loop
-loopIterations start end = Loop (getLit start) (snd fromIncr) (fst fromIncr)
+loopIterations :: Integer -> I.Expr -> I.LoopIncr -> Loop
+loopIterations maxIx start end =
+  case end of
+    I.IncrTo e -> Loop { startVal = getLit 0     start
+                       , endVal   = getLit maxIx e
+                       , loopOp   = Incr }
+
+    I.DecrTo e -> Loop { startVal = getLit maxIx start
+                       , endVal   = getLit 0     e
+                       , loopOp   = Decr }
   where
-  getLit e = case e of
+
+  getLit d e = case e of
     I.ExpLit l   -> case l of
       I.LitInteger i -> i
       _              -> err "loopIterations.ExpLit" (show e)
 
-    -- Abstract unknown loop length to max allowed by Ix bound
-    -- FIXME: this can't possibly scale well..
-    I.ExpOp I.ExpCond [I.ExpOp _ [I.ExpOp I.ExpMod [_, I.ExpLit l], _], _, _] -> case l of
-      I.LitInteger i -> i
-      _              -> err "loopIterations.ExpLit" (show e)
+    _ -> d
 
-    _            -> err "loopIterations" (show e)
-
-  fromIncr = case end of
-               I.IncrTo e -> (Incr, getLit e)
-               I.DecrTo e -> (Decr, getLit e)
 
 --------------------------------------------------------------------------------
 -- Language construction helpers
@@ -631,6 +635,7 @@ subst su = loop
     I.ExpAddrOfGlobal{}    -> e
     I.ExpMaxMin{}          -> e
     I.ExpSizeOf{}          -> e
+    I.ExpExtern{}          -> e
 
 queryEnsures :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 queryEnsures ens t retE = forM_ ens $ \e -> addQuery =<< toEnsure e

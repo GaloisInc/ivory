@@ -3,8 +3,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Main where
+
+import Prelude ()
+import Prelude.Compat
 
 import Ivory.Language
 import Ivory.Language.Monad
@@ -12,8 +17,6 @@ import Ivory.Language.Monad
 import Ivory.Eval
 
 import qualified Data.Map as Map
-import Data.Monoid
-
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -32,8 +35,8 @@ sumTest = testCase "sum" $ do
   let Right (_, EvalState st _ _)
         = runEvalStartingFrom (initState mempty)
         $ evalBlock $ blockStmts $ snd $ runIvory $ do
-            r <- local (izero :: Init (Stored Sint32))
-            11 `times` \(i :: Ix 11) -> do -- sum [ 10 .. 0 ]
+            r <- local (izero :: Init ('Stored Sint32))
+            11 `times` \(i :: Ix 12) -> do -- sum [ 10 .. 0 ]
               v <- deref r
               store r (v + safeCast i)
   assertEqual "wrong state!"

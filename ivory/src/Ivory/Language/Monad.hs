@@ -41,14 +41,15 @@ module Ivory.Language.Monad (
   , withLocation
   ) where
 
+import Prelude ()
+import Prelude.Compat
+
 import qualified Ivory.Language.Effects as E
 import Ivory.Language.Proxy
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as AST
 import Ivory.Language.Syntax.Concrete.Location
 
-import Control.Applicative (Applicative(..))
-import Data.Monoid (Monoid(..))
 import MonadLib (StateT,WriterT,Id)
 import qualified MonadLib
 

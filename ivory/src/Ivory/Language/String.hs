@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -17,12 +15,12 @@ import GHC.TypeLits(Nat)
 class ( ANat (Capacity a)
       , IvoryStruct (StructName a)
       , IvoryArea a
-      , a ~ Struct (StructName a)
+      , a ~ 'Struct (StructName a)
       ) => IvoryString a where
   type Capacity a :: Nat
 
-  stringDataL   :: Label (StructName a) (Array (Capacity a) (Stored Uint8))
-  stringLengthL :: Label (StructName a) (Stored IxRep) -- Should be same
+  stringDataL   :: Label (StructName a) ('Array (Capacity a) ('Stored Uint8))
+  stringLengthL :: Label (StructName a) ('Stored IxRep) -- Should be same
                                                        -- underlying type as
                                                        -- IxRep
 

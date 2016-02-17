@@ -12,11 +12,11 @@
 
 module Ivory.Language.BitData.Monad where
 
-import Data.List (intercalate)
+import Prelude ()
+import Prelude.Compat
 
-import qualified MonadLib.Monads as M
-
-import Control.Applicative
+import           Data.List (intercalate)
+import qualified MonadLib as M
 
 import Ivory.Language.BitData.Bits
 import Ivory.Language.BitData.BitData
@@ -30,7 +30,7 @@ import Ivory.Language.Comment
 -- a "a" in the "Ivory s r" monad.  Values of this type are passed as
 -- the "body" argument to "withBits" etc.
 newtype BitDataM d a = BitDataM
-  { runBitDataM :: M.StateT d (M.Writer [String]) a
+  { runBitDataM :: M.StateT d (M.WriterT [String] M.Id) a
   } deriving (Functor, Monad, Applicative)
 
 -- | Clear the value of the current bit data value.
@@ -65,7 +65,7 @@ setField f x = BitDataM $ do
 runBits :: BitData d => BitDataRep d -> BitDataM d a -> (a, BitDataRep d, [String])
 runBits rep mf = (res, toRep val, s)
   where
-  ((res, val), s) = M.runWriter $ M.runStateT (fromRep rep) (runBitDataM mf)
+  ((res, val), s) = M.runId $ M.runWriterT $ M.runStateT (fromRep rep) (runBitDataM mf)
 
 -- | Execute a bitdata action given an initial value, returning the
 -- new bitdata value.
@@ -76,7 +76,7 @@ withBits rep mf = let (_, r, _) = runBits rep mf in r
 -- the resulting value back to the reference upon completion and
 -- returning the result of the action.
 withBitsRef :: BitData d
-            => Ref s1 (Stored (BitDataRep d))
+            => Ref s1 ('Stored (BitDataRep d))
             -> BitDataM d a
             -> Ivory eff a
 withBitsRef ref mf = do

@@ -79,7 +79,9 @@ library
                         Ivory.Language.Syntax.Names,
                         Ivory.Language.Type,
                         Ivory.Language.Uint
+  build-tools:          alex, happy
   build-depends:        base >= 4.6,
+                        base-compat,
                         pretty >= 1.1,
                         containers >= 0.5,
                         monadLib >= 3.7,

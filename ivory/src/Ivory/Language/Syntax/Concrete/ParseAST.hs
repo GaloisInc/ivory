@@ -7,8 +7,8 @@
 
 module Ivory.Language.Syntax.Concrete.ParseAST where
 
-import Prelude hiding (init)
-import Data.Monoid
+import Prelude ()
+import Prelude.Compat hiding (init)
 
 import Ivory.Language.Syntax.Concrete.Location
 

@@ -2,12 +2,14 @@
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Ivory.Language.Init where
+
+import Prelude ()
+import Prelude.Compat
 
 import Ivory.Language.Area
 import Ivory.Language.Array
@@ -28,7 +30,6 @@ import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Effects as E
 
 import Control.Monad (forM_)
-import Data.Monoid (Monoid(..),mconcat)
 
 import GHC.TypeLits(Symbol)
 
@@ -112,7 +113,7 @@ runInit ini =
 
 -- | Initializers for 'Stored' things.
 class IvoryVar e => IvoryInit e where
-  ival :: e -> Init (Stored e)
+  ival :: e -> Init ('Stored e)
   ival e = Init (IVal ty (I.InitExpr ty (unwrapExpr e)))
     where
     ty = ivoryType (Proxy :: Proxy e)
@@ -130,11 +131,11 @@ instance IvoryInit Sint64
 instance IvoryInit IFloat
 instance IvoryInit IDouble
 instance ProcType proc => IvoryInit (ProcPtr proc)
-instance IvoryArea area => IvoryInit (Ptr Global area)
+instance IvoryArea area => IvoryInit (Ptr 'Global area)
 instance ANat len => IvoryInit (Ix len)
 
 class (IvoryVar a) => IvoryZeroVal a where
-  izeroval :: Init (Stored a)
+  izeroval :: Init ('Stored a)
 
 instance IvoryZeroVal IBool where
   izeroval = ival false
@@ -157,34 +158,34 @@ instance IvoryZeroVal IDouble  where izeroval = ival 0
 instance (ANat n) => IvoryZeroVal (Ix n) where
   izeroval = ival 0
 
-instance IvoryArea area => IvoryZeroVal (Ptr Global area) where
+instance IvoryArea area => IvoryZeroVal (Ptr 'Global area) where
   izeroval = ival nullPtr
 
-instance IvoryZeroVal a => IvoryZero (Stored a) where
+instance IvoryZeroVal a => IvoryZero ('Stored a) where
   izero = izeroval
 
 -- Array Initializers ----------------------------------------------------------
 
 instance (IvoryZero area, IvoryArea area, ANat len) =>
-    IvoryZero (Array len area) where
+    IvoryZero ('Array len area) where
   izero = Init (IVal ty I.InitZero)
     where
-    ty = ivoryArea (Proxy :: Proxy (Array len area))
+    ty = ivoryArea (Proxy :: Proxy ('Array len area))
 
 iarray :: forall len area. (IvoryArea area, ANat len)
-       => [Init area] -> Init (Array len area)
+       => [Init area] -> Init ('Array len area)
 iarray is = Init (IArray ty (take len (map getInit is)))
             -- truncate to known length
   where
   len = fromInteger (fromTypeNat (aNat :: NatType len))
-  ty = ivoryArea (Proxy :: Proxy (Array len area))
+  ty = ivoryArea (Proxy :: Proxy ('Array len area))
 
 -- Struct Initializers ---------------------------------------------------------
 
-instance IvoryStruct sym => IvoryZero (Struct sym) where
+instance IvoryStruct sym => IvoryZero ('Struct sym) where
   izero = Init (IVal ty I.InitZero)
     where
-    ty = ivoryArea (Proxy :: Proxy (Struct sym))
+    ty = ivoryArea (Proxy :: Proxy ('Struct sym))
 
 newtype InitStruct (sym :: Symbol) = InitStruct
   { getInitStruct :: [(String, XInit)]
@@ -196,19 +197,19 @@ instance IvoryStruct sym => Monoid (InitStruct sym) where
   mempty      = InitStruct []
   mappend l r = InitStruct (mappend (getInitStruct l) (getInitStruct r))
 
-istruct :: forall sym. IvoryStruct sym => [InitStruct sym] -> Init (Struct sym)
+istruct :: forall sym. IvoryStruct sym => [InitStruct sym] -> Init ('Struct sym)
 istruct is = Init (IStruct ty fields)
   where
   fields = [ (l,i) | (l,i) <- getInitStruct (mconcat is) ]
-  ty = ivoryArea (Proxy :: Proxy (Struct sym))
+  ty = ivoryArea (Proxy :: Proxy ('Struct sym))
 
 (.=) :: Label sym area -> Init area -> InitStruct sym
 l .= ini = InitStruct [(getLabel l, getInit ini)]
 
 -- | Stack allocation
-local :: forall eff s area. (IvoryArea area, E.GetAlloc eff ~ E.Scope s)
+local :: forall eff s area. (IvoryArea area, E.GetAlloc eff ~ 'E.Scope s)
       => Init area
-      -> Ivory eff (Ref (Stack s) area)
+      -> Ivory eff (Ref ('Stack s) area)
 local ini = do
   (i, binds) <- runInit (getInit ini)
 

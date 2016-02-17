@@ -1,7 +1,7 @@
 -- # -*- mode: haskell -*-
 {
 
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-tabs -fno-warn-unused-matches -fno-warn-unused-imports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
@@ -15,11 +15,12 @@
 
 module Ivory.Language.Syntax.Concrete.Lexer where
 
-import Prelude hiding (lex, id)
+import Prelude ()
+import Prelude.Compat
+
+import Data.Char (ord)
 import Data.Word (Word8)
 import Data.Bits (shiftR,(.&.))
-import Data.Monoid (mempty)
-import Control.Applicative
 import MonadLib
 import qualified Data.Text.Lazy as L
 
@@ -305,7 +306,7 @@ scan source bytes = fst (runId (runStateT st0 (unLexer loop)))
         mb   <- action inp len
         rest <- loop
         case mb of
-          Just lex -> return (lex:rest)
+          Just l   -> return (l:rest)
           Nothing  -> return rest
 
       AlexSkip inp' _len -> do
