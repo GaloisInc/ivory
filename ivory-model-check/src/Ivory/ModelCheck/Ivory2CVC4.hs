@@ -640,6 +640,10 @@ subst su = loop
 queryEnsures :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 queryEnsures ens t retE = forM_ ens $ \e -> addQuery =<< toEnsure e
 
+-- | Translate a struct into the AST:
+--
+-- 1. Abstract structs are translated to a new type with no structure
+-- 2. Structs are flattened into a list of their basic types.
 toStruct :: I.Struct -> ModelCheck ()
 toStruct (I.Abstract name _) = addType name []
 toStruct (I.Struct name fields) = do
