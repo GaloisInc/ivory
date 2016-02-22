@@ -24,10 +24,9 @@ and unzip the archive.
 
 ### Configure the build environment
 
-Using a terminal, change to the checked out or unzipped ivory repository. Next, to make sure that we're using version `7.10` of GHC, make the following change: copy the `stack-7.10.yaml` file over the `stack.yaml` file that already exists. Now, simply run `stack build` to setup the build environment.
+Using a terminal, change to the checked out or unzipped ivory repository. Now, simply run `stack build` to setup the build environment.
 
 ```sh
-$ cp stack-7.10.yaml stack.yaml
 $ stack build
 ```
 
