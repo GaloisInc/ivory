@@ -24,10 +24,26 @@ and unzip the archive.
 
 ### Configure the build environment
 
-Using a terminal, change to the checked out or unzipped ivory repository. Now, simply run `stack build` to setup the build environment.
+Using a terminal, change to the checked out or unzipped ivory repository. Now, simply run `stack build`
+to setup the build environment.
 
 ```sh
 $ stack build
 ```
 
 ## Motivating Example
+
+Open the `ivory-tutorial/example.hs` file in your text-editor of choice. It has some boilerplate
+filled out for you already, which we'll go through next.
+
+## Building the example
+
+Now that we have our first ivory program written, let's generate some code! From the top of the
+`ivory` repository, run the following command:
+
+```sh
+$ stack exec -- runghc ivory-tutorial/example.hs -- -h
+```
+
+This will print out options that you can pass to the code generator. With no options,
+a single unoptimized C prorgram will be printed to `stdout`
