@@ -4,8 +4,8 @@
 
 Goals:
 * Install stack
-* Checkout the ivory repository
-* Use stack to configure an ivory build environment
+* Checkout the Ivory repository
+* Use stack to configure an Ivory build environment
 * Setup a skeleton project and get it building
 
 ### Installing stack
@@ -13,7 +13,7 @@ Goals:
 Follow the directions for your OS at
 [haskellstack.org](http://docs.haskellstack.org/en/stable/README/#how-to-install)
 
-### Checkout the ivory repository
+### Checkout the Ivory repository
 
 If you have git installed, you can just issue the following command:
 ```sh
@@ -25,7 +25,7 @@ page](https://github.com/galoisinc/ivory), and unzip the archive.
 
 ### Configure the build environment
 
-Using a terminal, change to the checked out or unzipped ivory repository. Now,
+Using a terminal, change to the checked out or unzipped Ivory repository. Now,
 simply run `stack build` to setup the build environment.
 
 ```sh
@@ -39,7 +39,7 @@ some boilerplate filled out for you already, which we'll go through next.
 
 ## Building the example
 
-Now that we have our first ivory program written, let's generate some code! From
+Now that we have our first Ivory program written, let's generate some code! From
 the `ivory-tutorial` repository, run the following command:
 
 ```sh
@@ -74,7 +74,7 @@ Usage: example.hs [OPTIONS]
   -h  --help              display this message
 ```
 
-With no options given on the command line, the ivory program will be compiled
+With no options given on the command line, the Ivory program will be compiled
 with no optimizations or generated checks, and the following files will be
 outputted: `ivory.h`, `ivory_asserts.h`, `ivory_templates.h`, `example.h`, and
 `example.c`. For ease of testing, you can use the --std-out option to just print
@@ -83,4 +83,12 @@ out the relevant parts of the example module we've defined.
 
 ### Building the C module
 
-Generating the 
+After generating code for an Ivory module, we will need to use a C compiler to
+build the artifacts into a program. As our generated code is small, we can just
+invoke the compiler directly, rather than building any additional infrastructure
+around it:
+
+```sh
+$ gcc -o example example.c
+$ ./example
+```
