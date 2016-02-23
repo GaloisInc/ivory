@@ -6,7 +6,7 @@ Goals:
 * Install stack
 * Checkout the Ivory repository
 * Use stack to configure an Ivory build environment
-* Setup a skeleton project and get it building
+* Install CVC4 (optional)
 
 ### Installing stack
 
@@ -32,10 +32,49 @@ simply run `stack build` to setup the build environment.
 $ stack build
 ```
 
+### Build documentation (optional)
+
+In order to navigate the documentation a little easier, we're going to build the
+documentation for all of the packages in the Ivory ecosystem. To generate docs,
+simply type:
+
+```sh
+$ stack haddock
+```
+
+Once this command finishes (and it will take a while) it will print out the
+location of three documentation indexes: one for local packages, one for local
+packages and dependencies, and one for just dependencies. The index for local
+packages will contain documentation for the Ivory packages only, and will be the
+most helpful when writing Ivory programs.
+
+> NOTE: the location printed will look something like this, with `<ivory>`, and
+> `<arch>` being something specific to your local install:
+>
+> `<ivory>/.stack-work/install/<arch>/lts-5.3/7.10.3/doc/index.html` file.
+
+### Install CVC4 (optional)
+
+To make use of the symbolic simulator for Ivory, you will need to install CVC4.
+If you don't plan on using this tool, you can skip this section.
+
+Please follow the installation directions located at
+[the cvc4 download page](http://cvc4.cs.nyu.edu/downloads/).
+
+
 ## Motivating Example
 
 Open the `ivory-tutorial/example.hs` file in your text-editor of choice. It has
-some boilerplate filled out for you already, which we'll go through next.
+some boilerplate filled out for you already, which we'll go through now.
+
+### The `main` function
+
+The main function in `example.hs` just serves as an entry-point to the code
+generator. As we're only building one Ivory module, we give a list of a single
+element as the first argument, and as there are no additional artifacts that we
+would like bundled, we give an empty list as the second. You can learn more
+about other ways to invoke the C code generator in the
+[documentation](https://hackage.haskell.org/package/ivory-backend-c).
 
 ## Building the example
 
@@ -74,11 +113,11 @@ Usage: example.hs [OPTIONS]
   -h  --help              display this message
 ```
 
-With no options given on the command line, the Ivory program will be compiled
-with no optimizations or generated checks, and the following files will be
+With no options given on the command line, the C generated will have had no
+optimizations applied, or checks generated. The following files will be
 outputted: `ivory.h`, `ivory_asserts.h`, `ivory_templates.h`, `example.h`, and
-`example.c`. For ease of testing, you can use the --std-out option to just print
-out the relevant parts of the example module we've defined.
+`example.c`. For ease of testing, you can use the --std-out option to print out
+the relevant parts of the example module, instead of writing out files.
 
 
 ### Building the C module
@@ -92,3 +131,14 @@ around it:
 $ gcc -o example example.c
 $ ./example
 ```
+
+## Tools
+
+### Symbolic Simulator
+
+Ivory comes with a symbolic simulator that can be used to prove the validity of
+assertions in a function. To aid the symbolic simulator, the Ivory language also
+provides a way to define function contracts, aiding compositional verification.
+
+Let's look at what simple additions we can make to the running example to aid in
+verification of behavior.
