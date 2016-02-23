@@ -1,5 +1,5 @@
 -- stack runghc
-
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
