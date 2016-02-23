@@ -114,8 +114,128 @@ y = f $ g $ h 10
 
 ## Motivating example
 
-We're going to make an inventory manager for a simple RPG game.
+Let's make an inventory manager for a simple role-playing game. To start with,
+we'll need some basic stats about our character. Let's start defining a `struct`
+that we can use to keep track of some basic character information. Add this
+chunk of code to `example.hs`:
 
+```haskell
+[ivory|
+
+struct Character
+  { hp     :: Stored Uint16
+  ; max_hp :: Stored Uint16
+  ; mp     :: Stored Uint16
+  ; max_mp :: Stored Uint16
+  }
+
+|]
+
+```
+
+This will be enough information to keep track of how much health and mana our
+character has available. To make sure that it will be included in the generated
+module, add the following line after the `incl ivoryMain` line in the definition
+of `exampleModule`:
+
+```haskell
+       defStruct (Proxy :: Proxy "Character")
+```
+
+Just to confirm that it works, run `stack example.hs --std-out`, and see that
+the `struct` declaration has made it into the output.  Next, we'll need
+functions to interact with `Character` values.  Let's start by adding a few
+utility functions for manipulating health and magic.
+
+```haskell
+heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
+heal_char  =
+  proc "heal_char" $ \ amount ref ->
+  body $
+    do current_hp <- deref (ref ~> hp)
+       total_hp   <- deref (ref ~> max_hp)
+       new        <- assign (current_hp + amount)
+       store (ref ~> hp) ((new >? total_hp) ? (total_hp,new))
+
+recover_mp :: Def ('[Uint16, Ref s ('Struct "Character",] ':-> ())
+recover_mp  =
+  proc "recover_mp" $ \ amount ref ->
+  body $
+    do current_mp <- deref (ref ~> mp)
+       total_mp   <- deref (ref ~> max_mp)
+       new        <- assign (current_mp + amount)
+       store (ref ~> mp) ((new >? total_mp) ? (total_mp,new))
+```
+
+Make sure to add `incl heal_char` and `incl recover_mp` to the definition of
+`exampleModule`. Now, running `stack example.hs --stdout` should show the two
+procedures. Examining the output, and the original source program, you'll
+probably notice that the two look quite similar. It would be nice to abstract
+the core of the operation, which would reduce the possibility for bugs to creep
+in.
+
+In Ivory, we have two options for doing this: we could just make another
+procedure and call it, or we could write a macro for the behavior, and inline it
+into the call site. Let's look at how each solution looks:
+
+```haskell
+add_var :: Def ('[Uint16, Ref s ('Stored Uint16), Ref s' ('Stored Uint16)] ':-> ())
+add_var  =
+  proc "add_var" $ \ amount var max_var ->
+    do current <- deref var
+       total   <- deref max_var
+       new     <- assign (current + amount)
+       store var ((new >? total) ? (total,new))
+
+heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
+heal_char  =
+  proc "heal_char" $ \ amount ref ->
+  body $
+    call_ add_var amount (ref ~> hp) (ref ~> max_hp)
+
+recover_mp :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
+recover_mp  =
+  proc "recover_mp" $ \ amount ref ->
+  body $
+    call_ add_var amount (ref ~> mp) (ref ~> max_mp)
+```
+
+Make sure to add `incl add_var` to the definition of `exampleModule` so that the
+new function will be included in the generated module.  In this version, you
+should see that the implementations of `heal_char` and `recover_mp` simply
+turned into calls to `add_var`, passing the relevant references to `hp` or `mp`
+in to each call. Now let's contrast that with the macro version:
+
+
+```haskell
+add_var :: Uint16 -> Ref s ('Stored Uint16) -> Ref s ('Stored Uint16) -> Ivory eff ()
+add_var amount var max_var =
+  do current <- deref var
+     total   <- deref max_var
+     new     <- assign (current + amount)
+     store var ((new >? total) ? (total,new))
+
+heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
+heal_char  =
+  proc "heal_char" $ \ amount ref ->
+  body $
+    add_var amount (ref ~> hp) (ref ~> max_hp)
+
+recover_mp :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
+recover_mp  =
+  proc "recover_mp" $ \ amount ref ->
+  body $
+    add_var amount (ref ~> mp) (ref ~> max_mp)
+```
+
+In this version, `add_var` has been turned into a normal Haskell function that
+produces results in the `Ivory` monad. Note that we don't need to export the
+`add_var` procedure in the `exampleModule` anymore, and that we no longer need
+to use the `call_` function when using `add_var`. When you generate code, you
+should see that the implementation of `heal_char` and `recover_mp` look exactly
+the same as they did originally, but we've factored out the implementation into
+one place so that we don't expose ourselves to the same copy-paste bug that
+existed before.
 
 ## Building the example
 

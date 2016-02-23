@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
-
+{-# LANGUAGE FlexibleInstances #-}
 module Main where
 
 import Ivory.Language
