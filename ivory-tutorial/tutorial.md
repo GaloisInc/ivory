@@ -51,7 +51,7 @@ most helpful when writing Ivory programs.
 > NOTE: the location printed will look something like this, with `<ivory>`, and
 > `<arch>` being something specific to your local install:
 >
-> `<ivory>/.stack-work/install/<arch>/lts-5.3/7.10.3/doc/index.html` file.
+> `<ivory>/.stack-work/install/<arch>/lts-5.3/7.10.3/doc/index.html`
 
 ### Install CVC4 (optional)
 
@@ -62,7 +62,7 @@ Please follow the installation directions located at
 [the cvc4 download page](http://cvc4.cs.nyu.edu/downloads/).
 
 
-## Motivating Example
+## The example skeleton
 
 Open the `ivory-tutorial/example.hs` file in your text-editor of choice. It has
 some boilerplate filled out for you already, which we'll go through now.
@@ -73,8 +73,49 @@ The main function in `example.hs` just serves as an entry-point to the code
 generator. As we're only building one Ivory module, we give a list of a single
 element as the first argument, and as there are no additional artifacts that we
 would like bundled, we give an empty list as the second. You can learn more
-about other ways to invoke the C code generator in the
-[documentation](https://hackage.haskell.org/package/ivory-backend-c).
+about other ways to invoke the C code generator in the documentation for the
+`ivory-backend-c` package.
+
+### The `exampleModule` definition
+
+Ivory calls a compilation unit a module. Modules are defined by using the
+`package` function, which places a collection of named declarations within a
+single module. You can see this in effect at line 16, where the `ivoryMain`
+function is included in the module by using the `incl` statement.
+
+### The `ivoryMain` procedure
+
+Programs in Ivory are composed of a collection of procedures. The `ivoryMain`
+procedure is introduced in lines 18-22, as a procedure that simply returns `0`.
+It also has a type signature, that reflects this fact -- `ivoryMain` accepts no
+formal parameters (the `'[]` to the left of the `':->` symbol) and returns a
+value of type `Uint32`.
+
+### A note on Haskell syntax
+
+You may have noticed that in the type signature for `ivoryMain` that some
+portions of the signature have a leading single-quote. This is due to a language
+extension in GHC called `DataKinds`, which allows data constructors to be
+promoted to the type level. For the most part you won't need to know about this
+feature, other than it needing to be enabled in an Ivory module, and GHC will
+even tell you when you've forgotten to use the leading single-quote, as long as
+you're compiling with `-Wall`.
+
+Also present in many Haskell (and Ivory) programs is the `$` operator. While it
+may look strange and somewhat out of place, the `$` operator is actually quite
+benign: it is just a name for function application. The reason that `$` gets so
+much use is that in many cases, it allows for pairs of parenthesis to be
+removed. For example, in the following example, values `x` and `y` are the same.
+
+```haskell
+x = f (g (h 10))
+y = f $ g $ h 10
+```
+
+## Motivating example
+
+We're going to make an inventory manager for a simple RPG game.
+
 
 ## Building the example
 

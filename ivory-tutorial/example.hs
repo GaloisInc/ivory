@@ -15,7 +15,7 @@ exampleModule =
   package "example" $
     do incl ivoryMain
 
-ivoryMain :: Def ('[] :-> Sint32)
+ivoryMain :: Def ('[] ':-> Sint32)
 ivoryMain  =
   proc "main" $
   body $
