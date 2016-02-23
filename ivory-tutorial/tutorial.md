@@ -6,6 +6,7 @@ Goals:
 * Install stack
 * Checkout the Ivory repository
 * Use stack to configure an Ivory build environment
+* Build documentation (optional)
 * Install CVC4 (optional)
 
 ### Installing stack
@@ -176,7 +177,7 @@ in.
 
 In Ivory, we have two options for doing this: we could just make another
 procedure and call it, or we could write a macro for the behavior, and inline it
-into the call site. Let's look at how each solution looks:
+into the call site. Let's have a look at each approach:
 
 ```haskell
 add_var :: Def ('[Uint16, Ref s ('Stored Uint16), Ref s' ('Stored Uint16)] ':-> ())
