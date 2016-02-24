@@ -472,7 +472,7 @@ definition:
 valid_health ref =
   checkStored (ref ~> hp)     $ \ hp_val ->
   checkStored (ref ~> max_hp) $ \ max_hp_val ->
-    hp_val <=? max_hp_val
+    hp_val <=? max_hp_val .&& (maxBound - max_hp_val) >=? amt
 
 heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
 heal_char  =
@@ -482,3 +482,28 @@ heal_char  =
   body $
     add_var amount (ref ~> hp) (ref ~> max_hp)
 ```
+
+The new predicate that we defined, `valid_health`, states that the `hp` value of
+the `Character` struct given will never be above the `max_hp` value.
+Additionally it specifies that the amount that will be added to the `hp` value
+shouldn't cause an overflow when the check is performed in the `add_var` macro.
+The `valid_health` predicate is applied both as a precondition, and
+postcondition, as the `heal_char` procedure both requires it to be true, and
+preserves the invariant specified.
+
+To verify that this procedure respects its contract, modify the `main` function
+in `simulate.hs`, to check `heal_char` instead of `ivoryMain`, and run
+`stack simulate.hs`. What you should see is the embedding to CVC4 printed, and
+then the last line of output should be `Safe`. This indicates that there were no
+overflow problems, and that the procedure was shown to respect its contract.
+
+As an experiment, try removing the `.&& (maxBound - max_hp_val) >=? amt` portion
+of the predicate in `valid_health`, and re-running `stack simulate.hs`. What you
+should see is that instead of printing `Safe` at the end, it prints `Unsafe` and
+some context about what caused the problem (`QUERY ovf0`). If you look back
+through the encoding, `ovf0` will be an assertion about the `hp` value not
+overflowing when the healing amount is added to it. Without specifying that
+adding the amount to `hp` shouldn't overflow, the simulator is unable to prove
+that it won't. Note that adding this as a precondition isn't the end of the
+problem, as now all call-sites for `heal_char` will now need to prove that the
+character's health stats are in a state where healing them won't cause overflow.
