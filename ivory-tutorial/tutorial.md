@@ -411,7 +411,9 @@ ivoryMain :: Def ('[] ':-> Sint32)
 ivoryMain  =
   proc "main" $
   body $
-    do char <- local $ istruct [ hp     .= ival 100
+    do init_rng
+
+       char <- local $ istruct [ hp     .= ival 100
                                , max_hp .= ival 250
                                , mp     .= ival 20
                                , max_mp .= ival 100 ]
@@ -425,6 +427,16 @@ ivoryMain  =
        show_health char
 
        ret 0
+```
+
+When running the simulation, we can see the characters health drop by a value
+between 20 and 40, then recover by 62 points.
+
+```sh
+$ ./example
+Character health: 100
+Character health: 72
+Character health: 134
 ```
 
 ## Tools
