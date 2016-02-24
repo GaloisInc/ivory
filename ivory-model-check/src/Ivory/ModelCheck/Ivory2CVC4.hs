@@ -146,6 +146,7 @@ toDeref :: I.Type -> I.Var -> I.Expr -> ModelCheck ()
 toDeref t v ref = do
   v' <- addEnvVar t (toVar v)
   e  <- toExpr t ref
+  assertBoundedVar t (var v')
   addInvariant (var v' .== e)
 
 toAlloc :: I.Type -> I.Var -> I.Name -> ModelCheck ()
