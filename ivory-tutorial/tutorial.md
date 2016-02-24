@@ -65,32 +65,26 @@ Please follow the installation directions located at
 
 ## The example skeleton
 
-Open the `ivory-tutorial/example.hs` file in your text-editor of choice. It has
+Open the `ivory-tutorial/Example.hs` file in your text-editor of choice. It has
 some boilerplate filled out for you already, which we'll go through now.
-
-### The `main` function
-
-The main function in `example.hs` just serves as an entry-point to the code
-generator. As we're only building one Ivory module, we give a list of a single
-element as the first argument, and as there are no additional artifacts that we
-would like bundled, we give an empty list as the second. You can learn more
-about other ways to invoke the C code generator in the documentation for the
-`ivory-backend-c` package.
 
 ### The `exampleModule` definition
 
 Ivory calls a compilation unit a module. Modules are defined by using the
 `package` function, which places a collection of named declarations within a
-single module. You can see this in effect at line 16, where the `ivoryMain`
+single module. You can see this in effect at line 14, where the `ivoryMain`
 function is included in the module by using the `incl` statement.
 
 ### The `ivoryMain` procedure
 
 Programs in Ivory are composed of a collection of procedures. The `ivoryMain`
-procedure is introduced in lines 18-22, as a procedure that simply returns `0`.
+procedure is introduced in lines 16-24, as a procedure that simply returns `0`.
 It also has a type signature, that reflects this fact -- `ivoryMain` accepts no
 formal parameters (the `'[]` to the left of the `':->` symbol) and returns a
-value of type `Uint32`.
+value of type `Uint32`. The structure of the `ivoryMain` procedure is simple --
+it only includes a single statement that causes it to return immediately (the
+use of the `ret` statement). As the tutorial progresses, we'll modify the body a
+bit, and have it do something a bit more interesting.
 
 ### A note on Haskell syntax
 
@@ -113,12 +107,30 @@ x = f (g (h 10))
 y = f $ g $ h 10
 ```
 
+### The `main` function in `ivory-tutorial/codegen.hs`
+
+The main function in `codegen.hs` just serves as an entry-point to the code
+generator. As we're only building one Ivory module, we give a list of a single
+element as the first argument, and as there are no additional artifacts that we
+would like bundled, we give an empty list as the second. You can learn more
+about other ways to invoke the C code generator in the documentation for the
+`ivory-backend-c` package.
+
+### The `main` function in `ivory-tutorial/simulate.hs`
+
+The main function in `simulate.hs` invokes the symbolic simulator on the
+`ivoryMain` function from the `ivoryExample` module, defined in `Example.hs`. If
+you run it with `stack simulate.hs`, you'll notice that it prints out an
+encoding of the Ivory program from `Example.hs` to CVC4's input language and
+finally, `Safe`. This procedure is trivially safe, as all it does is return the
+value 0, making no assertions along the way.
+
 ## Motivating example
 
 Let's make an inventory manager for a simple role-playing game. To start with,
 we'll need some basic stats about our character. Let's start defining a `struct`
 that we can use to keep track of some basic character information. Add this
-chunk of code to `example.hs`:
+chunk of code to `Example.hs`:
 
 ```haskell
 [ivory|
@@ -143,7 +155,7 @@ of `exampleModule`:
        defStruct (Proxy :: Proxy "Character")
 ```
 
-Just to confirm that it works, run `stack example.hs --std-out`, and see that
+Just to confirm that it works, run `stack codegen.hs --std-out`, and see that
 the `struct` declaration has made it into the output.  Next, we'll need
 functions to interact with `Character` values.  Let's start by adding a few
 utility functions for manipulating health and magic.
@@ -169,7 +181,7 @@ recover_mp  =
 ```
 
 Make sure to add `incl heal_char` and `incl recover_mp` to the definition of
-`exampleModule`. Now, running `stack example.hs --stdout` should show the two
+`exampleModule`. Now, running `stack codegen.hs --std-out` should show the two
 procedures. Examining the output, and the original source program, you'll
 probably notice that the two look quite similar. It would be nice to abstract
 the core of the operation, which would reduce the possibility for bugs to creep
@@ -238,13 +250,80 @@ the same as they did originally, but we've factored out the implementation into
 one place so that we don't expose ourselves to the same copy-paste bug that
 existed before.
 
+Let's continue on using the macro version, and write up a simple scenario in the
+`ivoryMain` procedure. To test the `heal_char` functionality, let's simulate a
+quick battle, and then using `heal_char` to heal by a specific amount, printing
+out the result when the program is exiting. In order to make the simulation a
+little more interesting, and to be able to print out the results, let's import
+some functions from the C standard library: `srand`, `clock`, `rand` and `printf`.
+
+Let's begin by importing the functions we'll need from the C `time.h`, `stdio.h`
+and `stdlib.h` headers. Make sure to include these definitions in the definition
+of `exampleModule`. Note that when `printf` is imported, it's imported at a
+specific type (`Uint16 :-> ()`). The purpose for this is that Ivory doesn't
+support variable-argument functions. If we would like to use `printf` with
+different arguments, we need to import a new symbol for each occurrence.
+Luckily, this only pollutes the Ivory namespace -- the generated code will only
+ever call `printf`.
+
+```haskell
+clock :: Def ('[] ':-> Uint64)
+clock  = importProc "clock" "time.h"
+
+srand :: Def ('[Uint64] ':-> ())
+srand  = importProc "srand" "stdlib.h"
+
+rand :: Def ('[] :-> Uint16)
+rand  = importProc "rand" "stdlib.h"
+
+printf_u16 :: Def ('[IString,Uint16] :-> ())
+printf_u16  = importProc "printf" "stdlib.h"
+```
+
+Now, we can define a new procedure to initialize the random number generator in
+the C standard library, with the output of the `clock` function. Let's define
+this as a macro again, so that we can keep our `ivoryMain` function relatively
+streamlined. At the same time, let's make another macro that serves as an
+interface to the C function `rand`, which will streamline its use, constraining
+its output to a specific range of values.
+
+```haskell
+init_rng :: Ivory eff ()
+init_rng  =
+  do val <- call clock
+     call_ srand val
+
+gen_rand :: Uint64 -> Ivory eff Uint64
+gen_rand max_val =
+  do val <- call rand
+     return (val .% max_val)
+```
+
+Once the `init_rng` function has been added, modify `ivoryMain` to include a
+call to it before the use of `ret 0`. To test this out, and make sure that we're
+generating random values correctly, let's use the `gen_rand` macro to produce a
+value that we can print out. Your `ivoryMain` procedure should now look like
+this:
+
+```haskell
+ivoryMain :: Def ('[] ':-> Sint64)
+ivoryMain  =
+  proc "main" $
+  body $
+    do init_rng
+       val <- gen_rand 10
+       printf_u16 "val: %d\n" val
+       ret 0
+
+```
+
 ## Building the example
 
 Now that we have our first Ivory program written, let's generate some code! From
 the `ivory-tutorial` repository, run the following command:
 
 ```sh
-$ stack example.hs -h
+$ stack codegen.hs -h
 ```
 
 The -h flag will cause the code generator to print out all options that you can

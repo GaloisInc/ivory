@@ -3,12 +3,10 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Main where
+{-# LANGUAGE OverloadedStrings #-}
+module Example where
 
 import Ivory.Language
-import Ivory.Compile.C.CmdlineFrontend
-
-main = compile [exampleModule] []
 
 -- define the example module, our compilation unit
 exampleModule =
