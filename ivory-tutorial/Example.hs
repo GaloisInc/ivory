@@ -6,7 +6,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Example where
 
+import Prelude hiding (when,unless)
 import Ivory.Language
+import Ivory.Stdlib.Control
 
 -- define the example module, our compilation unit
 exampleModule =

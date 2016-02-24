@@ -127,7 +127,7 @@ value 0, making no assertions along the way.
 
 ## Motivating example
 
-Let's make an inventory manager for a simple role-playing game. To start with,
+Let's make a character manager for a simple role-playing game. To start with,
 we'll need some basic stats about our character. Let's start defining a `struct`
 that we can use to keep track of some basic character information. Add this
 chunk of code to `Example.hs`:
@@ -277,7 +277,7 @@ rand :: Def ('[] :-> Uint16)
 rand  = importProc "rand" "stdlib.h"
 
 printf_u16 :: Def ('[IString,Uint16] :-> ())
-printf_u16  = importProc "printf" "stdlib.h"
+printf_u16  = importProc "printf" "stdio.h"
 ```
 
 Now, we can define a new procedure to initialize the random number generator in
@@ -293,7 +293,7 @@ init_rng  =
   do val <- call clock
      call_ srand val
 
-gen_rand :: Uint64 -> Ivory eff Uint64
+gen_rand :: Uint16 -> Ivory eff Uint16
 gen_rand max_val =
   do val <- call rand
      return (val .% max_val)
@@ -312,65 +312,119 @@ ivoryMain  =
   body $
     do init_rng
        val <- gen_rand 10
-       printf_u16 "val: %d\n" val
+       call_ printf_u16 "val: %d\n" val
        ret 0
-
 ```
 
-## Building the example
-
-Now that we have our first Ivory program written, let's generate some code! From
-the `ivory-tutorial` repository, run the following command:
-
-```sh
-$ stack codegen.hs -h
-```
-
-The -h flag will cause the code generator to print out all options that you can
-use to configure its behavior. You should see the following list displayed:
-
-```
-Usage: example.hs [OPTIONS]
-
-      --std-out           print to stdout only
-      --src-dir=PATH      output directory for source files
-      --const-fold        enable the constant folding pass
-      --overflow          enable overflow checking annotations
-      --div-zero          generate assertions checking for division by zero.
-      --ix-check          generate assertions checking for back indexes (e.g., negative)
-      --fp-check          generate assertions checking for NaN and Infinitiy.
-      --bitshift-check    generate assertions checking for bit-shift overflow.
-      --out-proc-syms     dump out the modules' function symbols
-      --cfg               Output control-flow graph and max stack usage.
-      --cfg-dot-dir=PATH  output directory for CFG Graphviz file
-      --cfg-proc=NAME     entry function(s) for CFG computation.
-      --verbose           verbose debugging output
-      --srclocs           output source locations from the Ivory code
-      --tc-warnings       show type-check warnings
-      --tc-errors         Abort on type-check errors (default)
-      --no-tc-errors      Treat type-check errors as warnings
-      --sanity-check      Enable sanity-check
-      --no-sanity-check   Disable sanity-check
-  -h  --help              display this message
-```
-
-With no options given on the command line, the C generated will have had no
-optimizations applied, or checks generated. The following files will be
-outputted: `ivory.h`, `ivory_asserts.h`, `ivory_templates.h`, `example.h`, and
-`example.c`. For ease of testing, you can use the --std-out option to print out
-the relevant parts of the example module, instead of writing out files.
-
+> NOTE: `call` vs `call_`
+>
+> In Ivory, there are two ways to call a procedure: `call` and `call_`. The
+> difference between the two is how the result is handled. With `call`, the
+> result can be named and used in other expressions. With `call_` the result
+> cannot be named, and is discarded. For functions that return a value, you
+> often want to use `call`, while functions that return nothing, or the `()`
+> value should always be called with `call_`.
 
 ### Building the C module
 
-After generating code for an Ivory module, we will need to use a C compiler to
-build the artifacts into a program. As our generated code is small, we can just
-invoke the compiler directly, rather than building any additional infrastructure
-around it:
+At this point, let's take a break from writing code, and compile the generated
+module. This will let us play around with the design, and make sure that
+everything is working. Run the `codegen.hs` module with no arguments, and it
+will output a few C headers, and a single C source file to the current
+directory.
+
+```sh
+$ stack codegen.hs
+$ ls -F
+codegen.hs         example.c          example.hs         ivory_asserts.h    simulate.hs
+example*           example.h          ivory.h            ivory_templates.h  tutorial.md
+```
+
+Now, we can build the example module by using gcc (or your preferred C
+compiler).
 
 ```sh
 $ gcc -o example example.c
 $ ./example
+val: 3
+$ ./example
+val: 8
+```
+
+### Simulating a battle
+
+Now, let's modify the `ivoryMain` function to include a simple battle
+simulation. We'll make a single instance of a `Character` struct, do some damage
+to it, and then simulate them invoking a healing spell. To do this, we'll need
+to implement some more logic: a way to damage the character, and the healing
+spell.
+
+Let's start with the damage application. We would like to apply a minimal amount
+of damage, plus some variable amount of damage that we can use to to simulate a
+better/worse attack. Let's re-use the `gen_rand` macro that was used in testing
+above to aid in the definition of a new procedure: `apply_damage`. This
+procedure will take three arguments: base damage, a maximum additional damage
+to apply, and the `Character` that is the target of the damage.
+
+```haskell
+apply_damage :: Def ('[Uint16, Uint16, Ref s ('Struct "Character")] ':-> ())
+apply_damage  =
+  proc "apply_damage" $ \ base max_additional ref ->
+  body $
+    do additional <- gen_rand max_additional
+       health     <- deref (ref ~> hp)
+       store (ref ~> hp) (health - (base + additional))
+```
+
+Now we need to be able to invoke the heal spell. Let's implement that as a
+procedure again, called `heal_spell`. What this function will do is given a
+character, add `25%` of that character's maximum health back, but only if they
+have at least 10 mp available. We can reuse the `heal_char` procedure defined
+above to apply the health, and query the character's stats to figure out how
+much health to apply.
+
+```haskell
+heal_spell :: Def ('[Ref s ('Struct "Character")] ':-> ())
+heal_spell  =
+  proc "heal_spell" $ \ ref ->
+  body $
+    do avail_mp <- deref (ref ~> mp)
+       when (avail_mp >? 10) $
+         do store (ref ~> mp) (avail_mp - 10)
+            maximum_hp <- deref (ref ~> max_hp)
+            let val = maximum_hp `iDiv` 4
+            call_ heal_char val ref (
+```
+
+At this point, we can modify `ivoryMain` to simulate the battle. First, we will
+allocate a new character, and setup their initial health and magic quantities.
+Next, we will damage them using the `apply_damage` procedure. Finally, we will
+use the `heal_spell` to have them recover some health.
+
+```haskell
+show_health :: Ref s ('Struct "Character") -> Ivory eff ()
+show_health ref =
+  do d <- deref (ref ~> hp)
+     call_ printf_u16 "Character health: %d\n" d
+
+ivoryMain :: Def ('[] ':-> Sint32)
+ivoryMain  =
+  proc "main" $
+  body $
+    do char <- local $ istruct [ hp     .= ival 100
+                               , max_hp .= ival 250
+                               , mp     .= ival 20
+                               , max_mp .= ival 100 ]
+
+       show_health char
+
+       call_ apply_damage 20 20 char
+       show_health char
+
+       call_ heal_spell char
+       show_health char
+
+       ret 0
 ```
 
 ## Tools
