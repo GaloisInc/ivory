@@ -8,7 +8,7 @@ module Example where
 
 import Prelude hiding (when,unless)
 import Ivory.Language
-import Ivory.Stdlib.Control
+import Ivory.Stdlib.Control (when)
 
 -- define the example module, our compilation unit
 exampleModule =
