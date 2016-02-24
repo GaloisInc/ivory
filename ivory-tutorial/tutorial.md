@@ -378,7 +378,8 @@ apply_damage  =
   body $
     do additional <- gen_rand max_additional
        health     <- deref (ref ~> hp)
-       store (ref ~> hp) (health - (base + additional))
+       let damage = base + additional
+       store (ref ~> hp) ((damage >? health) ? (0,health - damage))
 ```
 
 Now we need to be able to invoke the heal spell. Let's implement that as a
@@ -444,9 +445,7 @@ Character health: 72
 Character health: 134
 ```
 
-## Tools
-
-### Symbolic Simulator
+## Symbolic Simulator
 
 Ivory comes with a symbolic simulator that can be used to prove the validity of
 assertions in a function. To aid the symbolic simulator, the Ivory language also
@@ -454,3 +453,32 @@ provides a way to define function contracts, aiding compositional verification.
 
 Let's look at what simple additions we can make to the running example to aid in
 verification of behavior.
+
+### Adding contracts
+
+Many of the functions that we have defined have built-in assumptions about their
+arguments, but there is currently no formal specification that communicates
+them. For example, the `heal_char` function assumes that the character's health
+is not already above the `max_hp` value stored in the `Character` struct.
+Additionally, many procedures defined above provide undocumented guarantees
+about the values they return, and the effects they provide -- the `heal_char`
+procedure won't put the character's health above it's `max_hp` value.
+
+We can modify the `heal_char` procedure to more fully specify the contract that
+it obeys, with the addition of the `requires` and `ensures` clause to its
+definition:
+
+```haskell
+valid_health ref =
+  checkStored (ref ~> hp)     $ \ hp_val ->
+  checkStored (ref ~> max_hp) $ \ max_hp_val ->
+    hp_val <=? max_hp_val
+
+heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
+heal_char  =
+  proc "heal_char" $ \ amount ref ->
+  requires (valid_health ref) $
+  ensures_ (valid_health ref) $
+  body $
+    add_var amount (ref ~> hp) (ref ~> max_hp)
+```
