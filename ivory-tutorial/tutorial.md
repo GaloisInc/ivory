@@ -11,7 +11,12 @@ Goals:
 
 ### Installing stack
 
-Follow the directions for your OS at
+Stack is a tool for managing a repository of Haskell source. We're going to use
+it to build all of the libraries in the Ivory repository, and then our own
+example application. Stack can also build and maintain a documentation index,
+which can ease development.
+
+To install stack, follow the directions for your OS at
 [haskellstack.org](http://docs.haskellstack.org/en/stable/README/#how-to-install)
 
 ### Checkout the Ivory repository
