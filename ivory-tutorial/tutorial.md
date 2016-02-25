@@ -507,3 +507,67 @@ adding the amount to `hp` shouldn't overflow, the simulator is unable to prove
 that it won't. Note that adding this as a precondition isn't the end of the
 problem, as now all call-sites for `heal_char` will now need to prove that the
 character's health stats are in a state where healing them won't cause overflow.
+
+## Concrete syntax
+
+As the simulation stands, there's currently no way for a character to gain
+additional MP back. Additionally, characters lack the ability to hold items.
+Let's modify the `Character` structure to track the number of MP-regaining
+potions currently held.
+
+```haskell
+[ivory|
+
+struct Character
+  { hp     :: Stored Uint16
+  ; max_hp :: Stored Uint16
+  ; mp     :: Stored Uint16
+  ; max_mp :: Stored Uint16
+  ; potions:: Stored Uint8
+  }
+
+|]
+```
+
+Make sure to update the `ivoryMain` function to include an initializer for the
+`potions` label.
+
+Next, let's implement a function to consume one potion, adding back 25 points of
+MP to the character, and consuming one potion. For a change, let's use Ivory's
+concrete syntax, defining it within the same block as the `Character` struct
+definition.
+
+```haskell
+[ivory|
+
+struct Character
+  { hp     :: Stored Uint16
+  ; max_hp :: Stored Uint16
+  ; mp     :: Stored Uint16
+  ; max_mp :: Stored Uint16
+  ; potions:: Stored Uint8
+  }
+
+void use_potion(*struct Character c) {
+  let ps = *c.potions;
+
+  if (ps > 0) {
+    -- decrement the number of available potions
+    store c.potions as (ps - 1);
+
+    -- increase mp up to the maximum
+    let mp_val = *c.mp;
+    let mp_max = *c.max_mp;
+    if ((mp_val + 25) < mp_max) {
+      store c.mp as (mp_val + 25);
+    } else {
+      store c.mp as mp_max;
+    }
+  } else {}
+}
+
+|]
+```
+
+Make sure to add `use_potion` to the `exampleModule` definition, and then run
+`stack codegen.hs --std-out` to see the C definition of the function.
