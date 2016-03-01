@@ -285,14 +285,9 @@ interesting, and to be able to print out the results, let's import
 some functions from the C standard library: `srand`, `clock`, `rand`
 and `printf`.
 
-Let's begin by importing the functions we'll need from the C `time.h`, `stdio.h`
-and `stdlib.h` headers. Make sure to include these definitions in the definition
-of `exampleModule`. Note that when `printf` is imported, it's imported at a
-specific type (`Uint16 :-> ()`). The purpose for this is that Ivory doesn't
-support variable-argument functions. If we would like to use `printf` with
-different arguments, we need to import a new symbol for each occurrence.
-Luckily, this only pollutes the Ivory namespace -- the generated code will only
-ever call `printf`.
+We'll begin by importing the functions we'll need from the C `time.h`,
+`stdio.h` and `stdlib.h` headers. Make sure to include these in the
+definition of `exampleModule`.
 
 ```haskell
 clock :: Def ('[] ':-> Uint64)
@@ -308,12 +303,20 @@ printf_u16 :: Def ('[IString,Uint16] :-> ())
 printf_u16  = importProc "printf" "stdio.h"
 ```
 
-Now, we can define a new procedure to initialize the random number generator in
-the C standard library, with the output of the `clock` function. Let's define
-this as a macro again, so that we can keep our `ivoryMain` function relatively
-streamlined. At the same time, let's make another macro that serves as an
-interface to the C function `rand`, which will streamline its use, constraining
-its output to a specific range of values.
+Note that when `printf` is imported, it's imported at a specific type
+(`Uint16 :-> ()`). This is because Ivory doesn't support
+variable-argument functions. If we would like to use `printf` with
+different arguments, we need to import it again for each occurrence
+(e.g., `printf_u32`, `printf_string`). Luckily, this only pollutes the
+Ivory namespace -- the generated code will just contain calls to
+`printf`.
+
+Now we define a new procedure to initialize the random number
+generator in the C standard library, seeding it with the output of the
+`clock` function. We'll define this as a macro again, so that we can
+keep our `ivoryMain` function relatively streamlined. We'll also make
+another macro that serves as a convenient interface to `rand`, which
+will let us constrain its output to a specific range of values.
 
 ```haskell
 init_rng :: Ivory eff ()
@@ -327,11 +330,11 @@ gen_rand max_val =
      return (val .% max_val)
 ```
 
-Once the `init_rng` function has been added, modify `ivoryMain` to include a
-call to it before the use of `ret 0`. To test this out, and make sure that we're
-generating random values correctly, let's use the `gen_rand` macro to produce a
-value that we can print out. Your `ivoryMain` procedure should now look like
-this:
+Once the `init_rng` function has been added, modify `ivoryMain` to
+include a call to it before the use of `ret 0`. To make sure that
+we're generating random values correctly, we'll use the `gen_rand`
+macro to produce a value that we can print out. Your `ivoryMain`
+procedure should now look like this:
 
 ```haskell
 ivoryMain :: Def ('[] ':-> Sint64)
@@ -358,13 +361,13 @@ ivoryMain  =
 At this point, let's take a break from writing code, and compile the generated
 module. This will let us play around with the design, and make sure that
 everything is working. Run the `codegen.hs` module with no arguments, and it
-will output a few C headers, and a single C source file to the current
+will output a few C headers and a single C source file to the current
 directory.
 
 ```sh
 $ stack codegen.hs
 $ ls -F
-codegen.hs         example.c          example.hs         ivory_asserts.h    simulate.hs
+codegen.hs         example.c          Example.hs         ivory_asserts.h    simulate.hs
 example*           example.h          ivory.h            ivory_templates.h  tutorial.md
 ```
 
@@ -381,18 +384,19 @@ val: 8
 
 ### Simulating a battle
 
-Now, let's modify the `ivoryMain` function to include a simple battle
-simulation. We'll make a single instance of a `Character` struct, do some damage
-to it, and then simulate them invoking a healing spell. To do this, we'll need
-to implement some more logic: a way to damage the character, and the healing
-spell.
+Let's modify the `ivoryMain` function to include a simple battle
+simulation. We'll make a single instance of a `Character` struct, do
+some damage to it, and then have them cast a healing spell. To do
+this, we'll need to implement some more logic: a way to damage the
+character, and the healing spell.
 
-Let's start with the damage application. We would like to apply a minimal amount
-of damage, plus some variable amount of damage that we can use to to simulate a
-better/worse attack. Let's re-use the `gen_rand` macro that was used in testing
-above to aid in the definition of a new procedure: `apply_damage`. This
-procedure will take three arguments: base damage, a maximum additional damage
-to apply, and the `Character` that is the target of the damage.
+Let's start with the damage application. We would like to apply a
+minimal amount of damage, plus some variable amount of damage that we
+can use to to simulate a better or worse attack. Let's re-use the
+`gen_rand` macro that was used in testing above to define a new
+procedure, `apply_damage`. This procedure will take three arguments:
+base damage, a maximum additional damage to apply, and the `Character`
+that is the target of the damage.
 
 ```haskell
 apply_damage :: Def ('[Uint16, Uint16, Ref s ('Struct "Character")] ':-> ())
@@ -405,12 +409,12 @@ apply_damage  =
        store (ref ~> hp) ((damage >? health) ? (0,health - damage))
 ```
 
-Now we need to be able to invoke the heal spell. Let's implement that as a
-procedure again, called `heal_spell`. What this function will do is given a
-character, add `25%` of that character's maximum health back, but only if they
-have at least 10 mp available. We can reuse the `heal_char` procedure defined
-above to apply the health, and query the character's stats to figure out how
-much health to apply.
+Now we need to be able to invoke the heal spell. Let's implement that
+as a procedure again, called `heal_spell`. Given a character struct,
+this function adds `25%` of that character's maximum health back, but
+only if they have at least 10 mp available. We can reuse the
+`heal_char` procedure defined above to apply the health, and query the
+character's stats to figure out how much health to apply.
 
 ```haskell
 heal_spell :: Def ('[Ref s ('Struct "Character")] ':-> ())
@@ -422,13 +426,14 @@ heal_spell  =
          do store (ref ~> mp) (avail_mp - 10)
             maximum_hp <- deref (ref ~> max_hp)
             let val = maximum_hp `iDiv` 4
-            call_ heal_char val ref (
+            call_ heal_char val ref
 ```
 
-At this point, we can modify `ivoryMain` to simulate the battle. First, we will
-allocate a new character, and setup their initial health and magic quantities.
-Next, we will damage them using the `apply_damage` procedure. Finally, we will
-use the `heal_spell` to have them recover some health.
+At this point, we can modify `ivoryMain` to simulate the
+battle. First, we will allocate a new character, and set up their
+initial health and magic.  Next, we will damage them using the
+`apply_damage` procedure. Finally, we will use the `heal_spell` to
+have them recover some health.
 
 ```haskell
 show_health :: Ref s ('Struct "Character") -> Ivory eff ()
@@ -462,6 +467,8 @@ When running the simulation, we can see the characters health drop by a value
 between 20 and 40, then recover by 62 points.
 
 ```sh
+$ stack codegen.hs
+$ gcc -o example example.c
 $ ./example
 Character health: 100
 Character health: 72
@@ -470,66 +477,72 @@ Character health: 134
 
 ## Symbolic Simulator
 
-Ivory comes with a symbolic simulator that can be used to prove the validity of
-assertions in a function. To aid the symbolic simulator, the Ivory language also
-provides a way to define function contracts, aiding compositional verification.
+Ivory has a symbolic simulator that can prove the validity of
+assertions in a function. To aid the symbolic simulator, the Ivory
+language can express contracts on individual functions, making it
+easier to do verification in small, composable pieces.
 
-Let's look at what simple additions we can make to the running example to aid in
-verification of behavior.
+In this section, we will see how we can add verification to our game
+example.
 
 ### Adding contracts
 
-Many of the functions that we have defined have built-in assumptions about their
-arguments, but there is currently no formal specification that communicates
-them. For example, the `heal_char` function assumes that the character's health
-is not already above the `max_hp` value stored in the `Character` struct.
-Additionally, many procedures defined above provide undocumented guarantees
-about the values they return, and the effects they provide -- the `heal_char`
-procedure won't put the character's health above it's `max_hp` value.
+For many of the functions in our example, we have assumptions in our
+minds about what properties their arguments must satisfy, but there is
+currently no formal specification that expresses those
+assumptions. For example, the `heal_char` function assumes that the
+character's health is not already above the `max_hp` value stored in
+the `Character` struct.  Additionally, we have many assumptions about
+the values these procedures return, and the effects they perform. For
+example, the `heal_char` procedure won't put the character's health
+above it's `max_hp` value.
 
-We can modify the `heal_char` procedure to more fully specify the contract that
-it obeys, with the addition of the `requires` and `ensures` clause to its
+We can augment `heal_char` procedure with the contract that we expect
+it to obey by adding `requires` and `ensures` clauses to its
 definition:
 
 ```haskell
-valid_health ref =
+valid_health ref amount =
   checkStored (ref ~> hp)     $ \ hp_val ->
   checkStored (ref ~> max_hp) $ \ max_hp_val ->
-    hp_val <=? max_hp_val .&& (maxBound - max_hp_val) >=? amt
+    hp_val <=? max_hp_val .&& (maxBound - max_hp_val) >=? amount
 
 heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
 heal_char  =
   proc "heal_char" $ \ amount ref ->
-  requires (valid_health ref) $
-  ensures_ (valid_health ref) $
+  requires (valid_health ref amount) $
+  ensures_ (valid_health ref amount) $
   body $
     add_var amount (ref ~> hp) (ref ~> max_hp)
 ```
 
-The new predicate that we defined, `valid_health`, states that the `hp` value of
-the `Character` struct given will never be above the `max_hp` value.
-Additionally it specifies that the amount that will be added to the `hp` value
-shouldn't cause an overflow when the check is performed in the `add_var` macro.
-The `valid_health` predicate is applied both as a precondition, and
-postcondition, as the `heal_char` procedure both requires it to be true, and
-preserves the invariant specified.
+The new predicate that we defined, `valid_health`, states that the
+`hp` value of the `Character` struct given will never be above the
+`max_hp` value.  Additionally it specifies that the amount that will
+be added to the `hp` value shouldn't cause an overflow when the check
+is performed in the `add_var` macro.  The `valid_health` predicate is
+asserted both as a precondition and a postcondition, since the
+`heal_char` procedure both requires it to be true initially, and
+preserves it as an invariant.
 
-To verify that this procedure respects its contract, modify the `main` function
-in `simulate.hs`, to check `heal_char` instead of `ivoryMain`, and run
-`stack simulate.hs`. What you should see is the embedding to CVC4 printed, and
-then the last line of output should be `Safe`. This indicates that there were no
-overflow problems, and that the procedure was shown to respect its contract.
+To verify that this procedure respects its contract, modify the `main`
+function in `simulate.hs` to check `heal_char` instead of `ivoryMain`,
+and then run `stack simulate.hs`. You should see the CVC4 embedding of
+the program, and the last line of output should be `Safe`. This
+indicates that there were no overflow problems, and that the procedure
+was shown to respect its contract.
 
-As an experiment, try removing the `.&& (maxBound - max_hp_val) >=? amt` portion
-of the predicate in `valid_health`, and re-running `stack simulate.hs`. What you
-should see is that instead of printing `Safe` at the end, it prints `Unsafe` and
-some context about what caused the problem (`QUERY ovf0`). If you look back
-through the encoding, `ovf0` will be an assertion about the `hp` value not
-overflowing when the healing amount is added to it. Without specifying that
-adding the amount to `hp` shouldn't overflow, the simulator is unable to prove
-that it won't. Note that adding this as a precondition isn't the end of the
-problem, as now all call-sites for `heal_char` will now need to prove that the
-character's health stats are in a state where healing them won't cause overflow.
+As an experiment, try removing the `.&& (maxBound - max_hp_val) >=?
+amt` portion of the predicate in `valid_health`, and re-running `stack
+simulate.hs`. Instead of seeing `Safe` at the end, you should see
+`Unsafe` and some context about what caused the problem, `QUERY
+ovf0`. If you look back through the encoding, `ovf0` is an assertion
+about the `hp` value not overflowing when the healing amount is added
+to it. Without specifying that adding the amount to `hp` shouldn't
+overflow, the simulator is unable to prove that it won't. Note that
+adding this as a precondition isn't the end of the problem, as now all
+call sites for `heal_char` must prove that the arguments to the
+procedure won't cause overflow.
 
 ## Concrete syntax
 
