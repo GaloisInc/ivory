@@ -3,11 +3,12 @@
 ## Environmental Setup
 
 Goals:
-* Install stack
-* Checkout the Ivory repository
-* Use stack to configure an Ivory build environment
-* Build documentation (optional)
-* Install CVC4 (optional)
+
+- Install stack
+- Checkout the Ivory repository
+- Use stack to configure an Ivory build environment
+- Build documentation (optional)
+- Install CVC4 (optional)
 
 ### Installing stack
 
@@ -17,125 +18,139 @@ example application. Stack can also build and maintain a documentation index,
 which can ease development.
 
 To install stack, follow the directions for your OS at
-[haskellstack.org](http://docs.haskellstack.org/en/stable/README/#how-to-install)
+the [stack README][stack-install].
+
+[stack-install]: http://docs.haskellstack.org/en/stable/README/#how-to-install
 
 ### Checkout the Ivory repository
 
-If you have git installed, you can just issue the following command:
+If you have git installed, you can check out the repository directly:
+
 ```sh
 $ git clone https://github.com/galoisinc/ivory
 ```
 
-If not, just click the `download zip` button on the [ivory github
-page](https://github.com/galoisinc/ivory), and unzip the archive.
+If you do not have git, click the `download zip` button on the
+[Ivory github page][ivory-github], and unzip the archive.
 
-### Configure the build environment
+[ivory-github]: https://github.com/galoisinc/ivory
 
-Using a terminal, change to the checked out or unzipped Ivory repository. Now,
-simply run `stack build` to setup the build environment.
+### Build with documentation
 
-```sh
-$ stack build
-```
-
-### Build documentation (optional)
-
-In order to navigate the documentation a little easier, we're going to build the
-documentation for all of the packages in the Ivory ecosystem. To generate docs,
-simply type:
+Using a terminal, change directory to the checked out or unzipped
+Ivory repository, then use stack to set up your environment:
 
 ```sh
-$ stack haddock
+$ stack setup
+$ stack install hscolour
 ```
 
-Once this command finishes (and it will take a while) it will print out the
+You will now have the correct Haskell compiler and tools required to
+build Ivory and its documentation:
+
+```
+$ stack build --haddock
+```
+
+### Browse the documentation
+
+Once the stack build finishes, and it will take a while, it will print the
 location of three documentation indexes: one for local packages, one for local
 packages and dependencies, and one for just dependencies. The index for local
 packages will contain documentation for the Ivory packages only, and will be the
 most helpful when writing Ivory programs.
 
-> NOTE: the location printed will look something like this, with `<ivory>`, and
-> `<arch>` being something specific to your local install:
->
-> `<ivory>/.stack-work/install/<arch>/lts-5.3/7.10.3/doc/index.html`
+The location printed will look something like this, with `$ivory_repo`, and
+`$arch` being something specific to your system:
+
+```
+$ivory_repo/.stack-work/install/$arch/lts-5.3/7.10.3/doc/index.html
+```
 
 ### Install CVC4 (optional)
 
-To make use of the symbolic simulator for Ivory, you will need to install CVC4.
-If you don't plan on using this tool, you can skip this section.
+To use the symbolic simulator for Ivory, you will need to install
+CVC4. If you don't plan on using this tool, you can skip this
+section. Follow the installation instructions at
+[the CVC4 download page][cvc4-download].
 
-Please follow the installation directions located at
-[the cvc4 download page](http://cvc4.cs.nyu.edu/downloads/).
+[cvc4-download]: http://cvc4.cs.nyu.edu/downloads
 
 
-## The example skeleton
+## The example program skeleton
 
 Open the `ivory-tutorial/Example.hs` file in your text-editor of choice. It has
-some boilerplate filled out for you already, which we'll go through now.
+some boilerplate filled out for you already, which we'll walk through.
 
 ### The `exampleModule` definition
 
 Ivory calls a compilation unit a module. Modules are defined by using the
-`package` function, which places a collection of named declarations within a
-single module. You can see this in effect at line 14, where the `ivoryMain`
-function is included in the module by using the `incl` statement.
+`package` function, which packages a collection of named declarations within a
+single module. You can see this in effect at line 16, where the `ivoryMain`
+function is included in `exampleModule` by using the `incl` statement.
 
 ### The `ivoryMain` procedure
 
-Programs in Ivory are composed of a collection of procedures. The `ivoryMain`
-procedure is introduced in lines 16-24, as a procedure that simply returns `0`.
-It also has a type signature, that reflects this fact -- `ivoryMain` accepts no
-formal parameters (the `'[]` to the left of the `':->` symbol) and returns a
-value of type `Uint32`. The structure of the `ivoryMain` procedure is simple --
-it only includes a single statement that causes it to return immediately (the
-use of the `ret` statement). As the tutorial progresses, we'll modify the body a
-bit, and have it do something a bit more interesting.
+Programs in Ivory are a collection of procedures. The `ivoryMain`
+procedure is introduced in lines 18-22, as a procedure that simply
+returns `0`.  It also has a type signature that reflects this fact --
+`ivoryMain` accepts no formal parameters, denoted by the `'[]` (empty
+list) to the left of the `':->` (arrow), and returns a value of type
+`Uint32`. The body of the `ivoryMain` procedure currently only
+includes a single statement, `ret 0`, that causes it to return
+immediately. As the tutorial progresses, we'll make the code do
+something a bit more interesting.
 
 ### A note on Haskell syntax
 
-You may have noticed that in the type signature for `ivoryMain` that some
-portions of the signature have a leading single-quote. This is due to a language
-extension in GHC called `DataKinds`, which allows data constructors to be
-promoted to the type level. For the most part you won't need to know about this
-feature, other than it needing to be enabled in an Ivory module, and GHC will
-even tell you when you've forgotten to use the leading single-quote, as long as
-you're compiling with `-Wall`.
+You may have noticed that in the type signature for `ivoryMain` that
+some portions of the signature have a leading single-quote. This is
+due to the `DataKinds` language extension that allows Ivory to have
+more precise types. For the most part you won't need to worry about
+this feature, other than needing to include the pragma in your Ivory
+modules.  The Haskell compiler, when compiling with `-Wall`, will
+remind you when you've forgotten to use the leading single-quote.
 
-Also present in many Haskell (and Ivory) programs is the `$` operator. While it
-may look strange and somewhat out of place, the `$` operator is actually quite
-benign: it is just a name for function application. The reason that `$` gets so
-much use is that in many cases, it allows for pairs of parenthesis to be
-removed. For example, in the following example, values `x` and `y` are the same.
+The `$` operator is a common sight in many Haskell programs, including
+Ivory. While it may look strange `$` is a name for function
+application. Because of its associativity, Haskell programs often use
+`$` in place of pairs of parentheses. For example, without `$`,
+`ivoryMain` would look like:
 
 ```haskell
-x = f (g (h 10))
-y = f $ g $ h 10
+ivoryMain  =
+  proc "main"
+  (body
+    (do ret 0))
 ```
 
 ### The `main` function in `ivory-tutorial/codegen.hs`
 
-The main function in `codegen.hs` just serves as an entry-point to the code
-generator. As we're only building one Ivory module, we give a list of a single
-element as the first argument, and as there are no additional artifacts that we
-would like bundled, we give an empty list as the second. You can learn more
-about other ways to invoke the C code generator in the documentation for the
+The `main` function in `codegen.hs` is the entry-point to the Ivory
+code generator. The `compile` function takes a list of Ivory modules
+to compile, and a list of other artifacts (such as configuration
+files) to bundle in the final product. As we're only building one
+Ivory module, we give a list of a single element as the first
+argument, and as there are no additional artifacts that we would like
+bundled, we give an empty list as the second. You can learn more about
+other ways to invoke the C code generator in the documentation for the
 `ivory-backend-c` package.
 
 ### The `main` function in `ivory-tutorial/simulate.hs`
 
-The main function in `simulate.hs` invokes the symbolic simulator on the
-`ivoryMain` function from the `ivoryExample` module, defined in `Example.hs`. If
-you run it with `stack simulate.hs`, you'll notice that it prints out an
-encoding of the Ivory program from `Example.hs` to CVC4's input language and
-finally, `Safe`. This procedure is trivially safe, as all it does is return the
-value 0, making no assertions along the way.
+The main function in `simulate.hs` invokes the symbolic simulator on
+the `ivoryMain` function from the `ivoryExample` module, defined in
+`Example.hs`. If you run it with `stack simulate.hs`, it prints out
+the Ivory program from `Example.hs` in CVC4's input language followed
+by `Safe`. This procedure is trivially safe, as all it does is return
+the value 0, making no assertions along the way.
 
-## Motivating example
+## Game character example
 
-Let's make a character manager for a simple role-playing game. To start with,
-we'll need some basic stats about our character. Let's start defining a `struct`
-that we can use to keep track of some basic character information. Add this
-chunk of code to `Example.hs`:
+Let's make a character manager for a simple role-playing game. To
+begin, we'll need some basic stats about our character, so we'll
+define a `struct` to store the stats. Add this definition to
+`Example.hs`:
 
 ```haskell
 [ivory|
@@ -151,10 +166,10 @@ struct Character
 
 ```
 
-This will be enough information to keep track of how much health and mana our
-character has available. To make sure that it will be included in the generated
-module, add the following line after the `incl ivoryMain` line in the definition
-of `exampleModule`:
+This will be enough information to keep track of how much health
+points and magic points our character has. To make sure that it will
+be included in the generated module, add the following line after the
+`incl ivoryMain` line in the definition of `exampleModule`:
 
 ```haskell
        defStruct (Proxy :: Proxy "Character")
@@ -175,7 +190,7 @@ heal_char  =
        new        <- assign (current_hp + amount)
        store (ref ~> hp) ((new >? total_hp) ? (total_hp,new))
 
-recover_mp :: Def ('[Uint16, Ref s ('Struct "Character",] ':-> ())
+recover_mp :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
 recover_mp  =
   proc "recover_mp" $ \ amount ref ->
   body $
@@ -185,21 +200,27 @@ recover_mp  =
        store (ref ~> mp) ((new >? total_mp) ? (total_mp,new))
 ```
 
-Make sure to add `incl heal_char` and `incl recover_mp` to the definition of
-`exampleModule`. Now, running `stack codegen.hs --std-out` should show the two
-procedures. Examining the output, and the original source program, you'll
-probably notice that the two look quite similar. It would be nice to abstract
-the core of the operation, which would reduce the possibility for bugs to creep
-in.
+Make sure to add `incl heal_char` and `incl recover_mp` to the
+definition of `exampleModule`. Now, running `stack codegen.hs
+--std-out` should show the two procedures. Examining the output next
+to the original source program, you'll see that the code for
+`heal_char` and `recover_mp` look quite similar. It would be nice to
+abstract the operation of adding a value to a field, which would save
+us typing but also reduce the possibility that bugs will creep in.
 
-In Ivory, we have two options for doing this: we could just make another
-procedure and call it, or we could write a macro for the behavior, and inline it
-into the call site. Let's have a look at each approach:
+In Ivory, we have two options for doing this: we could just make
+another procedure to be generated in C, and call it from the C code in
+both functions. Since we have Haskell as the host language of Ivory,
+we can also use Haskell as a macro language for Ivory, defining the
+behavior once and inlining it into the definition of both
+functions. Let's have a look at the first approach, which is more
+similar to how this abstraction would look in C:
 
 ```haskell
 add_var :: Def ('[Uint16, Ref s ('Stored Uint16), Ref s' ('Stored Uint16)] ':-> ())
 add_var  =
   proc "add_var" $ \ amount var max_var ->
+  body $
     do current <- deref var
        total   <- deref max_var
        new     <- assign (current + amount)
@@ -218,12 +239,11 @@ recover_mp  =
     call_ add_var amount (ref ~> mp) (ref ~> max_mp)
 ```
 
-Make sure to add `incl add_var` to the definition of `exampleModule` so that the
-new function will be included in the generated module.  In this version, you
-should see that the implementations of `heal_char` and `recover_mp` simply
-turned into calls to `add_var`, passing the relevant references to `hp` or `mp`
-in to each call. Now let's contrast that with the macro version:
-
+Make sure to add `incl add_var` to the definition of `exampleModule`
+so that the new function will be included in the generated module.  In
+this version, the implementations of `heal_char` and `recover_mp`
+become calls to `add_var`, passing along the relevant references to
+`hp` or `mp`. Let's contrast that with the macro version:
 
 ```haskell
 add_var :: Uint16 -> Ref s ('Stored Uint16) -> Ref s ('Stored Uint16) -> Ivory eff ()
@@ -246,21 +266,24 @@ recover_mp  =
     add_var amount (ref ~> mp) (ref ~> max_mp)
 ```
 
-In this version, `add_var` has been turned into a normal Haskell function that
-produces results in the `Ivory` monad. Note that we don't need to export the
-`add_var` procedure in the `exampleModule` anymore, and that we no longer need
-to use the `call_` function when using `add_var`. When you generate code, you
-should see that the implementation of `heal_char` and `recover_mp` look exactly
-the same as they did originally, but we've factored out the implementation into
-one place so that we don't expose ourselves to the same copy-paste bug that
-existed before.
+Be sure to remove the `incl add_var` from the `exampleModule`
+definition. In this version, `add_var` has been turned into a normal
+Haskell function that produces results in the `Ivory` monad, rather
+than directly producing an Ivory `Def`. Note that we no longer need to
+use the `call_` function when using `add_var`. When you generate code,
+you should see that the implementation of `heal_char` and `recover_mp`
+look exactly the same as they did in our original version, but we've
+factored out the implementation into one place so that we don't expose
+ourselves to the same sorts of copy-paste bugs that existed before.
 
-Let's continue on using the macro version, and write up a simple scenario in the
-`ivoryMain` procedure. To test the `heal_char` functionality, let's simulate a
-quick battle, and then using `heal_char` to heal by a specific amount, printing
-out the result when the program is exiting. In order to make the simulation a
-little more interesting, and to be able to print out the results, let's import
-some functions from the C standard library: `srand`, `clock`, `rand` and `printf`.
+Let's continue using the macro version, and write a simple
+game scenario in the `ivoryMain` procedure. To test the `heal_char`
+functionality, we'll simulate a quick battle, and then use
+`heal_char` to heal by a specific amount, printing out the result when
+the program is exiting. In order to make the simulation a little more
+interesting, and to be able to print out the results, let's import
+some functions from the C standard library: `srand`, `clock`, `rand`
+and `printf`.
 
 Let's begin by importing the functions we'll need from the C `time.h`, `stdio.h`
 and `stdlib.h` headers. Make sure to include these definitions in the definition
