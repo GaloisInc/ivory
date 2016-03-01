@@ -77,7 +77,7 @@ data Opts = Opts
 
 initialOpts :: Opts
 initialOpts  = Opts
-  { outDir       = Just ""
+  { outDir       = Nothing
   , outHdrDir    = Nothing
   , outArtDir    = Nothing
 
