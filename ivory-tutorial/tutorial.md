@@ -546,10 +546,10 @@ procedure won't cause overflow.
 
 ## Concrete syntax
 
-As the simulation stands, there's currently no way for a character to gain
-additional MP back. Additionally, characters lack the ability to hold items.
-Let's modify the `Character` structure to track the number of MP-regaining
-potions currently held.
+As the simulation stands, there's currently no way for a character to
+regain magic points. Additionally, characters can't hold any items,
+such as potions. Let's modify the `Character` structure to track the
+number of magic-replenishing potions currently held.
 
 ```haskell
 [ivory|
@@ -568,9 +568,9 @@ struct Character
 Make sure to update the `ivoryMain` function to include an initializer for the
 `potions` label.
 
-Next, let's implement a function to consume one potion, adding back 25 points of
-MP to the character, and consuming one potion. For a change, let's use Ivory's
-concrete syntax, defining it within the same block as the `Character` struct
+Next, let's implement a function to consume one potion and add back 25
+points of magic points to the character. We will use Ivory's concrete
+syntax, defining it within the same block as the `Character` struct
 definition.
 
 ```haskell
