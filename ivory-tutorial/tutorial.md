@@ -372,10 +372,12 @@ example*           example.h          ivory.h            ivory_templates.h  tuto
 ```
 
 Now, we can build the example module by using gcc (or your preferred C
-compiler).
+compiler). Make has a built-in rule that can do everything for us and saves a
+bit of typing:
 
 ```sh
-$ gcc -o example example.c
+$ make example
+cc     example.c   -o example
 $ ./example
 val: 3
 $ ./example
@@ -468,7 +470,8 @@ between 20 and 40, then recover by 62 points.
 
 ```sh
 $ stack codegen.hs
-$ gcc -o example example.c
+$ make example
+cc     example.c   -o example
 $ ./example
 Character health: 100
 Character health: 72
