@@ -176,7 +176,9 @@ be included in the generated module, add the following line after the
 ```
 
 Just to confirm that it works, run `stack codegen.hs --std-out`, and see that
-the `struct` declaration has made it into the output.  Next, we'll need
+the `struct` declaration has made it into the output.  That command tells Stack to run the Ivory compiler, specialized for this program.  (You might also try `stack codegen.hs --help` to see all of the compiler options.)
+
+Next, we'll need
 functions to interact with `Character` values.  Let's start by adding a few
 utility functions for manipulating health and magic.
 
