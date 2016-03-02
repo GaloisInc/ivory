@@ -630,3 +630,8 @@ Make sure to add `use_potion` to the `exampleModule` definition, and then run
 
 ## Diving deeper
 - There are more examples in the directory `ivory/ivory-examples/examples/` demonstrating many aspects of the language we have not touched on here. For more details of using the concrete syntax, see `ivory/ivory-examples/examples/ConcreteFile.hs` and `ivory/ivory-examples/examples/file.ivory`.
+- Explore the Ivory standard library for useful functions: `ivory/ivory-stdlib/`.
+- The core Ivory language is defined in `ivory/ivory/src/Ivory/Language.hs`.
+- We have not described [Tower][tower], our concurrency/architecture DSL. Tower can be layered on Ivory to build concurrent systems.
+
+[tower]: https://github.com/GaloisInc/tower
