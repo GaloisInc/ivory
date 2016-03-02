@@ -176,6 +176,8 @@ be included in the generated module, add the following line after the
        defStruct (Proxy :: Proxy "Character")
 ```
 
+Haskell is indentation sensitive, so make sure that the `d` lines up just under the `i` of `incl` on the previous line.
+
 Just to confirm that it works, run `stack codegen.hs --std-out`, and see that
 the `struct` declaration has made it into the output.  That command tells Stack to run the Ivory compiler, specialized for this program.  (You might also try `stack codegen.hs --help` to see all of the compiler options.)
 
