@@ -97,7 +97,7 @@ procedure is introduced in lines 18-22, as a procedure that simply
 returns `0`.  It also has a type signature that reflects this fact --
 `ivoryMain` accepts no formal parameters, denoted by the `'[]` (empty
 list) to the left of the `':->` (arrow), and returns a value of type
-`Uint32`. The body of the `ivoryMain` procedure currently only
+`Sint32`. The body of the `ivoryMain` procedure currently only
 includes a single statement, `ret 0`, that causes it to return
 immediately. As the tutorial progresses, we'll make the code do
 something a bit more interesting.
