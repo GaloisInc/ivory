@@ -34,7 +34,7 @@ $ git checkout wip/tutorial
 If you do not have git, click the `download zip` button on the
 [Ivory github page][ivory-github], and unzip the archive.
 
-[ivory-github]: https://github.com/galoisinc/ivory
+[ivory-github]: https://github.com/galoisinc/ivory/tree/wip/tutorial
 
 ### Build with documentation
 
