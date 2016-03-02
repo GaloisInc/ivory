@@ -28,6 +28,7 @@ If you have git installed, you can check out the repository directly:
 
 ```sh
 $ git clone https://github.com/galoisinc/ivory
+$ git checkout wip/tutorial
 ```
 
 If you do not have git, click the `download zip` button on the
