@@ -612,3 +612,6 @@ void use_potion(*struct Character c) {
 
 Make sure to add `use_potion` to the `exampleModule` definition, and then run
 `stack codegen.hs --std-out` to see the C definition of the function.
+
+## Diving deeper
+- There are more examples in the directory `ivory/ivory-examples/examples/` demonstrating many aspects of the language we have not touched on here. For more details of using the concrete syntax, see `ivory/ivory-examples/examples/ConcreteFile.hs` and `ivory/ivory-examples/examples/file.ivory`.
