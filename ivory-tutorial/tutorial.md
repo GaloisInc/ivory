@@ -625,11 +625,6 @@ Make sure to add `use_potion` to the `exampleModule` definition, and then run
      `use_potion` requires the character to have at least one potion. Note: You
      will need to update simulate.hs to check `check_potion_use`.
 
-  1. *Extra Credit:* Write a predicate to ensure that after using a potion the
-     number of potions is strictly less than before using a potion and make the
-     necessary changes to `check_potion_use` to add an `ensures_` statement to
-     `check_potion_use`.
-
 ## Diving deeper
 - There are more examples in the directory `ivory/ivory-examples/examples/` demonstrating many aspects of the language we have not touched on here. For more details of using the concrete syntax, see `ivory/ivory-examples/examples/ConcreteFile.hs` and `ivory/ivory-examples/examples/file.ivory`.
 - Explore the Ivory standard library for useful functions: `ivory/ivory-stdlib/`.
