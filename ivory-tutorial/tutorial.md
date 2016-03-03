@@ -295,17 +295,14 @@ We'll begin by importing the functions we'll need from the C `time.h`,
 definition of `exampleModule`.
 
 ```haskell
-clock :: Def ('[] ':-> Uint64)
-clock  = importProc "clock" "time.h"
+[ivory|
 
-srand :: Def ('[Uint64] ':-> ())
-srand  = importProc "srand" "stdlib.h"
+import (time.h, clock)   uint64_t clock()
+import (stdlib.h, srand) void srand(uint64_t x)
+import (stdlib.h, rand)  uint16_t rand()
+import (stdio.h, printf) void printf_u16(string x, uint16_t y)
 
-rand :: Def ('[] :-> Uint16)
-rand  = importProc "rand" "stdlib.h"
-
-printf_u16 :: Def ('[IString,Uint16] :-> ())
-printf_u16  = importProc "printf" "stdio.h"
+|]
 ```
 
 Note that when `printf` is imported, it's imported at a specific type
@@ -576,10 +573,12 @@ struct Character
 Make sure to update the `ivoryMain` function to include an initializer for the
 `potions` label.
 
-Next, let's implement a function to consume one potion and add back 25
-points of magic points to the character. We will use Ivory's concrete
-syntax, defining it within the same block as the `Character` struct
-definition.
+Next, let's implement a function to consume one potion and add back 25 points of
+magic points to the character. We will use Ivory's concrete syntax, a C-like
+syntax for Ivory. In fact, you've already seen pieces of concrete syntax---our
+struct definition and import statements are in the concrete syntax. But we have
+a concrete syntax for the entire language! So let's write a function
+`use_potion` in the concrete syntax.
 
 ```haskell
 [ivory|
