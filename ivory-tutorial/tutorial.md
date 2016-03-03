@@ -157,10 +157,10 @@ define a `struct` to store the stats. Add this definition to
 [ivory|
 
 struct Character
-  { hp     :: Stored Uint16
-  ; max_hp :: Stored Uint16
-  ; mp     :: Stored Uint16
-  ; max_mp :: Stored Uint16
+  { uint16_t hp
+  ; uint16_t max_hp
+  ; uint16_t mp
+  ; uint16_t max_mp
   }
 
 |]
@@ -563,11 +563,11 @@ number of magic-replenishing potions currently held.
 [ivory|
 
 struct Character
-  { hp     :: Stored Uint16
-  ; max_hp :: Stored Uint16
-  ; mp     :: Stored Uint16
-  ; max_mp :: Stored Uint16
-  ; potions:: Stored Uint8
+  { uint16_t hp
+  ; uint16_t max_hp
+  ; uint16_t mp
+  ; uint16_t max_mp
+  ; uint16_t potions
   }
 
 |]
@@ -583,14 +583,6 @@ definition.
 
 ```haskell
 [ivory|
-
-struct Character
-  { hp     :: Stored Uint16
-  ; max_hp :: Stored Uint16
-  ; mp     :: Stored Uint16
-  ; max_mp :: Stored Uint16
-  ; potions:: Stored Uint8
-  }
 
 void use_potion(*struct Character c) {
   let ps = *c.potions;
