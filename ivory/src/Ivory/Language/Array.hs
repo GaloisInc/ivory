@@ -51,7 +51,8 @@ instance (ANat n) => IvoryVar (Ix n) where
   unwrapExpr = getIx
 
 instance (ANat n) => IvoryExpr (Ix n) where
-  wrapExpr = Ix
+  wrapExpr e | 0 /= fromTypeNat (aNat :: NatType n) = Ix e
+             | otherwise = error "cannot have an index with width 0"
 
 instance (ANat n) => IvoryStore (Ix n)
 
