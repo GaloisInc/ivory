@@ -266,6 +266,9 @@ data Stmt
   | AllocRef AllocRef
   | MapArr IxVar [Stmt]
   | UpTo Exp IxVar [Stmt]
+  | UpFromTo Exp Exp IxVar [Stmt]
+  | DownFrom Exp IxVar [Stmt]
+  | DownFromTo Exp Exp IxVar [Stmt]
   | Forever [Stmt]
   | IvoryMacroStmt (Maybe Var) (String, [Exp])
   | Break
@@ -441,22 +444,25 @@ instance HasLocation Stmt where
                LocStmt s0 -> getLoc s0
                _          -> mempty
   stripLoc s = case s of
-    IfTE e s0 s1    -> IfTE (stripLoc e) (stripLoc s0) (stripLoc s1)
-    Assert e        -> Assert (stripLoc e)
-    Assume e        -> Assume (stripLoc e)
-    Return e        -> Return (stripLoc e)
-    ReturnVoid      -> ReturnVoid
-    Break           -> Break
-    Store e0 e1     -> Store (stripLoc e0) (stripLoc e1)
-    Assign v e t    -> Assign v (stripLoc e) (stripLoc t)
-    NoBindCall v es -> NoBindCall v (stripLoc es)
-    RefCopy e0 e1   -> RefCopy (stripLoc e0) (stripLoc e1)
-    AllocRef ar     -> AllocRef (stripLoc ar)
-    MapArr v ss     -> MapArr v (stripLoc ss)
-    UpTo e v ss     -> UpTo (stripLoc e) v (stripLoc ss)
-    Forever ss      -> Forever (stripLoc ss)
+    IfTE e s0 s1             -> IfTE (stripLoc e) (stripLoc s0) (stripLoc s1)
+    Assert e                 -> Assert (stripLoc e)
+    Assume e                 -> Assume (stripLoc e)
+    Return e                 -> Return (stripLoc e)
+    ReturnVoid               -> ReturnVoid
+    Break                    -> Break
+    Store e0 e1              -> Store (stripLoc e0) (stripLoc e1)
+    Assign v e t             -> Assign v (stripLoc e) (stripLoc t)
+    NoBindCall v es          -> NoBindCall v (stripLoc es)
+    RefCopy e0 e1            -> RefCopy (stripLoc e0) (stripLoc e1)
+    AllocRef ar              -> AllocRef (stripLoc ar)
+    MapArr v ss              -> MapArr v (stripLoc ss)
+    UpTo e v ss              -> UpTo (stripLoc e) v (stripLoc ss)
+    UpFromTo e0 e1 v ss      -> UpFromTo (stripLoc e0) (stripLoc e1) v (stripLoc ss)
+    DownFrom e v ss          -> DownFrom (stripLoc e) v (stripLoc ss)
+    DownFromTo e0 e1 v ss    -> DownFromTo (stripLoc e0) (stripLoc e1) v (stripLoc ss)
+    Forever ss               -> Forever (stripLoc ss)
     IvoryMacroStmt v (s0,es) -> IvoryMacroStmt v (s0, stripLoc es)
-    LocStmt s0      -> unLoc s0
+    LocStmt s0               -> unLoc s0
 
 instance HasLocation StructDef where
   getLoc s = case s of

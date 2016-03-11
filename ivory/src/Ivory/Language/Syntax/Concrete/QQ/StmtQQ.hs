@@ -106,7 +106,24 @@ fromStmt stmt = case stmt of
     -> do
     e <- fromExpStmt exp
     b <- fromBlock blk
-    insert $ NoBindS (AppE (AppE (VarE 'I.for) e) (LamE [VarP (mkName ixVar)] b))
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.upTo) (LitE (integerL 0))) e) (LamE [VarP (mkName ixVar)] b))
+  UpFromTo exp0 exp1 ixVar blk
+    -> do
+    e0 <- fromExpStmt exp0
+    e1 <- fromExpStmt exp1
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.upTo) e0) e1) (LamE [VarP (mkName ixVar)] b))
+  DownFrom exp ixVar blk
+    -> do
+    e <- fromExpStmt exp
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.downTo) e) (LitE (integerL 0))) (LamE [VarP (mkName ixVar)] b))
+  DownFromTo exp0 exp1 ixVar blk
+    -> do
+    e0 <- fromExpStmt exp0
+    e1 <- fromExpStmt exp1
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.downTo) e0) e1) (LamE [VarP (mkName ixVar)] b))
   -- Either a single variable or a function call.
   IvoryMacroStmt mv (nm,args)
     -> do es <- fromArgs args

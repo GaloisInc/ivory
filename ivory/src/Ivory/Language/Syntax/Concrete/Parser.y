@@ -41,21 +41,24 @@ import Data.Monoid.Compat
   str          { $$@Located { locValue = TokString _  } }
 
   -- Statements
-  if       { Located $$ (TokReserved "if") }
-  else     { Located $$ (TokReserved "else") }
-  assert   { Located $$ (TokReserved "assert") }
-  assume   { Located $$ (TokReserved "assume") }
-  pre      { Located $$ (TokReserved "pre") }
-  post     { Located $$ (TokReserved "post") }
-  assign   { Located $$ (TokReserved "let") }
-  return   { Located $$ (TokReserved "return") }
-  alloc    { Located $$ (TokReserved "alloc") }
-  store    { Located $$ (TokReserved "store") }
-  refCopy  { Located $$ (TokReserved "memcpy") }
-  mapArr   { Located $$ (TokReserved "map") }
-  upTo     { Located $$ (TokReserved "upTo") }
-  forever  { Located $$ (TokReserved "forever") }
-  break    { Located $$ (TokReserved "break") }
+  if         { Located $$ (TokReserved "if") }
+  else       { Located $$ (TokReserved "else") }
+  assert     { Located $$ (TokReserved "assert") }
+  assume     { Located $$ (TokReserved "assume") }
+  pre        { Located $$ (TokReserved "pre") }
+  post       { Located $$ (TokReserved "post") }
+  assign     { Located $$ (TokReserved "let") }
+  return     { Located $$ (TokReserved "return") }
+  alloc      { Located $$ (TokReserved "alloc") }
+  store      { Located $$ (TokReserved "store") }
+  refCopy    { Located $$ (TokReserved "memcpy") }
+  mapArr     { Located $$ (TokReserved "map") }
+  upTo       { Located $$ (TokReserved "upTo") }
+  upFromTo   { Located $$ (TokReserved "upFromTo") }
+  downFrom   { Located $$ (TokReserved "downFrom") }
+  downFromTo { Located $$ (TokReserved "downFromTo") }
+  forever    { Located $$ (TokReserved "forever") }
+  break      { Located $$ (TokReserved "break") }
 
   -- Start of Ivory macros
   iMacro   { Located $$ (TokSym "$") }
@@ -410,15 +413,21 @@ ivoryMacro : iMacro ident          { atBin (unLoc $2, []) $1 (getLoc $2) }
 
 blkStmt :: { Stmt }
 blkStmt :
-    mapArr ident '{' stmts '}'       { LocStmt (atList (MapArr (unLoc $2) (reverse $4))
-                                                  [ $1, getLoc $2, getLoc $4 ]) }
-  | upTo exp ident '{' stmts '}'     { LocStmt (atList (UpTo $2 (unLoc $3) (reverse $5))
-                                                  [$1, getLoc $2, getLoc $3, getLoc $5]) }
-  | forever '{' stmts '}'            { LocStmt (atBin (Forever (reverse $3)) $1 $2) }
+    mapArr ident '{' stmts '}'             { LocStmt (atList (MapArr (unLoc $2) (reverse $4))
+                                                        [$1, getLoc $2, getLoc $4]) }
+  | upTo exp ident '{' stmts '}'           { LocStmt (atList (UpTo $2 (unLoc $3) (reverse $5))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $5]) }
+  | upFromTo exp exp ident '{' stmts '}'   { LocStmt (atList (UpFromTo $2 $3 (unLoc $4) (reverse $6))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
+  | downFrom exp ident '{' stmts '}'       { LocStmt (atList (DownFrom $2 (unLoc $3) (reverse $5))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $5]) }
+  | downFromTo exp exp ident '{' stmts '}' { LocStmt (atList (DownFromTo $2 $3 (unLoc $4) (reverse $6))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
+  | forever '{' stmts '}'                  { LocStmt (atBin (Forever (reverse $3)) $1 $2) }
 
   | if exp '{' stmts '}'
-      else '{' stmts '}'             { LocStmt (atList (IfTE $2 (reverse $4) (reverse $8))
-                                                  [ getLoc $2, getLoc $4, getLoc $8 ]) }
+      else '{' stmts '}'                   { LocStmt (atList (IfTE $2 (reverse $4) (reverse $8))
+                                                        [ getLoc $2, getLoc $4, getLoc $8 ]) }
 
 -- Zero or more statements.
 stmts :: { [Stmt] }

@@ -233,8 +233,66 @@ int32_t bar82() {
   return foo100(foo100(y));
 }
 
-void fizzbuzz() {
+-- Fizzbuzz four ways
+void fizzbuzzUp() {
   upTo 100 ix {
+    -- for typechecking
+    let (ix_t 101) ix' = ix;
+    let i = fromIx(ix);
+    if (i % 15 == 0) {
+      printf("Fizzbuzz");
+    } else {
+      if (i % 5 == 0) {
+        printf("Fizz");
+      } else {
+        if (i % 3 == 0) {
+          printf("Buzz");
+        } else { printf2("%i\n",i); }
+      }
+    }
+  }
+}
+
+void fizzbuzzUpFrom() {
+  upFromTo 50 100 ix {
+    -- for typechecking
+    let (ix_t 101) ix' = ix;
+    let i = fromIx(ix);
+    if (i % 15 == 0) {
+      printf("Fizzbuzz");
+    } else {
+      if (i % 5 == 0) {
+        printf("Fizz");
+      } else {
+        if (i % 3 == 0) {
+          printf("Buzz");
+        } else { printf2("%i\n",i); }
+      }
+    }
+  }
+}
+
+void fizzbuzzDown() {
+  downFrom 100 ix {
+    -- for typechecking
+    let (ix_t 101) ix' = ix;
+    let i = fromIx(ix);
+    if (i % 15 == 0) {
+      printf("Fizzbuzz");
+    } else {
+      if (i % 5 == 0) {
+        printf("Fizz");
+      } else {
+        if (i % 3 == 0) {
+          printf("Buzz");
+        } else { printf2("%i\n",i); }
+      }
+    }
+  }
+}
+
+void fizzbuzzDownFromTo() {
+  downFromTo 100 50 ix {
     -- for typechecking
     let (ix_t 101) ix' = ix;
     let i = fromIx(ix);
