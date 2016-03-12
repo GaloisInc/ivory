@@ -177,17 +177,20 @@ sanityCheck deps this@(I.Module {..})
                    ++ imports m
                    ++ externs m
                    ++ areas m
+                   ++ importAreas m
                     | m <- this:deps
                     ]
 
-  procs m   = [ (procSym, Defined $ I.TyProc procRetTy (map getType procArgs) )
-              | I.Proc {..} <- getVisible $ I.modProcs m ]
-  imports m = [ ( importSym, Imported )
-              | I.Import {..} <- I.modImports m ]
-  externs m = [ (externSym, Defined externType)
-              | I.Extern {..} <- I.modExterns m ]
-  areas m   = [ (areaSym, Defined areaType )
-              | I.Area {..} <- getVisible $ I.modAreas m ]
+  procs m       = [ (procSym, Defined $ I.TyProc procRetTy (map getType procArgs) )
+                  | I.Proc {..} <- getVisible $ I.modProcs m ]
+  imports m     = [ (importSym, Imported)
+                  | I.Import {..} <- I.modImports m ]
+  externs m     = [ (externSym, Defined externType)
+                  | I.Extern {..} <- I.modExterns m ]
+  areas m       = [ (areaSym, Defined areaType)
+                  | I.Area {..} <- getVisible $ I.modAreas m ]
+  importAreas m = [ (aiSym, Imported)
+                  | I.AreaImport {..} <- I.modAreaImports m ]
 
 -- | Sanity Check a procedure. Check for unbound and ill-typed values
 sanityCheckProc :: M.Map String MaybeType -> I.Proc -> Results
