@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 
 --
 -- Helpers for QuasiQuoter.
@@ -192,8 +193,13 @@ type Insert a = Key -> Name -> T.Exp -> QStM a ()
 
 --------------------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ >= 709
 lnPragma :: SrcLoc -> Q [Dec]
 lnPragma srcloc =
   case srcLoclinePragma srcloc of
     Nothing         -> return []
     Just (ln, file) -> (:[]) `fmap` pragLineD ln file
+#else
+lnPragma :: SrcLoc -> Q [Dec]
+lnPragma _srcloc = return []
+#endif
