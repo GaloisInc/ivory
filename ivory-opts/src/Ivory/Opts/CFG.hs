@@ -91,7 +91,7 @@ data WordSize = Word8
               | Word64
   deriving (Show,Eq)
 
-data (Show a, Eq a) => Block a
+data Block a
   = Stmt a
   | Branch [Block a] [Block a]
   | Loop (Maybe Integer) [Block a] -- If we know how many loops we make, we
