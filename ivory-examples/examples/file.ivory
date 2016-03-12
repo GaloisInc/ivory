@@ -91,9 +91,10 @@ void foo30(Boo x) {
   return;
 }
 
-uint8_t foo31() {
-  return (3 + *myptr);
-}
+-- Using an external symbol. Don't run this, unless the header is in-scope.
+-- uint8_t foo31() {
+--   return (3 + *myptr);
+-- }
 
 -- Allocation on the stack (dereference is an expression)
 int32_t foo0() {
