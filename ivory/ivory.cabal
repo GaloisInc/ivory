@@ -96,7 +96,3 @@ library
   default-language:     Haskell2010
 
   ghc-options:          -Wall
-
-  if impl(ghc >= 7.8)
-    build-depends:      ghc, hpc, ghc-srcspan-plugin >= 0.2
-    exposed-modules:    Ivory.Language.Plugin

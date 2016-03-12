@@ -34,7 +34,6 @@ executable ivory-c-clang-test
                         SizeOf,
                         AddrOfRegression,
                         Array,
-                        QC,
                         BitData,
                         BitDataTypes,
                         ConcreteFile,
@@ -48,12 +47,8 @@ executable ivory-c-clang-test
                         template-haskell >= 2.8,
                         ivory,
                         ivory-opts,
-                        ivory-quickcheck,
                         ivory-backend-c,
                         ivory-stdlib,
                         QuickCheck
   default-language:     Haskell2010
-  if impl(ghc >= 7.8)
-    ghc-options:        -Wall -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opt=Ivory.Language.Plugin:kill-foreign-stubs
-  else
-    ghc-options:        -Wall
+  ghc-options:        -Wall
