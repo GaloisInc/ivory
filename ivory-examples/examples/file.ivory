@@ -6,7 +6,7 @@ import (stdio.h, printf) int32_t printf2(string x, int32_t y)
 include concreteIvory --for printf definitions in ConcreteFile.hs
 include stdlibStringModule
 
-extern foo.h G* uint8_t myptr
+-- extern foo.h G* uint8_t myptr
 
 -- A top level definition.
 bar = 3 + 2;
