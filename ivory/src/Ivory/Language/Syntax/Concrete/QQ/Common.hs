@@ -1,7 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE CPP #-}
 
 --
 -- Helpers for QuasiQuoter.
@@ -34,9 +33,7 @@ module Ivory.Language.Syntax.Concrete.QQ.Common
   , isArea
   , collectBindExps
   , runToSt
-#if __GLASGOW_HASKELL__ >= 709
   , lnPragma
-#endif
   ) where
 
 import Prelude ()
@@ -195,10 +192,8 @@ type Insert a = Key -> Name -> T.Exp -> QStM a ()
 
 --------------------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 709
 lnPragma :: SrcLoc -> Q [Dec]
 lnPragma srcloc =
   case srcLoclinePragma srcloc of
     Nothing         -> return []
     Just (ln, file) -> (:[]) `fmap` pragLineD ln file
-#endif
