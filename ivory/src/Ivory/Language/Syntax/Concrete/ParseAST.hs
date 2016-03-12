@@ -32,6 +32,7 @@ data GlobalSym = GlobalProc     ProcDef
                | GlobalTypeDef  TypeDef
                | GlobalConstDef ConstDef
                | GlobalInclude  IncludeDef
+               | GlobalExtern   Extern
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -40,6 +41,16 @@ data GlobalSym = GlobalProc     ProcDef
 data IncludeDef = IncludeDef
   { inclModule :: String
   , inclDefLoc :: SrcLoc
+  } deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Externs
+
+data Extern = Extern
+  { externSym   :: String
+  , externFile  :: String
+  , externType  :: Type
+  , externLoc   :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -358,6 +369,7 @@ instance HasLocation GlobalSym where
     GlobalTypeDef t  -> GlobalTypeDef  (stripLoc t)
     GlobalConstDef c -> GlobalConstDef (stripLoc c)
     GlobalInclude i  -> GlobalInclude  (stripLoc i)
+    GlobalExtern e   -> GlobalExtern   (stripLoc e)
 
 instance HasLocation IncludeDef where
   getLoc = inclDefLoc
@@ -366,6 +378,10 @@ instance HasLocation IncludeDef where
 instance HasLocation IncludeProc where
   getLoc = procInclLoc
   stripLoc incl = incl { procInclLoc = mempty }
+
+instance HasLocation Extern where
+  getLoc = externLoc
+  stripLoc e = e { externLoc = mempty }
 
 instance HasLocation ConstDef where
   getLoc = constDefLoc

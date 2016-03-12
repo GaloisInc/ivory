@@ -225,6 +225,7 @@ import Data.Monoid.Compat
   ty       { Located $$ (TokReserved "type") }
   include  { Located $$ (TokReserved "include") }
   import   { Located $$ (TokReserved "import") }
+  extern   { Located $$ (TokReserved "extern") }
 
   -- Bit data
   bitdata  { Located $$ (TokReserved "bitdata") }
@@ -288,6 +289,7 @@ import Data.Monoid.Compat
 defs :: { [GlobalSym] }
 defs : defs procDef       { GlobalProc     $2 : $1 }
      | defs includeProc   { GlobalInclProc $2 : $1 }
+     | defs importExtern  { GlobalExtern   $2 : $1 }
      | defs structDef     { GlobalStruct   $2 : $1 }
      | defs bdDef         { GlobalBitData  $2 : $1 }
      | defs typeDef       { GlobalTypeDef  $2 : $1 }
@@ -333,6 +335,14 @@ includeProc :
                  , getLoc $7
                  , getLoc $10
                  ]) }
+
+-- Externally-defined symbols
+importExtern :: { Extern }
+importExtern :
+  extern ident '.' ident type ident
+    { Extern (unLoc $6) (unLoc $2 ++ ('.' : unLoc $4)) $5
+             (mconcat [ getLoc $2, getLoc $4, getLoc $6])
+    }
 
 tyArg :: { (Type, Var) }
 tyArg : type ident { ($1, unLoc $2) }

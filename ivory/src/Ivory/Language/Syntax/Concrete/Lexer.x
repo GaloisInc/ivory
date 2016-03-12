@@ -137,6 +137,7 @@ tokens :-
   type     { keyword }
   include  { keyword }
   import   { keyword }
+  extern   { keyword }
 
   -- C style
   bool     { keyword }
