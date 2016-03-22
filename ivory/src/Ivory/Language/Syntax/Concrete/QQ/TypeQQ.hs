@@ -155,11 +155,14 @@ fromRef constr mem area = do
   ma     <- fromScope mem
   return $ AppT (AppT (ConT constr) ma) a
 
-fromArrayTy :: Type -> Integer -> TTyVar T.Type
-fromArrayTy area sz = do
+fromArrayTy :: Type -> Either String Integer -> TTyVar T.Type
+fromArrayTy area sz' = do
+  let sz = case sz' of
+             Left str -> ConT (mkName str)
+             Right i  -> szTy i
   a      <- fromType (maybeAddStored area)
   arr    <- liftPromote 'I.Array
-  return $ AppT (AppT arr (szTy sz)) a
+  return $ AppT (AppT arr sz) a
 
 fromStructTy :: String -> TTyVar T.Type
 fromStructTy nm = do

@@ -620,13 +620,22 @@ simpleCType :
   | ix_t integer              { let TokInteger i = unLoc $2 in
                                 LocTy (atBin (TyIx i) $1 $2) }
 
+szType :: { Located (Either String Integer) }
+szType : iMacro tyidentifier
+           { let TokTyIdent i = unLoc $2 in
+             Left i `at` $2
+           }
+       | integer
+           { let TokInteger i = unLoc $1 in
+             Right i `at` $1
+           }
+
 cType :: { Type }
 cType :
           scopeC '*' type        { LocTy (atBin (TyRef (unLoc $1) $3) $1 $3)  }
   | const scopeC '*' type        { LocTy (atList (TyConstRef (unLoc $2) $4)
                                                  [$1, getLoc $2, getLoc $4]) }
-  | type '[' integer ']'         { let TokInteger i = unLoc $3 in
-                                   LocTy (atBin (TyArray $1 i) $1 $3) }
+  | type '[' szType ']'          { LocTy (atBin (TyArray $1 (unLoc $3)) $1 $3) }
   | struct structName            { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
   | '&' type %prec ADDR          { LocTy (atBin (TyStored $2) $1 $2) }
 
@@ -675,10 +684,8 @@ hsType :
   | ConstRef scopeHS typeHS { LocTy (atList (TyConstRef (unLoc $2) $3) [ getLoc $1
                                                                        , getLoc $2
                                                                        , getLoc $3 ]) }
-  | Array    integer typeHS { let TokInteger i = unLoc $2 in
-                              LocTy (atList (TyArray $3 i) [ getLoc $1
-                                                           , getLoc $2
-                                                           , getLoc $3]) }
+  | Array    szType  typeHS { LocTy (atList (TyArray $3 (unLoc $2))
+                                [ getLoc $1, getLoc $2, getLoc $3]) }
   | Struct   structName     { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
   | Stored   typeHS         { LocTy (atBin (TyStored $2) $1 $2) }
 
