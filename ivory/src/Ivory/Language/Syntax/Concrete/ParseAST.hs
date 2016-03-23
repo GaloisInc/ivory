@@ -106,23 +106,23 @@ data PrePost = PreCond  Exp
 -- Types
 
 data Type
-  = TyVoid                     -- ^ Unit type
-  | TyInt IntSize              -- ^ Signed ints
-  | TyWord WordSize            -- ^ Unsigned ints
-  | TyBool                     -- ^ Booleans
-  | TyChar                     -- ^ Characters
-  | TyFloat                    -- ^ Floats
-  | TyDouble                   -- ^ Doubles
+  = TyVoid                               -- ^ Unit type
+  | TyInt IntSize                        -- ^ Signed ints
+  | TyWord WordSize                      -- ^ Unsigned ints
+  | TyBool                               -- ^ Booleans
+  | TyChar                               -- ^ Characters
+  | TyFloat                              -- ^ Floats
+  | TyDouble                             -- ^ Doubles
   -- XXX
-  -- | TyPtr Type              -- ^ Pointers
-  | TyIx Integer               -- ^ Index type
-  | TyString                   -- ^ Static strings
-  | TyStored Type              -- ^ References
-  | TyStruct String            -- ^ Structures
-  | TyArray Type Integer       -- ^ Arrays of fixed lignth
-  | TyRef      Scope Type      -- ^ References
-  | TyConstRef Scope Type      -- ^ Constant References
-  | TySynonym String           -- ^ Type synonym
+  -- | TyPtr Type                        -- ^ Pointers
+  | TyIx Integer                         -- ^ Index type
+  | TyString                             -- ^ Static strings
+  | TyStored Type                        -- ^ References
+  | TyStruct String                      -- ^ Structures
+  | TyArray Type (Either String Integer) -- ^ Arrays of fixed length (can be a macro or integer)
+  | TyRef      Scope Type                -- ^ References
+  | TyConstRef Scope Type                -- ^ Constant References
+  | TySynonym String                     -- ^ Type synonym
   | LocTy (Located Type)
   deriving (Show, Read, Eq, Ord)
 
