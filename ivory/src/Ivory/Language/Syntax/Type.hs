@@ -9,22 +9,23 @@ import Language.Haskell.TH.Lift (deriveLiftMany)
 -- Types -----------------------------------------------------------------------
 
 data Type
-  = TyVoid             -- ^ Unit type
-  | TyInt IntSize      -- ^ Signed ints
-  | TyWord WordSize    -- ^ Unsigned ints
-  | TyIndex Integer    -- ^ Indices with an upper bound
-  | TyBool             -- ^ Booleans
-  | TyChar             -- ^ Characters
-  | TyFloat            -- ^ Floats
-  | TyDouble           -- ^ Doubles
-  | TyProc Type [Type] -- ^ Procedures
-  | TyRef Type         -- ^ References
-  | TyConstRef Type    -- ^ Constant References
-  | TyPtr Type         -- ^ Pointers
-  | TyArr Int Type     -- ^ Arrays
-  | TyStruct String    -- ^ Structures
-  | TyCArray Type      -- ^ C Arrays
-  | TyOpaque           -- ^ Opaque type---not implementable.
+  = TyVoid                -- ^ Unit type
+  | TyInt IntSize         -- ^ Signed ints
+  | TyWord WordSize       -- ^ Unsigned ints
+  | TyIndex Integer       -- ^ Indices with an upper bound
+  | TyBool                -- ^ Booleans
+  | TyChar                -- ^ Characters
+  | TyFloat               -- ^ Floats
+  | TyDouble              -- ^ Doubles
+  | TyProc Type [Type]    -- ^ Procedures
+  | TyRef Type            -- ^ References
+  | TyConstRef Type       -- ^ Constant References
+  | TyPtr Type            -- ^ Pointers
+  | TyArr Int Type        -- ^ Arrays
+  | TyStruct String       -- ^ Structures
+  | TyCArray Type         -- ^ C Arrays
+  | TyOpaque              -- ^ Opaque type---not implementable.
+  | TyNewType String Type -- ^ Opaque type---not implementable.
     deriving (Show, Eq, Ord)
 
 data IntSize
