@@ -1,7 +1,7 @@
 name:                ivory-stdlib
 version:             0.1.0.0
 author:              Galois, Inc.
-maintainer:          pat@galois.com
+maintainer:          leepike@galois.com
 copyright:           2013 Galois, Inc.
 category:            Language
 synopsis:            Ivory standard library.

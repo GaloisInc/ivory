@@ -1,7 +1,7 @@
 name:                ivory-serialize
 version:             0.1
 author:              Galois, Inc.
-maintainer:          pat@galois.com
+maintainer:          leepike@galois.com
 category:            Language
 build-type:          Simple
 cabal-version:       >= 1.10
