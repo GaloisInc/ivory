@@ -10,13 +10,13 @@ build-type:          Simple
 cabal-version:       >= 1.10
 synopsis:            Ivory compiler optimizations.
 description:         Ivory compiler optimizations as well as compiler insertions.  Primarily used by backends.
-homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+homepage:            http://ivorylang.org
 license:             BSD3
 license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-opts-0101
+  tag:      hackage-opts-0103
 
 library
   exposed-modules:      Ivory.Opts.AssertFold,
@@ -34,7 +34,7 @@ library
 
   other-modules:        Ivory.Opts.Utils
 
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 5,
                         base-compat,
                         containers,
                         data-reify >=0.6,

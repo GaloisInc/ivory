@@ -16,7 +16,7 @@ data-files: support/ivory_stdlib_string_prim.h,
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-stdlib-0100
+  tag:      hackage-stdlib-0103
 
 library
   exposed-modules:      Ivory.Stdlib,
@@ -29,7 +29,7 @@ library
 
   other-modules:        Paths_ivory_stdlib
 
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 5,
                         filepath,
                         ivory,
                         ivory-artifact

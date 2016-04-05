@@ -10,7 +10,7 @@ maintainer:          jamesjb@galois.com, leepike@galois.com
 copyright:           2013 Galois, Inc.
 synopsis:            Ivory hardware model (STM32F4).
 description:         Hardware model for Ivory.  Currently, the STM32F4 is supported; others may be added.
-homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+homepage:            http://ivorylang.org
 build-type:          Simple
 cabal-version:       >= 1.10
 category:            Language
@@ -20,7 +20,7 @@ data-files: support/ivory_hw_prim.h
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-hw-0100
+  tag:      hackage-hw-0103
 
 
 library
@@ -33,7 +33,7 @@ library
                        Paths_ivory_hw,
                        ExampleTypes
   hs-source-dirs:      src, examples
-  build-depends:       base >= 4.6,
+  build-depends:       base >= 4.6 && < 5,
                        filepath,
                        ivory,
                        ivory-artifact
