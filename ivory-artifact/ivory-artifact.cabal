@@ -1,7 +1,7 @@
 name:                ivory-artifact
 version:             0.1.0.3
 author:              Galois, Inc.
-maintainer:          pat@galois.com
+maintainer:          leepike@galois.com
 category:            Language
 homepage:            http://ivorylang.org
 build-type:          Simple
@@ -17,7 +17,7 @@ library
                         Ivory.Artifact.Template,
                         Ivory.Artifact.Location,
                         Ivory.Artifact.Transformer
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 5,
                         filepath,
                         directory,
                         text,
