@@ -6,7 +6,7 @@ version:             0.1.0.3
 license:             BSD3
 license-file:        LICENSE
 author:              Galois, Inc.
-maintainer:          jamesjb@galois.com
+maintainer:          jamesjb@galois.com, leepike@galois.com
 copyright:           2013 Galois, Inc.
 synopsis:            Ivory hardware model (STM32F4).
 description:         Hardware model for Ivory.  Currently, the STM32F4 is supported; others may be added.
