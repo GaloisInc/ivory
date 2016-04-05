@@ -19,7 +19,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-backend-0101
+  tag:      hackage-backend-0103
 
 library
   exposed-modules:      Ivory.Compile.C,
@@ -31,7 +31,7 @@ library
                         Ivory.Compile.C.CmdlineFrontend.Options
   other-modules:        Paths_ivory_backend_c
 
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 5,
                         base-compat,
                         language-c-quote >= 0.10.0,
                         srcloc,
