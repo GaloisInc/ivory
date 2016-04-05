@@ -80,7 +80,7 @@ library
                         Ivory.Language.Type,
                         Ivory.Language.Uint
   build-tools:          alex, happy
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 5,
                         base-compat,
                         pretty >= 1.1,
                         containers >= 0.5,
@@ -89,7 +89,6 @@ library
                         filepath,
                         text,
                         dlist >= 0.5,
-                        -- QuickCheck >= 2.5.1,
                         th-lift >= 0.5.5,
                         array
   hs-source-dirs:       src
