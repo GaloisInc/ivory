@@ -65,6 +65,8 @@ import qualified Ivory.Opts.Overflow   as I
 -- | Map from AST variables to number of time seen.
 type Env = M.Map Var Int
 
+type EnvRead = Env
+
 -- | Simple assertions and assertions on return values.
 data Queries = Queries
   { assertQueries :: [Located Expr]
@@ -86,6 +88,8 @@ data IsDefined = Defined | Imported
 data SymExecSt = SymExecSt
   { funcSym  :: String
   , symEnv   :: Env
+  , symEnvRead :: EnvRead
+    -- ^ To track the most recently seen instance of a Var
   , symSt    :: ProgramSt
   , symQuery :: Queries
   , symProcs :: M.Map I.Sym (IsDefined, I.Proc)
@@ -118,6 +122,7 @@ newtype ModelCheck a = ModelCheck (StateT SymExecSt (ReaderT SymOpts Id) a)
 initSymSt :: SymExecSt
 initSymSt = SymExecSt { funcSym  = ""
                       , symEnv   = mempty
+                      , symEnvRead = mempty
                       , symSt    = mempty
                       , symQuery = mempty
                       , symProcs = overflowProcs
@@ -161,7 +166,7 @@ getEnvVar var env =
   newIx i = i+1
 
 -- | Lookup a variable in the store.
-lookupEnvVar :: Var -> Env -> Var
+lookupEnvVar :: Var -> EnvRead -> Var
 lookupEnvVar var env =
   let v = parseVar var in
   let mv = M.lookup v env in
@@ -240,6 +245,7 @@ withLocalRefs :: ModelCheck a -> ModelCheck a
 withLocalRefs m = do
   st <- get
   let refs = symRefs st
+  let env  = symEnv st
   -- sets_ (\s -> s { symRefs = mempty })
   a <- m
   sets_ (\s -> s { symRefs = refs })
@@ -324,7 +330,7 @@ updateEnv :: Var -> ModelCheck Var
 updateEnv v = do
   st <- get
   let (v', env) = getEnvVar v (symEnv st)
-  set st { symEnv = env }
+  set st { symEnv = env, symEnvRead = env }
   return v'
 
 -- | A special reserved variable the model-checker will use when it wants to
@@ -343,14 +349,16 @@ incReservedVar t = declUpdateEnv t reservedVar
 lookupVar :: Var -> ModelCheck Var
 lookupVar v = do
   st <- get
-  return $ lookupEnvVar v (symEnv st)
+  return $ lookupEnvVar v (symEnvRead st)
 
 inBranch :: Expr -> ModelCheck a -> ModelCheck a
 inBranch b doThis = do
   b' <- symCond <$> getState
+  e  <- symEnvRead <$> getState
   sets_ (\s -> s { symCond = b })
   res <- doThis
-  sets_ (\s -> s { symCond = b' })
+  -- reset the last-seen env after running a branch
+  sets_ (\s -> s { symCond = b', symEnvRead = e })
   return res
   
 runMC :: SymOpts -> ModelCheck a -> (a, SymExecSt)

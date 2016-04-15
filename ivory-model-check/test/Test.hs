@@ -25,6 +25,7 @@ import qualified Examples
 import qualified Heartbeat
 import qualified PPM
 import qualified RingBuffer
+import qualified Tutorial
 
 main :: IO ()
 main = defaultMain tests
@@ -56,6 +57,8 @@ shouldPass = testGroup "should be safe" $
                [ PPM.ppmModule ]
              , mkSuccessInline RingBuffer.push_pop_inv
                [ RingBuffer.testModule ]
+             , mkSuccessInline Tutorial.check_potion_use
+               [ Tutorial.mypackage ]
              ] ++
              -- FIXME: this test emits incorrectly typed CVC4.
              if True then [] else
