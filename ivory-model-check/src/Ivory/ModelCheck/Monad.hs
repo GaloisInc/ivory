@@ -245,7 +245,6 @@ withLocalRefs :: ModelCheck a -> ModelCheck a
 withLocalRefs m = do
   st <- get
   let refs = symRefs st
-  let env  = symEnv st
   -- sets_ (\s -> s { symRefs = mempty })
   a <- m
   sets_ (\s -> s { symRefs = refs })
