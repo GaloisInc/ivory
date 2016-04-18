@@ -184,6 +184,7 @@ toTypeCxt arrCase = convert
       [cty| $ty:(convert retTy) (*)
             ($params:(map (toParam . convert) argTys)) |]
     I.TyOpaque            -> error "Opaque type is not implementable."
+    I.TyNewType s         -> [cty| typename $id:s |] 
 
 intSize :: I.IntSize -> C.Type
 intSize I.Int8  = [cty| typename int8_t  |]

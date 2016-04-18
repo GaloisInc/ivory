@@ -60,5 +60,5 @@ instance IvoryType OpaqueType where
 
 newtype NewType (sym :: Symbol) = NewType { getNewType :: AST.Expr }
 
-mkNewType :: (ASymbol sym, IvoryType t) => Proxy t -> Proxy (sym :: Symbol) -> AST.Type
-mkNewType t p = AST.TyNewType (fromTypeSym p) (ivoryType t)
+mkNewType :: (ASymbol sym) => Proxy (sym :: Symbol) -> AST.Type
+mkNewType p = AST.TyNewType (fromTypeSym p)

@@ -25,7 +25,7 @@ data Type
   | TyStruct String       -- ^ Structures
   | TyCArray Type         -- ^ C Arrays
   | TyOpaque              -- ^ Opaque type---not implementable.
-  | TyNewType String Type -- ^ Opaque type---not implementable.
+  | TyNewType String      -- ^ New type
     deriving (Show, Eq, Ord)
 
 data IntSize

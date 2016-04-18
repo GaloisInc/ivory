@@ -482,6 +482,7 @@ toType t = case t of
   I.TyCArray t'    -> Array <$> toType t'
   I.TyOpaque       -> return Opaque
   I.TyStruct name  -> return $ Struct name
+  I.TyNewType s    -> return $ NewType s
 
 updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
 updateEnvRef t ref =
