@@ -11,6 +11,7 @@ import Data.Word (Word8,Word16,Word32,Word64)
 
 -- | 8-bit words.
 newtype Uint8 = Uint8 { getUint8 :: I.Expr }
+  deriving Show
 
 instance IvoryType Uint8 where
   ivoryType _ = I.TyWord I.Word8

@@ -51,13 +51,13 @@ loop incr from to body = do
 
 
 -- | Loop over the range of indexes @[start, start + 1 .. end]@. If
--- @end > start@, the loop body will never execute.
+-- @start > end@, the loop body will never execute.
 upTo :: ANat n
      => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 upTo from to = loop AST.IncrTo (fromIx from) (fromIx to)
 
 -- | Loop over the range of indexes @[end, end - 1 .. start]@. If
--- @start > end@, the loop body will never execute.
+-- @end > start@, the loop body will never execute.
 downTo :: ANat n
        => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 downTo from to = loop AST.DecrTo (fromIx from) (fromIx to)
