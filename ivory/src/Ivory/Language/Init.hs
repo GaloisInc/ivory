@@ -51,6 +51,7 @@ initType (IVal    ty _)   = ty
 initType (IArray  ty _)   = ty
 initType (IStruct ty _)   = ty
 initType (IFresh  ty _ _) = ty
+initType (INewType) = error "illegal use of inewtype"
 
 newtype Init (area :: Area *) = Init { getInit :: XInit }
 
