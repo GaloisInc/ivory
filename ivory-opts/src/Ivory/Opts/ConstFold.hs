@@ -130,6 +130,7 @@ stmtFold cxt opt stmt =
       copies <- get
       return $ D.singleton $ I.Forever (newFold copies b)
     I.Comment{}          -> return $ D.singleton stmt
+
   where
   newFold copies = D.toList . blockFold cxt opt copies
 
@@ -138,6 +139,7 @@ constFoldInits _ I.InitZero = I.InitZero
 constFoldInits copies (I.InitExpr ty expr) = I.InitExpr ty $ cf copies ty expr
 constFoldInits copies (I.InitStruct i) = I.InitStruct $ map (second (constFoldInits copies)) i
 constFoldInits copies (I.InitArray i) = I.InitArray $ map (constFoldInits copies) i
+constFoldInits _ I.InitNewType = I.InitNewType
 
 --------------------------------------------------------------------------------
 -- Expressions

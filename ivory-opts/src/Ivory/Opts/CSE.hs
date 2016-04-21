@@ -156,6 +156,7 @@ data InitF t
   | InitExpr AST.Type t
   | InitStruct [(String, InitF t)]
   | InitArray [InitF t]
+  | InitNewType
   deriving (Show, Eq, Ord, Functor)
 
 instance MuRef AST.Stmt where
@@ -181,6 +182,7 @@ instance MuRef AST.Stmt where
     AST.Comment{} -> pure $ StmtSimple stmt
     where
     mapInit AST.InitZero = pure InitZero
+    mapInit AST.InitNewType = pure InitNewType
     mapInit (AST.InitExpr ty ex) = InitExpr ty <$> child ex
     mapInit (AST.InitStruct fields) = InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> mapInit i) fields
     mapInit (AST.InitArray elements) = InitArray <$> traverse mapInit elements
@@ -219,6 +221,7 @@ toBlock expr block b = case b of
   toInit (InitExpr ty ex) = AST.InitExpr ty <$> expr ex ty
   toInit (InitStruct fields) = AST.InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> toInit i) fields
   toInit (InitArray elements) = AST.InitArray <$> traverse toInit elements
+  toInit InitNewType = pure AST.InitNewType
   toIncr (IncrTo ex) = AST.IncrTo <$> expr ex ixRep
   toIncr (DecrTo ex) = AST.DecrTo <$> expr ex ixRep
 

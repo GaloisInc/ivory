@@ -446,6 +446,7 @@ evalInit ty init = case init of
                         zstr inits
            return $ Struct str
          _ -> raise $ "evalInit: InitStruct: unexpected type: " ++ show ty
+  I.InitNewType -> error "illegal use of newtype"
 
 lookupTyped :: (Show a, Eq a) => a -> [I.Typed a] -> I.Type
 lookupTyped a [] = error $ "lookupTyped: couldn't find: " ++ show a

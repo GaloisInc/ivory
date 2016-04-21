@@ -205,6 +205,7 @@ toInit ty init =
           Nothing -> error $ "I don't know how to initialize field " ++ f
                           ++ " of struct " ++ s
       return tv
+    I.InitNewType -> error "illegal use of newtype"
   where
   lookupField f (I.Struct _ tfs) = listToMaybe [ t | I.Typed t f' <- tfs, f == f' ]
   lookupField f (I.Abstract _ _) = Nothing

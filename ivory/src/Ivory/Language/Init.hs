@@ -43,6 +43,7 @@ data XInit
   | IArray    I.Type [XInit]
   | IStruct   I.Type [(String, XInit)]
   | IFresh    I.Type XInit (I.Var -> I.Init)
+  | INewType
 
 -- | Return the type of the initializer.
 initType :: XInit -> I.Type
@@ -104,6 +105,8 @@ runInit ini =
       let ty     = initType i
       let aux'   = aux ++ [Binding var ty i']
       return (f var, aux')
+    INewType -> do
+      return (I.InitNewType, [])
   where
     iniStruct (s, i) = do
       (i', binds) <- runInit i
@@ -154,6 +157,9 @@ instance IvoryZeroVal Sint32   where izeroval = ival 0
 instance IvoryZeroVal Sint64   where izeroval = ival 0
 instance IvoryZeroVal IFloat   where izeroval = ival 0
 instance IvoryZeroVal IDouble  where izeroval = ival 0
+
+inewtype :: (ASymbol sym) => Init ('Stored (NewType sym))
+inewtype = Init (INewType)
 
 instance (ANat n) => IvoryZeroVal (Ix n) where
   izeroval = ival 0
