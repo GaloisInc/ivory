@@ -16,7 +16,7 @@ module Ivory.Language.Monad (
   , retProxy
 
     -- ** Running Functions
-  , runIvory, primRunIvory, customRunIvory
+  , runIvory, primRunIvory
   , collect
 
     -- ** Effects
@@ -83,13 +83,10 @@ instance Monoid CodeBlock where
 --
 -- XXX do not export
 runIvory :: Ivory (E.ProcEffects s r) a -> (a,CodeBlock)
-runIvory b = primRunIvory b
+runIvory b = fst $ primRunIvory 0 b
 
-primRunIvory :: Ivory (E.ProcEffects s r) a -> (a,CodeBlock)
-primRunIvory m = fst (MonadLib.runM (unIvory m) 0)
-
-customRunIvory :: Int -> Ivory (E.ProcEffects s r) a -> ((a,CodeBlock),Int)
-customRunIvory n m = (MonadLib.runM (unIvory m) n)
+primRunIvory :: Int -> Ivory (E.ProcEffects s r) a -> ((a,CodeBlock),Int)
+primRunIvory n m = (MonadLib.runM (unIvory m) n)
 
 
 -- | Collect the 'CodeBlock' for an Ivory computation.

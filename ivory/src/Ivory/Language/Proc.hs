@@ -161,7 +161,7 @@ class ProcType proc => IvoryProcDef (proc :: Proc *) impl | impl -> proc where
 
 -- Base case: No arguments in C signature
 instance IvoryType ret => IvoryProcDef ('[] ':-> ret) (Body ret) where
-  procDef env _ b = (getEnv env, Defined (snd (primRunIvory (runBody b))))
+  procDef env _ b = (getEnv env, Defined (snd (runIvory (runBody b))))
 
 -- Inductive case: Remove first argument from C signature, and
 -- parametrize 'impl' over another argument of the same type.
@@ -232,7 +232,7 @@ importFrom h = ImportFrom (return h)
 instance IvoryType ret => IvoryProcDef ('[] ':-> ret) (ImportFrom ret) where
   procDef env _ b = (getEnv env, Imported header reqs ens)
     where
-    (header, block) = primRunIvory (runImportFrom b)
+    (header, block) = runIvory (runImportFrom b)
     reqs            = blockRequires block
     ens             = blockEnsures block
 
