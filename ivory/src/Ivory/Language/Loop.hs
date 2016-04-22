@@ -43,8 +43,7 @@ loop incr from to body = do
   ix        <- freshVar "ix"
   let ixVar = wrapExpr (AST.ExpVar ix)
   (_,block) <- collect (body ixVar)
-  -- XXX TODO: are these still needed??
-  let asst v = compilerAssert (v <? maxSz .&& (-1) <=? v)
+  let asst v = compilerAssert (v <? maxSz .&& 0 <=? v)
   asst from
   asst to
   emit (AST.Loop maxVal ix (unwrapExpr from) (incr $ unwrapExpr to) (blockStmts block))
