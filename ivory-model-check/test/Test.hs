@@ -143,7 +143,7 @@ foo3 :: Def ('[] ':-> ())
 foo3 = L.proc "foo3" $ body $ do
   x <- local (ival (1 :: Sint32))
   -- since ivory loops are bounded, we can just unroll the whole thing!
-  for (toIx (2 :: Sint32) :: Ix 4) $ \ix -> do
+  0 `upTo` (toIx (2 :: Sint32) :: Ix 4) $ \ix -> do
     store x (fromIx ix)
     y <- deref x
     L.assert ((y <? 4) L..&& (y >=? 0))
@@ -172,7 +172,7 @@ foo5 :: Def ('[] ':-> ())
 foo5 = L.proc "foo5" $ body $ do
   x <- local (ival (1 :: Sint32))
   -- for loops from 0 to n-1, inclusive
-  for (toIx (9 :: Sint32) :: Ix 10) $ \ix -> do
+  0 `upTo` (toIx (8 :: Sint32) :: Ix 10) $ \ix -> do
     store x (fromIx ix)
     y <- deref x
     L.assert (y <=? 10)
@@ -271,7 +271,7 @@ foo11 = L.proc "foo11" $ \n ->
           requires (n >=? 1)
         $ body $ do
           x <- local (ival (0 :: Sint8))
-          for n $ \i -> do
+          0 `upTo` n $ \i -> do
             x' <- deref x
             store x $ x' + safeCast i
 
@@ -306,7 +306,7 @@ m13 = package "foo13" (incl foo13)
 -----------------------
 
 foo14 :: Def ('[Uint8, Uint8] ':-> Uint8)
-foo14 = L.proc "foo14" $ \x y -> 
+foo14 = L.proc "foo14" $ \x y ->
         body $ ret (x * y)
 
 m14 :: Module
@@ -319,7 +319,7 @@ foo15 = L.proc "foo15" $ \n ->
     requires (n >=? 1)
   $ ensures (\r -> r <=? 5)
   $ body $ do
-    n `times` \i -> do
+    n `downTo` 0 $ \i -> do
       ifte_ (i >? 5) (ret 5) (ret $ safeCast i)
 
 m15 :: Module

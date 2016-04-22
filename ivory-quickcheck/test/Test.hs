@@ -187,10 +187,10 @@ m10 = package "foo10" (incl foo10)
 
 foo11 :: Def ('[Ix 10] ':-> ())
 foo11 = L.proc "foo11" $ \n ->
-          requires (n >=? 1)
+          requires (n >=? 0)
         $ body $ do
           x <- local (ival (0 :: Sint8))
-          for n $ \i -> do
+          0 `upTo` n $ \i -> do
             x' <- deref x
             store x $ x' + safeCast i
 
@@ -236,10 +236,10 @@ m14 = package "foo14" (incl foo14)
 
 foo15 :: Def ('[Ix 10] ':-> Uint8)
 foo15 = L.proc "foo15" $ \n ->
-    requires (n >=? 1)
+    requires (n >=? 0)
   $ ensures (\r -> r <=? 5)
   $ body $ do
-    n `times` \i -> do
+    n `downTo` 0 $ \i -> do
       ifte_ (i >? 5) (ret 5) (ret $ safeCast i)
     ret 4 -- FIXME: Ivory.Opts.TypeCheck doesn't see above `ret`s
 
