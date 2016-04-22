@@ -61,6 +61,7 @@ downTo :: ANat n
        => Ix n -> Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 downTo from to = loop AST.DecrTo (fromIx from) (fromIx to)
 
+{-# WARNING for "The definition of `for` may change so that no index value is provided. Consider using `upTo`." #-}
 -- | Run the computation n times, where
 -- @
 --   n :: Ix m, 0 <= n <= m.
@@ -70,6 +71,7 @@ for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 for n f = loop AST.IncrTo 0 (fromIx n - 1) f
 
+{-# WARNING times "The definition of `times` may change so that no index value is provided. Consider using `downTo`." #-}
 -- | Run the computation n times, where
 -- @
 --   n :: Ix m, 0 <= n <= m.
