@@ -72,8 +72,15 @@ inclSym t = case unwrapExpr t of
 
 -- | Add a dependency on another module.
 depend :: I.Module -> ModuleDef
-depend m =
-  put (mempty { I.modDepends = Set.singleton (I.modName m) })
+depend m = dependByName (I.modName m)
+
+-- | Add a dependency on another module by name. Use the same name
+-- here that you use when you call 'package' to build the target
+-- module. This function is particularly useful when building mutually
+-- dependent module structures.
+dependByName :: String -> ModuleDef
+dependByName nm =
+  put (mempty { I.modDepends = Set.singleton nm })
 
 -- | Include the definition of a structure in the module.
 defStruct :: forall sym. (IvoryStruct sym, ASymbol sym) =>

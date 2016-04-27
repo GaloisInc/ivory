@@ -186,7 +186,8 @@ module Ivory.Language (
 
     -- ** Module Definitions
   , AST.Module(), moduleName, package
-  , ModuleDef, incl, depend, defStruct
+  , ModuleDef, incl, depend, dependByName
+  , defStruct
   , defStringType
   , defMemArea, defConstMemArea
   , private, public
