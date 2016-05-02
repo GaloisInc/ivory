@@ -1,5 +1,5 @@
 name:                ivory-model-check
-version:             0.1.0.0
+version:             0.1.0.3
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Testing
@@ -30,10 +30,7 @@ test-suite test
   hs-source-dirs: test, test/examples
   type:           exitcode-stdio-1.0
   main-is:        Test.hs
-  if impl(ghc >= 7.8)
-    ghc-options:        -Wall -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opt=Ivory.Language.Plugin:kill-foreign-stubs
-  else
-    ghc-options:        -Wall
+  ghc-options:    -Wall
   build-depends:  base
                ,  base-compat
                ,  tasty >= 0.10

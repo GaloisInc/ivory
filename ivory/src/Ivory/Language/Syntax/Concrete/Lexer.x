@@ -60,21 +60,24 @@ tokens :-
   @float       { emitS readFloat }
 
 -- Reserved words: statements
-  if       { keyword }
-  else     { keyword }
-  assert   { keyword }
-  assume   { keyword }
-  pre      { keyword }
-  post     { keyword }
-  let      { keyword }
-  return   { keyword }
-  alloc    { keyword }
-  store    { keyword }
-  as       { keyword }
-  map      { keyword }
-  upTo     { keyword }
-  forever  { keyword }
-  break    { keyword }
+  if         { keyword }
+  else       { keyword }
+  assert     { keyword }
+  assume     { keyword }
+  pre        { keyword }
+  post       { keyword }
+  let        { keyword }
+  return     { keyword }
+  alloc      { keyword }
+  store      { keyword }
+  as         { keyword }
+  map        { keyword }
+  upTo       { keyword }
+  upFromTo   { keyword }
+  downFrom   { keyword }
+  downFromTo { keyword }
+  forever    { keyword }
+  break      { keyword }
 
 -- Reserved words: expressions
   abs              { keyword }
@@ -134,6 +137,7 @@ tokens :-
   type     { keyword }
   include  { keyword }
   import   { keyword }
+  extern   { keyword }
 
   -- C style
   bool     { keyword }

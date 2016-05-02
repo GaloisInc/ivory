@@ -32,6 +32,7 @@ data GlobalSym = GlobalProc     ProcDef
                | GlobalTypeDef  TypeDef
                | GlobalConstDef ConstDef
                | GlobalInclude  IncludeDef
+               | GlobalExtern   Extern
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -40,6 +41,16 @@ data GlobalSym = GlobalProc     ProcDef
 data IncludeDef = IncludeDef
   { inclModule :: String
   , inclDefLoc :: SrcLoc
+  } deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Externs
+
+data Extern = Extern
+  { externSym   :: String
+  , externFile  :: String
+  , externType  :: Type
+  , externLoc   :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -95,23 +106,23 @@ data PrePost = PreCond  Exp
 -- Types
 
 data Type
-  = TyVoid                     -- ^ Unit type
-  | TyInt IntSize              -- ^ Signed ints
-  | TyWord WordSize            -- ^ Unsigned ints
-  | TyBool                     -- ^ Booleans
-  | TyChar                     -- ^ Characters
-  | TyFloat                    -- ^ Floats
-  | TyDouble                   -- ^ Doubles
+  = TyVoid                               -- ^ Unit type
+  | TyInt IntSize                        -- ^ Signed ints
+  | TyWord WordSize                      -- ^ Unsigned ints
+  | TyBool                               -- ^ Booleans
+  | TyChar                               -- ^ Characters
+  | TyFloat                              -- ^ Floats
+  | TyDouble                             -- ^ Doubles
   -- XXX
-  -- | TyPtr Type              -- ^ Pointers
-  | TyIx Integer               -- ^ Index type
-  | TyString                   -- ^ Static strings
-  | TyStored Type              -- ^ References
-  | TyStruct String            -- ^ Structures
-  | TyArray Type Integer       -- ^ Arrays of fixed lignth
-  | TyRef      Scope Type      -- ^ References
-  | TyConstRef Scope Type      -- ^ Constant References
-  | TySynonym String           -- ^ Type synonym
+  -- | TyPtr Type                        -- ^ Pointers
+  | TyIx Integer                         -- ^ Index type
+  | TyString                             -- ^ Static strings
+  | TyStored Type                        -- ^ References
+  | TyStruct String                      -- ^ Structures
+  | TyArray Type (Either String Integer) -- ^ Arrays of fixed length (can be a macro or integer)
+  | TyRef      Scope Type                -- ^ References
+  | TyConstRef Scope Type                -- ^ Constant References
+  | TySynonym String                     -- ^ Type synonym
   | LocTy (Located Type)
   deriving (Show, Read, Eq, Ord)
 
@@ -266,6 +277,9 @@ data Stmt
   | AllocRef AllocRef
   | MapArr IxVar [Stmt]
   | UpTo Exp IxVar [Stmt]
+  | UpFromTo Exp Exp IxVar [Stmt]
+  | DownFrom Exp IxVar [Stmt]
+  | DownFromTo Exp Exp IxVar [Stmt]
   | Forever [Stmt]
   | IvoryMacroStmt (Maybe Var) (String, [Exp])
   | Break
@@ -355,6 +369,7 @@ instance HasLocation GlobalSym where
     GlobalTypeDef t  -> GlobalTypeDef  (stripLoc t)
     GlobalConstDef c -> GlobalConstDef (stripLoc c)
     GlobalInclude i  -> GlobalInclude  (stripLoc i)
+    GlobalExtern e   -> GlobalExtern   (stripLoc e)
 
 instance HasLocation IncludeDef where
   getLoc = inclDefLoc
@@ -363,6 +378,10 @@ instance HasLocation IncludeDef where
 instance HasLocation IncludeProc where
   getLoc = procInclLoc
   stripLoc incl = incl { procInclLoc = mempty }
+
+instance HasLocation Extern where
+  getLoc = externLoc
+  stripLoc e = e { externLoc = mempty }
 
 instance HasLocation ConstDef where
   getLoc = constDefLoc
@@ -441,22 +460,25 @@ instance HasLocation Stmt where
                LocStmt s0 -> getLoc s0
                _          -> mempty
   stripLoc s = case s of
-    IfTE e s0 s1    -> IfTE (stripLoc e) (stripLoc s0) (stripLoc s1)
-    Assert e        -> Assert (stripLoc e)
-    Assume e        -> Assume (stripLoc e)
-    Return e        -> Return (stripLoc e)
-    ReturnVoid      -> ReturnVoid
-    Break           -> Break
-    Store e0 e1     -> Store (stripLoc e0) (stripLoc e1)
-    Assign v e t    -> Assign v (stripLoc e) (stripLoc t)
-    NoBindCall v es -> NoBindCall v (stripLoc es)
-    RefCopy e0 e1   -> RefCopy (stripLoc e0) (stripLoc e1)
-    AllocRef ar     -> AllocRef (stripLoc ar)
-    MapArr v ss     -> MapArr v (stripLoc ss)
-    UpTo e v ss     -> UpTo (stripLoc e) v (stripLoc ss)
-    Forever ss      -> Forever (stripLoc ss)
+    IfTE e s0 s1             -> IfTE (stripLoc e) (stripLoc s0) (stripLoc s1)
+    Assert e                 -> Assert (stripLoc e)
+    Assume e                 -> Assume (stripLoc e)
+    Return e                 -> Return (stripLoc e)
+    ReturnVoid               -> ReturnVoid
+    Break                    -> Break
+    Store e0 e1              -> Store (stripLoc e0) (stripLoc e1)
+    Assign v e t             -> Assign v (stripLoc e) (stripLoc t)
+    NoBindCall v es          -> NoBindCall v (stripLoc es)
+    RefCopy e0 e1            -> RefCopy (stripLoc e0) (stripLoc e1)
+    AllocRef ar              -> AllocRef (stripLoc ar)
+    MapArr v ss              -> MapArr v (stripLoc ss)
+    UpTo e v ss              -> UpTo (stripLoc e) v (stripLoc ss)
+    UpFromTo e0 e1 v ss      -> UpFromTo (stripLoc e0) (stripLoc e1) v (stripLoc ss)
+    DownFrom e v ss          -> DownFrom (stripLoc e) v (stripLoc ss)
+    DownFromTo e0 e1 v ss    -> DownFromTo (stripLoc e0) (stripLoc e1) v (stripLoc ss)
+    Forever ss               -> Forever (stripLoc ss)
     IvoryMacroStmt v (s0,es) -> IvoryMacroStmt v (s0, stripLoc es)
-    LocStmt s0      -> unLoc s0
+    LocStmt s0               -> unLoc s0
 
 instance HasLocation StructDef where
   getLoc s = case s of

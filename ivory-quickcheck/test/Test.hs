@@ -182,13 +182,15 @@ foo10 = L.proc "foo10" $ \x ->
 
 m10 :: Module
 m10 = package "foo10" (incl foo10)
-    
+
 -----------------------
 
 foo11 :: Def ('[Ix 10] ':-> ())
-foo11 = L.proc "foo11" $ \n -> body $ do
+foo11 = L.proc "foo11" $ \n ->
+          requires (n >=? 0)
+        $ body $ do
           x <- local (ival (0 :: Sint8))
-          for n $ \i -> do
+          0 `upTo` n $ \i -> do
             x' <- deref x
             store x $ x' + safeCast i
 
@@ -198,7 +200,7 @@ m11 = package "foo11" (incl foo11)
 -----------------------
 
 foo12 :: Def ('[Uint8] ':-> Uint8)
-foo12 = L.proc "foo12" $ \n -> 
+foo12 = L.proc "foo12" $ \n ->
         ensures (\r -> r ==? n)
       $ body $ do
           ifte_ (n ==? 0)
@@ -212,7 +214,7 @@ m12 = package "foo12" (incl foo12)
 -----------------------
 
 foo13 :: Def ('[Uint8, Uint8] ':-> Uint8)
-foo13 = L.proc "foo13" $ \x y -> 
+foo13 = L.proc "foo13" $ \x y ->
         requires (x <=? 15)
       $ requires (y <=? 15)
       $ body $ ret (x * y)
@@ -233,10 +235,11 @@ m14 = package "foo14" (incl foo14)
 -----------------------
 
 foo15 :: Def ('[Ix 10] ':-> Uint8)
-foo15 = L.proc "foo15" $ \n -> 
-  ensures (\r -> r <=? 5) $
-  body $ do
-    n `times` \i -> do
+foo15 = L.proc "foo15" $ \n ->
+    requires (n >=? 0)
+  $ ensures (\r -> r <=? 5)
+  $ body $ do
+    n `downTo` 0 $ \i -> do
       ifte_ (i >? 5) (ret 5) (ret $ safeCast i)
     ret 4 -- FIXME: Ivory.Opts.TypeCheck doesn't see above `ret`s
 
@@ -258,7 +261,7 @@ m17 = package "foo17" (incl foo17)
 -----------------------
 
 foo18 :: Def ('[Ref s ('L.Struct "foo2")] ':-> Ref s ('L.Struct "foo2"))
-foo18 = L.proc "foo18" $ \f -> 
+foo18 = L.proc "foo18" $ \f ->
     requires (checkStored (f ~> aFoo) (\a -> a >? 0))
   $ requires (checkStored (f ~> aFoo) (\a -> a <? 10))
   $ ensures (\r -> checkStored (r ~> aFoo) (\a -> a >? 1))

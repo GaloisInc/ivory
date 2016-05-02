@@ -166,6 +166,8 @@ module Ivory.Language (
   , breakOut
   , arrayMap
   , forever
+  , upTo
+  , downTo
 
     -- ** Call
   , call, indirect

@@ -84,7 +84,7 @@ callToVar (Call sym _) = sym
 -- Base names for dereference variables
 areaToVar :: Area -> String
 areaToVar area = case area of
-  AreaVar v               -> v
+  AreaVar v               -> map (\c -> if c == '.' then '_' else c) v
   AddrOf v                -> areaToVar v
   -- Ignore the expression. Ok, since these are bases to fresh vars.
   ArrayArea area' _       -> areaToVar area'

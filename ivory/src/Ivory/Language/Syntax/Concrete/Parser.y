@@ -41,21 +41,24 @@ import Data.Monoid.Compat
   str          { $$@Located { locValue = TokString _  } }
 
   -- Statements
-  if       { Located $$ (TokReserved "if") }
-  else     { Located $$ (TokReserved "else") }
-  assert   { Located $$ (TokReserved "assert") }
-  assume   { Located $$ (TokReserved "assume") }
-  pre      { Located $$ (TokReserved "pre") }
-  post     { Located $$ (TokReserved "post") }
-  assign   { Located $$ (TokReserved "let") }
-  return   { Located $$ (TokReserved "return") }
-  alloc    { Located $$ (TokReserved "alloc") }
-  store    { Located $$ (TokReserved "store") }
-  refCopy  { Located $$ (TokReserved "memcpy") }
-  mapArr   { Located $$ (TokReserved "map") }
-  upTo     { Located $$ (TokReserved "upTo") }
-  forever  { Located $$ (TokReserved "forever") }
-  break    { Located $$ (TokReserved "break") }
+  if         { Located $$ (TokReserved "if") }
+  else       { Located $$ (TokReserved "else") }
+  assert     { Located $$ (TokReserved "assert") }
+  assume     { Located $$ (TokReserved "assume") }
+  pre        { Located $$ (TokReserved "pre") }
+  post       { Located $$ (TokReserved "post") }
+  assign     { Located $$ (TokReserved "let") }
+  return     { Located $$ (TokReserved "return") }
+  alloc      { Located $$ (TokReserved "alloc") }
+  store      { Located $$ (TokReserved "store") }
+  refCopy    { Located $$ (TokReserved "memcpy") }
+  mapArr     { Located $$ (TokReserved "map") }
+  upTo       { Located $$ (TokReserved "upTo") }
+  upFromTo   { Located $$ (TokReserved "upFromTo") }
+  downFrom   { Located $$ (TokReserved "downFrom") }
+  downFromTo { Located $$ (TokReserved "downFromTo") }
+  forever    { Located $$ (TokReserved "forever") }
+  break      { Located $$ (TokReserved "break") }
 
   -- Start of Ivory macros
   iMacro   { Located $$ (TokSym "$") }
@@ -222,6 +225,7 @@ import Data.Monoid.Compat
   ty       { Located $$ (TokReserved "type") }
   include  { Located $$ (TokReserved "include") }
   import   { Located $$ (TokReserved "import") }
+  extern   { Located $$ (TokReserved "extern") }
 
   -- Bit data
   bitdata  { Located $$ (TokReserved "bitdata") }
@@ -285,6 +289,7 @@ import Data.Monoid.Compat
 defs :: { [GlobalSym] }
 defs : defs procDef       { GlobalProc     $2 : $1 }
      | defs includeProc   { GlobalInclProc $2 : $1 }
+     | defs importExtern  { GlobalExtern   $2 : $1 }
      | defs structDef     { GlobalStruct   $2 : $1 }
      | defs bdDef         { GlobalBitData  $2 : $1 }
      | defs typeDef       { GlobalTypeDef  $2 : $1 }
@@ -330,6 +335,14 @@ includeProc :
                  , getLoc $7
                  , getLoc $10
                  ]) }
+
+-- Externally-defined symbols
+importExtern :: { Extern }
+importExtern :
+  extern ident '.' ident type ident
+    { Extern (unLoc $6) (unLoc $2 ++ ('.' : unLoc $4)) $5
+             (mconcat [ getLoc $2, getLoc $4, getLoc $6])
+    }
 
 tyArg :: { (Type, Var) }
 tyArg : type ident { ($1, unLoc $2) }
@@ -410,15 +423,21 @@ ivoryMacro : iMacro ident          { atBin (unLoc $2, []) $1 (getLoc $2) }
 
 blkStmt :: { Stmt }
 blkStmt :
-    mapArr ident '{' stmts '}'       { LocStmt (atList (MapArr (unLoc $2) (reverse $4))
-                                                  [ $1, getLoc $2, getLoc $4 ]) }
-  | upTo exp ident '{' stmts '}'     { LocStmt (atList (UpTo $2 (unLoc $3) (reverse $5))
-                                                  [$1, getLoc $2, getLoc $3, getLoc $5]) }
-  | forever '{' stmts '}'            { LocStmt (atBin (Forever (reverse $3)) $1 $2) }
+    mapArr ident '{' stmts '}'             { LocStmt (atList (MapArr (unLoc $2) (reverse $4))
+                                                        [$1, getLoc $2, getLoc $4]) }
+  | upTo exp ident '{' stmts '}'           { LocStmt (atList (UpTo $2 (unLoc $3) (reverse $5))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $5]) }
+  | upFromTo exp exp ident '{' stmts '}'   { LocStmt (atList (UpFromTo $2 $3 (unLoc $4) (reverse $6))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
+  | downFrom exp ident '{' stmts '}'       { LocStmt (atList (DownFrom $2 (unLoc $3) (reverse $5))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $5]) }
+  | downFromTo exp exp ident '{' stmts '}' { LocStmt (atList (DownFromTo $2 $3 (unLoc $4) (reverse $6))
+                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
+  | forever '{' stmts '}'                  { LocStmt (atBin (Forever (reverse $3)) $1 $2) }
 
   | if exp '{' stmts '}'
-      else '{' stmts '}'             { LocStmt (atList (IfTE $2 (reverse $4) (reverse $8))
-                                                  [ getLoc $2, getLoc $4, getLoc $8 ]) }
+      else '{' stmts '}'                   { LocStmt (atList (IfTE $2 (reverse $4) (reverse $8))
+                                                        [ getLoc $2, getLoc $4, getLoc $8 ]) }
 
 -- Zero or more statements.
 stmts :: { [Stmt] }
@@ -601,13 +620,22 @@ simpleCType :
   | ix_t integer              { let TokInteger i = unLoc $2 in
                                 LocTy (atBin (TyIx i) $1 $2) }
 
+szType :: { Located (Either String Integer) }
+szType : iMacro tyidentifier
+           { let TokTyIdent i = unLoc $2 in
+             Left i `at` $2
+           }
+       | integer
+           { let TokInteger i = unLoc $1 in
+             Right i `at` $1
+           }
+
 cType :: { Type }
 cType :
           scopeC '*' type        { LocTy (atBin (TyRef (unLoc $1) $3) $1 $3)  }
   | const scopeC '*' type        { LocTy (atList (TyConstRef (unLoc $2) $4)
                                                  [$1, getLoc $2, getLoc $4]) }
-  | type '[' integer ']'         { let TokInteger i = unLoc $3 in
-                                   LocTy (atBin (TyArray $1 i) $1 $3) }
+  | type '[' szType ']'          { LocTy (atBin (TyArray $1 (unLoc $3)) $1 $3) }
   | struct structName            { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
   | '&' type %prec ADDR          { LocTy (atBin (TyStored $2) $1 $2) }
 
@@ -656,10 +684,8 @@ hsType :
   | ConstRef scopeHS typeHS { LocTy (atList (TyConstRef (unLoc $2) $3) [ getLoc $1
                                                                        , getLoc $2
                                                                        , getLoc $3 ]) }
-  | Array    integer typeHS { let TokInteger i = unLoc $2 in
-                              LocTy (atList (TyArray $3 i) [ getLoc $1
-                                                           , getLoc $2
-                                                           , getLoc $3]) }
+  | Array    szType  typeHS { LocTy (atList (TyArray $3 (unLoc $2))
+                                [ getLoc $1, getLoc $2, getLoc $3]) }
   | Struct   structName     { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
   | Stored   typeHS         { LocTy (atBin (TyStored $2) $1 $2) }
 

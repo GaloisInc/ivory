@@ -34,9 +34,7 @@ module Ivory.Language.Syntax.Concrete.QQ.Common
   , isArea
   , collectBindExps
   , runToSt
-#if __GLASGOW_HASKELL__ >= 709
   , lnPragma
-#endif
   ) where
 
 import Prelude ()
@@ -201,4 +199,7 @@ lnPragma srcloc =
   case srcLoclinePragma srcloc of
     Nothing         -> return []
     Just (ln, file) -> (:[]) `fmap` pragLineD ln file
+#else
+lnPragma :: SrcLoc -> Q [Dec]
+lnPragma _srcloc = return []
 #endif

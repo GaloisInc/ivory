@@ -119,7 +119,7 @@ mkStringDef ty_s len = do
   let data_n     = mkName data_s
   let len_s      = struct_s ++ "_len"
   let len_n      = mkName len_s
-  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) len) mempty
+  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) (Right len)) mempty
   let len_f      = Field len_s (TyStored (TyInt Int32)) mempty
   let struct_def = StructDef struct_s [data_f, len_f] mempty
 

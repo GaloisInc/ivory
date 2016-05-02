@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory
-version:             0.1.0.2
+version:             0.1.0.3
 author:              Galois, Inc.
 maintainer:          trevor@galois.com
 category:            Language
@@ -16,7 +16,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-0100
+  tag:      hackage-0103
 
 library
   exposed-modules:      Ivory.Language,
@@ -80,7 +80,7 @@ library
                         Ivory.Language.Type,
                         Ivory.Language.Uint
   build-tools:          alex, happy
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 5,
                         base-compat,
                         pretty >= 1.1,
                         containers >= 0.5,
@@ -89,14 +89,9 @@ library
                         filepath,
                         text,
                         dlist >= 0.5,
-                        -- QuickCheck >= 2.5.1,
                         th-lift >= 0.5.5,
                         array
   hs-source-dirs:       src
   default-language:     Haskell2010
 
   ghc-options:          -Wall
-
-  if impl(ghc >= 7.8)
-    build-depends:      ghc, hpc, ghc-srcspan-plugin >= 0.2
-    exposed-modules:    Ivory.Language.Plugin

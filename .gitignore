@@ -11,3 +11,4 @@ ghc-switch.sh
 clang-test-dir
 .stack-work
 /test-dir-c-files
+.DS_Store

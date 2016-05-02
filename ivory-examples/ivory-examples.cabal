@@ -1,7 +1,7 @@
 name:                ivory-examples
-version:             0.1.0.2
+version:             0.1.0.3.1
 author:              Galois, Inc
-maintainer:          trevor@galois.com
+maintainer:          trevor@galois.com, leepike@galois.com
 copyright:           2013 Galois, Inc.
 category:            Language
 synopsis:            Ivory examples.
@@ -11,10 +11,11 @@ build-type:          Simple
 cabal-version:       >= 1.10
 license:             BSD3
 license-file:        LICENSE
+data-files:          examples/file.ivory
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-examples-0102
+  tag:      hackage-examples-0103
 
 executable ivory-c-clang-test
   main-is:              TestExamples.hs
@@ -34,26 +35,21 @@ executable ivory-c-clang-test
                         SizeOf,
                         AddrOfRegression,
                         Array,
-                        QC,
                         BitData,
                         BitDataTypes,
                         ConcreteFile,
                         Coroutine,
                         Loop
   hs-source-dirs:       examples
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.6 && < 5,
                         base-compat,
                         pretty >= 1.1,
                         monadLib >= 3.7,
                         template-haskell >= 2.8,
                         ivory,
                         ivory-opts,
-                        ivory-quickcheck,
                         ivory-backend-c,
                         ivory-stdlib,
                         QuickCheck
   default-language:     Haskell2010
-  if impl(ghc >= 7.8)
-    ghc-options:        -Wall -fhpc -fplugin=Ivory.Language.Plugin -fplugin-opt=Ivory.Language.Plugin:kill-foreign-stubs
-  else
-    ghc-options:        -Wall
+  ghc-options:        -Wall

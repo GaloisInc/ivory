@@ -30,6 +30,7 @@ import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
 import           Language.Haskell.TH.Quote
 import           Language.Haskell.TH.Syntax (addDependentFile)
 
+import qualified Ivory.Language.Const  as I
 import qualified Ivory.Language.Syntax as I
 import qualified Ivory.Language.Proxy  as I
 import qualified Ivory.Language.Module as I
@@ -40,6 +41,7 @@ import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
 import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
+import Ivory.Language.Syntax.Concrete.QQ.Common
 
 import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
 import Ivory.Language.Syntax.Concrete.Lexer (scan)
@@ -137,6 +139,7 @@ getModData :: GlobalSym -> Maybe ModuleData
 getModData sym = case sym of
   GlobalProc       d -> Just (ModProc d)
   GlobalInclProc   d -> Just (ModImportProc d)
+  GlobalExtern     e -> Just (ModExtern e)
   GlobalStruct     d -> Just (ModStruct d)
   GlobalBitData{}    -> Nothing
   GlobalTypeDef{}    -> Nothing
@@ -147,6 +150,7 @@ mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
   GlobalProc     d      -> fromProc d
   GlobalInclProc d      -> fromInclProc d
+  GlobalExtern   e      -> fromExtern e
   GlobalStruct   d      -> fromStruct d
   GlobalBitData  d      -> fromBitData d
   GlobalTypeDef  tyDef  -> fromTypeDef tyDef
@@ -190,6 +194,8 @@ ivoryMod  modName incls = do
       -> AppE (VarE 'I.depend) (VarE $ mkName $ inclModule incl)
     ModImportProc proc
       -> AppE (VarE 'I.incl) (VarE $ mkName $ procInclSym proc)
+    ModExtern ext
+      -> AppE (VarE 'I.inclSym) (VarE $ mkName $ externSym ext)
 
 --------------------------------------------------------------------------------
 
@@ -199,7 +205,23 @@ data ModuleData =
   | ModStruct     StructDef
   | ModInclude    IncludeDef
   | ModImportProc IncludeProc
+  | ModExtern     Extern
   deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+
+fromExtern :: Extern -> Q [Dec]
+fromExtern (Extern sym file ty loc) = do
+  tyQ <- runToQ (fromType ty)
+  d   <- def
+  let nm  = mkName sym
+  let imp = ValD (VarP nm) (NormalB d) []
+  ln  <- lnPragma loc
+  return (ln ++ [SigD nm (fst tyQ), imp])
+  where
+  def = do
+    let nm = AppE (VarE 'I.extern) (LitE $ StringL sym)
+    return (AppE nm (LitE $ StringL file))
 
 --------------------------------------------------------------------------------
 

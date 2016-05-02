@@ -114,9 +114,9 @@ castIx = proc "castIx" $ \ix -> body $ do
 
 loopTest :: Def ('[Ref s ('Array 15 ('Stored Sint32))] ':-> ())
 loopTest = proc "loopTest" $ \ arr -> body $ do
-  arrayMap (\ix -> store (arr ! (ix :: Ix 15)) 1)
-  times 3 (\ix -> store (arr ! (ix :: Ix 15)) 1)
-  for 0 (\ix -> store (arr ! (ix :: Ix 15)) 1)
+  arrayMap       (\ix -> store (arr ! (ix :: Ix 15)) 1)
+  2 `downTo` 0 $ (\ix -> store (arr ! (ix :: Ix 15)) 1)
+  0 `upTo`   2 $ (\ix -> store (arr ! (ix :: Ix 15)) 1)
   retVoid
 
 testToIx :: Def ('[Sint32, Ref s ('Array 10 ('Stored Uint32))] ':-> Ref s ('Stored Uint32))
