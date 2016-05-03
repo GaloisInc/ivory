@@ -345,6 +345,9 @@ extractLocals (AST.Local ty var initex) rest = do
 extractLocals (AST.RefCopy ty lhs rhs) rest =
   (runUpdateExpr $ AST.RefCopy ty <$> updateExpr lhs <*> updateExpr rhs) >>=
   stmt >> rest
+extractLocals (AST.RefZero ty v) rest =
+  (runUpdateExpr $ AST.RefZero ty <$> updateExpr v) >>=
+  stmt >> rest
 extractLocals (AST.AllocRef _ty refvar name) rest = do
   let AST.NameVar var = name -- XXX: AFAICT, AllocRef can't have a NameSym argument.
   refvar `rewriteTo` contRef var

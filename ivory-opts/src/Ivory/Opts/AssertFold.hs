@@ -142,6 +142,8 @@ stmtFold ef stmt = case stmt of
   I.RefCopy ty e0 e1              -> do ef ty e0
                                         ef ty e1
                                         insert stmt
+  I.RefZero ty e                  -> do ef ty e
+                                        insert stmt
   I.AllocRef{}                    -> insert stmt
   I.Forever blk                   -> do blk' <- runFreshStmts ef blk
                                         insert (I.Forever blk')

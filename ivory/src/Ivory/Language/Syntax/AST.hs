@@ -191,6 +191,10 @@ data Stmt
     -- ^ Ref copy.  Copy the second variable reference to the first (like
     -- memcopy).  The type is the dereferenced value of the variables.
 
+  | RefZero Type Expr
+    -- ^ Ref zero. Set the referenced memory to zero. The type is the
+    -- dereferenced value of the variable.
+
   | AllocRef Type Var Name
     -- ^ Reference allocation.  The type parameter is not a reference, but the
     -- referenced type.
