@@ -16,7 +16,7 @@
 #define ABS_I                                       \
 static inline TYPE C(abs,EXT)(TYPE i) {             \
   if(i == MKMIN(M)) { return MKMAX(M); }            \
-  else { return i >= 0 ? i : -i; }                  \
+  else { return i >= 0 ? i : (TYPE) -i; }           \
 }
 
 // Unsigned signnum
