@@ -28,6 +28,8 @@ import           Ivory.Language.Syntax.Concrete.Pretty
 data L1Type (a :: *) where
   L1Type_Unit :: L1Type ()
   L1Type_Bool :: L1Type Bool
+  L1Type_Char :: L1Type Char
+  L1Type_String :: L1Type String
   L1Type_Integer :: L1Type Integer
   L1Type_Int8 :: L1Type Int8
   L1Type_Int16 :: L1Type Int16
@@ -44,6 +46,8 @@ class L1Typeable a where
 
 instance L1Typeable () where l1typeRep = L1Type_Unit
 instance L1Typeable Bool where l1typeRep = L1Type_Bool
+instance L1Typeable Char where l1typeRep = L1Type_Char
+instance L1Typeable String where l1typeRep = L1Type_String
 instance L1Typeable Integer where l1typeRep = L1Type_Integer
 instance L1Typeable Int8 where l1typeRep = L1Type_Int8
 instance L1Typeable Int16 where l1typeRep = L1Type_Int16
@@ -61,6 +65,8 @@ $(mkNuMatching [t| forall a. L1Type a |])
 instance Liftable (L1Type a) where
   mbLift [nuP| L1Type_Unit |] = L1Type_Unit
   mbLift [nuP| L1Type_Bool |] = L1Type_Bool
+  mbLift [nuP| L1Type_Char |] = L1Type_Char
+  mbLift [nuP| L1Type_String |] = L1Type_String
   mbLift [nuP| L1Type_Integer |] = L1Type_Integer
   mbLift [nuP| L1Type_Int8 |] = L1Type_Int8
   mbLift [nuP| L1Type_Int16 |] = L1Type_Int16
@@ -79,6 +85,10 @@ l1typeEq L1Type_Unit L1Type_Unit = Just Refl
 l1typeEq L1Type_Unit _ = Nothing
 l1typeEq L1Type_Bool L1Type_Bool = Just Refl
 l1typeEq L1Type_Bool _ = Nothing
+l1typeEq L1Type_Char L1Type_Char = Just Refl
+l1typeEq L1Type_Char _ = Nothing
+l1typeEq L1Type_String L1Type_String = Just Refl
+l1typeEq L1Type_String _ = Nothing
 l1typeEq L1Type_Integer L1Type_Integer = Just Refl
 l1typeEq L1Type_Integer _ = Nothing
 l1typeEq L1Type_Int8 L1Type_Int8 = Just Refl
@@ -202,6 +212,11 @@ data LAppExpr a where
   LFunSym :: FunSym a -> LAppExpr a
   LApp :: LAppExpr (a -> b) -> LExpr a -> LAppExpr b
 
+
+----------------------------------------------------------------------
+-- Building expressions
+----------------------------------------------------------------------
+
 -- | Helper function for building lambda-abstractions
 mkLambda :: LTypeable a => (LExpr a -> LExpr b) -> LExpr (a -> b)
 mkLambda f = LLambda ltypeRep $ nu $ \x -> f (LAppExpr (LVar x))
@@ -217,6 +232,10 @@ instance (LTypeable a, EtaExprBuilder out b) =>
          EtaExprBuilder (LExpr a -> out) (a -> b) where
   etaBuild e =
     \x -> etaBuild (LApp e x)
+
+-- | Helper function for building literal expressions
+mkLiteral :: L1Typeable a => a -> LExpr a
+mkLiteral a = etaBuild $ LFunSym $ Literal l1typeRep a
 
 -- | Helper function for building expression functions from function symbols
 mkFunSym :: (LTypeable a, EtaExprBuilder out a) => String -> out
@@ -235,7 +254,12 @@ mkFunSym2 :: (LTypeable a, LTypeable b, LTypeable c) =>
              String -> LExpr a -> LExpr b -> LExpr c
 mkFunSym2 str = mkFunSym str
 
--- | Helper function for building literal expressions
-mkLiteral :: L1Typeable a => a -> LExpr a
-mkLiteral a = etaBuild $ LFunSym $ Literal l1typeRep a
+-- Num instance allows us to use arithmetic operations to build expressions.
+instance (L1Typeable a, Num a) => Num (LExpr a) where
+  (+) = mkFunSym "+"
+  (-) = mkFunSym "-"
+  (*) = mkFunSym "*"
+  abs = mkFunSym "abs"
+  signum = mkFunSym "signum"
+  fromInteger i = mkLiteral (fromInteger i)
 
