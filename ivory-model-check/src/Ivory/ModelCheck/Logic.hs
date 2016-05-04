@@ -1,13 +1,15 @@
 {-# LANGUAGE GADTs, KindSignatures, EmptyDataDecls, TypeOperators #-}
-{-# LANGUAGE FlexibleInstances, UndecidableInstances, MultiParamTypeClasses #-}
-{-# LANGUAGE OverlappingInstances, TypeFamilies, FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies, FunctionalDependencies, UndecidableInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Ivory.ModelCheck.Logic where
 
 import Prelude ()
 import Prelude.Compat hiding (exp)
 
+import Data.Proxy
 import Data.Typeable
 import Data.Int
 import Data.Word
@@ -112,18 +114,21 @@ l1typeEq L1Type_Word64 _ = Nothing
 -- The types of functions over first-order types
 ----------------------------------------------------------------------
 
+-- | Container type for literals
+newtype Literal a = Literal { unLiteral :: a }
+
 -- | Types for functions over first-order types
 data L1FunType a where
-  L1FunType_base :: L1Type a -> L1FunType a
-  L1FunType_cons :: L1Type a -> L1FunType b -> L1FunType (a -> b)
+  L1FunType_base :: L1Type a -> L1FunType (Literal a)
+  L1FunType_cons :: L1Type a -> L1FunType b -> L1FunType (Literal a -> b)
 
 -- | Typeclass for 'L1FunType'
 class L1FunTypeable a where
   l1funTypeRep :: L1FunType a
 
-instance L1Typeable a => L1FunTypeable a where
+instance L1Typeable a => L1FunTypeable (Literal a) where
   l1funTypeRep = L1FunType_base l1typeRep
-instance (L1Typeable a, L1FunTypeable b) => L1FunTypeable (a -> b) where
+instance (L1Typeable a, L1FunTypeable b) => L1FunTypeable (Literal a -> b) where
   l1funTypeRep = L1FunType_cons l1typeRep l1funTypeRep
 
 -- Build a NuMatching instance for L1FunType, needed for Liftable
@@ -146,7 +151,7 @@ data PM (a :: *) deriving Typeable
 
 -- | A GADT for the types allowed in our logic
 data LType (a :: *) where
-  LType_Base :: L1Type a -> LType a
+  LType_Literal :: L1Type a -> LType (Literal a)
   LType_Prop :: LType Prop
   LType_Fun :: LType a -> LType b -> LType (a -> b)
   LType_PM :: LType a -> LType (PM a)
@@ -155,7 +160,8 @@ data LType (a :: *) where
 class LTypeable a where
   ltypeRep :: LType a
 
-instance L1Typeable a => LTypeable a where ltypeRep = LType_Base l1typeRep
+instance L1Typeable a => LTypeable (Literal a) where
+  ltypeRep = LType_Literal l1typeRep
 instance LTypeable Prop where ltypeRep = LType_Prop
 instance (LTypeable a, LTypeable b) => LTypeable (a -> b) where
   ltypeRep = LType_Fun ltypeRep ltypeRep
@@ -166,15 +172,18 @@ $(mkNuMatching [t| forall a. LType a |])
 
 -- Liftable instance, to lift LTypes out of binding contexts
 instance Liftable (LType a) where
-  mbLift [nuP| LType_Base t |] = LType_Base (mbLift t)
+  mbLift [nuP| LType_Literal t |] = LType_Literal (mbLift t)
   mbLift [nuP| LType_Prop |] = LType_Prop
   mbLift [nuP| LType_Fun t1 t2 |] = LType_Fun (mbLift t1) (mbLift t2)
   mbLift [nuP| LType_PM t |] = LType_PM (mbLift t)
 
 -- | Test if two 'LType's are equal
 ltypeEq :: LType a -> LType b -> Maybe (a :~: b)
-ltypeEq (LType_Base t1) (LType_Base t2) = l1typeEq t1 t2
-ltypeEq (LType_Base _) _ = Nothing
+ltypeEq (LType_Literal t1) (LType_Literal t2) =
+  case l1typeEq t1 t2 of
+    Just Refl -> Just Refl
+    _ -> Nothing
+ltypeEq (LType_Literal _) _ = Nothing
 ltypeEq LType_Prop LType_Prop = Just Refl
 ltypeEq LType_Prop _ = Nothing
 ltypeEq (LType_Fun t1 t1') (LType_Fun t2 t2') =
@@ -194,9 +203,9 @@ ltypeEq (LType_PM _) _ = Nothing
 ----------------------------------------------------------------------
 
 -- | Typed, named function symbols, which include literals
-data FunSym a
-  = FunSym String (LType a)
-  | Literal (L1Type a) a
+data FunSym a where
+  FunSym :: String -> (LType a) -> FunSym a
+  LLiteral :: (L1Type a) -> a -> FunSym (Literal a)
 
 -- | The expressions of our logic as a GADT. This is essentially the typed
 -- lambda-calculus with function symbols. All expressions are in beta-normal
@@ -221,45 +230,54 @@ data LAppExpr a where
 mkLambda :: LTypeable a => (LExpr a -> LExpr b) -> LExpr (a -> b)
 mkLambda f = LLambda ltypeRep $ nu $ \x -> f (LAppExpr (LVar x))
 
--- | Helper typeclass for making expression-building functions
-class EtaExprBuilder out a | out -> a where
-  etaBuild :: LAppExpr a -> out
+-- | Type class for eta-expanding 'LAppExpr's into functions on expressions
+class EtaExpandsTo a funtp | a -> funtp, funtp -> a where
+  etaExpand :: LAppExpr a -> funtp
 
-instance EtaExprBuilder (LExpr a) a where
-  etaBuild e = LAppExpr e
+instance EtaExpandsTo (Literal a) (LExpr (Literal a)) where
+  etaExpand e = LAppExpr e
 
-instance (LTypeable a, EtaExprBuilder out b) =>
-         EtaExprBuilder (LExpr a -> out) (a -> b) where
-  etaBuild e =
-    \x -> etaBuild (LApp e x)
+instance EtaExpandsTo (PM a) (LExpr (PM a)) where
+  etaExpand e = LAppExpr e
+
+instance EtaExpandsTo Prop (LExpr Prop) where
+  etaExpand e = LAppExpr e
+
+instance EtaExpandsTo b funtp =>
+         EtaExpandsTo (a -> b) (LExpr a -> funtp) where
+  etaExpand e = \x -> etaExpand (LApp e x)
 
 -- | Helper function for building literal expressions
-mkLiteral :: L1Typeable a => a -> LExpr a
-mkLiteral a = etaBuild $ LFunSym $ Literal l1typeRep a
+mkLiteral :: L1Typeable a => a -> LExpr (Literal a)
+mkLiteral a =
+  etaExpand $ LFunSym $ LLiteral l1typeRep a
 
 -- | Helper function for building expression functions from function symbols
-mkFunSym :: (LTypeable a, EtaExprBuilder out a) => String -> out
-mkFunSym str = etaBuild $ LFunSym $ FunSym str ltypeRep
+mkFunSym :: (LTypeable a, EtaExpandsTo a funtp) =>
+            Proxy a -> String -> funtp
+mkFunSym (Proxy :: Proxy a) str =
+  etaExpand $ LFunSym $ FunSym str ltypeRep
 
 -- | Specialization of 'mkFunSym' to 0-argument functions
-mkFunSym0 :: LTypeable a => String -> LExpr a
-mkFunSym0 str = mkFunSym str
+mkFunSym0 :: L1Typeable a => String -> LExpr (Literal a)
+mkFunSym0 str = mkFunSym Proxy str
 
 -- | Specialization of 'mkFunSym' to 1-argument functions
-mkFunSym1 :: (LTypeable a, LTypeable b) => String -> LExpr a -> LExpr b
-mkFunSym1 str = mkFunSym str
+mkFunSym1 :: (L1Typeable a, L1Typeable b) =>
+             String -> LExpr (Literal a) -> LExpr (Literal b)
+mkFunSym1 str = mkFunSym Proxy str
 
 -- | Specialization of 'mkFunSym' to 2-argument functions
-mkFunSym2 :: (LTypeable a, LTypeable b, LTypeable c) =>
-             String -> LExpr a -> LExpr b -> LExpr c
-mkFunSym2 str = mkFunSym str
+mkFunSym2 :: (L1Typeable a, L1Typeable b, L1Typeable c) =>
+             String -> LExpr (Literal a) -> LExpr (Literal b) -> LExpr (Literal c)
+mkFunSym2 str = mkFunSym Proxy str
 
 -- Num instance allows us to use arithmetic operations to build expressions.
-instance (L1Typeable a, Num a) => Num (LExpr a) where
-  (+) = mkFunSym "+"
-  (-) = mkFunSym "-"
-  (*) = mkFunSym "*"
-  abs = mkFunSym "abs"
-  signum = mkFunSym "signum"
+instance (L1Typeable a, Num a) => Num (LExpr (Literal a)) where
+  (+) = mkFunSym Proxy "+"
+  (-) = mkFunSym Proxy "-"
+  (*) = mkFunSym Proxy "*"
+  abs = mkFunSym Proxy "abs"
+  signum = mkFunSym Proxy "signum"
   fromInteger i = mkLiteral (fromInteger i)
 
