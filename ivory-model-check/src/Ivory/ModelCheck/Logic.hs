@@ -58,6 +58,14 @@ data ElemPf (l :: [*]) a where
   Elem_base :: ElemPf (a ': l) a
   Elem_cons :: ElemPf l b -> ElemPf (a ': l) b
 
+-- Make the NuMatching instance for ElemPf
+$(mkNuMatching [t| forall l a. ElemPf l a |])
+
+-- Make the Liftable instance for ElemPf
+instance Liftable (ElemPf l a) where
+  mbLift [nuP| Elem_base |] = Elem_base
+  mbLift [nuP| Elem_cons pf |] = Elem_cons $ mbLift pf
+
 -- | Type class for building 'ElemPf's
 class Elem (l :: [*]) a where
   elemPf :: ElemPf l a
@@ -322,7 +330,7 @@ data ArithCmp
 -- | The operations / function symbols of our logic
 data Op tag a where
   -- | Literals that are lifted from Haskell
-  Op_Literal :: Typeable a => a -> Op tag (Literal a)
+  Op_Literal :: (Liftable a, Typeable a) => a -> Op tag (Literal a)
 
   -- * First-order operations on data
 
@@ -366,6 +374,57 @@ data Op tag a where
   -- | Disjunctions
   Op_orP :: Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
 
+-- Build a NuMatching instances for Op and friends
+$(mkNuMatching [t| ArithOp1 |])
+$(mkNuMatching [t| ArithOp2 |])
+$(mkNuMatching [t| ArithCmp |])
+$(mkNuMatching [t| forall mm args ret. ReadOp mm args ret |])
+$(mkNuMatching [t| forall mm args. UpdateOp mm args |])
+$(mkNuMatching [t| forall tag a. Op tag a |])
+
+-- Build Liftable instances for Op and friends
+instance Liftable ArithOp1 where
+  mbLift [nuP| Op1_Abs |] = Op1_Abs
+  mbLift [nuP| Op1_Signum |] = Op1_Signum
+  mbLift [nuP| Op1_Neg |] = Op1_Neg
+  mbLift [nuP| Op1_Complement |] = Op1_Complement
+instance Liftable ArithOp2 where
+  mbLift [nuP| Op2_Add |] = Op2_Add
+  mbLift [nuP| Op2_Sub |] = Op2_Sub
+  mbLift [nuP| Op2_Mult |] = Op2_Mult
+  mbLift [nuP| Op2_Div |] = Op2_Div
+  mbLift [nuP| Op2_Mod |] = Op2_Mod
+  mbLift [nuP| Op2_BitAnd |] = Op2_BitAnd
+  mbLift [nuP| Op2_BitOr |] = Op2_BitOr
+  mbLift [nuP| Op2_BitXor |] = Op2_BitXor
+instance Liftable ArithCmp where
+  mbLift [nuP| OpCmp_EQ |] = OpCmp_EQ
+  mbLift [nuP| OpCmp_LT |] = OpCmp_LT
+  mbLift [nuP| OpCmp_LE |] = OpCmp_LE
+instance Liftable (ReadOp mm args ret) where
+  mbLift [nuP| ReadOp_array elem_pf |] = ReadOp_array $ mbLift elem_pf
+  mbLift [nuP| ReadOp_length |] = ReadOp_length
+  mbLift [nuP| ReadOp_last_alloc |] = ReadOp_last_alloc
+instance Liftable (UpdateOp mm args) where
+  mbLift [nuP| UpdateOp_array elem_pf |] = UpdateOp_array $ mbLift elem_pf
+  mbLift [nuP| UpdateOp_alloc elem_pf |] = UpdateOp_alloc $ mbLift elem_pf
+instance Liftable (Op tag a) where
+  mbLift [nuP| Op_Literal x |] = Op_Literal $ mbLift x
+  mbLift [nuP| Op_arith1 aop |] = Op_arith1 $ mbLift aop
+  mbLift [nuP| Op_arith2 aop |] = Op_arith2 $ mbLift aop
+  mbLift [nuP| Op_coerce |] = Op_coerce
+  mbLift [nuP| Op_cmp acmp |] = Op_cmp $ mbLift acmp
+  mbLift [nuP| Op_and |] = Op_and
+  mbLift [nuP| Op_or |] = Op_or
+  mbLift [nuP| Op_not |] = Op_not
+  mbLift [nuP| Op_istrue |] = Op_istrue
+  mbLift [nuP| Op_Let |] = Op_Let
+  mbLift [nuP| Op_LetRead read_op |] = Op_LetRead $ mbLift read_op
+  mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
+  mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
+  mbLift [nuP| Op_assertP |] = Op_assertP
+  mbLift [nuP| Op_orP |] = Op_orP
+
 
 ----------------------------------------------------------------------
 -- The expressions of our logic
@@ -384,6 +443,9 @@ data LAppExpr tag a where
   LVar :: Name a -> LAppExpr tag a
   LOp :: Op tag a -> LAppExpr tag a
   LApp :: LAppExpr tag (a -> b) -> LExpr tag a -> LAppExpr tag b
+
+$(mkNuMatching [t| forall tag a. LExpr tag a |])
+$(mkNuMatching [t| forall tag a. LAppExpr tag a |])
 
 
 ----------------------------------------------------------------------
@@ -428,7 +490,7 @@ etaBuild ATY_PM e = LAppExpr e
 etaBuild (ATY_Fun aty) e = \x -> etaBuild aty (LApp e x)
 
 -- | Helper function for building literal expressions
-mkLiteral :: Typeable a => a -> LExpr tag (Literal a)
+mkLiteral :: (Typeable a, Liftable a) => a -> LExpr tag (Literal a)
 mkLiteral a = etaBuild appliedToYields $ LOp $ Op_Literal a
 
 -- | Helper function for building expression functions from 'Op's
@@ -436,10 +498,44 @@ mkOp :: (AppliedToYields (LExpr tag) a out) => Op tag a -> out
 mkOp op = etaBuild appliedToYields (LOp op)
 
 -- Num instance allows us to use arithmetic operations to build expressions.
-instance (Typeable a, Num a) => Num (LExpr tag (Literal a)) where
+instance (Typeable a, Liftable a, Num a) => Num (LExpr tag (Literal a)) where
   (+) = mkOp (Op_arith2 Op2_Add)
   (-) = mkOp (Op_arith2 Op2_Sub)
   (*) = mkOp (Op_arith2 Op2_Mult)
   abs = mkOp (Op_arith1 Op1_Abs)
   signum = mkOp (Op_arith1 Op1_Signum)
   fromInteger i = mkLiteral (fromInteger i)
+
+
+----------------------------------------------------------------------
+-- Interpreting expressions
+----------------------------------------------------------------------
+
+-- | Type class stating that @f@ commutes with the arrow type constructor
+class CommutesWithArrow f where
+  interpApply :: f (a -> b) -> f a -> f b
+  interpLambda :: (f a -> f b) -> f (a -> b)
+
+-- | An expression @f@-algebra shows how to convert any 'Op' of type @a@ to an
+-- element of type @f a@. It also requires that @f@ commutes with arrow.
+class CommutesWithArrow f => LExprAlgebra tag (f :: * -> *) where
+  interpOp :: Op tag a -> f a
+
+-- | Interpret an 'LExpr' to another functor @f@ using an @f@-algebra
+interpExpr :: LExprAlgebra tag f =>
+              MapRList f ctx -> Closed (Mb ctx (LExpr tag a)) -> f a
+interpExpr ctx [clNuP| LLambda _ body |] =
+  interpLambda $ \x ->
+  interpExpr (ctx :>: x) (clApply $(mkClosed [| mbCombine |]) body)
+interpExpr ctx [clNuP| LAppExpr e |] = interpAppExpr ctx e
+
+-- | Interpret an 'LAppExpr' to another functor @f@ using an @f@-algebra
+interpAppExpr :: LExprAlgebra tag f =>
+                 MapRList f ctx -> Closed (Mb ctx (LAppExpr tag a)) -> f a
+interpAppExpr ctx [clNuP| LVar n |] =
+  case clApply $(mkClosed [| mbNameBoundP |]) n of
+    [clP| Left memb |] -> hlistLookup (unClosed memb) ctx
+    [clP| Right closed_n |] -> noClosedNames closed_n
+interpAppExpr ctx [clNuP| LOp op |] = interpOp (mbLift $ unClosed op)
+interpAppExpr ctx [clNuP| LApp f arg |] =
+  interpApply (interpAppExpr ctx f) (interpExpr ctx arg)
