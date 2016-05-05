@@ -1,8 +1,8 @@
 {-# LANGUAGE GADTs, KindSignatures, EmptyDataDecls, TypeOperators #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies, FunctionalDependencies, UndecidableInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, DataKinds, PartialTypeSignatures #-}
 
 module Ivory.ModelCheck.Logic where
 
@@ -13,135 +13,75 @@ import Data.Proxy
 import Data.Typeable
 import Data.Int
 import Data.Word
+import Data.List
 -- import qualified Data.Bits as Bits
+import Numeric.Natural
+import Data.Functor.Identity
 
 import Data.Binding.Hobbits
-import Data.Type.HList
+import Data.Type.RList
 
 import           Ivory.Language.Syntax.Type
 import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.Language.Syntax.Concrete.Pretty
 
-----------------------------------------------------------------------
--- The first-order types
-----------------------------------------------------------------------
-
--- | The first-order types, i.e., the base types
-data L1Type (a :: *) where
-  L1Type_Unit :: L1Type ()
-  L1Type_Bool :: L1Type Bool
-  L1Type_Char :: L1Type Char
-  L1Type_String :: L1Type String
-  L1Type_Integer :: L1Type Integer
-  L1Type_Int8 :: L1Type Int8
-  L1Type_Int16 :: L1Type Int16
-  L1Type_Int32 :: L1Type Int32
-  L1Type_Int64 :: L1Type Int64
-  L1Type_Word8 :: L1Type Word8
-  L1Type_Word16 :: L1Type Word16
-  L1Type_Word32 :: L1Type Word32
-  L1Type_Word64 :: L1Type Word64
-
--- | Typeclass for 'L1Type'
-class L1Typeable a where
-  l1typeRep :: L1Type a
-
-instance L1Typeable () where l1typeRep = L1Type_Unit
-instance L1Typeable Bool where l1typeRep = L1Type_Bool
-instance L1Typeable Char where l1typeRep = L1Type_Char
-instance L1Typeable String where l1typeRep = L1Type_String
-instance L1Typeable Integer where l1typeRep = L1Type_Integer
-instance L1Typeable Int8 where l1typeRep = L1Type_Int8
-instance L1Typeable Int16 where l1typeRep = L1Type_Int16
-instance L1Typeable Int32 where l1typeRep = L1Type_Int32
-instance L1Typeable Int64 where l1typeRep = L1Type_Int64
-instance L1Typeable Word8 where l1typeRep = L1Type_Word8
-instance L1Typeable Word16 where l1typeRep = L1Type_Word16
-instance L1Typeable Word32 where l1typeRep = L1Type_Word32
-instance L1Typeable Word64 where l1typeRep = L1Type_Word64
-
--- Build a NuMatching instance for L1Type, needed for Liftable
-$(mkNuMatching [t| forall a. L1Type a |])
-
--- Liftable instance, to lift L1Types out of binding contexts
-instance Liftable (L1Type a) where
-  mbLift [nuP| L1Type_Unit |] = L1Type_Unit
-  mbLift [nuP| L1Type_Bool |] = L1Type_Bool
-  mbLift [nuP| L1Type_Char |] = L1Type_Char
-  mbLift [nuP| L1Type_String |] = L1Type_String
-  mbLift [nuP| L1Type_Integer |] = L1Type_Integer
-  mbLift [nuP| L1Type_Int8 |] = L1Type_Int8
-  mbLift [nuP| L1Type_Int16 |] = L1Type_Int16
-  mbLift [nuP| L1Type_Int32 |] = L1Type_Int32
-  mbLift [nuP| L1Type_Int64 |] = L1Type_Int64
-  mbLift [nuP| L1Type_Word8 |] = L1Type_Word8
-  mbLift [nuP| L1Type_Word16 |] = L1Type_Word16
-  mbLift [nuP| L1Type_Word32 |] = L1Type_Word32
-  mbLift [nuP| L1Type_Word64 |] = L1Type_Word64
-
--- | Test if two 'L1Type's are equal.
-l1typeEq :: L1Type a -> L1Type b -> Maybe (a :~: b)
-l1typeEq L1Type_Unit L1Type_Unit = Just Refl
--- NOTE: we write the cases in this particular style so that we do not forget to
--- add new cases if we add more constructors to L1Type
-l1typeEq L1Type_Unit _ = Nothing
-l1typeEq L1Type_Bool L1Type_Bool = Just Refl
-l1typeEq L1Type_Bool _ = Nothing
-l1typeEq L1Type_Char L1Type_Char = Just Refl
-l1typeEq L1Type_Char _ = Nothing
-l1typeEq L1Type_String L1Type_String = Just Refl
-l1typeEq L1Type_String _ = Nothing
-l1typeEq L1Type_Integer L1Type_Integer = Just Refl
-l1typeEq L1Type_Integer _ = Nothing
-l1typeEq L1Type_Int8 L1Type_Int8 = Just Refl
-l1typeEq L1Type_Int8 _ = Nothing
-l1typeEq L1Type_Int16 L1Type_Int16 = Just Refl
-l1typeEq L1Type_Int16 _ = Nothing
-l1typeEq L1Type_Int32 L1Type_Int32 = Just Refl
-l1typeEq L1Type_Int32 _ = Nothing
-l1typeEq L1Type_Int64 L1Type_Int64 = Just Refl
-l1typeEq L1Type_Int64 _ = Nothing
-l1typeEq L1Type_Word8 L1Type_Word8 = Just Refl
-l1typeEq L1Type_Word8 _ = Nothing
-l1typeEq L1Type_Word16 L1Type_Word16 = Just Refl
-l1typeEq L1Type_Word16 _ = Nothing
-l1typeEq L1Type_Word32 L1Type_Word32 = Just Refl
-l1typeEq L1Type_Word32 _ = Nothing
-l1typeEq L1Type_Word64 L1Type_Word64 = Just Refl
-l1typeEq L1Type_Word64 _ = Nothing
 
 ----------------------------------------------------------------------
--- The types of functions over first-order types
+-- Utilities for type lists
+----------------------------------------------------------------------
+
+-- | A heterogeneous list containing one element of type @f a@ for each type @a@
+-- in the given type list.
+data MapList f (l :: [*]) where
+  Nil :: MapList f '[]
+  Cons :: f a -> MapList f l -> MapList f (a ': l)
+
+-- | Get the first element of a 'MapList'
+ml_first :: MapList f (a ': l) -> f a
+ml_first (Cons x _) = x
+
+-- | Get the second element of a 'MapList'
+ml_second :: MapList f (a ': b ': l) -> f b
+ml_second (Cons _ (Cons y _)) = y
+
+-- | Get the third element of a 'MapList'
+ml_third :: MapList f (a ': b ': c ': l) -> f c
+ml_third (Cons _ (Cons _ (Cons z _))) = z
+
+-- | Map a function over a 'MapList'
+ml_map :: (forall x. f x -> g x) -> MapList f l -> MapList g l
+ml_map f Nil = Nil
+ml_map f (Cons x l) = Cons (f x) (ml_map f l)
+
+-- | Proof that type @a@ is an element of the list @l@ of types
+data ElemPf (l :: [*]) a where
+  Elem_base :: ElemPf (a ': l) a
+  Elem_cons :: ElemPf l b -> ElemPf (a ': l) b
+
+-- | Type class for building 'ElemPf's
+class Elem (l :: [*]) a where
+  elemPf :: ElemPf l a
+
+instance Elem (a ': l) a where elemPf = Elem_base
+instance Elem l b => Elem (a ': l) b where elemPf = Elem_cons elemPf
+
+-- | Look up an element of a 'MapList' using an 'ElemPf'
+ml_lookup :: MapList f l -> ElemPf l a -> f a
+ml_lookup (Cons x _) Elem_base = x
+ml_lookup (Cons _ l) (Elem_cons pf) = ml_lookup l pf
+
+-- | Apply a function to a specific element of a 'MapList' given by an 'ElemPf'
+ml_map1 :: (f a -> f a) -> MapList f l -> ElemPf l a -> MapList f l
+ml_map1 f (Cons x l) Elem_base = Cons (f x) l
+ml_map1 f (Cons x l) (Elem_cons pf) = Cons x $ ml_map1 f l pf
+
+
+----------------------------------------------------------------------
+-- Types used in our logic
 ----------------------------------------------------------------------
 
 -- | Container type for literals
 newtype Literal a = Literal { unLiteral :: a }
-
--- | Types for functions over first-order types
-data L1FunType a where
-  L1FunType_base :: L1Type a -> L1FunType (Literal a)
-  L1FunType_cons :: L1Type a -> L1FunType b -> L1FunType (Literal a -> b)
-
--- | Typeclass for 'L1FunType'
-class L1FunTypeable a where
-  l1funTypeRep :: L1FunType a
-
-instance L1Typeable a => L1FunTypeable (Literal a) where
-  l1funTypeRep = L1FunType_base l1typeRep
-instance (L1Typeable a, L1FunTypeable b) => L1FunTypeable (Literal a -> b) where
-  l1funTypeRep = L1FunType_cons l1typeRep l1funTypeRep
-
--- Build a NuMatching instance for L1FunType, needed for Liftable
-$(mkNuMatching [t| forall a. L1FunType a |])
-
--- Liftable instance, to lift L1FunTypes out of binding contexts
-instance Liftable (L1FunType a) where
-  mbLift [nuP| L1FunType_base t |] = L1FunType_base (mbLift t)
-  mbLift [nuP| L1FunType_cons arg t |] = L1FunType_cons (mbLift arg) (mbLift t)
-
-----------------------------------------------------------------------
--- The types of our logic
-----------------------------------------------------------------------
 
 -- | Dummy type for propositions
 data Prop deriving Typeable
@@ -149,9 +89,17 @@ data Prop deriving Typeable
 -- | Dummy type for predicate monads, i.e., set of program transitions
 data PM (a :: *) deriving Typeable
 
+-- | Untyped pointers = 'Natural's
+newtype Ptr = Ptr { unPtr :: Natural } deriving (Typeable, Eq, Ord)
+
+
+----------------------------------------------------------------------
+-- The types of our logic
+----------------------------------------------------------------------
+
 -- | A GADT for the types allowed in our logic
 data LType (a :: *) where
-  LType_Literal :: L1Type a -> LType (Literal a)
+  LType_Literal :: Typeable a => LType (Literal a)
   LType_Prop :: LType Prop
   LType_Fun :: LType a -> LType b -> LType (a -> b)
   LType_PM :: LType a -> LType (PM a)
@@ -160,8 +108,8 @@ data LType (a :: *) where
 class LTypeable a where
   ltypeRep :: LType a
 
-instance L1Typeable a => LTypeable (Literal a) where
-  ltypeRep = LType_Literal l1typeRep
+instance Typeable a => LTypeable (Literal a) where
+  ltypeRep = LType_Literal
 instance LTypeable Prop where ltypeRep = LType_Prop
 instance (LTypeable a, LTypeable b) => LTypeable (a -> b) where
   ltypeRep = LType_Fun ltypeRep ltypeRep
@@ -172,18 +120,15 @@ $(mkNuMatching [t| forall a. LType a |])
 
 -- Liftable instance, to lift LTypes out of binding contexts
 instance Liftable (LType a) where
-  mbLift [nuP| LType_Literal t |] = LType_Literal (mbLift t)
+  mbLift [nuP| LType_Literal |] = LType_Literal
   mbLift [nuP| LType_Prop |] = LType_Prop
   mbLift [nuP| LType_Fun t1 t2 |] = LType_Fun (mbLift t1) (mbLift t2)
   mbLift [nuP| LType_PM t |] = LType_PM (mbLift t)
 
 -- | Test if two 'LType's are equal
 ltypeEq :: LType a -> LType b -> Maybe (a :~: b)
-ltypeEq (LType_Literal t1) (LType_Literal t2) =
-  case l1typeEq t1 t2 of
-    Just Refl -> Just Refl
-    _ -> Nothing
-ltypeEq (LType_Literal _) _ = Nothing
+ltypeEq LType_Literal LType_Literal = eqT
+ltypeEq LType_Literal _ = Nothing
 ltypeEq LType_Prop LType_Prop = Just Refl
 ltypeEq LType_Prop _ = Nothing
 ltypeEq (LType_Fun t1 t1') (LType_Fun t2 t2') =
@@ -199,27 +144,246 @@ ltypeEq (LType_PM _) _ = Nothing
 
 
 ----------------------------------------------------------------------
--- The expressions of our logic
+-- The types of functions over first-order types
 ----------------------------------------------------------------------
 
--- | Typed, named function symbols, which include literals
-data FunSym a where
-  FunSym :: String -> (LType a) -> FunSym a
-  LLiteral :: (L1Type a) -> a -> FunSym (Literal a)
+-- | Types for functions over first-order types
+data LitFunType a where
+  LitFunType_base :: Typeable a => LitFunType (Literal a)
+  LitFunType_cons :: Typeable a => LitFunType b -> LitFunType (Literal a -> b)
+
+-- | Typeclass for 'LitFunType'
+class LitFunTypeable a where
+  litFunTypeRep :: LitFunType a
+
+instance Typeable a => LitFunTypeable (Literal a) where
+  litFunTypeRep = LitFunType_base
+instance (Typeable a, LitFunTypeable b) => LitFunTypeable (Literal a -> b) where
+  litFunTypeRep = LitFunType_cons litFunTypeRep
+
+-- Build a NuMatching instance for LitFunType, needed for Liftable
+$(mkNuMatching [t| forall a. LitFunType a |])
+
+-- Liftable instance, to lift LitFunTypes out of binding contexts
+instance Liftable (LitFunType a) where
+  mbLift [nuP| LitFunType_base |] = LitFunType_base
+  mbLift [nuP| LitFunType_cons t |] = LitFunType_cons (mbLift t)
+
+-- | Convert a 'LitFunType' to an 'LType'
+fun2typeRep :: LitFunType a -> LType a
+fun2typeRep LitFunType_base = LType_Literal
+fun2typeRep (LitFunType_cons t) = LType_Fun LType_Literal (fun2typeRep t)
+
+
+----------------------------------------------------------------------
+-- Finite functinos
+----------------------------------------------------------------------
+
+-- | A finite function, i.e., a function that has the same value for all but
+-- finitely many inputs
+data FinFun a b = FinFun { finfunDef :: b, finfunMap :: [(a,b)] }
+
+-- | Make a finite function with a given default value
+mkFinFun :: b -> FinFun a b
+mkFinFun def = FinFun { finfunDef = def, finfunMap = [] }
+
+-- | Apply a 'FinFun'
+applyFinFun :: Eq a => FinFun a b -> a -> b
+applyFinFun f arg =
+  case lookup arg (finfunMap f) of
+    Just ret -> ret
+    Nothing -> finfunDef f
+
+-- | Update a 'FinFun'
+updateFinFun :: Eq a => FinFun a b -> a -> b -> FinFun a b
+updateFinFun f arg newval =
+  FinFun { finfunDef = finfunDef f,
+           finfunMap =
+             (arg,newval):(deleteBy
+                           (\p1 p2 -> fst p1 == fst p2)
+                           (arg,newval)
+                           (finfunMap f))}
+
+
+----------------------------------------------------------------------
+-- The memory model of our logic
+----------------------------------------------------------------------
+
+-- | Type class stating that @mm@ is a list of the types that are considered
+-- storable, and also a list of default values for each of these types.
+class MemoryModel (mm :: [*]) where
+  memoryDefaults :: MapList Identity mm
+
+-- | An array store represents a set of (infinite) arrays of some given
+-- type. These are represented as 'FinFun's that map 'Ptr' pointer values,
+-- combined with 'Word64' indices, to the given type.
+type ArrayStore a = FinFun (Ptr, Word64) a
+
+-- | Build a default, empty 'ArrayStore'
+mkArrayStore :: a -> ArrayStore a
+mkArrayStore = mkFinFun
+
+-- | A memory is a collection of 'ArrayStore's, one for each type in the memory
+-- model, which is given as a list of types that can be stored. Memories also
+-- associate a length with each 'Ptr', and also track that last allocated 'Ptr'
+-- value, where any 'Ptr' greater than the last allocated one is not considered
+-- allcated, i.e., is an invalid pointer.
+data Memory mm =
+  Memory { memArrays :: MapList (FinFun (Ptr, Word64)) mm,
+           memLengths :: FinFun Ptr Word64,
+           memLastAlloc :: Ptr }
+
+-- | Build a default, empty 'Memory'
+mkMemory :: MemoryModel mm => Memory mm
+mkMemory =
+  Memory { memArrays = ml_map (\(Identity x) -> mkFinFun x) memoryDefaults,
+           memLengths = mkFinFun 0,
+           memLastAlloc = Ptr 0 }
+
+-- | The read operations for 'Memory's
+data ReadOp mm args ret where
+  -- | Read the nth element of an array, which can be any 'StorableType'
+  ReadOp_array :: ElemPf mm a -> ReadOp mm '[ Ptr, Word64 ] a
+  -- | Get the length of an array as a 'Word64'
+  ReadOp_length :: ReadOp mm '[ Ptr ] Word64
+  -- | Get the last-allocated pointer
+  ReadOp_last_alloc :: ReadOp mm '[] Ptr
+
+-- | The update operations for 'Memory's
+data UpdateOp mm args where
+  -- | Update the nth element of an array
+  UpdateOp_array :: ElemPf mm a -> UpdateOp mm '[ Ptr, Word64, a ]
+  -- | Allocate a new array with a given length
+  UpdateOp_alloc :: ElemPf mm a -> UpdateOp mm '[ Word64 ]
+
+-- | Perform a read operation on a 'Memory'
+readMemory :: ReadOp mm args ret -> Memory mm -> MapList Literal args -> ret
+readMemory (ReadOp_array elem_pf) mem args =
+  applyFinFun
+    (ml_lookup (memArrays mem) elem_pf)
+    (unLiteral (ml_first args),
+     unLiteral (ml_second args))
+readMemory ReadOp_length mem args =
+  applyFinFun (memLengths mem) (unLiteral $ ml_first args)
+readMemory ReadOp_last_alloc mem args = memLastAlloc mem
+
+-- | Perform an update operation on a 'Memory'
+updateMemory :: UpdateOp mm args -> Memory mm -> MapList Literal args ->
+                Memory mm
+updateMemory (UpdateOp_array elem_pf) mem args =
+  let (ptr,ix,newval) = (unLiteral (ml_first args),
+                         unLiteral (ml_second args),
+                         unLiteral (ml_third args)) in
+  mem
+  { memArrays =
+      ml_map1
+        (\ff -> updateFinFun ff (ptr,ix) newval)
+        (memArrays mem)
+        elem_pf
+  }
+updateMemory (UpdateOp_alloc elem_pf) mem args =
+  let new_last_alloc = Ptr (unPtr (memLastAlloc mem) + 1) in
+  let new_len = unLiteral $ ml_first args in
+  mem
+  {
+    memLengths = updateFinFun (memLengths mem) new_last_alloc new_len,
+    memLastAlloc = new_last_alloc
+  }
+
+
+----------------------------------------------------------------------
+-- The built-in operations of our logic
+----------------------------------------------------------------------
+
+-- | Type class associating meta-data with @tag@ that is needed by our logic
+class MemoryModel (Storables tag) => LExprTag tag where
+  type Storables tag :: [*]
+
+-- | Type family to add a list of types as arguments to a function return type
+type family AddLitArrows (args :: [*]) (ret :: *) :: *
+type instance AddLitArrows '[] ret = ret
+type instance AddLitArrows (a ': args) ret = Literal a -> AddLitArrows args ret
+
+-- | The unary arithmetic operations
+data ArithOp1 = Op1_Abs | Op1_Signum | Op1_Neg | Op1_Complement
+
+-- | The binary arithmetic operations
+data ArithOp2
+  = Op2_Add | Op2_Sub | Op2_Mult | Op2_Div | Op2_Mod
+  | Op2_BitAnd | Op2_BitOr | Op2_BitXor
+
+-- | The arithmetic comparison operations
+data ArithCmp
+  = OpCmp_EQ -- ^ Equality
+  | OpCmp_LT -- ^ Less than
+  | OpCmp_LE -- ^ Less than or equal to
+    
+
+-- | The operations / function symbols of our logic
+data Op tag a where
+  -- | Literals that are lifted from Haskell
+  Op_Literal :: Typeable a => a -> Op tag (Literal a)
+
+  -- * First-order operations on data
+
+  -- | Unary arithmetic
+  Op_arith1 :: Typeable a => ArithOp1 -> Op tag (Literal a -> Literal a)
+  -- | Binary arithmetic
+  Op_arith2 :: Typeable a => ArithOp2 ->
+               Op tag (Literal a -> Literal a -> Literal a)
+  -- | Coercion between types
+  Op_coerce :: (Typeable a, Typeable b) => Op tag (Literal a -> Literal b)
+  -- | Comparison operations
+  Op_cmp :: Typeable a => ArithCmp ->
+            Op tag (Literal a -> Literal a -> Literal Bool)
+
+  -- * Propositional operations
+  -- | Logical and
+  Op_and :: Op tag (Prop -> Prop -> Prop)
+  -- | Logical or
+  Op_or :: Op tag (Prop -> Prop -> Prop)
+  -- | Logical negation
+  Op_not :: Op tag (Prop -> Prop)
+  -- | Lift a 'Bool' to a 'Prop'
+  Op_istrue  :: Op tag (Literal Bool -> Prop)
+
+  -- | Let-bindings are only allowed at the top level, i.e., in propositions
+  Op_Let :: Typeable a => Op tag ((Literal a -> Prop) -> Prop)
+  -- | Let-bind the result of reading from a 'Memory'
+  Op_LetRead :: ReadOp (Storables tag) args ret ->
+                Op tag (AddLitArrows args
+                        (Memory (Storables tag) -> (ret -> Prop) -> Prop))
+
+  -- | Memory read operations
+  Op_readP :: ReadOp (Storables tag) args ret ->
+              Op tag (AddLitArrows args (PM (Literal ret)))
+  -- | Memory update operations
+  Op_updateP :: UpdateOp (Storables tag) args ->
+                Op tag (AddLitArrows args (PM (Literal ())))
+  -- | Assertions about the current 'Memory'
+  Op_assertP :: Op tag ((Literal (Memory (Storables tag)) -> Prop) ->
+                        PM (Literal ()))
+  -- | Disjunctions
+  Op_orP :: Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
+
+
+----------------------------------------------------------------------
+-- The expressions of our logic
+----------------------------------------------------------------------
 
 -- | The expressions of our logic as a GADT. This is essentially the typed
 -- lambda-calculus with function symbols. All expressions are in beta-normal
 -- form, which is enforced by restricting the expressions to only the
 -- lambda-abstractions and the applications of variables and function symbols.
-data LExpr a where
-  LLambda :: LType a -> Binding a (LExpr b) -> LExpr (a -> b)
-  LAppExpr :: LAppExpr a -> LExpr a
+data LExpr tag a where
+  LLambda :: LType a -> Binding a (LExpr tag b) -> LExpr tag (a -> b)
+  LAppExpr :: LAppExpr tag a -> LExpr tag a
 
 -- | Expressions that are applications of variables or function symbols.
-data LAppExpr a where
-  LVar :: Name a -> LAppExpr a
-  LFunSym :: FunSym a -> LAppExpr a
-  LApp :: LAppExpr (a -> b) -> LExpr a -> LAppExpr b
+data LAppExpr tag a where
+  LVar :: Name a -> LAppExpr tag a
+  LOp :: Op tag a -> LAppExpr tag a
+  LApp :: LAppExpr tag (a -> b) -> LExpr tag a -> LAppExpr tag b
 
 
 ----------------------------------------------------------------------
@@ -227,57 +391,55 @@ data LAppExpr a where
 ----------------------------------------------------------------------
 
 -- | Helper function for building lambda-abstractions
-mkLambda :: LTypeable a => (LExpr a -> LExpr b) -> LExpr (a -> b)
+mkLambda :: LTypeable a => (LExpr tag a -> LExpr tag b) -> LExpr tag (a -> b)
 mkLambda f = LLambda ltypeRep $ nu $ \x -> f (LAppExpr (LVar x))
 
--- | Type class for eta-expanding 'LAppExpr's into functions on expressions
-class EtaExpandsTo a funtp | a -> funtp, funtp -> a where
-  etaExpand :: LAppExpr a -> funtp
+-- | The type of "proofs" that applying f to each type to the left or right of
+-- an arrow in type a yields type out
+data AppliedToYieldsPf (f :: * -> *) a out where
+  ATY_Literal :: AppliedToYieldsPf f (Literal a) (f (Literal a))
+  ATY_Prop :: AppliedToYieldsPf f Prop (f Prop)
+  ATY_PM :: AppliedToYieldsPf f (PM a) (f (PM a))
+  ATY_Fun :: AppliedToYieldsPf f b b_out ->
+             AppliedToYieldsPf f (a -> b) (f a -> b_out)
 
-instance EtaExpandsTo (Literal a) (LExpr (Literal a)) where
-  etaExpand e = LAppExpr e
+-- | Type class for generating 'AppliedToYieldsPf' proofs
+class AppliedToYields (f :: * -> *) a funtp | f a -> funtp, f funtp -> a where
+  appliedToYields :: AppliedToYieldsPf f a funtp
 
-instance EtaExpandsTo (PM a) (LExpr (PM a)) where
-  etaExpand e = LAppExpr e
+instance AppliedToYields f (Literal a) (f (Literal a)) where
+  appliedToYields = ATY_Literal
 
-instance EtaExpandsTo Prop (LExpr Prop) where
-  etaExpand e = LAppExpr e
+instance AppliedToYields f Prop (f Prop) where
+  appliedToYields = ATY_Prop
 
-instance EtaExpandsTo b funtp =>
-         EtaExpandsTo (a -> b) (LExpr a -> funtp) where
-  etaExpand e = \x -> etaExpand (LApp e x)
+instance AppliedToYields f (PM a) (f (PM a)) where
+  appliedToYields = ATY_PM
+
+instance AppliedToYields f b b_funtp =>
+         AppliedToYields f (a -> b) (f a -> b_funtp) where
+  appliedToYields = ATY_Fun appliedToYields
+
+-- | Build an eta-expanded term-building function
+etaBuild :: AppliedToYieldsPf (LExpr tag) a out -> LAppExpr tag a -> out
+etaBuild ATY_Literal e = LAppExpr e
+etaBuild ATY_Prop e = LAppExpr e
+etaBuild ATY_PM e = LAppExpr e
+etaBuild (ATY_Fun aty) e = \x -> etaBuild aty (LApp e x)
 
 -- | Helper function for building literal expressions
-mkLiteral :: L1Typeable a => a -> LExpr (Literal a)
-mkLiteral a =
-  etaExpand $ LFunSym $ LLiteral l1typeRep a
+mkLiteral :: Typeable a => a -> LExpr tag (Literal a)
+mkLiteral a = etaBuild appliedToYields $ LOp $ Op_Literal a
 
--- | Helper function for building expression functions from function symbols
-mkFunSym :: (LTypeable a, EtaExpandsTo a funtp) =>
-            Proxy a -> String -> funtp
-mkFunSym (Proxy :: Proxy a) str =
-  etaExpand $ LFunSym $ FunSym str ltypeRep
-
--- | Specialization of 'mkFunSym' to 0-argument functions
-mkFunSym0 :: L1Typeable a => String -> LExpr (Literal a)
-mkFunSym0 str = mkFunSym Proxy str
-
--- | Specialization of 'mkFunSym' to 1-argument functions
-mkFunSym1 :: (L1Typeable a, L1Typeable b) =>
-             String -> LExpr (Literal a) -> LExpr (Literal b)
-mkFunSym1 str = mkFunSym Proxy str
-
--- | Specialization of 'mkFunSym' to 2-argument functions
-mkFunSym2 :: (L1Typeable a, L1Typeable b, L1Typeable c) =>
-             String -> LExpr (Literal a) -> LExpr (Literal b) -> LExpr (Literal c)
-mkFunSym2 str = mkFunSym Proxy str
+-- | Helper function for building expression functions from 'Op's
+mkOp :: (AppliedToYields (LExpr tag) a out) => Op tag a -> out
+mkOp op = etaBuild appliedToYields (LOp op)
 
 -- Num instance allows us to use arithmetic operations to build expressions.
-instance (L1Typeable a, Num a) => Num (LExpr (Literal a)) where
-  (+) = mkFunSym Proxy "+"
-  (-) = mkFunSym Proxy "-"
-  (*) = mkFunSym Proxy "*"
-  abs = mkFunSym Proxy "abs"
-  signum = mkFunSym Proxy "signum"
+instance (Typeable a, Num a) => Num (LExpr tag (Literal a)) where
+  (+) = mkOp (Op_arith2 Op2_Add)
+  (-) = mkOp (Op_arith2 Op2_Sub)
+  (*) = mkOp (Op_arith2 Op2_Mult)
+  abs = mkOp (Op_arith1 Op1_Abs)
+  signum = mkOp (Op_arith1 Op1_Signum)
   fromInteger i = mkLiteral (fromInteger i)
-
