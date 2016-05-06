@@ -7,6 +7,7 @@ module Ivory.Stdlib.Memory
   ( resultInto
   , into
   , arrayCopy
+  , refZero
   ) where
 
 import Ivory.Language
@@ -63,3 +64,7 @@ arrayCopy to from toOffset end = do
 
   mkIx ix = toIx (toOffset + fromIx ix)
 
+-- | Zero out reference values.
+refZero :: (GetAlloc eff ~ 'Scope s, IvoryZero a, IvoryArea a)
+        => Ref s a -> Ivory eff ()
+refZero r0 = refCopy r0 =<< local izero
