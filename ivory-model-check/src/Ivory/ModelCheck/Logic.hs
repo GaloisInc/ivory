@@ -456,46 +456,28 @@ $(mkNuMatching [t| forall tag a. LAppExpr tag a |])
 mkLambda :: LTypeable a => (LExpr tag a -> LExpr tag b) -> LExpr tag (a -> b)
 mkLambda f = LLambda ltypeRep $ nu $ \x -> f (LAppExpr (LVar x))
 
--- | The type of "proofs" that applying f to each type to the left or right of
--- an arrow in type a yields type out
-data AppliedToYieldsPf (f :: * -> *) a out where
-  ATY_Literal :: AppliedToYieldsPf f (Literal a) (f (Literal a))
-  ATY_Prop :: AppliedToYieldsPf f Prop (f Prop)
-  ATY_PM :: AppliedToYieldsPf f (PM a) (f (PM a))
-  ATY_Fun :: AppliedToYieldsPf f b b_out ->
-             AppliedToYieldsPf f (a -> b) (f a -> b_out)
-
--- | Type class for generating 'AppliedToYieldsPf' proofs
-class AppliedToYields (f :: * -> *) a funtp | f a -> funtp, f funtp -> a where
-  appliedToYields :: AppliedToYieldsPf f a funtp
-
-instance AppliedToYields f (Literal a) (f (Literal a)) where
-  appliedToYields = ATY_Literal
-
-instance AppliedToYields f Prop (f Prop) where
-  appliedToYields = ATY_Prop
-
-instance AppliedToYields f (PM a) (f (PM a)) where
-  appliedToYields = ATY_PM
-
-instance AppliedToYields f b b_funtp =>
-         AppliedToYields f (a -> b) (f a -> b_funtp) where
-  appliedToYields = ATY_Fun appliedToYields
+-- | Apply type function @f@ to the input and outputs of a function type, i.e.,
+-- replace @a1 -> ... -> an -> b@ with @f a1 -> ... -> f an -> f b@.
+type family ApplyToArgs (f :: * -> *) a :: *
+type instance ApplyToArgs f (Literal a) = f (Literal a)
+type instance ApplyToArgs f Prop = f Prop
+type instance ApplyToArgs f (PM a) = f (PM a)
+type instance ApplyToArgs f (a -> b) = f a -> ApplyToArgs f b
 
 -- | Build an eta-expanded term-building function
-etaBuild :: AppliedToYieldsPf (LExpr tag) a out -> LAppExpr tag a -> out
-etaBuild ATY_Literal e = LAppExpr e
-etaBuild ATY_Prop e = LAppExpr e
-etaBuild ATY_PM e = LAppExpr e
-etaBuild (ATY_Fun aty) e = \x -> etaBuild aty (LApp e x)
+etaBuild :: LType a -> LAppExpr tag a -> ApplyToArgs (LExpr tag) a
+etaBuild LType_Literal e = LAppExpr e
+etaBuild LType_Prop e = LAppExpr e
+etaBuild (LType_PM _) e = LAppExpr e
+etaBuild (LType_Fun _ tp2) e = \x -> etaBuild tp2 (LApp e x)
 
 -- | Helper function for building literal expressions
 mkLiteral :: (Typeable a, Liftable a) => a -> LExpr tag (Literal a)
-mkLiteral a = etaBuild appliedToYields $ LOp $ Op_Literal a
+mkLiteral a = etaBuild LType_Literal $ LOp $ Op_Literal a
 
 -- | Helper function for building expression functions from 'Op's
-mkOp :: (AppliedToYields (LExpr tag) a out) => Op tag a -> out
-mkOp op = etaBuild appliedToYields (LOp op)
+mkOp :: LTypeable a => Op tag a -> ApplyToArgs (LExpr tag) a
+mkOp op = etaBuild ltypeRep (LOp op)
 
 -- Num instance allows us to use arithmetic operations to build expressions.
 instance (Typeable a, Liftable a, Num a) => Num (LExpr tag (Literal a)) where
