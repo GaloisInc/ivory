@@ -33,7 +33,7 @@ library
 
   build-depends:        base >= 4.6 && < 5,
                         base-compat,
-                        language-c-quote >= 0.10.0,
+                        language-c-quote >= 0.11.0.0,
                         srcloc,
                         mainland-pretty >= 0.2.5,
                         monadLib >= 3.7,
