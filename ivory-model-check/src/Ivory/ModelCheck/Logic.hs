@@ -10,6 +10,7 @@ import Prelude ()
 import Prelude.Compat hiding (exp)
 
 import Data.Proxy
+import Data.Bits
 import Data.Typeable
 import Data.Int
 import Data.Word
@@ -85,11 +86,12 @@ ml_map1 f (Cons x l) (Elem_cons pf) = Cons x $ ml_map1 f l pf
 
 
 ----------------------------------------------------------------------
--- Types used in our logic
+-- Helper types used by our logic
 ----------------------------------------------------------------------
 
 -- | Container type for literals
 newtype Literal a = Literal { unLiteral :: a }
+                  deriving (Eq)
 
 -- | Dummy type for propositions
 data Prop deriving Typeable
@@ -100,6 +102,59 @@ data PM (a :: *) deriving Typeable
 -- | Untyped pointers = 'Natural's
 newtype Ptr = Ptr { unPtr :: Natural } deriving (Typeable, Eq, Ord)
 
+-- | A default pointer value
+defaultPtr :: Ptr
+defaultPtr = Ptr 0
+
+
+----------------------------------------------------------------------
+-- The literal types
+----------------------------------------------------------------------
+
+-- | A GADT for the /literal types/ in our logic, which are the base types that
+-- are isomorphic to their Haskell counterparts
+data LitType a where
+  LitType_unit :: LitType ()
+  -- ^ The unit type
+  LitType_bool :: LitType Bool
+  -- ^ The type of Booleans that can be computed; i.e., not the type of
+  -- formulas. For formulas (e.g., that contain quantifiers), use 'Prop'.
+  LitType_int :: LitType Integer
+  -- ^ Our logic also has support for unbounded integers
+  LitType_bits :: (Typeable a, FiniteBits a) => LitType a
+  -- ^ Any bit-vector type can be used as a literal type
+
+-- | Typeclass for 'LitType'
+class LitTypeable a where
+  litTypeRep :: LitType a
+
+instance LitTypeable () where litTypeRep = LitType_unit
+instance LitTypeable Bool where litTypeRep = LitType_bool
+instance LitTypeable Integer where litTypeRep = LitType_int
+instance (Typeable a, FiniteBits a) => LitTypeable a where
+  litTypeRep = LitType_bits
+
+-- Build a NuMatching instance for LitType, needed for Liftable
+$(mkNuMatching [t| forall a. LitType a |])
+
+-- Liftable instance, to lift LitTypes out of binding contexts
+instance Liftable (LitType a) where
+  mbLift [nuP| LitType_unit |] = LitType_unit
+  mbLift [nuP| LitType_bool |] = LitType_bool
+  mbLift [nuP| LitType_int |] = LitType_int
+  mbLift [nuP| LitType_bits |] = LitType_bits
+
+-- | Test if two 'LitType's are equal
+litTypeEq :: LitType a -> LitType b -> Maybe (a :~: b)
+litTypeEq LitType_unit LitType_unit = Just Refl
+litTypeEq LitType_unit _ = Nothing
+litTypeEq LitType_bool LitType_bool = Just Refl
+litTypeEq LitType_bool _ = Nothing
+litTypeEq LitType_int LitType_int = Just Refl
+litTypeEq LitType_int _ = Nothing
+litTypeEq LitType_bits LitType_bits = eqT
+litTypeEq LitType_bits _ = Nothing
+
 
 ----------------------------------------------------------------------
 -- The types of our logic
@@ -107,17 +162,24 @@ newtype Ptr = Ptr { unPtr :: Natural } deriving (Typeable, Eq, Ord)
 
 -- | A GADT for the types allowed in our logic
 data LType (a :: *) where
-  LType_Literal :: Typeable a => LType (Literal a)
+  LType_Literal :: LitType a -> LType (Literal a)
+  -- ^ Any 'LitType' becomes a type wrapped in the 'Literal' constructor
+  LType_Ptr :: LType Ptr
+  -- ^ Pointers are a type, but not a literal type, because, intuitively, they
+  -- are considered opaque in our logic
   LType_Prop :: LType Prop
+  -- ^ The type of formulas, e.g., with quantifiers
   LType_Fun :: LType a -> LType b -> LType (a -> b)
+  -- ^ Function types
   LType_PM :: LType a -> LType (PM a)
+  -- ^ The type of transition relations, using a predicate monad
 
 -- | Typeclass for 'LType'
 class LTypeable a where
   ltypeRep :: LType a
 
-instance Typeable a => LTypeable (Literal a) where
-  ltypeRep = LType_Literal
+instance LitTypeable a => LTypeable (Literal a) where
+  ltypeRep = LType_Literal litTypeRep
 instance LTypeable Prop where ltypeRep = LType_Prop
 instance (LTypeable a, LTypeable b) => LTypeable (a -> b) where
   ltypeRep = LType_Fun ltypeRep ltypeRep
@@ -128,15 +190,18 @@ $(mkNuMatching [t| forall a. LType a |])
 
 -- Liftable instance, to lift LTypes out of binding contexts
 instance Liftable (LType a) where
-  mbLift [nuP| LType_Literal |] = LType_Literal
+  mbLift [nuP| LType_Literal ltp |] = LType_Literal $ mbLift ltp
   mbLift [nuP| LType_Prop |] = LType_Prop
   mbLift [nuP| LType_Fun t1 t2 |] = LType_Fun (mbLift t1) (mbLift t2)
   mbLift [nuP| LType_PM t |] = LType_PM (mbLift t)
 
 -- | Test if two 'LType's are equal
 ltypeEq :: LType a -> LType b -> Maybe (a :~: b)
-ltypeEq LType_Literal LType_Literal = eqT
-ltypeEq LType_Literal _ = Nothing
+ltypeEq (LType_Literal ltp1) (LType_Literal ltp2) =
+  case litTypeEq ltp1 ltp2 of
+    Just Refl -> Just Refl
+    _ -> Nothing
+ltypeEq (LType_Literal _) _ = Nothing
 ltypeEq LType_Prop LType_Prop = Just Refl
 ltypeEq LType_Prop _ = Nothing
 ltypeEq (LType_Fun t1 t1') (LType_Fun t2 t2') =
@@ -157,30 +222,32 @@ ltypeEq (LType_PM _) _ = Nothing
 
 -- | Types for functions over first-order types
 data LitFunType a where
-  LitFunType_base :: Typeable a => LitFunType (Literal a)
-  LitFunType_cons :: Typeable a => LitFunType b -> LitFunType (Literal a -> b)
+  LitFunType_base :: LitType a -> LitFunType (Literal a)
+  LitFunType_cons :: LitType a -> LitFunType b -> LitFunType (Literal a -> b)
 
 -- | Typeclass for 'LitFunType'
 class LitFunTypeable a where
   litFunTypeRep :: LitFunType a
 
-instance Typeable a => LitFunTypeable (Literal a) where
-  litFunTypeRep = LitFunType_base
-instance (Typeable a, LitFunTypeable b) => LitFunTypeable (Literal a -> b) where
-  litFunTypeRep = LitFunType_cons litFunTypeRep
+instance LitTypeable a => LitFunTypeable (Literal a) where
+  litFunTypeRep = LitFunType_base litTypeRep
+instance (LitTypeable a, LitFunTypeable b) =>
+         LitFunTypeable (Literal a -> b) where
+  litFunTypeRep = LitFunType_cons litTypeRep litFunTypeRep
 
 -- Build a NuMatching instance for LitFunType, needed for Liftable
 $(mkNuMatching [t| forall a. LitFunType a |])
 
 -- Liftable instance, to lift LitFunTypes out of binding contexts
 instance Liftable (LitFunType a) where
-  mbLift [nuP| LitFunType_base |] = LitFunType_base
-  mbLift [nuP| LitFunType_cons t |] = LitFunType_cons (mbLift t)
+  mbLift [nuP| LitFunType_base ltp |] = LitFunType_base $ mbLift ltp
+  mbLift [nuP| LitFunType_cons ltp t |] = LitFunType_cons (mbLift ltp) (mbLift t)
 
 -- | Convert a 'LitFunType' to an 'LType'
 fun2typeRep :: LitFunType a -> LType a
-fun2typeRep LitFunType_base = LType_Literal
-fun2typeRep (LitFunType_cons t) = LType_Fun LType_Literal (fun2typeRep t)
+fun2typeRep (LitFunType_base ltp) = LType_Literal ltp
+fun2typeRep (LitFunType_cons ltp t) =
+  LType_Fun (LType_Literal ltp) (fun2typeRep t)
 
 
 ----------------------------------------------------------------------
@@ -218,80 +285,101 @@ updateFinFun f arg newval =
 ----------------------------------------------------------------------
 
 -- | Type class stating that @mm@ is a list of the types that are considered
--- storable, and also a list of default values for each of these types.
+-- storable, and also a list of default values for each of these types. Note
+-- that, if type @a@ is in @mm@, then it is type @'Literal' a@ that is actually
+-- storable. Additionally, the 'Ptr' is always storable, and so is not contained
+-- in the @mm@ list.
 class MemoryModel (mm :: [*]) where
-  memoryDefaults :: MapList Identity mm
+  memoryDefaults :: MapList Literal mm
 
--- | An array store represents a set of (infinite) arrays of some given
--- type. These are represented as 'FinFun's that map 'Ptr' pointer values,
--- combined with 'Word64' indices, to the given type.
-type ArrayStore a = FinFun (Ptr, Word64) a
+-- | An /array store/ represents a set of (infinite) arrays of some given type,
+-- while a /literal array store/ is an array store for some 'Literal'
+-- type. Array stores are represented as 'FinFun's that map 'Ptr' pointer
+-- values, combined with 'Word64' indices, to the given type.
+newtype LitArrayStore a =
+  LitArrayStore { unLitArrayStore :: FinFun (Ptr, Literal Word64) (Literal a) }
 
--- | Build a default, empty 'ArrayStore'
-mkArrayStore :: a -> ArrayStore a
-mkArrayStore = mkFinFun
+-- | Build a default, empty 'LitArrayStore'
+mkLitArrayStore :: Literal a -> LitArrayStore a
+mkLitArrayStore = LitArrayStore . mkFinFun
 
--- | A memory is a collection of 'ArrayStore's, one for each type in the memory
--- model, which is given as a list of types that can be stored. Memories also
--- associate a length with each 'Ptr', and also track that last allocated 'Ptr'
--- value, where any 'Ptr' greater than the last allocated one is not considered
--- allcated, i.e., is an invalid pointer.
+-- | A memory is a collection of 'LitArrayStore's, one for each type in the
+-- memory model, as well as an array store for 'Ptr's. The memory model is given
+-- as a type-level list @mm@ of types @a@ such that @'Literal' a@ is considered
+-- storable. Memories also associate a length with each 'Ptr', and additionally
+-- track that last allocated 'Ptr' value: any 'Ptr' greater than the last
+-- allocated one is not considered allcated, i.e., is an invalid pointer.
 data Memory mm =
-  Memory { memArrays :: MapList (FinFun (Ptr, Word64)) mm,
-           memLengths :: FinFun Ptr Word64,
+  Memory { memArrays :: MapList LitArrayStore mm,
+           memPtrArray :: FinFun (Ptr, Literal Word64) Ptr,
+           memLengths :: FinFun Ptr (Literal Word64),
            memLastAlloc :: Ptr }
 
 -- | Build a default, empty 'Memory'
 mkMemory :: MemoryModel mm => Memory mm
 mkMemory =
-  Memory { memArrays = ml_map (\(Identity x) -> mkFinFun x) memoryDefaults,
-           memLengths = mkFinFun 0,
+  Memory { memArrays = ml_map mkLitArrayStore memoryDefaults,
+           memPtrArray = mkFinFun defaultPtr,
+           memLengths = mkFinFun (Literal 0),
            memLastAlloc = Ptr 0 }
 
 -- | The read operations for 'Memory's
 data ReadOp mm args ret where
-  -- | Read the nth element of an array, which can be any 'StorableType'
-  ReadOp_array :: ElemPf mm a -> ReadOp mm '[ Ptr, Word64 ] a
+  -- | Read the nth element of an array whose type is in @mm@
+  ReadOp_array :: ElemPf mm a -> ReadOp mm '[ Ptr, Literal Word64 ] (Literal a)
+  -- | Read the nth element of the 'Ptr' array
+  ReadOp_ptr_array :: ReadOp mm '[ Ptr, Literal Word64 ] Ptr
   -- | Get the length of an array as a 'Word64'
-  ReadOp_length :: ReadOp mm '[ Ptr ] Word64
+  ReadOp_length :: ReadOp mm '[ Ptr ] (Literal Word64)
   -- | Get the last-allocated pointer
   ReadOp_last_alloc :: ReadOp mm '[] Ptr
 
 -- | The update operations for 'Memory's
 data UpdateOp mm args where
-  -- | Update the nth element of an array
-  UpdateOp_array :: ElemPf mm a -> UpdateOp mm '[ Ptr, Word64, a ]
-  -- | Allocate a new array with a given length
-  UpdateOp_alloc :: ElemPf mm a -> UpdateOp mm '[ Word64 ]
+  -- | Update the nth element of a 'LitArrayStore' whose type is in @mm@
+  UpdateOp_array :: ElemPf mm a ->
+                    UpdateOp mm '[ Ptr, Literal Word64, Literal a ]
+  -- | Update the nth element of the 'Ptr' array store
+  UpdateOp_ptr_array :: UpdateOp mm '[ Ptr, Literal Word64, Ptr ]
+  -- | Allocate a new array with a given length, whose type is either an element
+  -- of @mm@, or is 'Nothing', which represents 'Ptr'.
+  UpdateOp_alloc :: Maybe (ElemPf mm a) -> UpdateOp mm '[ Literal Word64 ]
 
 -- | Perform a read operation on a 'Memory'
-readMemory :: ReadOp mm args ret -> Memory mm -> MapList Literal args -> ret
-readMemory (ReadOp_array elem_pf) mem args =
+readMemory :: ReadOp mm args ret -> Memory mm -> MapList Identity args -> ret
+readMemory (ReadOp_array elem_pf) mem
+           (Cons (Identity ptr) (Cons (Identity ix) _)) =
   applyFinFun
-    (ml_lookup (memArrays mem) elem_pf)
-    (unLiteral (ml_first args),
-     unLiteral (ml_second args))
-readMemory ReadOp_length mem args =
-  applyFinFun (memLengths mem) (unLiteral $ ml_first args)
-readMemory ReadOp_last_alloc mem args = memLastAlloc mem
+    (unLitArrayStore $ ml_lookup (memArrays mem) elem_pf)
+    (ptr, ix)
+readMemory ReadOp_ptr_array mem
+           (Cons (Identity ptr) (Cons (Identity ix) _)) =
+  applyFinFun (memPtrArray mem) (ptr, ix)
+readMemory ReadOp_length mem (Cons (Identity ptr) _) =
+  applyFinFun (memLengths mem) ptr
+readMemory ReadOp_last_alloc mem _ = memLastAlloc mem
 
 -- | Perform an update operation on a 'Memory'
-updateMemory :: UpdateOp mm args -> Memory mm -> MapList Literal args ->
+updateMemory :: UpdateOp mm args -> Memory mm -> MapList Identity args ->
                 Memory mm
-updateMemory (UpdateOp_array elem_pf) mem args =
-  let (ptr,ix,newval) = (unLiteral (ml_first args),
-                         unLiteral (ml_second args),
-                         unLiteral (ml_third args)) in
+updateMemory (UpdateOp_array elem_pf) mem
+             (Cons (Identity ptr)
+              (Cons (Identity ix) (Cons (Identity newval) _))) =
   mem
   { memArrays =
       ml_map1
-        (\ff -> updateFinFun ff (ptr,ix) newval)
+        (\las -> LitArrayStore $
+                 updateFinFun (unLitArrayStore las) (ptr, ix) newval)
         (memArrays mem)
         elem_pf
   }
-updateMemory (UpdateOp_alloc elem_pf) mem args =
+updateMemory UpdateOp_ptr_array mem
+             (Cons (Identity ptr)
+              (Cons (Identity ix) (Cons (Identity newval) _))) =
+  mem { memPtrArray = updateFinFun (memPtrArray mem) (ptr,ix) newval }
+updateMemory (UpdateOp_alloc elem_pf) mem
+             (Cons (Identity new_len) _) =
   let new_last_alloc = Ptr (unPtr (memLastAlloc mem) + 1) in
-  let new_len = unLiteral $ ml_first args in
   mem
   {
     memLengths = updateFinFun (memLengths mem) new_last_alloc new_len,
@@ -330,19 +418,19 @@ data ArithCmp
 -- | The operations / function symbols of our logic
 data Op tag a where
   -- | Literals that are lifted from Haskell
-  Op_Literal :: (Liftable a, Typeable a) => a -> Op tag (Literal a)
+  Op_Literal :: Liftable a => LitType a -> a -> Op tag (Literal a)
 
   -- * First-order operations on data
 
   -- | Unary arithmetic
-  Op_arith1 :: Typeable a => ArithOp1 -> Op tag (Literal a -> Literal a)
+  Op_arith1 :: LitType a -> ArithOp1 -> Op tag (Literal a -> Literal a)
   -- | Binary arithmetic
-  Op_arith2 :: Typeable a => ArithOp2 ->
+  Op_arith2 :: LitType a -> ArithOp2 ->
                Op tag (Literal a -> Literal a -> Literal a)
   -- | Coercion between types
-  Op_coerce :: (Typeable a, Typeable b) => Op tag (Literal a -> Literal b)
+  Op_coerce :: LitType a -> LitType b -> Op tag (Literal a -> Literal b)
   -- | Comparison operations
-  Op_cmp :: Typeable a => ArithCmp ->
+  Op_cmp :: LitType a -> ArithCmp ->
             Op tag (Literal a -> Literal a -> Literal Bool)
 
   -- * Propositional operations
@@ -378,6 +466,7 @@ data Op tag a where
 $(mkNuMatching [t| ArithOp1 |])
 $(mkNuMatching [t| ArithOp2 |])
 $(mkNuMatching [t| ArithCmp |])
+$(mkNuMatching [t| forall a. NuMatching a => Maybe a |])
 $(mkNuMatching [t| forall mm args ret. ReadOp mm args ret |])
 $(mkNuMatching [t| forall mm args. UpdateOp mm args |])
 $(mkNuMatching [t| forall tag a. Op tag a |])
@@ -407,13 +496,15 @@ instance Liftable (ReadOp mm args ret) where
   mbLift [nuP| ReadOp_last_alloc |] = ReadOp_last_alloc
 instance Liftable (UpdateOp mm args) where
   mbLift [nuP| UpdateOp_array elem_pf |] = UpdateOp_array $ mbLift elem_pf
-  mbLift [nuP| UpdateOp_alloc elem_pf |] = UpdateOp_alloc $ mbLift elem_pf
+  mbLift [nuP| UpdateOp_alloc (Just elem_pf) |] =
+    UpdateOp_alloc $ Just $ mbLift elem_pf
+  mbLift [nuP| UpdateOp_alloc Nothing |] = UpdateOp_alloc Nothing
 instance Liftable (Op tag a) where
-  mbLift [nuP| Op_Literal x |] = Op_Literal $ mbLift x
-  mbLift [nuP| Op_arith1 aop |] = Op_arith1 $ mbLift aop
-  mbLift [nuP| Op_arith2 aop |] = Op_arith2 $ mbLift aop
-  mbLift [nuP| Op_coerce |] = Op_coerce
-  mbLift [nuP| Op_cmp acmp |] = Op_cmp $ mbLift acmp
+  mbLift [nuP| Op_Literal ltp x |] = Op_Literal (mbLift ltp) (mbLift x)
+  mbLift [nuP| Op_arith1 ltp aop |] = Op_arith1 (mbLift ltp) (mbLift aop)
+  mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
+  mbLift [nuP| Op_coerce ltp1 ltp2 |] = Op_coerce (mbLift ltp1) (mbLift ltp2)
+  mbLift [nuP| Op_cmp ltp acmp |] = Op_cmp (mbLift ltp) (mbLift acmp)
   mbLift [nuP| Op_and |] = Op_and
   mbLift [nuP| Op_or |] = Op_or
   mbLift [nuP| Op_not |] = Op_not
@@ -460,32 +551,35 @@ mkLambda f = LLambda ltypeRep $ nu $ \x -> f (LAppExpr (LVar x))
 -- replace @a1 -> ... -> an -> b@ with @f a1 -> ... -> f an -> f b@.
 type family ApplyToArgs (f :: * -> *) a :: *
 type instance ApplyToArgs f (Literal a) = f (Literal a)
+type instance ApplyToArgs f Ptr = f Ptr
 type instance ApplyToArgs f Prop = f Prop
 type instance ApplyToArgs f (PM a) = f (PM a)
 type instance ApplyToArgs f (a -> b) = f a -> ApplyToArgs f b
 
 -- | Build an eta-expanded term-building function
 etaBuild :: LType a -> LAppExpr tag a -> ApplyToArgs (LExpr tag) a
-etaBuild LType_Literal e = LAppExpr e
+etaBuild (LType_Literal ltp) e = LAppExpr e
+etaBuild LType_Ptr e = LAppExpr e
 etaBuild LType_Prop e = LAppExpr e
 etaBuild (LType_PM _) e = LAppExpr e
 etaBuild (LType_Fun _ tp2) e = \x -> etaBuild tp2 (LApp e x)
 
 -- | Helper function for building literal expressions
-mkLiteral :: (Typeable a, Liftable a) => a -> LExpr tag (Literal a)
-mkLiteral a = etaBuild LType_Literal $ LOp $ Op_Literal a
+mkLiteral :: (LitTypeable a, Liftable a) => a -> LExpr tag (Literal a)
+mkLiteral a =
+  etaBuild (LType_Literal litTypeRep) $ LOp $ Op_Literal litTypeRep a
 
 -- | Helper function for building expression functions from 'Op's
 mkOp :: LTypeable a => Op tag a -> ApplyToArgs (LExpr tag) a
 mkOp op = etaBuild ltypeRep (LOp op)
 
 -- Num instance allows us to use arithmetic operations to build expressions.
-instance (Typeable a, Liftable a, Num a) => Num (LExpr tag (Literal a)) where
-  (+) = mkOp (Op_arith2 Op2_Add)
-  (-) = mkOp (Op_arith2 Op2_Sub)
-  (*) = mkOp (Op_arith2 Op2_Mult)
-  abs = mkOp (Op_arith1 Op1_Abs)
-  signum = mkOp (Op_arith1 Op1_Signum)
+instance (LitTypeable a, Liftable a, Num a) => Num (LExpr tag (Literal a)) where
+  (+) = mkOp (Op_arith2 litTypeRep Op2_Add)
+  (-) = mkOp (Op_arith2 litTypeRep Op2_Sub)
+  (*) = mkOp (Op_arith2 litTypeRep Op2_Mult)
+  abs = mkOp (Op_arith1 litTypeRep Op1_Abs)
+  signum = mkOp (Op_arith1 litTypeRep Op1_Signum)
   fromInteger i = mkLiteral (fromInteger i)
 
 
