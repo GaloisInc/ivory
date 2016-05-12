@@ -487,8 +487,14 @@ data Op tag a where
   -- | Lift a 'Bool' to a 'Prop'
   Op_istrue  :: Op tag (Literal Bool -> Prop)
 
-  -- | Let-bindings are only allowed at the top level, i.e., in propositions
-  Op_Let :: Typeable a => Op tag ((Literal a -> Prop) -> Prop)
+  -- | Universal quantification
+  Op_forall :: LitType a -> Op tag ((a -> Prop) -> Prop)
+  -- | Existential quantification
+  Op_exists :: LitType a -> Op tag ((a -> Prop) -> Prop)
+
+  -- | Let-bindings, which are only allowed at the top level, i.e., in
+  -- propositions
+  Op_Let :: LitType a -> Op tag ((Literal a -> Prop) -> Prop)
   -- | Let-bind the result of reading from a 'Memory'
   {-
   Op_LetRead :: ReadOp (Storables tag) args ret ->
