@@ -131,8 +131,8 @@ class LitTypeable a where
 instance LitTypeable () where litTypeRep = LitType_unit
 instance LitTypeable Bool where litTypeRep = LitType_bool
 instance LitTypeable Integer where litTypeRep = LitType_int
-instance (Typeable a, FiniteBits a) => LitTypeable a where
-  litTypeRep = LitType_bits
+--instance (Typeable a, FiniteBits a) => LitTypeable a where
+--  litTypeRep = LitType_bits
 
 -- Build a NuMatching instance for LitType, needed for Liftable
 $(mkNuMatching [t| forall a. LitType a |])
@@ -157,63 +157,108 @@ litTypeEq LitType_bits _ = Nothing
 
 
 ----------------------------------------------------------------------
+-- The first-order types
+----------------------------------------------------------------------
+
+-- | A GADT for the /first-order types/ in our logic, which are the types that
+-- are not function types
+data L1Type a where
+  L1Type_lit :: LitType a -> L1Type (Literal a)
+  -- ^ The type @'Literal' a@ is a first-order type when @a@ is a literal type
+  L1Type_ptr :: L1Type Ptr
+  -- ^ The type of pointers, which are not literal types because, intuitively,
+  -- we disallow pointer literals
+  L1Type_prop :: L1Type Prop
+  -- ^ The type of formulas that may or may not be decidable; e.g., formulas
+  -- with quantifiers
+  L1Type_pm :: L1Type a -> L1Type (PM a)
+  -- ^ The type of transition relations, using a predicate monad
+
+-- | Typeclass for 'L1Type'
+class L1Typeable a where
+  l1typeRep :: L1Type a
+
+instance LitTypeable a => L1Typeable (Literal a) where
+  l1typeRep = L1Type_lit litTypeRep
+instance L1Typeable Ptr where l1typeRep = L1Type_ptr
+instance L1Typeable Prop where l1typeRep = L1Type_prop
+instance L1Typeable a => L1Typeable (PM a) where
+  l1typeRep = L1Type_pm l1typeRep
+
+-- Build a NuMatching instance for L1Type, needed for Liftable
+$(mkNuMatching [t| forall a. L1Type a |])
+
+-- Liftable instance, to lift L1Types out of binding contexts
+instance Liftable (L1Type a) where
+  mbLift [nuP| L1Type_lit ltp |] = L1Type_lit $ mbLift ltp
+  mbLift [nuP| L1Type_ptr |] = L1Type_ptr
+  mbLift [nuP| L1Type_prop |] = L1Type_prop
+  mbLift [nuP| L1Type_pm l1tp |] = L1Type_pm $ mbLift l1tp
+
+-- | Test if two 'L1Type's are equal
+l1TypeEq :: L1Type a -> L1Type b -> Maybe (a :~: b)
+l1TypeEq (L1Type_lit ltp1) (L1Type_lit ltp2) =
+  case litTypeEq ltp1 ltp2 of
+    Just Refl ->  Just Refl
+    _ -> Nothing
+l1TypeEq (L1Type_lit _) _ = Nothing
+l1TypeEq L1Type_ptr L1Type_ptr = Just Refl
+l1TypeEq L1Type_ptr _ = Nothing
+l1TypeEq L1Type_prop L1Type_prop = Just Refl
+l1TypeEq L1Type_prop _ = Nothing
+l1TypeEq (L1Type_pm tp1) (L1Type_pm tp2) =
+  case l1TypeEq tp1 tp2 of
+    Just Refl -> Just Refl
+    _ -> Nothing
+l1TypeEq (L1Type_pm _) _ = Nothing
+
+
+----------------------------------------------------------------------
 -- The types of our logic
 ----------------------------------------------------------------------
 
 -- | A GADT for the types allowed in our logic
 data LType (a :: *) where
-  LType_Literal :: LitType a -> LType (Literal a)
-  -- ^ Any 'LitType' becomes a type wrapped in the 'Literal' constructor
-  LType_Ptr :: LType Ptr
-  -- ^ Pointers are a type, but not a literal type, because, intuitively, they
-  -- are considered opaque in our logic
-  LType_Prop :: LType Prop
-  -- ^ The type of formulas, e.g., with quantifiers
-  LType_Fun :: LType a -> LType b -> LType (a -> b)
+  LType_base :: L1Type a -> LType a
+  -- ^ Any first-order type is a type
+  LType_fun :: LType a -> LType b -> LType (a -> b)
   -- ^ Function types
-  LType_PM :: LType a -> LType (PM a)
-  -- ^ The type of transition relations, using a predicate monad
 
 -- | Typeclass for 'LType'
 class LTypeable a where
   ltypeRep :: LType a
 
+-- Leads to overlapping instances...
+-- instance L1Typeable a => LTypeable a where ltypeRep = LType_base l1typeRep
 instance LitTypeable a => LTypeable (Literal a) where
-  ltypeRep = LType_Literal litTypeRep
-instance LTypeable Prop where ltypeRep = LType_Prop
+  ltypeRep = LType_base $ L1Type_lit litTypeRep
+instance LTypeable Ptr where ltypeRep = LType_base $ l1typeRep
+instance LTypeable Prop where ltypeRep = LType_base $ l1typeRep
+instance L1Typeable a => LTypeable (PM a) where
+  ltypeRep = LType_base $ l1typeRep
 instance (LTypeable a, LTypeable b) => LTypeable (a -> b) where
-  ltypeRep = LType_Fun ltypeRep ltypeRep
-instance LTypeable a => LTypeable (PM a) where ltypeRep = LType_PM ltypeRep
+  ltypeRep = LType_fun ltypeRep ltypeRep
 
 -- Build a NuMatching instance for LType, needed for Liftable
 $(mkNuMatching [t| forall a. LType a |])
 
 -- Liftable instance, to lift LTypes out of binding contexts
 instance Liftable (LType a) where
-  mbLift [nuP| LType_Literal ltp |] = LType_Literal $ mbLift ltp
-  mbLift [nuP| LType_Prop |] = LType_Prop
-  mbLift [nuP| LType_Fun t1 t2 |] = LType_Fun (mbLift t1) (mbLift t2)
-  mbLift [nuP| LType_PM t |] = LType_PM (mbLift t)
+  mbLift [nuP| LType_base l1tp |] = LType_base $ mbLift l1tp
+  mbLift [nuP| LType_fun t1 t2 |] = LType_fun (mbLift t1) (mbLift t2)
 
 -- | Test if two 'LType's are equal
 ltypeEq :: LType a -> LType b -> Maybe (a :~: b)
-ltypeEq (LType_Literal ltp1) (LType_Literal ltp2) =
-  case litTypeEq ltp1 ltp2 of
+ltypeEq (LType_base l1tp1) (LType_base l1tp2) =
+  case l1TypeEq l1tp1 l1tp2 of
     Just Refl -> Just Refl
     _ -> Nothing
-ltypeEq (LType_Literal _) _ = Nothing
-ltypeEq LType_Prop LType_Prop = Just Refl
-ltypeEq LType_Prop _ = Nothing
-ltypeEq (LType_Fun t1 t1') (LType_Fun t2 t2') =
+ltypeEq (LType_base _) _ = Nothing
+ltypeEq (LType_fun t1 t1') (LType_fun t2 t2') =
   case (ltypeEq t1 t2, ltypeEq t1' t2') of
     (Just Refl, Just Refl) -> Just Refl
     _ -> Nothing
-ltypeEq (LType_Fun _ _) _ = Nothing
-ltypeEq (LType_PM t1) (LType_PM t2) =
-  case ltypeEq t1 t2 of
-    Just Refl -> Just Refl
-    _ -> Nothing
-ltypeEq (LType_PM _) _ = Nothing
+ltypeEq (LType_fun _ _) _ = Nothing
 
 
 ----------------------------------------------------------------------
@@ -221,33 +266,32 @@ ltypeEq (LType_PM _) _ = Nothing
 ----------------------------------------------------------------------
 
 -- | Types for functions over first-order types
-data LitFunType a where
-  LitFunType_base :: LitType a -> LitFunType (Literal a)
-  LitFunType_cons :: LitType a -> LitFunType b -> LitFunType (Literal a -> b)
+data L1FunType a where
+  L1FunType_base :: L1Type a -> L1FunType a
+  L1FunType_cons :: L1Type a -> L1FunType b -> L1FunType (a -> b)
 
--- | Typeclass for 'LitFunType'
-class LitFunTypeable a where
-  litFunTypeRep :: LitFunType a
+-- | Typeclass for 'L1FunType'
+class L1FunTypeable a where
+  litFunTypeRep :: L1FunType a
 
-instance LitTypeable a => LitFunTypeable (Literal a) where
-  litFunTypeRep = LitFunType_base litTypeRep
-instance (LitTypeable a, LitFunTypeable b) =>
-         LitFunTypeable (Literal a -> b) where
-  litFunTypeRep = LitFunType_cons litTypeRep litFunTypeRep
+instance L1Typeable a => L1FunTypeable a where
+  litFunTypeRep = L1FunType_base l1typeRep
+instance (L1Typeable a, L1FunTypeable b) => L1FunTypeable (a -> b) where
+  litFunTypeRep = L1FunType_cons l1typeRep litFunTypeRep
 
--- Build a NuMatching instance for LitFunType, needed for Liftable
-$(mkNuMatching [t| forall a. LitFunType a |])
+-- Build a NuMatching instance for L1FunType, needed for Liftable
+$(mkNuMatching [t| forall a. L1FunType a |])
 
--- Liftable instance, to lift LitFunTypes out of binding contexts
-instance Liftable (LitFunType a) where
-  mbLift [nuP| LitFunType_base ltp |] = LitFunType_base $ mbLift ltp
-  mbLift [nuP| LitFunType_cons ltp t |] = LitFunType_cons (mbLift ltp) (mbLift t)
+-- Liftable instance, to lift L1FunTypes out of binding contexts
+instance Liftable (L1FunType a) where
+  mbLift [nuP| L1FunType_base ltp |] = L1FunType_base $ mbLift ltp
+  mbLift [nuP| L1FunType_cons ltp t |] = L1FunType_cons (mbLift ltp) (mbLift t)
 
--- | Convert a 'LitFunType' to an 'LType'
-fun2typeRep :: LitFunType a -> LType a
-fun2typeRep (LitFunType_base ltp) = LType_Literal ltp
-fun2typeRep (LitFunType_cons ltp t) =
-  LType_Fun (LType_Literal ltp) (fun2typeRep t)
+-- | Convert an 'L1FunType' to an 'LType'
+fun2typeRep :: L1FunType a -> LType a
+fun2typeRep (L1FunType_base l1tp) = LType_base l1tp
+fun2typeRep (L1FunType_cons l1tp t) =
+  LType_fun (LType_base l1tp) (fun2typeRep t)
 
 
 ----------------------------------------------------------------------
@@ -446,9 +490,11 @@ data Op tag a where
   -- | Let-bindings are only allowed at the top level, i.e., in propositions
   Op_Let :: Typeable a => Op tag ((Literal a -> Prop) -> Prop)
   -- | Let-bind the result of reading from a 'Memory'
+  {-
   Op_LetRead :: ReadOp (Storables tag) args ret ->
                 Op tag (AddLitArrows args
                         (Memory (Storables tag) -> (ret -> Prop) -> Prop))
+   -}
 
   -- | Memory read operations
   Op_readP :: ReadOp (Storables tag) args ret ->
@@ -457,10 +503,17 @@ data Op tag a where
   Op_updateP :: UpdateOp (Storables tag) args ->
                 Op tag (AddLitArrows args (PM (Literal ())))
   -- | Assertions about the current 'Memory'
+  {-
   Op_assertP :: Op tag ((Literal (Memory (Storables tag)) -> Prop) ->
                         PM (Literal ()))
+   -}
+  Op_assertP :: Op tag (Prop -> PM (Literal ()))
   -- | Disjunctions
   Op_orP :: Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
+
+-- | Get the 'LType' of an 'Op'
+opLType :: Op tag a -> LType a
+opLType = error "write opLType!"
 
 -- Build a NuMatching instances for Op and friends
 $(mkNuMatching [t| ArithOp1 |])
@@ -510,7 +563,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_not |] = Op_not
   mbLift [nuP| Op_istrue |] = Op_istrue
   mbLift [nuP| Op_Let |] = Op_Let
-  mbLift [nuP| Op_LetRead read_op |] = Op_LetRead $ mbLift read_op
+  --mbLift [nuP| Op_LetRead read_op |] = Op_LetRead $ mbLift read_op
   mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
   mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
   mbLift [nuP| Op_assertP |] = Op_assertP
@@ -558,23 +611,24 @@ type instance ApplyToArgs f (a -> b) = f a -> ApplyToArgs f b
 
 -- | Build an eta-expanded term-building function
 etaBuild :: LType a -> LAppExpr tag a -> ApplyToArgs (LExpr tag) a
-etaBuild (LType_Literal ltp) e = LAppExpr e
-etaBuild LType_Ptr e = LAppExpr e
-etaBuild LType_Prop e = LAppExpr e
-etaBuild (LType_PM _) e = LAppExpr e
-etaBuild (LType_Fun _ tp2) e = \x -> etaBuild tp2 (LApp e x)
+etaBuild (LType_base (L1Type_lit _)) e = LAppExpr e
+etaBuild (LType_base L1Type_ptr) e = LAppExpr e
+etaBuild (LType_base L1Type_prop) e = LAppExpr e
+etaBuild (LType_base (L1Type_pm _)) e = LAppExpr e
+etaBuild (LType_fun _ tp2) e = \x -> etaBuild tp2 (LApp e x)
 
 -- | Helper function for building literal expressions
 mkLiteral :: (LitTypeable a, Liftable a) => a -> LExpr tag (Literal a)
 mkLiteral a =
-  etaBuild (LType_Literal litTypeRep) $ LOp $ Op_Literal litTypeRep a
+  etaBuild ltypeRep $ LOp $ Op_Literal litTypeRep a
 
 -- | Helper function for building expression functions from 'Op's
 mkOp :: LTypeable a => Op tag a -> ApplyToArgs (LExpr tag) a
 mkOp op = etaBuild ltypeRep (LOp op)
 
 -- Num instance allows us to use arithmetic operations to build expressions.
-instance (LitTypeable a, Liftable a, Num a) => Num (LExpr tag (Literal a)) where
+instance (LitTypeable a, Liftable a, Num a) =>
+         Num (LExpr tag (Literal a)) where
   (+) = mkOp (Op_arith2 litTypeRep Op2_Add)
   (-) = mkOp (Op_arith2 litTypeRep Op2_Sub)
   (*) = mkOp (Op_arith2 litTypeRep Op2_Mult)
@@ -615,3 +669,169 @@ interpAppExpr ctx [clNuP| LVar n |] =
 interpAppExpr ctx [clNuP| LOp op |] = interpOp (mbLift $ unClosed op)
 interpAppExpr ctx [clNuP| LApp f arg |] =
   interpApply (interpAppExpr ctx f) (interpExpr ctx arg)
+
+
+----------------------------------------------------------------------
+-- Expression interpretations that use the context
+----------------------------------------------------------------------
+
+-- | A @'CtxExt' ctx1 ctx2@ is a proof that @ctx2@ is an /extension/ of @ctx1@,
+-- meaning that the former is the result of inserting zero or more types into
+-- the latter, preserving the order of the remaining types.
+data CtxExt ctx1 ctx2 where
+  CtxExt_nil :: CtxExt RNil RNil
+  -- ^ Proof that the empty context extends the empty context
+  CtxExt_cons :: CtxExt ctx1 ctx2 -> CtxExt (ctx1 :> a) (ctx2 :> a)
+  -- ^ Proof that context extension is preserved by adding a type to both sides
+  CtxExt_insert :: CtxExt ctx1 ctx2 -> CtxExt ctx1 (ctx2 :> a)
+  -- ^ Proof step that inserts a type into the extended context
+
+-- | Build a proof that any context is an extension of itself from a proof that
+-- that context is an extension of some other context
+ctxExtRefl_right :: CtxExt ctx1 ctx2 -> CtxExt ctx2 ctx2
+ctxExtRefl_right CtxExt_nil = CtxExt_nil
+ctxExtRefl_right (CtxExt_cons ext) = CtxExt_cons $ ctxExtRefl_right ext
+ctxExtRefl_right (CtxExt_insert ext) = CtxExt_cons $ ctxExtRefl_right ext
+
+-- | The type of some 'CtxExt' proof for an extension of a given context, i.e.,
+-- existential quantification over the second type argument of 'CtxExt'
+data SomeCtxExt ctx1 where
+  SomeCtxExt :: CtxExt ctx1 ctx2 -> SomeCtxExt ctx1
+
+-- | Take a 'CtxExt' proof that @ctx1 :> a@ is extended by @ctx2@ and prove that
+-- @ctx1@ itself is extended by @ctx2@
+ctxExtSnocLeft :: CtxExt (ctx1 :> a) ctx2 -> CtxExt ctx1 ctx2
+ctxExtSnocLeft (CtxExt_cons ctx_ext) = CtxExt_insert ctx_ext
+ctxExtSnocLeft (CtxExt_insert ctx_ext) = CtxExt_insert $ ctxExtSnocLeft ctx_ext
+
+-- | Append two 'CtxExt' proofs
+ctxExtAppend :: CtxExt ctx1 ctx2 -> CtxExt ctx2 ctx3 -> CtxExt ctx1 ctx3
+ctxExtAppend CtxExt_nil ext2 = ext2
+ctxExtAppend ext1 (CtxExt_insert ext2) = CtxExt_insert $ ctxExtAppend ext1 ext2
+ctxExtAppend (CtxExt_cons ext1) (CtxExt_cons ext2) =
+  CtxExt_cons $ ctxExtAppend ext1 ext2
+ctxExtAppend (CtxExt_insert ext1) (CtxExt_cons ext2) =
+  CtxExt_insert $ ctxExtAppend ext1 ext2
+
+-- | The type of objects that are defined for all extensions of a given context
+newtype InExtCtx f ctx a =
+  InExtCtx { runInExtCtx :: forall ctx'. CtxExt ctx ctx' -> f ctx' a }
+
+-- | Lower an 'InExtCtx' into a context extended by a single variable type
+lowerInExtCtx1 :: InExtCtx f ctx b -> InExtCtx f (ctx :> a) b
+lowerInExtCtx1 inExtCtx =
+  InExtCtx $ \ctx_ext -> runInExtCtx inExtCtx (ctxExtSnocLeft ctx_ext)
+
+-- | Use a 'CtxExt' proof to lower the context of an 'InExtCtx'
+extendInExtCtx :: CtxExt ctx1 ctx2 -> InExtCtx f ctx1 a -> InExtCtx f ctx2 a
+extendInExtCtx ctx_ext inExtCtx =
+  InExtCtx $ \ctx_ext' -> runInExtCtx inExtCtx (ctxExtAppend ctx_ext ctx_ext')
+
+-- | Map the body of an 'InExtCtx's with a context-polymorphic function
+mapInExtCtx :: (forall ctx'. f ctx' a -> g ctx' b) ->
+               InExtCtx f ctx a -> InExtCtx g ctx b
+mapInExtCtx f inExtCtx =
+  InExtCtx $ \ctx_ext -> f $ runInExtCtx inExtCtx ctx_ext
+
+-- | Map the bodies of two 'InExtCtx's with a context-polymorphic function
+map2InExtCtx :: (forall ctx'. f ctx' a -> g ctx' b -> h ctx' c) ->
+                InExtCtx f ctx a -> InExtCtx g ctx b -> InExtCtx h ctx c
+map2InExtCtx f inExtCtx1 inExtCtx2 =
+  InExtCtx $ \ctx_ext ->
+  f (runInExtCtx inExtCtx1 ctx_ext) (runInExtCtx inExtCtx2 ctx_ext)
+
+-- | The result of interpreting a term of a given type in a given context, using
+-- a given type function @f@ on contexts and result types
+newtype InterpRes (f :: RList * -> * -> *) (ctx :: RList *) (a :: *) =
+  InterpRes { unInterpRes :: InExtCtx (InterpResH f) ctx a }
+
+-- | Helper type for 'InterpRes'
+data InterpResH (f :: RList * -> * -> *) (ctx :: RList *) (a :: *) where
+  InterpRes_base :: L1Type a -> f ctx a -> InterpResH f ctx a
+  InterpRes_fun :: (InterpRes f ctx a -> InterpRes f ctx b) ->
+                   InterpResH f ctx (a -> b)
+
+-- | Combine 'unInterpRes' with 'runInExtCtx' to apply an 'InterpRes' to a
+-- 'CtxExt' proof
+runInterpRes :: InterpRes f ctx a -> CtxExt ctx ctx' -> InterpResH f ctx' a
+runInterpRes interpRes = runInExtCtx $ unInterpRes interpRes
+
+-- | Lower an 'InterpRes' into a context with one more type
+lowerInterpRes1 :: InterpRes f ctx b -> InterpRes f (ctx :> a) b
+lowerInterpRes1 (InterpRes inExtCtx) = InterpRes $ lowerInExtCtx1 inExtCtx
+
+-- | Use a 'CtxExt' proof to lower the context of an 'InterpRes'
+extendInterpRes :: CtxExt ctx1 ctx2 -> InterpRes f ctx1 a -> InterpRes f ctx2 a
+extendInterpRes ctx_ext (InterpRes inExtCtx) =
+  InterpRes $ extendInExtCtx ctx_ext inExtCtx
+
+-- | Build a functional 'InterpRes'
+lambdaInterpRes :: (forall ctx'. CtxExt ctx ctx' ->
+                    InterpRes f ctx' a -> InterpRes f ctx' b) ->
+                   InterpRes f ctx (a -> b)
+lambdaInterpRes f =
+  InterpRes $ InExtCtx $ \ctx_ext -> InterpRes_fun $ f ctx_ext
+
+-- | Apply a functional 'InterpResH'
+applyInterpResH :: InterpResH f ctx (a -> b) -> InterpRes f ctx a ->
+                   InterpRes f ctx b
+applyInterpResH (InterpRes_fun f) arg = f arg
+
+-- | Apply a functional 'InterpRes'
+applyInterpRes :: InterpRes f ctx (a -> b) -> InterpRes f ctx a ->
+                  InterpRes f ctx b
+applyInterpRes f arg =
+  InterpRes $ InExtCtx $ \ctx_ext ->
+  runInterpRes (applyInterpResH (runInterpRes f ctx_ext) $
+                extendInterpRes ctx_ext arg) $
+  ctxExtRefl_right ctx_ext
+
+-- | Turn an 'InterpRes' function into an 'InterpRes' inside a binding; this is
+-- useful for writing 'interpOpC' functions
+bindingInterpRes :: InterpRes f ctx (b -> c) -> InterpRes f (ctx :> a) b ->
+                    InterpRes f (ctx :> a) c
+bindingInterpRes f arg =
+  applyInterpRes (lowerInterpRes1 f) arg
+
+-- | Build a functional 'InterpRes' from a function over 'InterpRes's
+buildInterpRes :: LType a -> (forall ctx'. CtxExt ctx ctx' ->
+                              ApplyToArgs (InterpResH f ctx') a) ->
+                  InterpRes f ctx a
+buildInterpRes (LType_base (L1Type_lit _)) body = InterpRes $ InExtCtx body
+buildInterpRes (LType_base L1Type_ptr) body = InterpRes $ InExtCtx body
+buildInterpRes (LType_base L1Type_prop) body = InterpRes $ InExtCtx body
+buildInterpRes (LType_base (L1Type_pm _)) body = InterpRes $ InExtCtx body
+buildInterpRes (LType_fun tp1 tp2) f =
+  InterpRes $ InExtCtx $ \ctx_ext -> InterpRes_fun $ \arg ->
+  buildInterpRes tp2 $ \ctx_ext' ->
+  f (ctxExtAppend ctx_ext ctx_ext') (runInterpRes arg ctx_ext')
+
+-- | A contextual expression @f@-algebra is like an expression @f@-algebra
+-- except that @f@ can depend on the current variable context
+class LCtxExprAlgebra tag (f :: RList * -> * -> *) where
+  interpOpC :: Proxy f -> Proxy ctx -> Op tag a -> ApplyToArgs (InterpResH f ctx) a
+
+-- | Interpret an 'LExpr' using a contextual @f@-algebra
+interpExprC :: LCtxExprAlgebra tag f =>
+               MapRList (InterpRes f any_ctx) ctx ->
+               Closed (Mb ctx (LExpr tag a)) -> InterpRes f any_ctx a
+interpExprC ctx [clNuP| LLambda _ body |] =
+  lambdaInterpRes $ \ctx_ext x ->
+  interpExprC (mapMapRList (extendInterpRes ctx_ext) ctx :>: x) $
+  clApply $(mkClosed [| mbCombine |]) body
+interpExprC ctx [clNuP| LAppExpr e |] = interpAppExprC ctx e
+
+-- | Interpret an 'LAppExpr' to another functor @f@ using an @f@-algebra
+interpAppExprC :: LCtxExprAlgebra tag f =>
+                  MapRList (InterpRes f any_ctx) ctx ->
+                  Closed (Mb ctx (LAppExpr tag a)) -> InterpRes f any_ctx a
+interpAppExprC ctx [clNuP| LVar n |] =
+  case clApply $(mkClosed [| mbNameBoundP |]) n of
+    [clP| Left memb |] -> hlistLookup (unClosed memb) ctx
+    [clP| Right closed_n |] -> noClosedNames closed_n
+interpAppExprC (ctx :: MapRList (InterpRes f any_ctx) ctx) [clNuP| LOp clmb_op |] =
+  let op = mbLift $ unClosed clmb_op in
+  buildInterpRes (opLType op) $ \(_ :: CtxExt _ ctx') ->
+  interpOpC (Proxy :: Proxy f) (Proxy :: Proxy ctx') op
+interpAppExprC ctx [clNuP| LApp f arg |] =
+  applyInterpRes (interpAppExprC ctx f) (interpExprC ctx arg)
