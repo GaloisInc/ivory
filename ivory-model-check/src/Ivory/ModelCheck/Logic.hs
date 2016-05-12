@@ -488,13 +488,13 @@ data Op tag a where
   Op_istrue  :: Op tag (Literal Bool -> Prop)
 
   -- | Universal quantification
-  Op_forall :: LitType a -> Op tag ((a -> Prop) -> Prop)
+  Op_forall :: L1Type a -> Op tag ((a -> Prop) -> Prop)
   -- | Existential quantification
-  Op_exists :: LitType a -> Op tag ((a -> Prop) -> Prop)
+  Op_exists :: L1Type a -> Op tag ((a -> Prop) -> Prop)
 
   -- | Let-bindings, which are only allowed at the top level, i.e., in
   -- propositions
-  Op_Let :: LitType a -> Op tag ((Literal a -> Prop) -> Prop)
+  Op_let :: L1Type a -> Op tag ((a -> Prop) -> Prop)
   -- | Let-bind the result of reading from a 'Memory'
   {-
   Op_LetRead :: ReadOp (Storables tag) args ret ->
@@ -502,18 +502,22 @@ data Op tag a where
                         (Memory (Storables tag) -> (ret -> Prop) -> Prop))
    -}
 
+  -- * Predicate monad operations
+
+  -- | Return in the predicate monad
+  Op_returnP :: L1Type a -> Op tag (a -> PM a)
+  -- | Bind in the predicate monad
+  Op_bindP :: L1Type a -> L1Type b -> Op tag (PM a -> (a -> PM b) -> PM b)
+  -- | Error in the predicate monad
+  Op_errorP :: Op tag (PM (Literal ()))
   -- | Memory read operations
   Op_readP :: ReadOp (Storables tag) args ret ->
               Op tag (AddLitArrows args (PM (Literal ret)))
   -- | Memory update operations
   Op_updateP :: UpdateOp (Storables tag) args ->
                 Op tag (AddLitArrows args (PM (Literal ())))
-  -- | Assertions about the current 'Memory'
-  {-
-  Op_assertP :: Op tag ((Literal (Memory (Storables tag)) -> Prop) ->
-                        PM (Literal ()))
-   -}
-  Op_assertP :: Op tag (Prop -> PM (Literal ()))
+  -- | Assumptions about the current execution
+  Op_assumeP :: Op tag (Prop -> PM (Literal ()))
   -- | Disjunctions
   Op_orP :: Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
 
@@ -568,11 +572,17 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_or |] = Op_or
   mbLift [nuP| Op_not |] = Op_not
   mbLift [nuP| Op_istrue |] = Op_istrue
-  mbLift [nuP| Op_Let |] = Op_Let
+  mbLift [nuP| Op_forall l1tp |] = Op_forall $ mbLift l1tp
+  mbLift [nuP| Op_exists l1tp |] = Op_exists $ mbLift l1tp
+  mbLift [nuP| Op_let l1tp |] = Op_let $ mbLift l1tp
   --mbLift [nuP| Op_LetRead read_op |] = Op_LetRead $ mbLift read_op
+  mbLift [nuP| Op_returnP l1tp |] = Op_returnP $ mbLift l1tp
+  mbLift [nuP| Op_bindP l1tp_a l1tp_b |] =
+    Op_bindP (mbLift l1tp_a) (mbLift l1tp_b)
+  mbLift [nuP| Op_errorP |] = Op_errorP
   mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
   mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
-  mbLift [nuP| Op_assertP |] = Op_assertP
+  mbLift [nuP| Op_assumeP |] = Op_assumeP
   mbLift [nuP| Op_orP |] = Op_orP
 
 
@@ -710,6 +720,14 @@ ctxExtSnocLeft :: CtxExt (ctx1 :> a) ctx2 -> CtxExt ctx1 ctx2
 ctxExtSnocLeft (CtxExt_cons ctx_ext) = CtxExt_insert ctx_ext
 ctxExtSnocLeft (CtxExt_insert ctx_ext) = CtxExt_insert $ ctxExtSnocLeft ctx_ext
 
+-- | Map a 'Member' proof to an extended context
+ctxExtMember :: CtxExt ctx1 ctx2 -> Member ctx1 a -> Member ctx2 a
+ctxExtMember CtxExt_nil memb = memb -- Technically, this is impossible...
+ctxExtMember (CtxExt_insert ext) memb = Member_Step $ ctxExtMember ext memb
+ctxExtMember (CtxExt_cons ext) Member_Base = Member_Base
+ctxExtMember (CtxExt_cons ext) (Member_Step memb) =
+  Member_Step $ ctxExtMember ext memb
+
 -- | Append two 'CtxExt' proofs
 ctxExtAppend :: CtxExt ctx1 ctx2 -> CtxExt ctx2 ctx3 -> CtxExt ctx1 ctx3
 ctxExtAppend CtxExt_nil ext2 = ext2
@@ -778,10 +796,17 @@ lambdaInterpRes :: (forall ctx'. CtxExt ctx ctx' ->
 lambdaInterpRes f =
   InterpRes $ InExtCtx $ \ctx_ext -> InterpRes_fun $ f ctx_ext
 
--- | Apply a functional 'InterpResH'
+-- | Extract the function from a functional 'InterpResH'
 applyInterpResH :: InterpResH f ctx (a -> b) -> InterpRes f ctx a ->
                    InterpRes f ctx b
-applyInterpResH (InterpRes_fun f) arg = f arg
+applyInterpResH (InterpRes_fun f) = f
+
+-- | Extract the @f ctx a@ from an 'InterpResH f ctx a' when @a@ is first-order
+extractInterpResH :: L1Type a -> InterpResH f ctx a -> f ctx a
+extractInterpResH (L1Type_lit _) (InterpRes_base _ res) = res
+extractInterpResH L1Type_ptr (InterpRes_base _ res) = res
+extractInterpResH L1Type_prop (InterpRes_base _ res) = res
+extractInterpResH (L1Type_pm _) (InterpRes_base _ res) = res
 
 -- | Apply a functional 'InterpRes'
 applyInterpRes :: InterpRes f ctx (a -> b) -> InterpRes f ctx a ->
@@ -792,30 +817,26 @@ applyInterpRes f arg =
                 extendInterpRes ctx_ext arg) $
   ctxExtRefl_right ctx_ext
 
--- | Turn an 'InterpRes' function into an 'InterpRes' inside a binding; this is
--- useful for writing 'interpOpC' functions
-bindingInterpRes :: InterpRes f ctx (b -> c) -> InterpRes f (ctx :> a) b ->
-                    InterpRes f (ctx :> a) c
-bindingInterpRes f arg =
-  applyInterpRes (lowerInterpRes1 f) arg
+-- | Turn an 'InterpRes' function into an 'InterpRes' inside a binding, assuming
+-- that we know how to make an object for variables of the bound type. Useful
+-- for writing 'interpOpC' functions.
+bindingInterpRes :: (forall ctx'. Member ctx' a -> InterpResH f ctx' a) ->
+                    InterpRes f ctx (a -> b) -> InterpRes f (ctx :> a) b
+bindingInterpRes mk_var f =
+  applyInterpRes (lowerInterpRes1 f) $
+  InterpRes $ InExtCtx $ \ctx_ext ->
+  mk_var $ ctxExtMember ctx_ext Member_Base
 
--- | Build a functional 'InterpRes' from a function over 'InterpRes's
-buildInterpRes :: LType a -> (forall ctx'. CtxExt ctx ctx' ->
-                              ApplyToArgs (InterpResH f ctx') a) ->
-                  InterpRes f ctx a
-buildInterpRes (LType_base (L1Type_lit _)) body = InterpRes $ InExtCtx body
-buildInterpRes (LType_base L1Type_ptr) body = InterpRes $ InExtCtx body
-buildInterpRes (LType_base L1Type_prop) body = InterpRes $ InExtCtx body
-buildInterpRes (LType_base (L1Type_pm _)) body = InterpRes $ InExtCtx body
-buildInterpRes (LType_fun tp1 tp2) f =
-  InterpRes $ InExtCtx $ \ctx_ext -> InterpRes_fun $ \arg ->
-  buildInterpRes tp2 $ \ctx_ext' ->
-  f (ctxExtAppend ctx_ext ctx_ext') (runInterpRes arg ctx_ext')
+-- | Specialized version of 'bindingInterpRes' for first-order types
+binding1InterpRes :: L1Type a -> (forall ctx'. Member ctx' a -> f ctx' a) ->
+                     InterpRes f ctx (a -> b) -> InterpRes f (ctx :> a) b
+binding1InterpRes l1tp mk_var f =
+  bindingInterpRes (InterpRes_base l1tp . mk_var) f
 
 -- | A contextual expression @f@-algebra is like an expression @f@-algebra
 -- except that @f@ can depend on the current variable context
 class LCtxExprAlgebra tag (f :: RList * -> * -> *) where
-  interpOpC :: Proxy f -> Proxy ctx -> Op tag a -> ApplyToArgs (InterpResH f ctx) a
+  interpOpC :: Proxy ctx -> Op tag a -> InterpRes f ctx a
 
 -- | Interpret an 'LExpr' using a contextual @f@-algebra. The 'LExpr' is a
 -- closed expression in a given source context. The result is an 'InterpRes'
@@ -839,7 +860,94 @@ interpAppExprC ctx [clNuP| LVar n |] =
     [clP| Right closed_n |] -> noClosedNames closed_n
 interpAppExprC (ctx :: MapRList (InterpRes f dest_ctx) ctx) [clNuP| LOp clmb_op |] =
   let op = mbLift $ unClosed clmb_op in
-  buildInterpRes (opLType op) $ \(_ :: CtxExt _ ctx') ->
-  interpOpC (Proxy :: Proxy f) (Proxy :: Proxy ctx') op
+  interpOpC (Proxy :: Proxy dest_ctx) op
 interpAppExprC ctx [clNuP| LApp f arg |] =
   applyInterpRes (interpAppExprC ctx f) (interpExprC ctx arg)
+
+
+----------------------------------------------------------------------
+-- Functions to build contextual f-algebras
+----------------------------------------------------------------------
+
+-- | Form the type @f (ctx :> a1 :> ... :> an) b@ for @a = a1 -> ... -> an -> b@
+type family AddArgTypesToCtx (f :: RList * -> * -> *) (ctx :: RList *) a :: *
+type instance AddArgTypesToCtx f ctx (Literal a) = f ctx (Literal a)
+type instance AddArgTypesToCtx f ctx Ptr = f ctx Ptr
+type instance AddArgTypesToCtx f ctx Prop = f ctx Prop
+type instance AddArgTypesToCtx f ctx (PM a) = f ctx (PM a)
+type instance AddArgTypesToCtx f ctx (a -> b) = AddArgTypesToCtx f (ctx :> a) b
+
+-- | Form the type
+--
+-- > f (ctx :> a_1_1 :> ... :> a_m1_1) b1 -> ... ->
+-- > f (ctx :> a_1_n :> ... :> a_mn_n) bn -> c
+--
+-- when @a@ has the form
+--
+-- > (a_1_1 -> ... -> a_m1_1 -> b1) -> ... ->
+-- > (a_1_n -> ... -> a_mn_n -> bn) -> c
+type family ApplyToArgsInCtx (f :: RList * -> * -> *) (ctx :: RList *) a :: *
+type instance ApplyToArgsInCtx f ctx (Literal a) = f ctx (Literal a)
+type instance ApplyToArgsInCtx f ctx Ptr = f ctx Ptr
+type instance ApplyToArgsInCtx f ctx Prop = f ctx Prop
+type instance ApplyToArgsInCtx f ctx (PM a) = f ctx (PM a)
+type instance ApplyToArgsInCtx f ctx (a -> b) =
+  AddArgTypesToCtx f ctx a -> ApplyToArgsInCtx f ctx b
+
+-- | General form for building interpretations of 'Op's. FIXME: this has not
+-- been written yet! FIXME: also, the variable-building function here should
+-- really be part of the LCtxExprAlgebra class...
+buildInterpRes :: LType a ->
+                  (forall ctx' a. LType a -> Member ctx' a -> f ctx' a) ->
+                  (forall ctx'. CtxExt ctx ctx' -> ApplyToArgsInCtx f ctx' a) ->
+                  InterpRes f ctx a
+buildInterpRes = error "write buildInterpRes!"
+
+-- | Helper function to build interpretations for a first-order operations
+buildFOInterpRes :: L1FunType a ->
+                    (forall ctx'. CtxExt ctx ctx' -> ApplyToArgs (f ctx') a) ->
+                    InterpRes f ctx a
+buildFOInterpRes (L1FunType_base l1tp@(L1Type_lit _)) x =
+  InterpRes $ InExtCtx $ InterpRes_base l1tp . x
+buildFOInterpRes (L1FunType_base l1tp@L1Type_ptr) x =
+  InterpRes $ InExtCtx $ InterpRes_base l1tp . x
+buildFOInterpRes (L1FunType_base l1tp@L1Type_prop) x =
+  InterpRes $ InExtCtx $ InterpRes_base l1tp . x
+buildFOInterpRes (L1FunType_base l1tp@(L1Type_pm _)) x =
+  InterpRes $ InExtCtx $ InterpRes_base l1tp . x
+buildFOInterpRes (L1FunType_cons l1tp_a tp_b) f =
+  lambdaInterpRes $ \ctx_ext x ->
+  buildFOInterpRes tp_b $ \ctx_ext' ->
+  f (ctxExtAppend ctx_ext ctx_ext') $
+  extractInterpResH l1tp_a $ runInterpRes x ctx_ext'
+
+-- | Helper function to build interpretations for quantifier operations, that
+-- have type @ (a -> Prop) -> Prop@
+buildQuantiferInterpRes :: L1Type a ->
+                           (forall ctx'. Member ctx' a -> f ctx' a) ->
+                           (forall ctx'. f (ctx' :> a) Prop -> f ctx' Prop) ->
+                           InterpRes f ctx ((a -> Prop) -> Prop)
+buildQuantiferInterpRes l1tp mk_var f =
+  lambdaInterpRes $ \ctx_ext body_interp ->
+  InterpRes $ InExtCtx $ \ctx_ext' ->
+  InterpRes_base L1Type_prop $ f $
+  extractInterpResH L1Type_prop $
+  runInterpRes (binding1InterpRes l1tp mk_var body_interp) $
+  CtxExt_cons ctx_ext'
+
+-- | Helper function to build an interpretation for 'Op_bindP'
+buildBindInterpRes :: L1Type a -> L1Type b ->
+                      (forall ctx'. Member ctx' a -> f ctx' a) ->
+                      (forall ctx'. f ctx' (PM a) -> f (ctx' :> a) (PM b) ->
+                       f ctx' (PM b)) ->
+                      InterpRes f ctx (PM a -> (a -> PM b) -> PM b)
+buildBindInterpRes l1tp_a l1tp_b mk_var f =
+  lambdaInterpRes $ \ctx_ext1 arg1 ->
+  lambdaInterpRes $ \ctx_ext2 arg2 ->
+  InterpRes $ InExtCtx $ \ctx_ext3 ->
+  InterpRes_base (L1Type_pm l1tp_b) $
+  f (extractInterpResH (L1Type_pm l1tp_a) $
+     runInterpRes arg1 $ ctxExtAppend ctx_ext2 ctx_ext3) $
+  extractInterpResH (L1Type_pm l1tp_b) $
+  runInterpRes (binding1InterpRes l1tp_a mk_var arg2) $
+  CtxExt_cons ctx_ext3
