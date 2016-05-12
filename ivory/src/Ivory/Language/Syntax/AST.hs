@@ -374,7 +374,12 @@ instance Num Expr where
   l - r         = ExpOp ExpSub [l,r]
   abs e         = ExpOp ExpAbs [e]
   signum e      = ExpOp ExpSignum [e]
-  negate e      = ExpOp ExpNegate [e]
+
+  negate (ExpLit (LitInteger i)) = ExpLit (LitInteger (negate i))
+  negate (ExpLit (LitFloat   f)) = ExpLit (LitFloat   (negate f))
+  negate (ExpLit (LitDouble  d)) = ExpLit (LitDouble  (negate d))
+  negate e                       = ExpOp ExpNegate [e]
+
   fromInteger i = ExpLit (LitInteger i)
 
 instance Bounded Expr where
