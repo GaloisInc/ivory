@@ -811,10 +811,12 @@ buildInterpRes (LType_fun tp1 tp2) f =
 class LCtxExprAlgebra tag (f :: RList * -> * -> *) where
   interpOpC :: Proxy f -> Proxy ctx -> Op tag a -> ApplyToArgs (InterpResH f ctx) a
 
--- | Interpret an 'LExpr' using a contextual @f@-algebra
+-- | Interpret an 'LExpr' using a contextual @f@-algebra. The 'LExpr' is a
+-- closed expression in a given source context. The result is an 'InterpRes'
+-- that is relative to a given destination context.
 interpExprC :: LCtxExprAlgebra tag f =>
-               MapRList (InterpRes f any_ctx) ctx ->
-               Closed (Mb ctx (LExpr tag a)) -> InterpRes f any_ctx a
+               MapRList (InterpRes f dest_ctx) ctx ->
+               Closed (Mb ctx (LExpr tag a)) -> InterpRes f dest_ctx a
 interpExprC ctx [clNuP| LLambda _ body |] =
   lambdaInterpRes $ \ctx_ext x ->
   interpExprC (mapMapRList (extendInterpRes ctx_ext) ctx :>: x) $
@@ -823,13 +825,13 @@ interpExprC ctx [clNuP| LAppExpr e |] = interpAppExprC ctx e
 
 -- | Interpret an 'LAppExpr' to another functor @f@ using an @f@-algebra
 interpAppExprC :: LCtxExprAlgebra tag f =>
-                  MapRList (InterpRes f any_ctx) ctx ->
-                  Closed (Mb ctx (LAppExpr tag a)) -> InterpRes f any_ctx a
+                  MapRList (InterpRes f dest_ctx) ctx ->
+                  Closed (Mb ctx (LAppExpr tag a)) -> InterpRes f dest_ctx a
 interpAppExprC ctx [clNuP| LVar n |] =
   case clApply $(mkClosed [| mbNameBoundP |]) n of
     [clP| Left memb |] -> hlistLookup (unClosed memb) ctx
     [clP| Right closed_n |] -> noClosedNames closed_n
-interpAppExprC (ctx :: MapRList (InterpRes f any_ctx) ctx) [clNuP| LOp clmb_op |] =
+interpAppExprC (ctx :: MapRList (InterpRes f dest_ctx) ctx) [clNuP| LOp clmb_op |] =
   let op = mbLift $ unClosed clmb_op in
   buildInterpRes (opLType op) $ \(_ :: CtxExt _ ctx') ->
   interpOpC (Proxy :: Proxy f) (Proxy :: Proxy ctx') op
