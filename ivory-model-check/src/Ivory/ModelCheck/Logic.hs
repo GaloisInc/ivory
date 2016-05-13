@@ -272,12 +272,12 @@ data L1FunType a where
 
 -- | Typeclass for 'L1FunType'
 class L1FunTypeable a where
-  litFunTypeRep :: L1FunType a
+  l1funTypeRep :: L1FunType a
 
 instance L1Typeable a => L1FunTypeable a where
-  litFunTypeRep = L1FunType_base l1typeRep
+  l1funTypeRep = L1FunType_base l1typeRep
 instance (L1Typeable a, L1FunTypeable b) => L1FunTypeable (a -> b) where
-  litFunTypeRep = L1FunType_cons l1typeRep litFunTypeRep
+  l1funTypeRep = L1FunType_cons l1typeRep l1funTypeRep
 
 -- Build a NuMatching instance for L1FunType, needed for Liftable
 $(mkNuMatching [t| forall a. L1FunType a |])
@@ -904,22 +904,28 @@ buildInterpRes :: LType a ->
 buildInterpRes = error "write buildInterpRes!"
 
 -- | Helper function to build interpretations for a first-order operations
-buildFOInterpRes :: L1FunType a ->
-                    (forall ctx'. CtxExt ctx ctx' -> ApplyToArgs (f ctx') a) ->
-                    InterpRes f ctx a
-buildFOInterpRes (L1FunType_base l1tp@(L1Type_lit _)) x =
+buildFOInterpResH :: L1FunType a ->
+                     (forall ctx'. CtxExt ctx ctx' -> ApplyToArgs (f ctx') a) ->
+                     InterpRes f ctx a
+buildFOInterpResH (L1FunType_base l1tp@(L1Type_lit _)) x =
   InterpRes $ InExtCtx $ InterpRes_base l1tp . x
-buildFOInterpRes (L1FunType_base l1tp@L1Type_ptr) x =
+buildFOInterpResH (L1FunType_base l1tp@L1Type_ptr) x =
   InterpRes $ InExtCtx $ InterpRes_base l1tp . x
-buildFOInterpRes (L1FunType_base l1tp@L1Type_prop) x =
+buildFOInterpResH (L1FunType_base l1tp@L1Type_prop) x =
   InterpRes $ InExtCtx $ InterpRes_base l1tp . x
-buildFOInterpRes (L1FunType_base l1tp@(L1Type_pm _)) x =
+buildFOInterpResH (L1FunType_base l1tp@(L1Type_pm _)) x =
   InterpRes $ InExtCtx $ InterpRes_base l1tp . x
-buildFOInterpRes (L1FunType_cons l1tp_a tp_b) f =
+buildFOInterpResH (L1FunType_cons l1tp_a tp_b) f =
   lambdaInterpRes $ \ctx_ext x ->
-  buildFOInterpRes tp_b $ \ctx_ext' ->
+  buildFOInterpResH tp_b $ \ctx_ext' ->
   f (ctxExtAppend ctx_ext ctx_ext') $
   extractInterpResH l1tp_a $ runInterpRes x ctx_ext'
+
+-- | Helper function to build interpretations for a first-order operations
+buildFOInterpRes :: L1FunTypeable a =>
+                    (forall ctx'. CtxExt ctx ctx' -> ApplyToArgs (f ctx') a) ->
+                    InterpRes f ctx a
+buildFOInterpRes f = buildFOInterpResH l1funTypeRep f
 
 -- | Helper function to build interpretations for quantifier operations, that
 -- have type @ (a -> Prop) -> Prop@
