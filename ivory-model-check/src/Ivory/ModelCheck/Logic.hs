@@ -436,8 +436,10 @@ updateMemory (UpdateOp_alloc elem_pf) mem
 ----------------------------------------------------------------------
 
 -- | Type class associating meta-data with @tag@ that is needed by our logic
-class MemoryModel (Storables tag) => LExprTag tag where
-  type Storables tag :: [*]
+class (MemoryModel (LStorables tag),
+       Eq (LException tag)) => LExprTag tag where
+  type LStorables tag :: [*]
+  type LException tag :: *
 
 -- | Type family to add a list of types as arguments to a function return type
 type family AddLitArrows (args :: [*]) (ret :: *) :: *
@@ -497,9 +499,9 @@ data Op tag a where
   Op_let :: L1Type a -> Op tag ((a -> Prop) -> Prop)
   -- | Let-bind the result of reading from a 'Memory'
   {-
-  Op_LetRead :: ReadOp (Storables tag) args ret ->
+  Op_LetRead :: ReadOp (LStorables tag) args ret ->
                 Op tag (AddLitArrows args
-                        (Memory (Storables tag) -> (ret -> Prop) -> Prop))
+                        (Memory (LStorables tag) -> (ret -> Prop) -> Prop))
    -}
 
   -- * Predicate monad operations
@@ -508,14 +510,19 @@ data Op tag a where
   Op_returnP :: L1Type a -> Op tag (a -> PM a)
   -- | Bind in the predicate monad
   Op_bindP :: L1Type a -> L1Type b -> Op tag (PM a -> (a -> PM b) -> PM b)
-  -- | Error in the predicate monad
-  Op_errorP :: Op tag (PM (Literal ()))
   -- | Memory read operations
-  Op_readP :: ReadOp (Storables tag) args ret ->
+  Op_readP :: ReadOp (LStorables tag) args ret ->
               Op tag (AddLitArrows args (PM (Literal ret)))
   -- | Memory update operations
-  Op_updateP :: UpdateOp (Storables tag) args ->
+  Op_updateP :: UpdateOp (LStorables tag) args ->
                 Op tag (AddLitArrows args (PM (Literal ())))
+  -- | Raise an exception in the predicate monad. The 'Nothing' exception
+  -- represents an un-catchable error
+  Op_raiseP :: Liftable (LException tag) => Maybe (LException tag) ->
+               Op tag (PM (Literal ()))
+  -- | Catch an exception
+  Op_catchP :: Liftable (LException tag) => LException tag ->
+               Op tag (PM (Literal ()))
   -- | Assumptions about the current execution
   Op_assumeP :: Op tag (Prop -> PM (Literal ()))
   -- | Disjunctions
@@ -579,10 +586,12 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_returnP l1tp |] = Op_returnP $ mbLift l1tp
   mbLift [nuP| Op_bindP l1tp_a l1tp_b |] =
     Op_bindP (mbLift l1tp_a) (mbLift l1tp_b)
-  mbLift [nuP| Op_errorP |] = Op_errorP
   mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
   mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
   mbLift [nuP| Op_assumeP |] = Op_assumeP
+  mbLift [nuP| Op_raiseP (Just exc) |] = Op_raiseP $ Just $ mbLift exc
+  mbLift [nuP| Op_raiseP Nothing |] = Op_raiseP Nothing
+  mbLift [nuP| Op_catchP exc |] = Op_catchP $ mbLift exc
   mbLift [nuP| Op_orP |] = Op_orP
 
 
