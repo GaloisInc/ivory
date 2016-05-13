@@ -494,7 +494,7 @@ exp : integer            { let TokInteger i = unLoc $1 in
     | '*' exp              { LocExp (atBin (ExpDeref $2) $1 $2) }
     | exp '@' exp          { LocExp (atBin (ExpArray $1 $3) $1 $3) }
     | exp '[' exp ']'      { LocExp (atBin (ExpDeref (ExpArray $1 $3)) $1 $3) }
-     | exp '.' exp         { LocExp (atBin (ExpStruct $1 $3) $1 $3) }
+    | exp '.' exp          { LocExp (atBin (ExpStruct $1 $3) $1 $3) }
     | exp '->' exp         { LocExp (atBin (ExpDeref (ExpStruct $1 $3)) $1 $3) }
     | '&' ident            { LocExp (atBin (ExpAddrOf (unLoc $2)) $1 $2) }
 
