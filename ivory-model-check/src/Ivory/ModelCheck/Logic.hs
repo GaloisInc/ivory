@@ -119,8 +119,6 @@ data LitType a where
   LitType_bool :: LitType Bool
   -- ^ The type of Booleans that can be computed; i.e., not the type of
   -- formulas. For formulas (e.g., that contain quantifiers), use 'Prop'.
-  LitType_string :: LitType String
-  -- ^ The type of strings
   LitType_int :: LitType Integer
   -- ^ Our logic also has support for unbounded integers
   LitType_bits :: (Typeable a, FiniteBits a) => LitType a
@@ -135,7 +133,6 @@ instance LitTypeable Bool where litTypeRep = LitType_bool
 instance LitTypeable Integer where litTypeRep = LitType_int
 --instance (Typeable a, FiniteBits a) => LitTypeable a where
 --  litTypeRep = LitType_bits
-instance LitTypeable [Char] where litTypeRep = LitType_string
 
 -- Build a NuMatching instance for LitType, needed for Liftable
 $(mkNuMatching [t| forall a. LitType a |])
@@ -146,7 +143,6 @@ instance Liftable (LitType a) where
   mbLift [nuP| LitType_bool |] = LitType_bool
   mbLift [nuP| LitType_int |] = LitType_int
   mbLift [nuP| LitType_bits |] = LitType_bits
-  mbLift [nuP| LitType_string |] = LitType_string
 
 -- | Test if two 'LitType's are equal
 litTypeEq :: LitType a -> LitType b -> Maybe (a :~: b)
@@ -158,8 +154,6 @@ litTypeEq LitType_int LitType_int = Just Refl
 litTypeEq LitType_int _ = Nothing
 litTypeEq LitType_bits LitType_bits = eqT
 litTypeEq LitType_bits _ = Nothing
-litTypeEq LitType_string LitType_string = Just Refl
-litTypeEq LitType_string _ = Nothing
 
 
 ----------------------------------------------------------------------
