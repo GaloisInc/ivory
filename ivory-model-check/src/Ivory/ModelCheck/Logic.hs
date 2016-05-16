@@ -15,7 +15,6 @@ import Data.Typeable
 import Data.Int
 import Data.Word
 import Data.List
--- import qualified Data.Bits as Bits
 import Numeric.Natural
 import Data.Functor.Identity
 
@@ -121,7 +120,7 @@ data LitType a where
   -- formulas. For formulas (e.g., that contain quantifiers), use 'Prop'.
   LitType_int :: LitType Integer
   -- ^ Our logic also has support for unbounded integers
-  LitType_bits :: (Typeable a, FiniteBits a) => LitType a
+  LitType_bits :: (Typeable a, Integral a, FiniteBits a) => LitType a
   -- ^ Any bit-vector type can be used as a literal type
 
 -- | Typeclass for 'LitType'
