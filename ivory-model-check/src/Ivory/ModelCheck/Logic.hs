@@ -130,6 +130,7 @@ class LitTypeable a where
 instance LitTypeable () where litTypeRep = LitType_unit
 instance LitTypeable Bool where litTypeRep = LitType_bool
 instance LitTypeable Integer where litTypeRep = LitType_int
+instance LitTypeable Word64 where litTypeRep = LitType_bits
 --instance (Typeable a, FiniteBits a) => LitTypeable a where
 --  litTypeRep = LitType_bits
 
@@ -441,9 +442,9 @@ class (MemoryModel (LStorables tag),
   type LException tag :: *
 
 -- | Type family to add a list of types as arguments to a function return type
-type family AddLitArrows (args :: [*]) (ret :: *) :: *
-type instance AddLitArrows '[] ret = ret
-type instance AddLitArrows (a ': args) ret = Literal a -> AddLitArrows args ret
+type family AddArrows (args :: [*]) (ret :: *) :: *
+type instance AddArrows '[] ret = ret
+type instance AddArrows (a ': args) ret = a -> AddArrows args ret
 
 -- | The unary arithmetic operations
 data ArithOp1 = Op1_Abs | Op1_Signum | Op1_Neg | Op1_Complement
@@ -499,7 +500,7 @@ data Op tag a where
   -- | Let-bind the result of reading from a 'Memory'
   {-
   Op_LetRead :: ReadOp (LStorables tag) args ret ->
-                Op tag (AddLitArrows args
+                Op tag (AddArrows args
                         (Memory (LStorables tag) -> (ret -> Prop) -> Prop))
    -}
 
@@ -511,17 +512,17 @@ data Op tag a where
   Op_bindP :: L1Type a -> L1Type b -> Op tag (PM a -> (a -> PM b) -> PM b)
   -- | Memory read operations
   Op_readP :: ReadOp (LStorables tag) args ret ->
-              Op tag (AddLitArrows args (PM (Literal ret)))
+              Op tag (AddArrows args (PM ret))
   -- | Memory update operations
   Op_updateP :: UpdateOp (LStorables tag) args ->
-                Op tag (AddLitArrows args (PM (Literal ())))
+                Op tag (AddArrows args (PM (Literal ())))
   -- | Raise an exception in the predicate monad. The 'Nothing' exception
   -- represents an un-catchable error
   Op_raiseP :: Liftable (LException tag) => Maybe (LException tag) ->
                Op tag (PM (Literal ()))
   -- | Catch an exception
   Op_catchP :: Liftable (LException tag) => LException tag ->
-               Op tag (PM (Literal ()))
+               Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
   -- | Assumptions about the current execution
   Op_assumeP :: Op tag (Prop -> PM (Literal ()))
   -- | Disjunctions
