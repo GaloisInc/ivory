@@ -161,7 +161,7 @@ litTypeEq LitType_bits _ = Nothing
 ----------------------------------------------------------------------
 
 -- | A GADT for the /first-order types/ in our logic, which are the types that
--- are not function types
+-- are not function types or transition relations.
 data L1Type a where
   L1Type_lit :: LitType a -> L1Type (Literal a)
   -- ^ The type @'Literal' a@ is a first-order type when @a@ is a literal type
@@ -171,8 +171,6 @@ data L1Type a where
   L1Type_prop :: L1Type Prop
   -- ^ The type of formulas that may or may not be decidable; e.g., formulas
   -- with quantifiers
-  L1Type_pm :: L1Type a -> L1Type (PM a)
-  -- ^ The type of transition relations, using a predicate monad
 
 -- | Typeclass for 'L1Type'
 class L1Typeable a where
@@ -182,8 +180,6 @@ instance LitTypeable a => L1Typeable (Literal a) where
   l1typeRep = L1Type_lit litTypeRep
 instance L1Typeable Ptr where l1typeRep = L1Type_ptr
 instance L1Typeable Prop where l1typeRep = L1Type_prop
-instance L1Typeable a => L1Typeable (PM a) where
-  l1typeRep = L1Type_pm l1typeRep
 
 -- Build a NuMatching instance for L1Type, needed for Liftable
 $(mkNuMatching [t| forall a. L1Type a |])
@@ -193,7 +189,6 @@ instance Liftable (L1Type a) where
   mbLift [nuP| L1Type_lit ltp |] = L1Type_lit $ mbLift ltp
   mbLift [nuP| L1Type_ptr |] = L1Type_ptr
   mbLift [nuP| L1Type_prop |] = L1Type_prop
-  mbLift [nuP| L1Type_pm l1tp |] = L1Type_pm $ mbLift l1tp
 
 -- | Test if two 'L1Type's are equal
 l1TypeEq :: L1Type a -> L1Type b -> Maybe (a :~: b)
@@ -206,11 +201,6 @@ l1TypeEq L1Type_ptr L1Type_ptr = Just Refl
 l1TypeEq L1Type_ptr _ = Nothing
 l1TypeEq L1Type_prop L1Type_prop = Just Refl
 l1TypeEq L1Type_prop _ = Nothing
-l1TypeEq (L1Type_pm tp1) (L1Type_pm tp2) =
-  case l1TypeEq tp1 tp2 of
-    Just Refl -> Just Refl
-    _ -> Nothing
-l1TypeEq (L1Type_pm _) _ = Nothing
 
 
 ----------------------------------------------------------------------
@@ -223,6 +213,8 @@ data LType (a :: *) where
   -- ^ Any first-order type is a type
   LType_fun :: LType a -> LType b -> LType (a -> b)
   -- ^ Function types
+  LType_pm :: L1Type a -> LType (PM a)
+  -- ^ The type of transition relations, using a predicate monad
 
 -- | Typeclass for 'LType'
 class LTypeable a where
@@ -235,7 +227,7 @@ instance LitTypeable a => LTypeable (Literal a) where
 instance LTypeable Ptr where ltypeRep = LType_base $ l1typeRep
 instance LTypeable Prop where ltypeRep = LType_base $ l1typeRep
 instance L1Typeable a => LTypeable (PM a) where
-  ltypeRep = LType_base $ l1typeRep
+  ltypeRep = LType_pm l1typeRep
 instance (LTypeable a, LTypeable b) => LTypeable (a -> b) where
   ltypeRep = LType_fun ltypeRep ltypeRep
 
@@ -246,6 +238,7 @@ $(mkNuMatching [t| forall a. LType a |])
 instance Liftable (LType a) where
   mbLift [nuP| LType_base l1tp |] = LType_base $ mbLift l1tp
   mbLift [nuP| LType_fun t1 t2 |] = LType_fun (mbLift t1) (mbLift t2)
+  mbLift [nuP| LType_pm l1tp |] = LType_pm $ mbLift l1tp
 
 -- | Test if two 'LType's are equal
 ltypeEq :: LType a -> LType b -> Maybe (a :~: b)
@@ -259,6 +252,11 @@ ltypeEq (LType_fun t1 t1') (LType_fun t2 t2') =
     (Just Refl, Just Refl) -> Just Refl
     _ -> Nothing
 ltypeEq (LType_fun _ _) _ = Nothing
+ltypeEq (LType_pm tp1) (LType_pm tp2) =
+  case l1TypeEq tp1 tp2 of
+    Just Refl -> Just Refl
+    _ -> Nothing
+ltypeEq (LType_pm _) _ = Nothing
 
 
 ----------------------------------------------------------------------
@@ -451,7 +449,7 @@ data ArithOp1 = Op1_Abs | Op1_Signum | Op1_Neg | Op1_Complement
 
 -- | The binary arithmetic operations
 data ArithOp2
-  = Op2_Add | Op2_Sub | Op2_Mult | Op2_Div | Op2_Mod
+  = Op2_Add | Op2_Sub | Op2_Mult | Op2_Div | Op2_Mod | Op2_Rem
   | Op2_BitAnd | Op2_BitOr | Op2_BitXor
 
 -- | The arithmetic comparison operations
@@ -553,6 +551,7 @@ instance Liftable ArithOp2 where
   mbLift [nuP| Op2_Mult |] = Op2_Mult
   mbLift [nuP| Op2_Div |] = Op2_Div
   mbLift [nuP| Op2_Mod |] = Op2_Mod
+  mbLift [nuP| Op2_Rem |] = Op2_Rem
   mbLift [nuP| Op2_BitAnd |] = Op2_BitAnd
   mbLift [nuP| Op2_BitOr |] = Op2_BitOr
   mbLift [nuP| Op2_BitXor |] = Op2_BitXor
@@ -639,7 +638,6 @@ etaBuild :: LType a -> LAppExpr tag a -> ApplyToArgs (LExpr tag) a
 etaBuild (LType_base (L1Type_lit _)) e = LAppExpr e
 etaBuild (LType_base L1Type_ptr) e = LAppExpr e
 etaBuild (LType_base L1Type_prop) e = LAppExpr e
-etaBuild (LType_base (L1Type_pm _)) e = LAppExpr e
 etaBuild (LType_fun _ tp2) e = \x -> etaBuild tp2 (LApp e x)
 
 -- | Helper function for building literal expressions
@@ -783,6 +781,7 @@ data InterpResH (f :: RList * -> * -> *) (ctx :: RList *) (a :: *) where
   InterpRes_base :: L1Type a -> f ctx a -> InterpResH f ctx a
   InterpRes_fun :: (InterpRes f ctx a -> InterpRes f ctx b) ->
                    InterpResH f ctx (a -> b)
+  InterpRes_pm :: f ctx (PM a) -> InterpResH f ctx (PM a)
 
 -- | Combine 'unInterpRes' with 'runInExtCtx' to apply an 'InterpRes' to a
 -- 'CtxExt' proof
@@ -815,7 +814,13 @@ extractInterpResH :: L1Type a -> InterpResH f ctx a -> f ctx a
 extractInterpResH (L1Type_lit _) (InterpRes_base _ res) = res
 extractInterpResH L1Type_ptr (InterpRes_base _ res) = res
 extractInterpResH L1Type_prop (InterpRes_base _ res) = res
-extractInterpResH (L1Type_pm _) (InterpRes_base _ res) = res
+
+-- | Extract the @f ctx (PM a) @ from an 'InterpResH f ctx (PM a)'
+extractInterpResH_pm :: InterpResH f ctx (PM a) -> f ctx (PM a)
+extractInterpResH_pm (InterpRes_pm res) = res
+extractInterpResH_pm (InterpRes_base _ res) =
+  -- NOTE: this case is actually impossible, but we don't really care...
+  res
 
 -- | Apply a functional 'InterpRes'
 applyInterpRes :: InterpRes f ctx (a -> b) -> InterpRes f ctx a ->
@@ -922,8 +927,6 @@ buildFOInterpResH (L1FunType_base l1tp@L1Type_ptr) x =
   InterpRes $ InExtCtx $ InterpRes_base l1tp . x
 buildFOInterpResH (L1FunType_base l1tp@L1Type_prop) x =
   InterpRes $ InExtCtx $ InterpRes_base l1tp . x
-buildFOInterpResH (L1FunType_base l1tp@(L1Type_pm _)) x =
-  InterpRes $ InExtCtx $ InterpRes_base l1tp . x
 buildFOInterpResH (L1FunType_cons l1tp_a tp_b) f =
   lambdaInterpRes $ \ctx_ext x ->
   buildFOInterpResH tp_b $ \ctx_ext' ->
@@ -960,9 +963,9 @@ buildBindInterpRes l1tp_a l1tp_b mk_var f =
   lambdaInterpRes $ \ctx_ext1 arg1 ->
   lambdaInterpRes $ \ctx_ext2 arg2 ->
   InterpRes $ InExtCtx $ \ctx_ext3 ->
-  InterpRes_base (L1Type_pm l1tp_b) $
-  f (extractInterpResH (L1Type_pm l1tp_a) $
+  InterpRes_pm $
+  f (extractInterpResH_pm $
      runInterpRes arg1 $ ctxExtAppend ctx_ext2 ctx_ext3) $
-  extractInterpResH (L1Type_pm l1tp_b) $
+  extractInterpResH_pm $
   runInterpRes (binding1InterpRes l1tp_a mk_var arg2) $
   CtxExt_cons ctx_ext3
