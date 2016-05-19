@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, GeneralizedNewtypeDeriving, MultiParamTypeClasses,
-    FlexibleInstances, FlexibleContexts, ScopedTypeVariables,
+    FlexibleInstances, FlexibleContexts, ScopedTypeVariables, UndecidableInstances,
     TypeOperators, DataKinds, EmptyCase, NamedFieldPuns,
     TemplateHaskell, QuasiQuotes, ViewPatterns, RankNTypes #-}
 
@@ -69,12 +69,23 @@ class Z3Type1able a where
 
 instance LitTypeable a => Z3Type1able (Literal a) where
   z3type1Rep = Z3Type_lit litTypeRep
+instance Z3Type1able Ptr where  z3type1Rep = Z3Type_ptr
+instance Z3Type1able Prop where  z3type1Rep = Z3Type_prop
 
 -- | Higher-order Z3 types. Note that the use of 'Z3Type1' in the domains of
 -- function types technically means these are second-order types.
 data Z3Type a where
   Z3Type_base :: Z3Type1 a -> Z3Type a
   Z3Type_fun :: Z3Type1 a -> Z3Type b -> Z3Type (a -> b)
+
+-- | Typeclass version of 'Z3Type'
+class Z3Typeable a where
+  z3typeRep :: Z3Type a
+
+instance Z3Type1able a => Z3Typeable a where
+  z3typeRep = Z3Type_base z3type1Rep
+instance (Z3Type1able a, Z3Typeable b) => Z3Typeable (a -> b) where
+  z3typeRep = Z3Type_fun z3type1Rep z3typeRep
 
 -- | Convert a @'Z3Type1' a@ to an @'L1Type' a@
 z3type1_to_l1type :: Z3Type1 a -> L1Type a
@@ -153,13 +164,28 @@ data Z3AppliedOp a where
 z3fdecl :: Z3Type a -> Z3.FuncDecl -> Z3Expr a
 z3fdecl z3tp fdecl = Z3Expr_op $ Z3Expr_fdecl z3tp fdecl
 
+-- Use the Z3 operations to build a Num instance for any Z3Expr type
+instance (Num a, LitTypeable a) => Num (Z3Expr (Literal a)) where
+  e1 + e2 = Z3Expr_multi z3type1Rep z3type1Rep Z3.mkAdd [e1,e2]
+  e1 - e2 = Z3Expr_multi z3type1Rep z3type1Rep Z3.mkSub [e1,e2]
+  e1 * e2 = Z3Expr_multi z3type1Rep z3type1Rep Z3.mkMul [e1,e2]
+  negate e = Z3Expr_op (Z3Expr_op1 z3type1Rep z3type1Rep Z3.mkUnaryMinus) @@ e
+  abs e = error "Z3 absolute value function not (yet?) supported"
+  signum e = error "Z3 signum function not (yet?) supported"
+  fromInteger i = Z3Expr_lit litTypeRep $ fromInteger i
+
+-- | Increment a pointer expression (used to bump the free pointer)
+z3ptr_incr :: Z3Expr (Ptr -> Ptr)
+z3ptr_incr = Z3Expr_op $ Z3Expr_op1 z3type1Rep z3type1Rep $ \ast ->
+  Z3.mkInteger 1 >>= \i -> Z3.mkAdd [ast, i]
+
 
 ----------------------------------------------------------------------
 -- The Z3 representation of memory
 ----------------------------------------------------------------------
 
 -- | The Z3 representation of memory arrays of a given type
-data Z3MemFun a = Z3MemFun (Z3Type1 a) Z3.FuncDecl
+data Z3MemFun a = Z3MemFun (LitType a) Z3.FuncDecl
 
 -- | The representation of a 'Memory' in Z3
 data Z3Memory mm =
@@ -176,19 +202,19 @@ data Z3Memory mm =
   }
 
 -- | The type of a function used in the 'z3memArrays' field
-type Z3MemArrayType a = Ptr -> Literal Word64 -> a
+type Z3MemArrayType a = Ptr -> Literal Word64 -> Literal a
 
 -- | The 'Z3Type' of a function used in the 'z3memArrays' field
-z3memArrayType :: Z3Type1 a -> Z3Type (Z3MemArrayType a)
-z3memArrayType z3tp1 =
+z3memArrayType :: LitType a -> Z3Type (Z3MemArrayType a)
+z3memArrayType ltp =
   Z3Type_fun Z3Type_ptr $ Z3Type_fun (Z3Type_lit LitType_bits) $
-  Z3Type_base z3tp1
+  Z3Type_base $ Z3Type_lit ltp
 
 -- | Extract a typed expression for the 'z3memArrays' field of a 'Z3Memory'
 z3memArrayExpr :: ElemPf mm a -> Z3Memory mm -> Z3Expr (Z3MemArrayType a)
 z3memArrayExpr elem_pf mem =
   case ml_lookup (z3memArrays mem) elem_pf of
-    Z3MemFun z3tp1 fdecl -> z3fdecl (z3memArrayType z3tp1) fdecl
+    Z3MemFun ltp fdecl -> z3fdecl (z3memArrayType ltp) fdecl
 
 -- | The type of a function used in the 'z3memPtrArray' field
 type Z3MemPtrArrayType = Ptr -> Literal Word64 -> Ptr -> Prop
@@ -235,9 +261,7 @@ z3memLastAllocExpr mem = Z3Expr_ast Z3Type_ptr $ z3memLastAlloc mem
 -- of 'Z3Expr' ensures that quantifiers only occur strictly positively.
 data Z3Prop where
   Z3Prop_forall :: Z3Type1 a -> Binding a Z3Prop -> Z3Prop
-  -- NOTE: existential quantifiers can only happen at the top level, not inside
-  -- of universals
-  -- Z3Prop_exists :: Z3Type1 a -> Binding a Z3Prop -> Z3Prop
+  Z3Prop_exists :: Z3Type1 a -> Binding a Z3Prop -> Z3Prop
   Z3Prop_and :: [Z3Prop] -> Z3Prop
   Z3Prop_or :: [Z3Prop] -> Z3Prop
   Z3Prop_expr :: Z3Expr Prop -> Z3Prop
@@ -247,6 +271,10 @@ data Z3Prop where
 -- | Build a universal quantifier
 z3forall :: Z3Type1 a -> (Z3Expr a -> Z3Prop) -> Z3Prop
 z3forall tp1 body_f = Z3Prop_forall tp1 $ nu $ \n -> body_f $ Z3Expr_var tp1 n
+
+-- | Build an existential quantifier
+z3exists :: Z3Type1 a -> (Z3Expr a -> Z3Prop) -> Z3Prop
+z3exists tp1 body_f = Z3Prop_exists tp1 $ nu $ \n -> body_f $ Z3Expr_var tp1 n
 
 -- | Build a proposition that two expressions are equal
 z3equals :: Z3Type a -> Z3Expr a -> Z3Expr a -> Z3Prop
@@ -280,6 +308,20 @@ z3or props =
 z3and :: [Z3Prop] -> Z3Prop
 z3and props = Z3Prop_and props
 
+-- | Smart construct for negation: puts a proposition in negation normal form
+z3not :: Z3Prop -> Z3Prop
+z3not (Z3Prop_forall z3tp1 body) =
+  Z3Prop_exists z3tp1 $ fmap z3not body
+z3not (Z3Prop_exists z3tp1 body) =
+  Z3Prop_forall z3tp1 $ fmap z3not body
+z3not (Z3Prop_and props) = Z3Prop_or $ map z3not props
+z3not (Z3Prop_or props) = Z3Prop_and $ map z3not props
+z3not Z3Prop_true = Z3Prop_false
+z3not Z3Prop_false = Z3Prop_true
+z3not (Z3Prop_expr e) =
+  Z3Prop_expr $ Z3Expr_op $
+  Z3Expr_app (Z3Expr_op1 Z3Type_prop Z3Type_prop Z3.mkNot) e
+
 -- | Make the proposition that two 'Z3Memory's are equal
 z3memEquals :: Z3Memory mm -> Z3Memory mm -> Z3Prop
 z3memEquals mem1 mem2 =
@@ -292,8 +334,8 @@ z3memEquals mem1 mem2 =
   where
     memArraysEqual :: MapList Z3MemFun mm -> MapList Z3MemFun mm -> [Z3Prop]
     memArraysEqual Nil Nil = []
-    memArraysEqual (Cons (Z3MemFun tp1 f1) as1) (Cons (Z3MemFun _ f2) as2) =
-      eq_helper z3fdecl (z3memArrayType tp1) f1 f2 : memArraysEqual as1 as2
+    memArraysEqual (Cons (Z3MemFun ltp f1) as1) (Cons (Z3MemFun _ f2) as2) =
+      eq_helper z3fdecl (z3memArrayType ltp) f1 f2 : memArraysEqual as1 as2
     eq_helper :: Eq ast => (Z3Type a -> ast -> Z3Expr a) ->
                  Z3Type a -> ast -> ast -> Z3Prop
     eq_helper expr_f tp ast1 ast2 =
@@ -332,35 +374,19 @@ instance Monad WithZ3Decls where
   (WithZ3Decl decl body_f) >>= f = WithZ3Decl decl (\x -> (body_f x) >>= f)
 
 class Monad m => Z3DeclsMonad m where
-  withZ3Decl :: Z3Decl b -> (b -> m a) -> m a
+  freshZ3Decl :: Z3Decl a -> m a
 
 instance Z3DeclsMonad WithZ3Decls where
-  withZ3Decl = WithZ3Decl
-
-instance (Monoid w, Z3DeclsMonad m) => Z3DeclsMonad (WriterT w m) where
-  withZ3Decl tp f =
-    lift (withZ3Decl tp $ \x -> runWriterT $ f x) >>= \(a,w) ->
-    put w >> return a
+  freshZ3Decl decl = WithZ3Decl decl WithNoZ3Decls
 
 instance Z3DeclsMonad m => Z3DeclsMonad (StateT s m) where
-  withZ3Decl tp f =
-    do s <- get
-       (a,s') <- lift (withZ3Decl tp $ \x -> runStateT s $ f x)
-       set s' >> return a
-
-instance Z3DeclsMonad m => Z3DeclsMonad (ExceptionT exn m) where
-  withZ3Decl tp f =
-    lift (withZ3Decl tp $ \x -> runExceptionT $ f x) >>= \either ->
-    case either of
-      Left exn -> raise exn
-      Right a -> return a
+  freshZ3Decl decl = lift $ freshZ3Decl decl
 
 instance Z3DeclsMonad m => Z3DeclsMonad (ChoiceT m) where
-  withZ3Decl tp f =
-    lift (withZ3Decl tp $ \x -> runChoiceT $ f x) >>= \maybe ->
-    case maybe of
-      Just (a, m) -> return a `mplus` m
-      Nothing -> mzero
+  freshZ3Decl decl = lift $ freshZ3Decl decl
+
+instance Z3DeclsMonad m => Z3DeclsMonad (ExceptionT exn m) where
+  freshZ3Decl decl = lift $ freshZ3Decl decl
 
 
 ----------------------------------------------------------------------
@@ -374,11 +400,127 @@ type Z3PM exn mm =
    (ChoiceT
     WithZ3Decls))
 
+-- | Get the current 'Z3Memory' in a 'Z3PM' computation
+getMem :: Z3PM exn mm (Z3Memory mm)
+getMem = liftM fst get
+
+-- | Set the current 'Z3Memory' in a 'Z3PM' computation
+setMem :: Z3Memory mm -> Z3PM exn mm ()
+setMem mem = sets_ (\(_,props) -> (mem,props))
+
 -- | Assume a 'Z3Prop' in the current 'Z3PM' computation
 assumePM :: Z3Prop -> Z3PM exn mm ()
 assumePM prop = sets_ $ \(mem, props) -> (mem, prop:props)
 
--- FIXME HERE: define the remaining PM operations from the logic
+-- | Assume that @f@ is a valid function for use as a 'z3memPtrArray' field in a
+-- 'Z3Memory'. This means that (fdecl ptr ix ptr') should only hold for at most
+-- one ptr' value, for any given ptr and ix values.
+assumePtrArrayFDecl :: Z3Expr Z3MemPtrArrayType -> Z3PM exn mm ()
+assumePtrArrayFDecl f =
+  assumePM $ z3forall Z3Type_ptr $ \p ->
+  z3forall (Z3Type_lit LitType_bits) $ \i ->
+  z3forall Z3Type_ptr $ \p1 ->
+  z3forall Z3Type_ptr $ \p2 ->
+  z3or [z3not (Z3Prop_expr $ f @@ p @@ i @@ p1),
+        z3not (Z3Prop_expr $ f @@ p @@ i @@ p2),
+        z3equals z3typeRep p1 p2]
+
+-- | Perform a read operation in the current 'Z3PM' computation
+readPM :: ReadOp mm args ret -> MapList Z3Expr args -> Z3PM exn mm (Z3Expr ret)
+readPM (ReadOp_array elem_pf) (Cons ptr (Cons ix Nil)) =
+  do mem <- getMem
+     return $ z3memArrayExpr elem_pf mem @@ ptr @@ ix
+readPM ReadOp_ptr_array (Cons ptr (Cons ix Nil)) =
+  do mem <- getMem
+     ptr_ast <- freshZ3Decl $ Z3Decl_const Z3Type_ptr
+     let ptr_ret = Z3Expr_ast Z3Type_ptr ptr_ast
+     assumePM $ Z3Prop_expr $ z3memPtrArrayExpr mem @@ ptr @@ ix @@ ptr_ret
+     return ptr_ret
+readPM ReadOp_length (Cons ptr Nil) =
+  do mem <- getMem
+     return $ z3memLengthsExpr mem @@ ptr
+readPM ReadOp_last_alloc _ =
+  do mem <- getMem
+     return $ z3memLastAllocExpr mem
+
+-- | Perform an update operation in the current 'Z3PM' computation
+updatePM :: UpdateOp mm args -> MapList Z3Expr args -> Z3PM exn mm ()
+updatePM (UpdateOp_array elem_pf) (Cons ptr (Cons ix (Cons v Nil))) =
+  do mem <- getMem
+     -- Look up the proper fdecl with its output type
+     let Z3MemFun ltp fdecl = ml_lookup (z3memArrays mem) elem_pf
+     -- Create a fresh fdecl' for the updated memory
+     fdecl' <- freshZ3Decl (Z3Decl_fdecl $ z3memArrayType ltp)
+     -- Build the updated memory itself
+     let mem' = mem { z3memArrays =
+                        ml_map1 (\_ -> Z3MemFun ltp fdecl')
+                        (z3memArrays mem) elem_pf }
+     -- Assert that (fdecl' ptr ix) = v
+     assumePM $
+       z3equals (Z3Type_base $ Z3Type_lit ltp)
+       (z3memArrayExpr elem_pf mem' @@ ptr @@ ix) v
+     -- Assert that (fdecl' p i) = (fdecl p i) for p != ptr or i != ix
+     assumePM $ z3forall Z3Type_ptr $ \p ->
+       z3forall (Z3Type_lit LitType_bits) $ \i ->
+       z3or [z3and [z3equals z3typeRep p ptr, z3equals z3typeRep i ix]
+            ,
+             z3equals (Z3Type_base $ Z3Type_lit ltp)
+             (z3memArrayExpr elem_pf mem @@ p @@ i)
+             (z3memArrayExpr elem_pf mem' @@ p @@ i)]
+     -- Set mem' as the output memory
+     setMem mem'
+updatePM UpdateOp_ptr_array (Cons ptr (Cons ix (Cons v Nil))) =
+  do mem <- getMem
+     fdecl' <- freshZ3Decl (Z3Decl_fdecl z3memPtrArrayType)
+     let mem' = mem { z3memPtrArray = fdecl' }
+     -- Assert that fdecl' is a valid set of pointer arrays
+     assumePtrArrayFDecl $ z3memPtrArrayExpr mem'
+     -- Assert that (fdecl' ptr ix v) holds
+     assumePM $ Z3Prop_expr $ z3memPtrArrayExpr mem' @@ ptr @@ ix @@ v
+     -- Assert that (fdecl' p i p') = (fdecl p i p') for p != ptr or i != ix
+     assumePM $ z3forall Z3Type_ptr $ \p ->
+       z3forall (Z3Type_lit LitType_bits) $ \i ->
+       z3forall Z3Type_ptr $ \p' ->
+       z3or [z3and [z3equals z3typeRep p ptr, z3equals z3typeRep i ix]
+            ,
+             z3equals (Z3Type_base Z3Type_prop)
+             (z3memPtrArrayExpr mem @@ p @@ i @@ p')
+             (z3memPtrArrayExpr mem' @@ p @@ i @@ p')]
+     -- Set mem' as the output memory
+     setMem mem'
+updatePM (UpdateOp_alloc _) (Cons len Nil) =
+  do mem <- getMem
+     -- Define a new function for the lengths
+     fdecl' <- freshZ3Decl $ Z3Decl_fdecl z3memLengthsType
+     -- Define a new variable for last_alloc = old_last_alloc + 1
+     ast' <- freshZ3Decl $
+       Z3Decl_defn z3memLastAllocType $ z3ptr_incr @@ z3memLastAllocExpr mem
+     -- Build the output memory
+     let mem' = mem { z3memLengths = fdecl', z3memLastAlloc = ast' }
+     -- Assert that (mem_lengths' last_alloc) = len
+     assumePM $ z3equals z3typeRep
+       (z3memLengthsExpr mem' @@ z3memLastAllocExpr mem')
+       len
+     -- Assert that (mem_lengths' p) = (mem_lengths p) for p != last_alloc
+     assumePM $
+       z3forall Z3Type_ptr $ \p ->
+       z3or [z3equals z3typeRep p (z3memLastAllocExpr mem')
+            ,
+             z3equals z3typeRep (z3memLengthsExpr mem' @@ p)
+             (z3memLengthsExpr mem @@ p)]
+     -- Set mem' as the output memory
+     setMem mem'
+
+-- | Raise an exception in a 'Z3PM' computation
+raisePM :: exn -> Z3PM exn mm ()
+raisePM exn = raise exn
+
+-- | Run the first computation. If it raises the given exception, then run the
+-- second computation.
+catchPM :: Eq exn => exn -> Z3PM exn mm () -> Z3PM exn mm () -> Z3PM exn mm ()
+catchPM exn m m_exn =
+  handle m $ \exn' ->
+  if exn' == exn then m_exn else raisePM exn'
 
 
 ----------------------------------------------------------------------
@@ -400,9 +542,8 @@ collectResultsPM pm =
 getPropsAsConstant :: Z3PM exn mm Z3Prop
 getPropsAsConstant =
   do (mem, props) <- get
-     combined_prop <-
-       withZ3Decl (Z3Decl_prop $ Z3Prop_and props) $ \prop_ast ->
-       return $ z3ast_prop prop_ast
+     prop_ast <- freshZ3Decl (Z3Decl_prop $ Z3Prop_and props)
+     let combined_prop = z3ast_prop prop_ast
      set (mem, [combined_prop])
      return combined_prop
 
@@ -428,17 +569,17 @@ freshMemoryFrom (mem:mems) =
   where
     combineDecls :: Eq a => Z3Decl a -> a -> a -> Z3PM exn mm a
     combineDecls decl a1 a2 =
-      if a1 == a2 then return a1 else withZ3Decl decl return
+      if a1 == a2 then return a1 else freshZ3Decl decl
     combineMemArrays :: MapList Z3MemFun mm -> MapList Z3MemFun mm ->
                         Z3PM exn mm' (MapList Z3MemFun mm)
     combineMemArrays Nil Nil = return Nil
-    combineMemArrays (Cons (Z3MemFun tp1 f1) as1) (Cons (Z3MemFun _ f2) as2) =
+    combineMemArrays (Cons (Z3MemFun ltp f1) as1) (Cons (Z3MemFun _ f2) as2) =
       if f1 == f2 then
-        combineMemArrays as1 as2 >>= return . Cons (Z3MemFun tp1 f1)
+        combineMemArrays as1 as2 >>= return . Cons (Z3MemFun ltp f1)
       else
-        do f' <- withZ3Decl (Z3Decl_fdecl $ z3memArrayType tp1) return
+        do f' <- freshZ3Decl (Z3Decl_fdecl $ z3memArrayType ltp)
            as' <- combineMemArrays as1 as2
-           return $ Cons (Z3MemFun tp1 f') as'
+           return $ Cons (Z3MemFun ltp f') as'
 
 -- | FIXME: documentation
 canonicalizePM :: Eq exn => Z3PM exn mm () -> Z3PM exn mm ()
@@ -479,6 +620,8 @@ data Logic2Z3 tag a where
   Logic2Z3_fun :: (Logic2Z3 tag a -> Logic2Z3 tag b) -> Logic2Z3 tag (a -> b)
   Logic2Z3_pm :: Z3PM (LException tag) (LStorables tag) (Z3Expr a) ->
                  Logic2Z3 tag (PM a)
+  Logic2Z3_pm_unit :: Z3PM (LException tag) (LStorables tag) () ->
+                      Logic2Z3 tag (PM (Literal ()))
 
 -- FIXME HERE: translate from our logic into the Z3 logic
 
