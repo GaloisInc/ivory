@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, GeneralizedNewtypeDeriving, MultiParamTypeClasses,
     FlexibleInstances, FlexibleContexts, ScopedTypeVariables,
-    TypeOperators, DataKinds, EmptyCase,
+    TypeOperators, DataKinds, EmptyCase, NamedFieldPuns,
     TemplateHaskell, QuasiQuotes, ViewPatterns, RankNTypes #-}
 
 module Ivory.ModelCheck.Logic2Z3 where
@@ -9,6 +9,7 @@ import Prelude ()
 import Prelude.Compat hiding (exp)
 
 import Data.Bits
+import Data.Word
 import Data.List
 import Data.Typeable
 import Data.Bifunctor
@@ -45,6 +46,12 @@ joinAListsM join_f ((k, v1) : alist1) alist2 =
            joinAListsM join_f alist1 (filter (\(k', _) -> k /= k') alist2)
          return $ (k, v_ret) : alist_ret
 
+groupAList :: Eq key => [(key, val)] -> [(key, [val])]
+groupAList = foldr insertHelper [] where
+  insertHelper (k,v) ((k',vs):ksvs) =
+    if k == k' then ((k',v:vs):ksvs) else (k',vs):(insertHelper (k,v) ksvs)
+  insertHelper (k,v) [] = [(k,[v])]
+
 
 ----------------------------------------------------------------------
 -- Z3 types
@@ -67,7 +74,6 @@ instance LitTypeable a => Z3Type1able (Literal a) where
 -- function types technically means these are second-order types.
 data Z3Type a where
   Z3Type_base :: Z3Type1 a -> Z3Type a
-  Z3Type_PM :: Z3Type1 a -> Z3Type (PM a)
   Z3Type_fun :: Z3Type1 a -> Z3Type b -> Z3Type (a -> b)
 
 -- | Convert a @'Z3Type1' a@ to an @'L1Type' a@
@@ -93,6 +99,388 @@ no_functional_z3type1 z3tp1 =
 -- | Proof that there is no element of @'Z3Type1' ('PM' a)@
 no_pm_z3type1 :: Z3Type1 (PM a) -> c
 no_pm_z3type1 z3tp1 = case z3tp1 of { }
+
+
+----------------------------------------------------------------------
+-- Typed Z3 expressions
+----------------------------------------------------------------------
+
+-- | FIXME: documentation
+data Z3Expr a where
+  -- * First-order expressions
+  Z3Expr_var :: Z3Type1 a -> Name a -> Z3Expr a
+  Z3Expr_lit :: LitType a -> a -> Z3Expr (Literal a)
+  Z3Expr_prop :: Bool -> Z3Expr Prop
+  Z3Expr_ast :: Z3Type1 a -> Z3.AST -> Z3Expr a
+
+  -- * Function applications
+
+  -- | Apply a multi-arity Z3 operation to expressions of the same type
+  Z3Expr_multi :: Z3Type1 a -> Z3Type1 b ->
+                  ([Z3.AST] -> Z3.Z3 Z3.AST) ->
+                  [Z3Expr a] -> Z3Expr b
+
+  -- * Functional expressions
+  -- | A Z3 operation applied to 0 or more arguments
+  Z3Expr_op :: Z3AppliedOp a -> Z3Expr a
+
+  -- | Lift an arbitrary Haskell function
+  Z3Expr_fun :: (Z3Expr a -> Z3Expr b) -> Z3Expr (a -> b)
+
+-- | FIXME: documentation
+data Z3AppliedOp a where
+  -- | Lift a 'Z3.FuncDecl'
+  Z3Expr_fdecl :: Z3Type a -> Z3.FuncDecl -> Z3AppliedOp a
+  -- | Lift a unary operation from Z3
+  Z3Expr_op1 :: Z3Type1 a -> Z3Type1 b -> (Z3.AST -> Z3.Z3 Z3.AST) ->
+                Z3AppliedOp (a -> b)
+  -- | Lift a binary operation from Z3
+  Z3Expr_op2 :: Z3Type1 a -> Z3Type1 b -> Z3Type1 c ->
+                (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) ->
+                Z3AppliedOp (a -> b -> c)
+  -- | Apply an applied op to an expression
+  Z3Expr_app :: Z3AppliedOp (a -> b) -> Z3Expr a -> Z3AppliedOp b
+
+-- | Apply a 'Z3Expr' to another one
+(@@) :: Z3Expr (a -> b) -> Z3Expr a -> Z3Expr b
+(Z3Expr_var tp1 _) @@ _ = no_functional_z3type1 tp1
+(Z3Expr_ast tp1 _) @@ _ = no_functional_z3type1 tp1
+(Z3Expr_multi _ tp1 _ _) @@ _ = no_functional_z3type1 tp1
+(Z3Expr_op f) @@ arg = Z3Expr_op $ Z3Expr_app f arg
+(Z3Expr_fun f) @@ arg = f arg
+
+-- | Build a typed 'Z3Expr' from a 'Z3.FuncDecl'
+z3fdecl :: Z3Type a -> Z3.FuncDecl -> Z3Expr a
+z3fdecl z3tp fdecl = Z3Expr_op $ Z3Expr_fdecl z3tp fdecl
+
+
+----------------------------------------------------------------------
+-- The Z3 representation of memory
+----------------------------------------------------------------------
+
+-- | The Z3 representation of memory arrays of a given type
+data Z3MemFun a = Z3MemFun (Z3Type1 a) Z3.FuncDecl
+
+-- | The representation of a 'Memory' in Z3
+data Z3Memory mm =
+  Z3Memory
+  {
+    z3memArrays :: MapList Z3MemFun mm,
+    -- ^ One Z3 function for each storable type
+    z3memPtrArray :: Z3.FuncDecl,
+    -- ^ Z3 function for storing the 'Ptr' type
+    z3memLengths :: Z3.FuncDecl,
+    -- ^ Z3 function containing the lengths of the various arrays
+    z3memLastAlloc :: Z3.AST
+    -- ^ Z3 expression containing the last-allocated pointer value
+  }
+
+-- | The type of a function used in the 'z3memArrays' field
+type Z3MemArrayType a = Ptr -> Literal Word64 -> a
+
+-- | The 'Z3Type' of a function used in the 'z3memArrays' field
+z3memArrayType :: Z3Type1 a -> Z3Type (Z3MemArrayType a)
+z3memArrayType z3tp1 =
+  Z3Type_fun Z3Type_ptr $ Z3Type_fun (Z3Type_lit LitType_bits) $
+  Z3Type_base z3tp1
+
+-- | Extract a typed expression for the 'z3memArrays' field of a 'Z3Memory'
+z3memArrayExpr :: ElemPf mm a -> Z3Memory mm -> Z3Expr (Z3MemArrayType a)
+z3memArrayExpr elem_pf mem =
+  case ml_lookup (z3memArrays mem) elem_pf of
+    Z3MemFun z3tp1 fdecl -> z3fdecl (z3memArrayType z3tp1) fdecl
+
+-- | The type of a function used in the 'z3memPtrArray' field
+type Z3MemPtrArrayType = Ptr -> Literal Word64 -> Ptr -> Prop
+
+-- | The 'Z3Type' of a function used in the 'z3memPtrArray' field
+z3memPtrArrayType :: Z3Type Z3MemPtrArrayType
+z3memPtrArrayType =
+  Z3Type_fun Z3Type_ptr $ Z3Type_fun (Z3Type_lit LitType_bits) $
+  Z3Type_fun Z3Type_ptr $ Z3Type_base Z3Type_prop
+
+-- | Extract a typed expression for the 'z3memPtrArray' field of a 'Z3Memory'
+z3memPtrArrayExpr :: Z3Memory mm -> Z3Expr Z3MemPtrArrayType
+z3memPtrArrayExpr mem = z3fdecl z3memPtrArrayType $ z3memPtrArray mem
+
+-- | The type of a function used in the 'z3memLengths' field
+type Z3MemLengthsType = Ptr -> Literal Word64
+
+-- | The 'Z3Type' of a function used in the 'z3memLengths' field
+z3memLengthsType :: Z3Type Z3MemLengthsType
+z3memLengthsType =
+  Z3Type_fun Z3Type_ptr $ Z3Type_base $ Z3Type_lit LitType_bits
+
+-- | Extract a typed expression for the 'z3memLengths' field of a 'Z3Memory'
+z3memLengthsExpr :: Z3Memory mm -> Z3Expr Z3MemLengthsType
+z3memLengthsExpr mem = z3fdecl z3memLengthsType $ z3memLengths mem
+
+-- | The type of the 'z3memLastAlloc' field of a 'Z3Memory'
+type Z3MemLastAllocType = Ptr
+
+-- | The 'Z3Type1' of the 'z3memLastAlloc' field of a 'Z3Memory'
+z3memLastAllocType :: Z3Type1 Z3MemLastAllocType
+z3memLastAllocType = Z3Type_ptr
+
+-- | Extract a typed expression for the 'z3memLastAlloc' field of a 'Z3Memory'
+z3memLastAllocExpr :: Z3Memory mm -> Z3Expr Z3MemLastAllocType
+z3memLastAllocExpr mem = Z3Expr_ast Z3Type_ptr $ z3memLastAlloc mem
+
+
+----------------------------------------------------------------------
+-- Z3 propositions
+----------------------------------------------------------------------
+
+-- | Top-level datatype for propositions. Separating this type out from the rest
+-- of 'Z3Expr' ensures that quantifiers only occur strictly positively.
+data Z3Prop where
+  Z3Prop_forall :: Z3Type1 a -> Binding a Z3Prop -> Z3Prop
+  -- NOTE: existential quantifiers can only happen at the top level, not inside
+  -- of universals
+  -- Z3Prop_exists :: Z3Type1 a -> Binding a Z3Prop -> Z3Prop
+  Z3Prop_and :: [Z3Prop] -> Z3Prop
+  Z3Prop_or :: [Z3Prop] -> Z3Prop
+  Z3Prop_expr :: Z3Expr Prop -> Z3Prop
+  Z3Prop_true :: Z3Prop
+  Z3Prop_false :: Z3Prop
+
+-- | Build a universal quantifier
+z3forall :: Z3Type1 a -> (Z3Expr a -> Z3Prop) -> Z3Prop
+z3forall tp1 body_f = Z3Prop_forall tp1 $ nu $ \n -> body_f $ Z3Expr_var tp1 n
+
+-- | Build a proposition that two expressions are equal
+z3equals :: Z3Type a -> Z3Expr a -> Z3Expr a -> Z3Prop
+z3equals (Z3Type_base tp1) e1 e2 =
+  Z3Prop_expr $
+  (Z3Expr_op $ Z3Expr_op2 tp1 tp1 Z3Type_prop Z3.mkEq) @@ e1 @@ e2
+z3equals (Z3Type_fun in_tp1 tp) f1 f2 =
+  z3forall in_tp1 (\x -> z3equals tp (f1 @@ x) (f2 @@ x))
+
+-- | Build a 'Z3Prop' from a 'Z3.AST'
+z3ast_prop :: Z3.AST -> Z3Prop
+z3ast_prop ast = Z3Prop_expr $ Z3Expr_ast Z3Type_prop ast
+
+-- | Smart constructor for disjunctions (FIXME: check this is right...)
+z3or :: [Z3Prop] -> Z3Prop
+z3or props =
+  case flatten props of
+    [] -> Z3Prop_false
+    [prop] -> prop
+    props' | any (\prop -> case prop of
+                     Z3Prop_true -> True
+                     _ -> False) props' -> Z3Prop_true
+    props' -> Z3Prop_or props'
+  where
+    flatten = concatMap (\p -> case p of
+                            Z3Prop_or props -> flatten props
+                            Z3Prop_false -> []
+                            _ -> [p])
+
+-- | Smart constructor for conjunction (FIXME: make this actually smart!)
+z3and :: [Z3Prop] -> Z3Prop
+z3and props = Z3Prop_and props
+
+-- | Make the proposition that two 'Z3Memory's are equal
+z3memEquals :: Z3Memory mm -> Z3Memory mm -> Z3Prop
+z3memEquals mem1 mem2 =
+  z3and $
+  memArraysEqual (z3memArrays mem1) (z3memArrays mem2) ++
+  [eq_helper z3fdecl z3memPtrArrayType (z3memPtrArray mem1) (z3memPtrArray mem2),
+   eq_helper z3fdecl z3memLengthsType (z3memLengths mem1) (z3memLengths mem2),
+   eq_helper (\_ ast -> Z3Expr_ast z3memLastAllocType ast)
+   (Z3Type_base z3memLastAllocType) (z3memLastAlloc mem1) (z3memLastAlloc mem2)]
+  where
+    memArraysEqual :: MapList Z3MemFun mm -> MapList Z3MemFun mm -> [Z3Prop]
+    memArraysEqual Nil Nil = []
+    memArraysEqual (Cons (Z3MemFun tp1 f1) as1) (Cons (Z3MemFun _ f2) as2) =
+      eq_helper z3fdecl (z3memArrayType tp1) f1 f2 : memArraysEqual as1 as2
+    eq_helper :: Eq ast => (Z3Type a -> ast -> Z3Expr a) ->
+                 Z3Type a -> ast -> ast -> Z3Prop
+    eq_helper expr_f tp ast1 ast2 =
+      if ast1 == ast2 then Z3Prop_true
+      else z3equals tp (expr_f tp ast1) (expr_f tp ast2)
+
+
+----------------------------------------------------------------------
+-- A monad for fresh Z3 constants and function declarations
+----------------------------------------------------------------------
+
+-- | FIXME: documentation
+data Z3Decl a where
+  -- | A constant, of type @b@, with no definition
+  Z3Decl_const :: Z3Type1 b -> Z3Decl Z3.AST
+  -- | A defined constant of type @b@
+  Z3Decl_defn :: Z3Type1 b -> Z3Expr b -> Z3Decl Z3.AST
+  -- | A defined propositional constant
+  Z3Decl_prop :: Z3Prop -> Z3Decl Z3.AST
+  -- | A function constant, of type @b@, with no definition
+  Z3Decl_fdecl :: Z3Type b -> Z3Decl Z3.FuncDecl
+
+data WithZ3Decls a where
+  WithNoZ3Decls :: a -> WithZ3Decls a
+  WithZ3Decl :: Z3Decl b -> (b -> WithZ3Decls a) -> WithZ3Decls a
+
+instance Functor WithZ3Decls where
+  fmap f (WithNoZ3Decls a) = WithNoZ3Decls (f a)
+  fmap f (WithZ3Decl decl body_f) = WithZ3Decl decl (\x -> fmap f $ body_f x)
+
+instance Applicative WithZ3Decls where
+
+instance Monad WithZ3Decls where
+  return x = WithNoZ3Decls x
+  (WithNoZ3Decls x) >>= f = f x
+  (WithZ3Decl decl body_f) >>= f = WithZ3Decl decl (\x -> (body_f x) >>= f)
+
+class Monad m => Z3DeclsMonad m where
+  withZ3Decl :: Z3Decl b -> (b -> m a) -> m a
+
+instance Z3DeclsMonad WithZ3Decls where
+  withZ3Decl = WithZ3Decl
+
+instance (Monoid w, Z3DeclsMonad m) => Z3DeclsMonad (WriterT w m) where
+  withZ3Decl tp f =
+    lift (withZ3Decl tp $ \x -> runWriterT $ f x) >>= \(a,w) ->
+    put w >> return a
+
+instance Z3DeclsMonad m => Z3DeclsMonad (StateT s m) where
+  withZ3Decl tp f =
+    do s <- get
+       (a,s') <- lift (withZ3Decl tp $ \x -> runStateT s $ f x)
+       set s' >> return a
+
+instance Z3DeclsMonad m => Z3DeclsMonad (ExceptionT exn m) where
+  withZ3Decl tp f =
+    lift (withZ3Decl tp $ \x -> runExceptionT $ f x) >>= \either ->
+    case either of
+      Left exn -> raise exn
+      Right a -> return a
+
+instance Z3DeclsMonad m => Z3DeclsMonad (ChoiceT m) where
+  withZ3Decl tp f =
+    lift (withZ3Decl tp $ \x -> runChoiceT $ f x) >>= \maybe ->
+    case maybe of
+      Just (a, m) -> return a `mplus` m
+      Nothing -> mzero
+
+
+----------------------------------------------------------------------
+-- The Z3 predicate monad
+----------------------------------------------------------------------
+
+-- | FIXME: documentation
+type Z3PM exn mm =
+  ExceptionT exn
+  (StateT (Z3Memory mm, [Z3Prop])
+   (ChoiceT
+    WithZ3Decls))
+
+-- | Assume a 'Z3Prop' in the current 'Z3PM' computation
+assumePM :: Z3Prop -> Z3PM exn mm ()
+assumePM prop = sets_ $ \(mem, props) -> (mem, prop:props)
+
+-- FIXME HERE: define the remaining PM operations from the logic
+
+
+----------------------------------------------------------------------
+-- The orP operation in the predicate monad
+----------------------------------------------------------------------
+
+-- | Collect all the possible alternative output states of a 'Z3PM' computation,
+-- grouping them together by exception or lack thereof
+collectResultsPM :: Eq exn => Z3PM exn mm () ->
+                    Z3PM exn mm [(Either exn (), [(Z3Memory mm, [Z3Prop])])]
+collectResultsPM pm =
+  get >>= \(mem,_) ->
+  liftM groupAList $
+  lift $ lift $ lift $ findAll $ runStateT (mem, []) $ runExceptionT pm
+
+-- | Get the current propositions for this computation branch and bind a fresh
+-- Z3 constant equal to the conjunction of these propositions, returning this
+-- fresh Z3 constant after first settin it as the output proposition.
+getPropsAsConstant :: Z3PM exn mm Z3Prop
+getPropsAsConstant =
+  do (mem, props) <- get
+     combined_prop <-
+       withZ3Decl (Z3Decl_prop $ Z3Prop_and props) $ \prop_ast ->
+       return $ z3ast_prop prop_ast
+     set (mem, [combined_prop])
+     return combined_prop
+
+-- | FIXME: documentation
+freshMemoryFrom :: [Z3Memory mm] -> Z3PM exn mm (Z3Memory mm)
+freshMemoryFrom [] = error "freshMemoryFrom: empty list!"
+freshMemoryFrom (mem:mems) =
+  foldM (\mem1 mem2 ->
+          do z3memArrays <-
+               combineMemArrays (z3memArrays mem1) (z3memArrays mem2)
+             z3memPtrArray <-
+               combineDecls (Z3Decl_fdecl z3memPtrArrayType)
+               (z3memPtrArray mem1) (z3memPtrArray mem2)
+             z3memLengths <-
+               combineDecls (Z3Decl_fdecl z3memLengthsType)
+               (z3memLengths mem1) (z3memLengths mem2)
+             z3memLastAlloc <-
+               combineDecls (Z3Decl_const z3memLastAllocType)
+               (z3memLastAlloc mem1) (z3memLastAlloc mem2)
+             return $ Z3Memory { z3memArrays, z3memPtrArray,
+                                 z3memLengths, z3memLastAlloc }
+          ) mem mems
+  where
+    combineDecls :: Eq a => Z3Decl a -> a -> a -> Z3PM exn mm a
+    combineDecls decl a1 a2 =
+      if a1 == a2 then return a1 else withZ3Decl decl return
+    combineMemArrays :: MapList Z3MemFun mm -> MapList Z3MemFun mm ->
+                        Z3PM exn mm' (MapList Z3MemFun mm)
+    combineMemArrays Nil Nil = return Nil
+    combineMemArrays (Cons (Z3MemFun tp1 f1) as1) (Cons (Z3MemFun _ f2) as2) =
+      if f1 == f2 then
+        combineMemArrays as1 as2 >>= return . Cons (Z3MemFun tp1 f1)
+      else
+        do f' <- withZ3Decl (Z3Decl_fdecl $ z3memArrayType tp1) return
+           as' <- combineMemArrays as1 as2
+           return $ Cons (Z3MemFun tp1 f') as'
+
+-- | FIXME: documentation
+canonicalizePM :: Eq exn => Z3PM exn mm () -> Z3PM exn mm ()
+canonicalizePM pm =
+  do orig_prop <- getPropsAsConstant
+     res_alist <- collectResultsPM pm
+     foldr mplus mzero $
+       map (\(either, mems_with_props) ->
+            do mem' <- freshMemoryFrom $ map fst mems_with_props
+               set (mem',
+                    [orig_prop,
+                     z3or $
+                     map (\(mem, props) ->
+                           z3and (props ++ [z3memEquals mem mem']))
+                     mems_with_props
+                    ])
+               case either of
+                 Left exn -> raise exn
+                 Right () -> return ())
+       res_alist
+
+-- | Disjoin two 'Z3PM' computations
+orPM :: Eq exn => Z3PM exn mm () -> Z3PM exn mm () -> Z3PM exn mm ()
+orPM pm1 pm2 = canonicalizePM $ pm1 `mplus` pm2
+
+
+----------------------------------------------------------------------
+-- Converting our reachability logic to Z3Exprs
+----------------------------------------------------------------------
+
+-- | The type of reachability logic expressions that have been converted to Z3
+-- expressions. This type mostly handles the conversion of types in the former
+-- logic to those of the latter.
+data Logic2Z3 tag a where
+  Logic2Z3_lit :: Z3Expr (Literal a) -> Logic2Z3 tag (Literal a)
+  Logic2Z3_prop :: Z3Expr Prop -> Logic2Z3 tag Prop
+  Logic2Z3_ptr :: Z3Expr (Literal Integer) -> Logic2Z3 tag Ptr
+  Logic2Z3_fun :: (Logic2Z3 tag a -> Logic2Z3 tag b) -> Logic2Z3 tag (a -> b)
+  Logic2Z3_pm :: Z3PM (LException tag) (LStorables tag) (Z3Expr a) ->
+                 Logic2Z3 tag (PM a)
+
+-- FIXME HERE: translate from our logic into the Z3 logic
 
 
 ----------------------------------------------------------------------
@@ -146,7 +534,7 @@ z3ctx_lift (Z3Ctx_GhostUVar ctx) = Z3Ctx_GhostUVar $ z3ctx_lift ctx
 ----------------------------------------------------------------------
 
 -- | State information used in constructing Z3 terms
-data Z3Info tag =
+data Z3Info =
   Z3Info
   {
     -- | Index used to create fresh constants and function symbols
@@ -162,62 +550,29 @@ data Z3Info tag =
     -- | Association list of unsigned bit-vector types from their lengths
     unsigned_bv_sorts :: [(Int, Z3.Sort)],
     -- | Association list of signed bit-vector types from their lengths
-    signed_bv_sorts :: [(Int, Z3.Sort)],
-    -- | List of exceptions that have been seen so far
-    seen_exceptions :: [LException tag]
+    signed_bv_sorts :: [(Int, Z3.Sort)]
   }
 
 -- | Monad built on top of 'Z3' for building Z3 expressions relative to a given
 -- variable context. The monad uses the state information in a 'Z3Info', and
 -- reads a 'Z3Ctx' for the current variable context.
-newtype Z3m tag ctx a =
-  Z3m { runZ3m :: ReaderT (Z3Ctx ctx) (StateT (Z3Info tag) Z3.Z3) a }
+newtype Z3m a =
+  Z3m { runZ3m :: StateT Z3Info Z3.Z3 a }
   deriving (Functor,Applicative,Monad)
 
-instance StateM (Z3m tag ctx) (Z3Info tag) where
+instance StateM Z3m Z3Info where
   get = Z3m get
   set x = Z3m $ set x
 
-instance ReaderM (Z3m tag ctx) (Z3Ctx ctx) where
-  ask = Z3m ask
-
-instance RunReaderM (Z3m tag ctx) (Z3Ctx ctx) where
-  local ctx (Z3m m) = Z3m $ local ctx m
-
--- | A version of 'local' that can change the @ctx@ variable
-localCtx :: Z3Ctx ctx' -> Z3m tag ctx' a -> Z3m tag ctx a
-localCtx ctx (Z3m m) =
-  Z3m $ lift $ runReaderT ctx m
-
-instance BaseM (Z3m tag ctx) Z3.Z3 where
-  inBase m = Z3m $ lift $ lift m
+instance BaseM Z3m Z3.Z3 where
+  inBase m = Z3m $ lift m
 
 instance RunM Z3.Z3 a (Maybe Z3.Logic -> Z3Opts.Opts -> IO a) where
   runM m = \logic opts -> Z3.evalZ3With logic opts m
 
-instance RunM (Z3m tag ctx) a (Z3Ctx ctx -> Z3Info tag ->
-                               Maybe Z3.Logic -> Z3Opts.Opts ->
-                               IO (a, Z3Info tag)) where
+instance RunM Z3m a (Z3Info -> Maybe Z3.Logic -> Z3Opts.Opts ->
+                     IO (a, Z3Info)) where
   runM m = runM $ runZ3m m
-
--- | Look up the position of an exception in the 'seen_exceptions' list, adding
--- it to the list if necessary
-intForExceptionM :: Eq (LException tag) => LException tag ->
-                    Z3m tag ctx Integer
-intForExceptionM exc =
-  do z3info <- get
-     let seen_excs = seen_exceptions z3info
-     case elemIndex exc seen_excs of
-       Just i -> return $ toInteger i
-       Nothing ->
-         do set $ z3info { seen_exceptions = seen_excs ++ [exc] }
-            return $ toInteger $ length seen_excs
-
--- | Look up an exception by number
-exceptionForIntM :: Integer -> Z3m tag ctx (LException tag)
-exceptionForIntM i =
-  do z3info <- get
-     return $ genericIndex (seen_exceptions z3info) i
 
 
 ----------------------------------------------------------------------
@@ -225,7 +580,7 @@ exceptionForIntM i =
 ----------------------------------------------------------------------
 
 -- | Get the 'Z3.Sort' for a 'Z3Type1'
-z3type1_to_sort :: Z3Type1 a -> Z3m tag ctx Z3.Sort
+z3type1_to_sort :: Z3Type1 a -> Z3m Z3.Sort
 z3type1_to_sort (Z3Type_lit LitType_unit) = liftM unit_sort get
 z3type1_to_sort (Z3Type_lit LitType_bool) = liftM bool_sort get
 z3type1_to_sort (Z3Type_lit LitType_int) = liftM integer_sort get
@@ -250,7 +605,7 @@ z3_sort_ptr = z3type1_to_sort Z3Type_ptr
 z3_sort_int = z3type1_to_sort (Z3Type_lit LitType_int)
 
 -- | Get the input and output 'Z3.Sort's for a 'Z3Type'
-z3type_to_fun_sorts :: Z3Type a -> Z3m tag ctx ([Z3.Sort],Z3.Sort)
+z3type_to_fun_sorts :: Z3Type a -> Z3m ([Z3.Sort],Z3.Sort)
 z3type_to_fun_sorts (Z3Type_base z3tp1) =
   liftM (\sort -> ([], sort)) $ z3type1_to_sort z3tp1
 z3type_to_fun_sorts (Z3Type_fun in_z3tp1 out_z3tp) =
@@ -258,9 +613,14 @@ z3type_to_fun_sorts (Z3Type_fun in_z3tp1 out_z3tp) =
   (z3type1_to_sort in_z3tp1) (z3type_to_fun_sorts out_z3tp)
 
 
+-- FIXME HERE: translate from the Z3 logic into Z3 itself
+
+
 ----------------------------------------------------------------------
 -- Context manipulation in the Z3m monad
 ----------------------------------------------------------------------
+
+{-
 
 -- | Make a fresh Z3 symbol
 mkFreshSym :: String -> Z3m tag ctx Z3.Symbol
@@ -303,58 +663,7 @@ lowerZ3m m =
   do ctx <- ask
      localCtx (z3ctx_lift ctx) m
 
-
-----------------------------------------------------------------------
--- Typed Z3 expressions
-----------------------------------------------------------------------
-
--- | The Z3 representation of memory arrays of a given type
-data Z3MemFun a = Z3MemFun (Z3Type1 a) Z3.FuncDecl
-
--- | The representation of a 'Memory' in Z3
-data Z3Memory mm =
-  Z3Memory
-  {
-    z3memArrays :: MapList Z3MemFun mm,
-    -- ^ One Z3 function for each storable type
-    z3memPtrArray :: Z3.FuncDecl,
-    -- ^ Z3 function for storing the 'Ptr' type
-    z3memLengths :: Z3.FuncDecl,
-    -- ^ Z3 function containing the lengths of the various arrays
-    z3memLastAlloc :: Z3.AST
-    -- ^ Z3 expression containing the last-allocated pointer value
-  }
-
--- | FIXME: documentation
-data Z3Expr tag ctx a where
-  Z3Expr_lit :: LitType a -> a -> Z3Expr tag ctx (Literal a)
-  Z3Expr_prop :: Bool -> Z3Expr tag ctx Prop
-  Z3Expr_ast :: Z3Type1 a -> Z3m tag ctx Z3.AST -> Z3Expr tag ctx a
-{-
-  Z3Expr_mem :: Z3Memory (LStorables tag) ->
-                Z3Expr ctx (Memory (LStorables tag))
 -}
-  Z3Expr_fun :: (Z3Expr tag ctx a -> Z3Expr tag ctx b) ->
-                Z3Expr tag ctx (a -> b)
-  Z3Expr_pm :: Z3Type1 a ->
-               Z3PM tag ctx (Z3Expr tag ctx a) ->
-               Z3Expr tag ctx (PM a)
-
--- | FIXME: documentation
-newtype Z3PM tag ctx a =
-  Z3PM { runZ3PM ::
-           Z3Memory (LStorables tag) ->
-           (Maybe (Z3PMRet tag ctx a),
-            [(LException tag, Z3PMRet tag ctx ())]) }
-
--- | Helper type for defining 'Z3PM'
-type Z3PMRet tag ctx a =
-  (a, [Z3Expr tag ctx Prop], Z3Memory (LStorables tag))
-
--- | Helper type to represent a 'Z3Expr' in a 'Z3m' computation
-newtype Z3ExprM tag ctx a =
-  Z3ExprM { runZ3ExprM :: Z3m tag ctx (Z3Expr tag ctx a) }
-
 
 ----------------------------------------------------------------------
 -- Expression-building operations
@@ -477,101 +786,10 @@ z3equals :: Z3Type a -> Z3ExprM tag ctx (a -> a -> Prop)
 z3equals = error "FIXME: write z3equals!"
 
 ----------------------------------------------------------------------
--- The Z3 predicate monad
-----------------------------------------------------------------------
-
-instance Functor (Z3PM tag ctx) where
-  fmap f (Z3PM m) =
-    Z3PM $ \mem ->
-    do (maybe_pmret, exc_pmrets) <- m mem
-       case maybe_pmret of
-         Just (a, props, mem') -> return (Just (f a, props, mem'), exc_pmrets)
-         Nothing -> return (Nothing, exc_pmrets)
-
-
-instance Applicative (Z3PM tag ctx) where
-  -- pure x = Z3PM $ \mem -> return (Just (x, [], mem), [])
-
-instance Eq (LException tag) => Monad (Z3PM tag ctx) where
-  return x = Z3PM $ \mem -> return (Just (x, [], mem), [])
-  m >>= f = Z3PM $ \mem ->
-    do (maybe_ret_m, exc_ms) <- runZ3PM m mem
-       case maybe_ret_m of
-         Just (x, props, mem') ->
-           do (ret_m, exc_ms') <- runZ3PM (f x) mem'
-              exc_ms'' <- joinAListsM joinPMRets exc_ms exc_ms'
-              return (ret_m, exc_ms'')
-         Nothing -> return (Nothing, exc_ms)
-
--- | Monad for joining memories
-type JoinMemM tag ctx a =
-  WriterT ([Z3Expr tag ctx Prop], [Z3Expr tag ctx Prop]) (Z3m tag ctx) a
-
-joinFDecls :: String -> Z3Type a -> Z3.FuncDecl -> Z3.FuncDecl ->
-                 JoinMemM tag ctx Z3.FuncDecl
-joinFDecls base_name z3tp fdecl1 fdecl2 =
-  if fdecl1 == fdecl2 then
-    return fdecl1
-  else
-    do fdecl <- lift $ mkFreshFDecl base_name z3tp
-       prop1 <-
-         lift $ runZ3ExprM $
-         z3equals z3tp @@ z3expr_fdecl z3tp fdecl @@ z3expr_fdecl z3tp fdecl1
-       prop2 <-
-         lift $ runZ3ExprM $
-         z3equals z3tp @@ z3expr_fdecl z3tp fdecl @@ z3expr_fdecl z3tp fdecl2
-       put ([prop1], [prop2])
-       return fdecl
-
-joinASTs :: String -> Z3Type1 a -> Z3.AST -> Z3.AST ->
-            JoinMemM tag ctx Z3.AST
-joinASTs base_name z3tp1 ast1 ast2 =
-  if ast1 == ast2 then
-    return ast1
-  else
-    do ast <- mkFreshConst base_name z3tp1
-       prop1 <-
-         runZ3ExprM $
-         z3equals (Z3Type_base z3tp1) @@
-         Z3Expr_ast z3tp1 ast @@ Z3Expr_ast z3tp1 ast1
-       prop2 <-
-         runZ3ExprM $
-         z3equals (Z3Type_base z3tp1) @@
-         Z3Expr_ast z3tp1 ast @@ Z3Expr_ast z3tp1 ast2
-       put ([prop1], [prop2])
-       return ast
-
-joinMemArrays :: MapList Z3MemFun mm -> MapList Z3MemFun mm ->
-                 JoinMemM tag ctx (MapList Z3MemFun mm)
-joinMemArrays Nil Nil = return Nil
-joinMemArrays (Cons (Z3MemFun z3tp1 fdecl1) fs1) (Cons (Z3MemFun _ fdecl2) fs2) =
-  do fdecl' <- joinFDecls z3tp1 fdecl1 fdecl2
-     fs' <- joinMemArrays fs1 fs2
-     return $ Cons (Z3MemFun z3tp1 fdecl1) fs'
-
--- | FIXME: documentation
-joinZ3Memories ::
-  Z3Memory mm -> Z3Memory mm ->
-  (Z3Memory mm, ([Z3Expr tag ctx Prop], [Z3Expr tag ctx Prop]))
-joinZ3Memories mem1 mem2 = error "FIXME: write joinZ3Memories"
-
--- | FIXME: documentation
-joinPMRets :: Z3PMRet tag ctx () -> Z3PMRet tag ctx () ->
-              Z3m tag ctx (Z3PMRet tag ctx ())
-joinPMRets (_, props1, mem1) (_, props2, mem2) =
-  do (mem', (mem_props1, mem_props2)) <- joinZ3Memories mem1 mem2
-     prop_ret <-
-       runZ3ExprM $
-       z3or @@ (z3and_exprs $ props1 ++ mem_props1) @@
-       (z3and_exprs $ props2 ++ mem_props2)
-     return ((), [prop_ret], mem')
--}
-
-----------------------------------------------------------------------
 -- Translating Ops
 ----------------------------------------------------------------------
 
-{-
+
 -- | Helper type that bundles 'Z3m' together with 'Z3Expr'
 newtype Z3InterpRes tag ctx a =
   Z3InterpRes { runZ3InterpRes :: Z3m tag ctx (Z3Expr tag ctx a) }
