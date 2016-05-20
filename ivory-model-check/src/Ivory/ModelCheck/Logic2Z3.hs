@@ -766,10 +766,28 @@ instance LExprAlgebra tag (Logic2Z3 tag) where
     Logic2Z3_fun $ \(Logic2Z3_fun f) ->
     Logic2Z3_pm (pm_of_logic2z3 m >>= \x ->
                   pm_of_logic2z3 (f $ logic2Z3_of_expr (l1type_to_z3type1 l1tp_a) x))
-  interpOp (Op_readP read_op) =
-    error "FIXME HERE: translate Op_readP into Z3!"
-  interpOp (Op_updateP update_op) =
-    error "FIXME HERE: translate Op_updateP into Z3!"
+  interpOp (Op_readP rop@(ReadOp_array elem_pf)) =
+    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
+    Logic2Z3_pm $ readPM rop (Cons ptr (Cons ix Nil))
+  interpOp (Op_readP rop@ReadOp_ptr_array) =
+    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
+    Logic2Z3_pm $ readPM rop (Cons ptr (Cons ix Nil))
+  interpOp (Op_readP rop@ReadOp_length) =
+    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) ->
+    Logic2Z3_pm $ readPM rop (Cons ptr Nil)
+  interpOp (Op_readP rop@ReadOp_last_alloc) =
+    Logic2Z3_pm $ readPM rop Nil
+  interpOp (Op_updateP uop@(UpdateOp_array elem_pf)) =
+    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
+    Logic2Z3_fun $ \(Logic2Z3_lit v) ->
+    Logic2Z3_pm_unit $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
+  interpOp (Op_updateP uop@UpdateOp_ptr_array) =
+    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
+    Logic2Z3_fun $ \(Logic2Z3_ptr v) ->
+    Logic2Z3_pm_unit $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
+  interpOp (Op_updateP uop@(UpdateOp_alloc _)) =
+    Logic2Z3_fun $ \(Logic2Z3_lit len) ->
+    Logic2Z3_pm_unit $ updatePM uop (Cons len Nil)
   interpOp (Op_raiseP maybe_exn) =
     Logic2Z3_pm_unit $ raisePM maybe_exn
   interpOp (Op_catchP exn) =
