@@ -57,6 +57,7 @@ groupAList = foldr insertHelper [] where
 -- Z3 types
 ----------------------------------------------------------------------
 
+-- FIXME HERE NOW: remove Z3Type1, as it is equivalent to L1Type
 -- | First-order types, i.e., types that are represented in Z3 with 'Z3.AST's
 data Z3Type1 a where
   Z3Type_lit :: LitType a -> Z3Type1 (Literal a)
@@ -92,6 +93,12 @@ z3type1_to_l1type :: Z3Type1 a -> L1Type a
 z3type1_to_l1type (Z3Type_lit ltp) = L1Type_lit ltp
 z3type1_to_l1type Z3Type_ptr = L1Type_ptr
 z3type1_to_l1type Z3Type_prop = L1Type_prop
+
+-- | Convert a @'Z3Type1' a@ to an @'L1Type' a@
+l1type_to_z3type1 :: L1Type a -> Z3Type1 a
+l1type_to_z3type1 (L1Type_lit ltp) = Z3Type_lit ltp
+l1type_to_z3type1 L1Type_ptr = Z3Type_ptr
+l1type_to_z3type1 L1Type_prop = Z3Type_prop
 
 -- | Return a base name for each type, to be used for variables
 z3type1_base_name :: Z3Type1 a -> String
@@ -138,6 +145,14 @@ data Z3Expr a where
   -- | Lift an arbitrary Haskell function
   Z3Expr_fun :: (Z3Expr a -> Z3Expr b) -> Z3Expr (a -> b)
 
+  -- * Propositional connectives
+  Z3Expr_forall :: Z3Type1 a -> Binding a (Z3Expr Prop) -> Z3Expr Prop
+  Z3Expr_exists :: Z3Type1 a -> Binding a (Z3Expr Prop) -> Z3Expr Prop
+  Z3Expr_and :: [Z3Expr Prop] -> Z3Expr Prop
+  Z3Expr_or :: [Z3Expr Prop] -> Z3Expr Prop
+  Z3Expr_true :: Z3Expr Prop
+  Z3Expr_false :: Z3Expr Prop
+
 -- | FIXME: documentation
 data Z3AppliedOp a where
   -- | Lift a 'Z3.FuncDecl'
@@ -151,6 +166,9 @@ data Z3AppliedOp a where
                 Z3AppliedOp (a -> b -> c)
   -- | Apply an applied op to an expression
   Z3Expr_app :: Z3AppliedOp (a -> b) -> Z3Expr a -> Z3AppliedOp b
+
+-- | Convenient short-hand: a Z3 proposition is a 'Z3Expr' of type 'Prop'
+type Z3Prop = Z3Expr Prop
 
 -- | Apply a 'Z3Expr' to another one
 (@@) :: Z3Expr (a -> b) -> Z3Expr a -> Z3Expr b
@@ -178,6 +196,59 @@ instance (Num a, LitTypeable a) => Num (Z3Expr (Literal a)) where
 z3ptr_incr :: Z3Expr (Ptr -> Ptr)
 z3ptr_incr = Z3Expr_op $ Z3Expr_op1 z3type1Rep z3type1Rep $ \ast ->
   Z3.mkInteger 1 >>= \i -> Z3.mkAdd [ast, i]
+
+-- | Build a universal quantifier
+z3forall :: Z3Type1 a -> (Z3Expr a -> Z3Prop) -> Z3Prop
+z3forall tp1 body_f = Z3Expr_forall tp1 $ nu $ \n -> body_f $ Z3Expr_var tp1 n
+
+-- | Build an existential quantifier
+z3exists :: Z3Type1 a -> (Z3Expr a -> Z3Prop) -> Z3Prop
+z3exists tp1 body_f = Z3Expr_exists tp1 $ nu $ \n -> body_f $ Z3Expr_var tp1 n
+
+-- | Build a proposition that two expressions are equal
+z3equals :: Z3Type a -> Z3Expr a -> Z3Expr a -> Z3Prop
+z3equals (Z3Type_base tp1) e1 e2 =
+  (Z3Expr_op $ Z3Expr_op2 tp1 tp1 Z3Type_prop Z3.mkEq) @@ e1 @@ e2
+z3equals (Z3Type_fun in_tp1 tp) f1 f2 =
+  z3forall in_tp1 (\x -> z3equals tp (f1 @@ x) (f2 @@ x))
+
+-- | Build a 'Z3Prop' from a 'Z3.AST'
+z3ast_prop :: Z3.AST -> Z3Prop
+z3ast_prop ast = Z3Expr_ast Z3Type_prop ast
+
+-- | Smart constructor for disjunctions (FIXME: check this is right...)
+z3or :: [Z3Prop] -> Z3Prop
+z3or props =
+  case flatten props of
+    [] -> Z3Expr_false
+    [prop] -> prop
+    props' | any (\prop -> case prop of
+                     Z3Expr_true -> True
+                     _ -> False) props' -> Z3Expr_true
+    props' -> Z3Expr_or props'
+  where
+    flatten = concatMap (\p -> case p of
+                            Z3Expr_or props -> flatten props
+                            Z3Expr_false -> []
+                            _ -> [p])
+
+-- | Smart constructor for conjunction (FIXME: make this actually smart!)
+z3and :: [Z3Prop] -> Z3Prop
+z3and props = Z3Expr_and props
+
+-- | Smart construct for negation: puts a proposition in negation normal form
+z3not :: Z3Prop -> Z3Prop
+z3not (Z3Expr_forall z3tp1 body) =
+  Z3Expr_exists z3tp1 $ fmap z3not body
+z3not (Z3Expr_exists z3tp1 body) =
+  Z3Expr_forall z3tp1 $ fmap z3not body
+z3not (Z3Expr_and props) = Z3Expr_or $ map z3not props
+z3not (Z3Expr_or props) = Z3Expr_and $ map z3not props
+z3not Z3Expr_true = Z3Expr_false
+z3not Z3Expr_false = Z3Expr_true
+z3not e =
+  Z3Expr_op $
+  Z3Expr_app (Z3Expr_op1 Z3Type_prop Z3Type_prop Z3.mkNot) e
 
 
 ----------------------------------------------------------------------
@@ -252,76 +323,6 @@ z3memLastAllocType = Z3Type_ptr
 z3memLastAllocExpr :: Z3Memory mm -> Z3Expr Z3MemLastAllocType
 z3memLastAllocExpr mem = Z3Expr_ast Z3Type_ptr $ z3memLastAlloc mem
 
-
-----------------------------------------------------------------------
--- Z3 propositions
-----------------------------------------------------------------------
-
--- | Top-level datatype for propositions. Separating this type out from the rest
--- of 'Z3Expr' ensures that quantifiers only occur strictly positively.
-data Z3Prop where
-  Z3Prop_forall :: Z3Type1 a -> Binding a Z3Prop -> Z3Prop
-  Z3Prop_exists :: Z3Type1 a -> Binding a Z3Prop -> Z3Prop
-  Z3Prop_and :: [Z3Prop] -> Z3Prop
-  Z3Prop_or :: [Z3Prop] -> Z3Prop
-  Z3Prop_expr :: Z3Expr Prop -> Z3Prop
-  Z3Prop_true :: Z3Prop
-  Z3Prop_false :: Z3Prop
-
--- | Build a universal quantifier
-z3forall :: Z3Type1 a -> (Z3Expr a -> Z3Prop) -> Z3Prop
-z3forall tp1 body_f = Z3Prop_forall tp1 $ nu $ \n -> body_f $ Z3Expr_var tp1 n
-
--- | Build an existential quantifier
-z3exists :: Z3Type1 a -> (Z3Expr a -> Z3Prop) -> Z3Prop
-z3exists tp1 body_f = Z3Prop_exists tp1 $ nu $ \n -> body_f $ Z3Expr_var tp1 n
-
--- | Build a proposition that two expressions are equal
-z3equals :: Z3Type a -> Z3Expr a -> Z3Expr a -> Z3Prop
-z3equals (Z3Type_base tp1) e1 e2 =
-  Z3Prop_expr $
-  (Z3Expr_op $ Z3Expr_op2 tp1 tp1 Z3Type_prop Z3.mkEq) @@ e1 @@ e2
-z3equals (Z3Type_fun in_tp1 tp) f1 f2 =
-  z3forall in_tp1 (\x -> z3equals tp (f1 @@ x) (f2 @@ x))
-
--- | Build a 'Z3Prop' from a 'Z3.AST'
-z3ast_prop :: Z3.AST -> Z3Prop
-z3ast_prop ast = Z3Prop_expr $ Z3Expr_ast Z3Type_prop ast
-
--- | Smart constructor for disjunctions (FIXME: check this is right...)
-z3or :: [Z3Prop] -> Z3Prop
-z3or props =
-  case flatten props of
-    [] -> Z3Prop_false
-    [prop] -> prop
-    props' | any (\prop -> case prop of
-                     Z3Prop_true -> True
-                     _ -> False) props' -> Z3Prop_true
-    props' -> Z3Prop_or props'
-  where
-    flatten = concatMap (\p -> case p of
-                            Z3Prop_or props -> flatten props
-                            Z3Prop_false -> []
-                            _ -> [p])
-
--- | Smart constructor for conjunction (FIXME: make this actually smart!)
-z3and :: [Z3Prop] -> Z3Prop
-z3and props = Z3Prop_and props
-
--- | Smart construct for negation: puts a proposition in negation normal form
-z3not :: Z3Prop -> Z3Prop
-z3not (Z3Prop_forall z3tp1 body) =
-  Z3Prop_exists z3tp1 $ fmap z3not body
-z3not (Z3Prop_exists z3tp1 body) =
-  Z3Prop_forall z3tp1 $ fmap z3not body
-z3not (Z3Prop_and props) = Z3Prop_or $ map z3not props
-z3not (Z3Prop_or props) = Z3Prop_and $ map z3not props
-z3not Z3Prop_true = Z3Prop_false
-z3not Z3Prop_false = Z3Prop_true
-z3not (Z3Prop_expr e) =
-  Z3Prop_expr $ Z3Expr_op $
-  Z3Expr_app (Z3Expr_op1 Z3Type_prop Z3Type_prop Z3.mkNot) e
-
 -- | Make the proposition that two 'Z3Memory's are equal
 z3memEquals :: Z3Memory mm -> Z3Memory mm -> Z3Prop
 z3memEquals mem1 mem2 =
@@ -339,7 +340,7 @@ z3memEquals mem1 mem2 =
     eq_helper :: Eq ast => (Z3Type a -> ast -> Z3Expr a) ->
                  Z3Type a -> ast -> ast -> Z3Prop
     eq_helper expr_f tp ast1 ast2 =
-      if ast1 == ast2 then Z3Prop_true
+      if ast1 == ast2 then Z3Expr_true
       else z3equals tp (expr_f tp ast1) (expr_f tp ast2)
 
 
@@ -421,8 +422,8 @@ assumePtrArrayFDecl f =
   z3forall (Z3Type_lit LitType_bits) $ \i ->
   z3forall Z3Type_ptr $ \p1 ->
   z3forall Z3Type_ptr $ \p2 ->
-  z3or [z3not (Z3Prop_expr $ f @@ p @@ i @@ p1),
-        z3not (Z3Prop_expr $ f @@ p @@ i @@ p2),
+  z3or [z3not (f @@ p @@ i @@ p1),
+        z3not (f @@ p @@ i @@ p2),
         z3equals z3typeRep p1 p2]
 
 -- | Perform a read operation in the current 'Z3PM' computation
@@ -434,7 +435,7 @@ readPM ReadOp_ptr_array (Cons ptr (Cons ix Nil)) =
   do mem <- getMem
      ptr_ast <- freshZ3Decl $ Z3Decl_const Z3Type_ptr
      let ptr_ret = Z3Expr_ast Z3Type_ptr ptr_ast
-     assumePM $ Z3Prop_expr $ z3memPtrArrayExpr mem @@ ptr @@ ix @@ ptr_ret
+     assumePM $ z3memPtrArrayExpr mem @@ ptr @@ ix @@ ptr_ret
      return ptr_ret
 readPM ReadOp_length (Cons ptr Nil) =
   do mem <- getMem
@@ -476,7 +477,7 @@ updatePM UpdateOp_ptr_array (Cons ptr (Cons ix (Cons v Nil))) =
      -- Assert that fdecl' is a valid set of pointer arrays
      assumePtrArrayFDecl $ z3memPtrArrayExpr mem'
      -- Assert that (fdecl' ptr ix v) holds
-     assumePM $ Z3Prop_expr $ z3memPtrArrayExpr mem' @@ ptr @@ ix @@ v
+     assumePM $ z3memPtrArrayExpr mem' @@ ptr @@ ix @@ v
      -- Assert that (fdecl' p i p') = (fdecl p i p') for p != ptr or i != ix
      assumePM $ z3forall Z3Type_ptr $ \p ->
        z3forall (Z3Type_lit LitType_bits) $ \i ->
@@ -542,7 +543,7 @@ collectResultsPM pm =
 getPropsAsConstant :: Z3PM exn mm Z3Prop
 getPropsAsConstant =
   do (mem, props) <- get
-     prop_ast <- freshZ3Decl (Z3Decl_prop $ Z3Prop_and props)
+     prop_ast <- freshZ3Decl (Z3Decl_prop $ Z3Expr_and props)
      let combined_prop = z3ast_prop prop_ast
      set (mem, [combined_prop])
      return combined_prop
@@ -616,14 +617,171 @@ orPM pm1 pm2 = canonicalizePM $ pm1 `mplus` pm2
 data Logic2Z3 tag a where
   Logic2Z3_lit :: Z3Expr (Literal a) -> Logic2Z3 tag (Literal a)
   Logic2Z3_prop :: Z3Expr Prop -> Logic2Z3 tag Prop
-  Logic2Z3_ptr :: Z3Expr (Literal Integer) -> Logic2Z3 tag Ptr
+  Logic2Z3_ptr :: Z3Expr Ptr -> Logic2Z3 tag Ptr
   Logic2Z3_fun :: (Logic2Z3 tag a -> Logic2Z3 tag b) -> Logic2Z3 tag (a -> b)
-  Logic2Z3_pm :: Z3PM (LException tag) (LStorables tag) (Z3Expr a) ->
+  Logic2Z3_pm :: Z3PM (Maybe (LException tag)) (LStorables tag) (Z3Expr a) ->
                  Logic2Z3 tag (PM a)
-  Logic2Z3_pm_unit :: Z3PM (LException tag) (LStorables tag) () ->
+  Logic2Z3_pm_unit :: Z3PM (Maybe (LException tag)) (LStorables tag) () ->
                       Logic2Z3 tag (PM (Literal ()))
 
--- FIXME HERE: translate from our logic into the Z3 logic
+-- | Build a 'Logic2Z3' from a 'Z3Expr' of base type
+logic2Z3_of_expr :: Z3Type1 a -> Z3Expr a -> Logic2Z3 tag a
+logic2Z3_of_expr (Z3Type_lit lit_tp) e = Logic2Z3_lit e
+logic2Z3_of_expr Z3Type_ptr e = Logic2Z3_ptr e
+logic2Z3_of_expr Z3Type_prop e = Logic2Z3_prop e
+
+-- | Extract a 'Z3Expr' from a 'Logic2Z3' of base type
+expr_of_logic2Z3 :: Z3Type1 a -> Logic2Z3 tag a -> Z3Expr a
+expr_of_logic2Z3 _ (Logic2Z3_lit e) = e
+expr_of_logic2Z3 _ (Logic2Z3_ptr e) = e
+expr_of_logic2Z3 _ (Logic2Z3_prop e) = e
+expr_of_logic2Z3 z3tp1 (Logic2Z3_fun _) = no_functional_z3type1 z3tp1
+expr_of_logic2Z3 z3tp1 (Logic2Z3_pm _) = no_pm_z3type1 z3tp1
+expr_of_logic2Z3 z3tp1 (Logic2Z3_pm_unit _) = no_pm_z3type1 z3tp1
+
+-- | Extract a 'Z3PM' from a @'Logic2Z3' (PM a)@
+pm_of_logic2z3 :: Logic2Z3 tag (PM a) ->
+                  Z3PM (Maybe (LException tag)) (LStorables tag) (Z3Expr a)
+pm_of_logic2z3 (Logic2Z3_pm m) = m
+pm_of_logic2z3 (Logic2Z3_pm_unit m) = m >> return (Z3Expr_lit LitType_unit ())
+
+-- | Extract a unit 'Z3PM' from a @'Logic2Z3' (PM ())@
+unit_pm_of_logic2z3 :: Logic2Z3 tag (PM (Literal ())) ->
+                       Z3PM (Maybe (LException tag)) (LStorables tag) ()
+unit_pm_of_logic2z3 (Logic2Z3_pm_unit m) = m
+unit_pm_of_logic2z3 (Logic2Z3_pm m) = m >>= \_ -> return ()
+
+-- | Build a Logic2Z3 from a unary Z3 operation
+logic2Z3_op1 :: LitType a -> Z3Type1 b -> (Z3.AST -> Z3.Z3 Z3.AST) ->
+                Logic2Z3 tag (Literal a -> b)
+logic2Z3_op1 lit_tp z3tp1 e_f =
+  Logic2Z3_fun $ \(Logic2Z3_lit e_arg) ->
+  logic2Z3_of_expr z3tp1 $
+  (Z3Expr_op $ Z3Expr_op1 (Z3Type_lit lit_tp) z3tp1 e_f) @@ e_arg
+
+-- | Build a Logic2Z3 from a binary Z3 operation
+logic2Z3_op2 :: LitType a1 -> LitType a2 -> Z3Type1 b ->
+                (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) ->
+                Logic2Z3 tag (Literal a1 -> Literal a2 -> b)
+logic2Z3_op2 lit_tp1 lit_tp2 z3tp1 e_f =
+  Logic2Z3_fun $ \(Logic2Z3_lit e_arg1) ->
+  Logic2Z3_fun $ \(Logic2Z3_lit e_arg2) ->
+  logic2Z3_of_expr z3tp1 $
+  (Z3Expr_op $
+   Z3Expr_op2 (Z3Type_lit lit_tp1) (Z3Type_lit lit_tp2) z3tp1 e_f)
+  @@ e_arg1 @@ e_arg2
+
+-- CommutesWithArrow instance for Logic2Z3
+instance CommutesWithArrow (Logic2Z3 tag) where
+  interpApply (Logic2Z3_fun f) = f
+  interpLambda = Logic2Z3_fun
+
+-- LExprAlgebra instance for Logic2Z3
+instance LExprAlgebra tag (Logic2Z3 tag) where
+  interpOp (Op_Literal ltp x) = Logic2Z3_lit $ Z3Expr_lit ltp x
+  interpOp (Op_arith1 ltp aop) =
+    logic2Z3_op1 ltp (Z3Type_lit ltp) $ aop1_fun aop
+    where
+      aop1_fun Op1_Abs = error "Z3 absolute value function not (yet?) supported"
+      aop1_fun Op1_Signum = error "Z3 signum function not (yet?) supported"
+      aop1_fun Op1_Neg = Z3.mkUnaryMinus
+      aop1_fun Op1_Complement = Z3.mkBvnot
+  interpOp (Op_arith2 ltp aop) =
+    logic2Z3_op2 ltp ltp (Z3Type_lit ltp) $ aop2_fun ltp aop
+    where
+      aop2_fun _ Op2_Add = \x y -> Z3.mkAdd [x,y]
+      aop2_fun _ Op2_Sub = \x y -> Z3.mkSub [x,y]
+      aop2_fun _ Op2_Mult = \x y -> Z3.mkMul [x,y]
+      aop2_fun (LitType_bits :: LitType a) Op2_Div
+        | isSigned (0 :: a) = Z3.mkBvudiv
+      aop2_fun (LitType_bits :: LitType a) Op2_Div = Z3.mkBvsdiv
+      aop2_fun _ Op2_Div = Z3.mkDiv
+      aop2_fun (LitType_bits :: LitType a) Op2_Mod
+        | isSigned (0 :: a) =
+            error "FIXME: how to translate signed mod into Z3?"
+      aop2_fun (LitType_bits :: LitType a) Op2_Mod = Z3.mkBvsmod
+      aop2_fun _ Op2_Mod = Z3.mkMod
+      aop2_fun (LitType_bits :: LitType a) Op2_Rem
+        | isSigned (0 :: a) = Z3.mkBvurem
+      aop2_fun (LitType_bits :: LitType a) Op2_Rem = Z3.mkBvsrem
+      aop2_fun _ Op2_Rem = Z3.mkRem
+      aop2_fun _ Op2_BitAnd = Z3.mkBvand
+      aop2_fun _ Op2_BitOr = Z3.mkBvor
+      aop2_fun _ Op2_BitXor = Z3.mkBvxor
+  interpOp (Op_coerce ltp_from ltp_to) =
+    logic2Z3_op1 ltp_from (Z3Type_lit ltp_to) $ coerce_fun ltp_from ltp_to
+    where
+      coerce_fun :: LitType f -> LitType t -> Z3.AST -> Z3.Z3 Z3.AST
+      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t)
+        | finiteBitSize (0 :: t) == finiteBitSize (0 :: f) =
+          return
+      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t)
+        | isSigned (0 :: f) && finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
+          Z3.mkSignExt $ finiteBitSize (0 :: t) - finiteBitSize (0 :: f)
+      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t)
+        | finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
+          Z3.mkZeroExt $ finiteBitSize (0 :: t) - finiteBitSize (0 :: f)
+      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t) =
+        Z3.mkExtract (finiteBitSize (0 :: t) - 1) 0
+      coerce_fun LitType_int (LitType_bits :: LitType t) =
+        Z3.mkInt2bv (finiteBitSize (0 :: t))
+      coerce_fun (LitType_bits :: LitType f) LitType_int =
+        \ast -> Z3.mkBv2int ast (isSigned (0 :: f))
+      coerce_fun LitType_int LitType_int = return
+      coerce_fun LitType_bool LitType_bool = return
+      coerce_fun LitType_unit LitType_unit = return
+      coerce_fun _ _ = error "Z3 Coercion not supported!"
+  interpOp (Op_cmp ltp acmp) =
+    logic2Z3_op2 ltp ltp (Z3Type_lit LitType_bool) $ cmp_fun acmp
+    where
+      cmp_fun :: ArithCmp -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST
+      cmp_fun OpCmp_EQ = Z3.mkEq
+      cmp_fun OpCmp_LT = Z3.mkLt
+      cmp_fun OpCmp_LE = Z3.mkLe
+  interpOp Op_and =
+    Logic2Z3_fun $ \(Logic2Z3_prop p1) ->
+    Logic2Z3_fun $ \(Logic2Z3_prop p2) -> Logic2Z3_prop $ z3and [p1, p2]
+  interpOp Op_or =
+    Logic2Z3_fun $ \(Logic2Z3_prop p1) ->
+    Logic2Z3_fun $ \(Logic2Z3_prop p2) -> Logic2Z3_prop $ z3or [p1, p2]
+  interpOp Op_not =
+    Logic2Z3_fun $ \(Logic2Z3_prop p) -> Logic2Z3_prop $ z3not p
+  interpOp Op_istrue =
+    logic2Z3_op1 LitType_bool Z3Type_prop return
+  interpOp (Op_forall l1tp) =
+    Logic2Z3_fun $ \(Logic2Z3_fun body_f) ->
+    Logic2Z3_prop $ z3forall (l1type_to_z3type1 l1tp) $ \x ->
+    case body_f (logic2Z3_of_expr (l1type_to_z3type1 l1tp) x) of
+      Logic2Z3_prop p -> p
+  interpOp (Op_exists l1tp) =
+    Logic2Z3_fun $ \(Logic2Z3_fun body_f) ->
+    Logic2Z3_prop $ z3exists (l1type_to_z3type1 l1tp) $ \x ->
+    case body_f (logic2Z3_of_expr (l1type_to_z3type1 l1tp) x) of
+      Logic2Z3_prop p -> p
+  interpOp (Op_returnP l1tp) =
+    Logic2Z3_fun $ \x ->
+    Logic2Z3_pm $ return $ expr_of_logic2Z3 (l1type_to_z3type1 l1tp) x
+  interpOp (Op_bindP l1tp_a l1tp_b) =
+    Logic2Z3_fun $ \m ->
+    Logic2Z3_fun $ \(Logic2Z3_fun f) ->
+    Logic2Z3_pm (pm_of_logic2z3 m >>= \x ->
+                  pm_of_logic2z3 (f $ logic2Z3_of_expr (l1type_to_z3type1 l1tp_a) x))
+  interpOp (Op_readP read_op) =
+    error "FIXME HERE: translate Op_readP into Z3!"
+  interpOp (Op_updateP update_op) =
+    error "FIXME HERE: translate Op_updateP into Z3!"
+  interpOp (Op_raiseP maybe_exn) =
+    Logic2Z3_pm_unit $ raisePM maybe_exn
+  interpOp (Op_catchP exn) =
+    Logic2Z3_fun $ \m1 -> Logic2Z3_fun $ \m2 ->
+    Logic2Z3_pm_unit $
+    catchPM (Just exn) (unit_pm_of_logic2z3 m1) (unit_pm_of_logic2z3 m2)
+  interpOp Op_assumeP =
+    Logic2Z3_fun $ \(Logic2Z3_prop p) -> Logic2Z3_pm_unit $ assumePM p
+  interpOp Op_orP =
+    Logic2Z3_fun $ \m1 -> Logic2Z3_fun $ \m2 ->
+    Logic2Z3_pm_unit $
+    orPM (unit_pm_of_logic2z3 m1) (unit_pm_of_logic2z3 m2)
 
 
 ----------------------------------------------------------------------

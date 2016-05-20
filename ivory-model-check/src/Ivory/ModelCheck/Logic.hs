@@ -492,11 +492,11 @@ data Op tag a where
   -- | Existential quantification
   Op_exists :: L1Type a -> Op tag ((a -> Prop) -> Prop)
 
+  {-
   -- | Let-bindings, which are only allowed at the top level, i.e., in
   -- propositions
-  Op_let :: L1Type a -> Op tag ((a -> Prop) -> Prop)
+  Op_let :: L1Type a -> Op tag (a -> (a -> Prop) -> Prop)
   -- | Let-bind the result of reading from a 'Memory'
-  {-
   Op_LetRead :: ReadOp (LStorables tag) args ret ->
                 Op tag (AddArrows args
                         (Memory (LStorables tag) -> (ret -> Prop) -> Prop))
@@ -519,12 +519,14 @@ data Op tag a where
   Op_raiseP :: Liftable (LException tag) => Maybe (LException tag) ->
                Op tag (PM (Literal ()))
   -- | Catch an exception
-  Op_catchP :: Liftable (LException tag) => LException tag ->
+  Op_catchP :: (Eq (LException tag), Liftable (LException tag)) =>
+               LException tag ->
                Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
   -- | Assumptions about the current execution
   Op_assumeP :: Op tag (Prop -> PM (Literal ()))
   -- | Disjunctions
-  Op_orP :: Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
+  Op_orP :: Eq (LException tag) =>
+            Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
 
 -- | Get the 'LType' of an 'Op'
 opLType :: Op tag a -> LType a
@@ -580,7 +582,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_istrue |] = Op_istrue
   mbLift [nuP| Op_forall l1tp |] = Op_forall $ mbLift l1tp
   mbLift [nuP| Op_exists l1tp |] = Op_exists $ mbLift l1tp
-  mbLift [nuP| Op_let l1tp |] = Op_let $ mbLift l1tp
+  --mbLift [nuP| Op_let l1tp |] = Op_let $ mbLift l1tp
   --mbLift [nuP| Op_LetRead read_op |] = Op_LetRead $ mbLift read_op
   mbLift [nuP| Op_returnP l1tp |] = Op_returnP $ mbLift l1tp
   mbLift [nuP| Op_bindP l1tp_a l1tp_b |] =
