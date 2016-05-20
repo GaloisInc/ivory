@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, KindSignatures, EmptyDataDecls, TypeOperators #-}
+{-# LANGUAGE GADTs, KindSignatures, EmptyDataDecls, TypeOperators, EmptyCase #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies, FunctionalDependencies, UndecidableInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
@@ -201,6 +201,14 @@ l1TypeEq L1Type_ptr L1Type_ptr = Just Refl
 l1TypeEq L1Type_ptr _ = Nothing
 l1TypeEq L1Type_prop L1Type_prop = Just Refl
 l1TypeEq L1Type_prop _ = Nothing
+
+-- | "Proof" that there is no element of the type @'L1Type' (a -> b)@
+no_functional_l1type :: L1Type (a -> b) -> c
+no_functional_l1type l1tp = case l1tp of { }
+
+-- | "Proof" that there is no element of the type @'L1Type' (PM a)@
+no_pm_l1type :: L1Type (PM a) -> b
+no_pm_l1type l1tp = case l1tp of { }
 
 
 ----------------------------------------------------------------------
