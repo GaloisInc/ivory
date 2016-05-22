@@ -51,6 +51,13 @@ groupAList = foldr insertHelper [] where
     if k == k' then ((k',v:vs):ksvs) else (k',vs):(insertHelper (k,v) ksvs)
   insertHelper (k,v) [] = [(k,[v])]
 
+-- Build a NuMatching instance for the unit type
+instance NuMatching () where
+  nuMatchingProof = error "nuMatching proof for ()"
+
+instance Liftable () where
+  mbLift _ = ()
+
 
 ----------------------------------------------------------------------
 -- Utilities for type lists
@@ -761,6 +768,11 @@ mkForall :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
 mkForall l1tp body =
   LAppExpr $ LApp (LOp $ Op_forall l1tp) $ mkLambda (LType_base l1tp) body
 
+-- | Build an existential quantifier into an 'LProp'
+mkExists :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
+mkExists l1tp body =
+  LAppExpr $ LApp (LOp $ Op_exists l1tp) $ mkLambda (LType_base l1tp) body
+
 
 ----------------------------------------------------------------------
 -- Interpreting expressions
@@ -1394,141 +1406,138 @@ orPM pm1 pm2 = canonicalizePM $ pm1 `mplus` pm2
 -- Interpreting the predicate monad inside the logic
 ----------------------------------------------------------------------
 
+-- | FIXME: documentation
 data InterpPM tag a where
   InterpPM_base :: L1Type a -> LExpr tag a -> InterpPM tag a
-  InterpPM_fun :: (LExpr tag a -> LExpr tag b) -> InterpPM tag (a -> b)
-  InterpPM_pm :: (LExpr tag a -> LExpr tag b) -> InterpPM tag (a -> b)
+  InterpPM_fun :: (InterpPM tag a -> InterpPM tag b) -> InterpPM tag (a -> b)
   InterpPM_pm :: LogicPM tag (LExpr tag a) -> InterpPM tag (PM a)
   InterpPM_unit_pm :: LogicPM tag () -> InterpPM tag (PM (Literal ()))
 
--- CommutesWithArrow instance for Logic2Z3
+-- | Extract an 'LExpr' from an 'InterpPM' of base type
+expr_of_interpPM :: L1Type a -> InterpPM tag a -> LExpr tag a
+expr_of_interpPM _ (InterpPM_base _ e) = e
+expr_of_interpPM l1tp (InterpPM_fun _) = no_functional_l1type l1tp
+expr_of_interpPM l1tp (InterpPM_pm _) = no_pm_l1type l1tp
+expr_of_interpPM l1tp (InterpPM_unit_pm _) = no_pm_l1type l1tp
+
+-- | Extract a function from an 'InterpPM'
+apply_interpPM :: InterpPM tag (a -> b) -> InterpPM tag a -> InterpPM tag b
+apply_interpPM (InterpPM_fun f) = f
+apply_interpPM (InterpPM_base l1tp _) = no_functional_l1type l1tp
+
+-- | Build an 'InterpPM' from a unary 'Op'
+interpPM_op1 :: L1Type a -> L1Type b -> Op tag (a -> b) ->
+                InterpPM tag (a -> b)
+interpPM_op1 l1tp_a l1tp_b op =
+  InterpPM_fun $ \ipm1 ->
+  InterpPM_base l1tp_b $ LAppExpr $ LApp (LOp op) $
+  expr_of_interpPM l1tp_a ipm1
+
+-- | Build an 'InterpPM' from a binary 'Op'
+interpPM_op2 :: L1Type a1 -> L1Type a2 -> L1Type b ->
+                Op tag (a1 -> a2 -> b) ->
+                InterpPM tag (a1 -> a2 -> b)
+interpPM_op2 l1tp_a l1tp_b l1tp_c op =
+  InterpPM_fun $ \ipm1 ->
+  InterpPM_fun $ \ipm2 ->
+  InterpPM_base l1tp_c $
+  LAppExpr $ LApp (LApp (LOp op) (expr_of_interpPM l1tp_a ipm1))
+  (expr_of_interpPM l1tp_b ipm2)
+
+-- | Extract a 'LogicPM' computation from an 'InterpPM'
+pm_of_interpPM :: InterpPM tag (PM a) -> LogicPM tag (LExpr tag a)
+pm_of_interpPM (InterpPM_base l1tp _) = no_pm_l1type l1tp
+pm_of_interpPM (InterpPM_pm m) = m
+pm_of_interpPM (InterpPM_unit_pm m) = m >> return (mkLiteral ())
+
+-- | Extract a @'LogicPM' ()@ computation from an 'InterpPM'
+unit_pm_of_interpPM :: InterpPM tag (PM a) -> LogicPM tag ()
+unit_pm_of_interpPM (InterpPM_base l1tp _) = no_pm_l1type l1tp
+unit_pm_of_interpPM (InterpPM_pm m) = m >>= \_ -> return ()
+unit_pm_of_interpPM (InterpPM_unit_pm m) = m
+
+-- CommutesWithArrow instance for InterpPM
 instance CommutesWithArrow (InterpPM tag) where
   interpApply (InterpPM_fun f) = f
   interpLambda = InterpPM_fun
 
-{-
 -- LExprAlgebra instance for interpreting the predicate monad
 instance LExprAlgebra tag (InterpPM tag) where
-  interpOp (Op_Literal ltp x) = LAppExpr $ LOp $ Op_Literal ltp x
+  interpOp (Op_Literal ltp x) =
+    InterpPM_base (L1Type_lit ltp) $ LAppExpr $ LOp $ Op_Literal ltp x
   interpOp (Op_arith1 ltp aop) =
-    logic2Z3_op1 ltp (L1Type_lit ltp) $ aop1_fun aop
-    where
-      aop1_fun Op1_Abs = error "Z3 absolute value function not (yet?) supported"
-      aop1_fun Op1_Signum = error "Z3 signum function not (yet?) supported"
-      aop1_fun Op1_Neg = Z3.mkUnaryMinus
-      aop1_fun Op1_Complement = Z3.mkBvnot
+    interpPM_op1 (L1Type_lit ltp) (L1Type_lit ltp) (Op_arith1 ltp aop)
   interpOp (Op_arith2 ltp aop) =
-    logic2Z3_op2 ltp ltp (L1Type_lit ltp) $ aop2_fun ltp aop
-    where
-      aop2_fun _ Op2_Add = \x y -> Z3.mkAdd [x,y]
-      aop2_fun _ Op2_Sub = \x y -> Z3.mkSub [x,y]
-      aop2_fun _ Op2_Mult = \x y -> Z3.mkMul [x,y]
-      aop2_fun (LitType_bits :: LitType a) Op2_Div
-        | isSigned (0 :: a) = Z3.mkBvudiv
-      aop2_fun (LitType_bits :: LitType a) Op2_Div = Z3.mkBvsdiv
-      aop2_fun _ Op2_Div = Z3.mkDiv
-      aop2_fun (LitType_bits :: LitType a) Op2_Mod
-        | isSigned (0 :: a) =
-            error "FIXME: how to translate signed mod into Z3?"
-      aop2_fun (LitType_bits :: LitType a) Op2_Mod = Z3.mkBvsmod
-      aop2_fun _ Op2_Mod = Z3.mkMod
-      aop2_fun (LitType_bits :: LitType a) Op2_Rem
-        | isSigned (0 :: a) = Z3.mkBvurem
-      aop2_fun (LitType_bits :: LitType a) Op2_Rem = Z3.mkBvsrem
-      aop2_fun _ Op2_Rem = Z3.mkRem
-      aop2_fun _ Op2_BitAnd = Z3.mkBvand
-      aop2_fun _ Op2_BitOr = Z3.mkBvor
-      aop2_fun _ Op2_BitXor = Z3.mkBvxor
+    interpPM_op2 (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit ltp)
+    (Op_arith2 ltp aop)
   interpOp (Op_coerce ltp_from ltp_to) =
-    logic2Z3_op1 ltp_from (L1Type_lit ltp_to) $ coerce_fun ltp_from ltp_to
-    where
-      coerce_fun :: LitType f -> LitType t -> Z3.AST -> Z3.Z3 Z3.AST
-      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t)
-        | finiteBitSize (0 :: t) == finiteBitSize (0 :: f) =
-          return
-      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t)
-        | isSigned (0 :: f) && finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
-          Z3.mkSignExt $ finiteBitSize (0 :: t) - finiteBitSize (0 :: f)
-      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t)
-        | finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
-          Z3.mkZeroExt $ finiteBitSize (0 :: t) - finiteBitSize (0 :: f)
-      coerce_fun (LitType_bits :: LitType f) (LitType_bits :: LitType t) =
-        Z3.mkExtract (finiteBitSize (0 :: t) - 1) 0
-      coerce_fun LitType_int (LitType_bits :: LitType t) =
-        Z3.mkInt2bv (finiteBitSize (0 :: t))
-      coerce_fun (LitType_bits :: LitType f) LitType_int =
-        \ast -> Z3.mkBv2int ast (isSigned (0 :: f))
-      coerce_fun LitType_int LitType_int = return
-      coerce_fun LitType_bool LitType_bool = return
-      coerce_fun LitType_unit LitType_unit = return
-      coerce_fun _ _ = error "Z3 Coercion not supported!"
+    interpPM_op1 (L1Type_lit ltp_from) (L1Type_lit ltp_to)
+    (Op_coerce ltp_from ltp_to)
   interpOp (Op_cmp ltp acmp) =
-    logic2Z3_op2 ltp ltp (L1Type_lit LitType_bool) $ cmp_fun acmp
-    where
-      cmp_fun :: ArithCmp -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST
-      cmp_fun OpCmp_EQ = Z3.mkEq
-      cmp_fun OpCmp_LT = Z3.mkLt
-      cmp_fun OpCmp_LE = Z3.mkLe
+    interpPM_op2 (L1Type_lit ltp) (L1Type_lit ltp) l1typeRep
+    (Op_cmp ltp acmp)
   interpOp Op_and =
-    Logic2Z3_fun $ \(Logic2Z3_prop p1) ->
-    Logic2Z3_fun $ \(Logic2Z3_prop p2) -> Logic2Z3_prop $ z3and [p1, p2]
+    interpPM_op2 L1Type_prop L1Type_prop L1Type_prop Op_and
   interpOp Op_or =
-    Logic2Z3_fun $ \(Logic2Z3_prop p1) ->
-    Logic2Z3_fun $ \(Logic2Z3_prop p2) -> Logic2Z3_prop $ z3or [p1, p2]
+    interpPM_op2 L1Type_prop L1Type_prop L1Type_prop Op_or
   interpOp Op_not =
-    Logic2Z3_fun $ \(Logic2Z3_prop p) -> Logic2Z3_prop $ z3not p
+    interpPM_op1 L1Type_prop L1Type_prop Op_not
   interpOp Op_istrue =
-    logic2Z3_op1 LitType_bool L1Type_prop return
+    interpPM_op1 (L1Type_lit LitType_bool) L1Type_prop Op_istrue
   interpOp (Op_forall l1tp) =
-    Logic2Z3_fun $ \(Logic2Z3_fun body_f) ->
-    Logic2Z3_prop $ z3forall l1tp $ \x ->
-    case body_f (logic2Z3_of_expr l1tp x) of
-      Logic2Z3_prop p -> p
+    InterpPM_fun $ \body_ipm ->
+    InterpPM_base L1Type_prop $ mkForall l1tp $ \x ->
+    expr_of_interpPM L1Type_prop $
+    apply_interpPM body_ipm $ InterpPM_base l1tp x
   interpOp (Op_exists l1tp) =
-    Logic2Z3_fun $ \(Logic2Z3_fun body_f) ->
-    Logic2Z3_prop $ z3exists l1tp $ \x ->
-    case body_f (logic2Z3_of_expr l1tp x) of
-      Logic2Z3_prop p -> p
+    InterpPM_fun $ \body_ipm ->
+    InterpPM_base L1Type_prop $ mkExists l1tp $ \x ->
+    expr_of_interpPM L1Type_prop $
+    apply_interpPM body_ipm $ InterpPM_base l1tp x
   interpOp (Op_returnP l1tp) =
-    Logic2Z3_fun $ \x ->
-    Logic2Z3_pm $ return $ expr_of_logic2Z3 l1tp x
+    InterpPM_fun $ \x ->
+    InterpPM_pm $ return $ expr_of_interpPM l1tp x
   interpOp (Op_bindP l1tp_a l1tp_b) =
-    Logic2Z3_fun $ \m ->
-    Logic2Z3_fun $ \(Logic2Z3_fun f) ->
-    Logic2Z3_pm (pm_of_logic2z3 m >>= \x ->
-                  pm_of_logic2z3 (f $ logic2Z3_of_expr l1tp_a x))
+    InterpPM_fun $ \m ->
+    InterpPM_fun $ \f_ipm ->
+    InterpPM_pm (pm_of_interpPM m >>= \x ->
+                 pm_of_interpPM (apply_interpPM f_ipm $
+                                 InterpPM_base l1tp_a x))
   interpOp (Op_readP rop@(ReadOp_array elem_pf)) =
-    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
-    Logic2Z3_pm $ readPM rop (Cons ptr (Cons ix Nil))
+    InterpPM_fun $ \(InterpPM_base l1typeRep ptr) ->
+    InterpPM_fun $ \(InterpPM_base l1typeRep ix) ->
+    InterpPM_pm $ readPM rop (Cons ptr (Cons ix Nil))
   interpOp (Op_readP rop@ReadOp_ptr_array) =
-    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
-    Logic2Z3_pm $ readPM rop (Cons ptr (Cons ix Nil))
+    InterpPM_fun $ \(InterpPM_base _ ptr) ->
+    InterpPM_fun $ \(InterpPM_base _ ix) ->
+    InterpPM_pm $ readPM rop (Cons ptr (Cons ix Nil))
   interpOp (Op_readP rop@ReadOp_length) =
-    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) ->
-    Logic2Z3_pm $ readPM rop (Cons ptr Nil)
+    InterpPM_fun $ \(InterpPM_base _ ptr) ->
+    InterpPM_pm $ readPM rop (Cons ptr Nil)
   interpOp (Op_readP rop@ReadOp_last_alloc) =
-    Logic2Z3_pm $ readPM rop Nil
+    InterpPM_pm $ readPM rop Nil
   interpOp (Op_updateP uop@(UpdateOp_array elem_pf)) =
-    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
-    Logic2Z3_fun $ \(Logic2Z3_lit v) ->
-    Logic2Z3_pm_unit $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
+    InterpPM_fun $ \(InterpPM_base _ ptr) ->
+    InterpPM_fun $ \(InterpPM_base _ ix) ->
+    InterpPM_fun $ \(InterpPM_base _ v) ->
+    InterpPM_unit_pm $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
   interpOp (Op_updateP uop@UpdateOp_ptr_array) =
-    Logic2Z3_fun $ \(Logic2Z3_ptr ptr) -> Logic2Z3_fun $ \(Logic2Z3_lit ix) ->
-    Logic2Z3_fun $ \(Logic2Z3_ptr v) ->
-    Logic2Z3_pm_unit $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
+    InterpPM_fun $ \(InterpPM_base _ ptr) ->
+    InterpPM_fun $ \(InterpPM_base _ ix) ->
+    InterpPM_fun $ \(InterpPM_base _ v) ->
+    InterpPM_unit_pm $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
   interpOp (Op_updateP uop@(UpdateOp_alloc _)) =
-    Logic2Z3_fun $ \(Logic2Z3_lit len) ->
-    Logic2Z3_pm_unit $ updatePM uop (Cons len Nil)
+    InterpPM_fun $ \(InterpPM_base _ len) ->
+    InterpPM_unit_pm $ updatePM uop (Cons len Nil)
   interpOp (Op_raiseP maybe_exn) =
-    Logic2Z3_pm_unit $ raisePM maybe_exn
+    InterpPM_unit_pm $ raisePM maybe_exn
   interpOp (Op_catchP exn) =
-    Logic2Z3_fun $ \m1 -> Logic2Z3_fun $ \m2 ->
-    Logic2Z3_pm_unit $
-    catchPM (Just exn) (unit_pm_of_logic2z3 m1) (unit_pm_of_logic2z3 m2)
+    InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
+    InterpPM_unit_pm $
+    catchPM exn (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
   interpOp Op_assumeP =
-    Logic2Z3_fun $ \(Logic2Z3_prop p) -> Logic2Z3_pm_unit $ assumePM p
+    InterpPM_fun $ \(InterpPM_base _ p) -> InterpPM_unit_pm $ assumePM p
   interpOp Op_orP =
-    Logic2Z3_fun $ \m1 -> Logic2Z3_fun $ \m2 ->
-    Logic2Z3_pm_unit $
-    orPM (unit_pm_of_logic2z3 m1) (unit_pm_of_logic2z3 m2)
--}
+    InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
+    InterpPM_unit_pm $
+    orPM (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
