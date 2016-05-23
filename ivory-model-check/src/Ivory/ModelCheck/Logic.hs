@@ -571,6 +571,8 @@ data Op tag a where
                Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
   -- | Assumptions about the current execution
   Op_assumeP :: Op tag (Prop -> PM (Literal ()))
+  -- | Special-purpose assumption of false: prunes out the current execution
+  Op_falseP :: Op tag (PM (Literal ()))
   -- | Disjunctions
   Op_orP :: Eq (LException tag) =>
             Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
@@ -638,6 +640,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
   mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
   mbLift [nuP| Op_assumeP |] = Op_assumeP
+  mbLift [nuP| Op_falseP |] = Op_falseP
   mbLift [nuP| Op_raiseP (Just exc) |] = Op_raiseP $ Just $ mbLift exc
   mbLift [nuP| Op_raiseP Nothing |] = Op_raiseP Nothing
   mbLift [nuP| Op_catchP exc |] = Op_catchP $ mbLift exc
@@ -1203,6 +1206,10 @@ getMem = liftM fst get
 setMem :: SymMemory tag -> LogicPM tag ()
 setMem mem = sets_ (\(_,props) -> (mem,props))
 
+-- | Prune out the current execution in a 'LogicPM' computation
+falsePM :: LogicPM tag ()
+falsePM = mzero
+
 -- | Assume an 'LProp' in the current 'LogicPM' computation
 assumePM :: LProp tag -> LogicPM tag ()
 assumePM prop = sets_ $ \(mem, props) -> (mem, prop:props)
@@ -1535,6 +1542,8 @@ instance LExprAlgebra tag (InterpPM tag) where
     catchPM exn (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
   interpOp Op_assumeP =
     InterpPM_fun $ \(InterpPM_base _ p) -> InterpPM_unit_pm $ assumePM p
+  interpOp Op_falseP =
+    InterpPM_unit_pm $ falsePM
   interpOp Op_orP =
     InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
     InterpPM_unit_pm $
