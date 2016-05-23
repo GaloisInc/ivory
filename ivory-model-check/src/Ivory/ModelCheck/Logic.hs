@@ -1250,10 +1250,6 @@ updatePM (UpdateOp_array elem_pf) (Cons ptr (Cons ix (Cons v Nil))) =
      let SymMemName ltp n = ml_lookup (symMemArrays mem) elem_pf
      -- Create a fresh name for the updated memory
      n' <- nuM (symMemArrayType ltp) Nothing
-     -- Build the updated memory itself
-     let mem' = mem { symMemArrays =
-                        ml_map1 (\_ -> SymMemName ltp n')
-                        (symMemArrays mem) elem_pf }
      -- Assert that (n' ptr ix) = v
      assumePM $
        mkEq (L1FunType_base $ L1Type_lit ltp)
@@ -1268,7 +1264,9 @@ updatePM (UpdateOp_array elem_pf) (Cons ptr (Cons ix (Cons v Nil))) =
              (mkVarFunTp (symMemArrayType ltp) Proxy n p i)
              (mkVarFunTp (symMemArrayType ltp) Proxy n' p i)]
      -- Set mem' as the output memory
-     setMem mem'
+     setMem $ mem { symMemArrays =
+                      ml_map1 (\_ -> SymMemName ltp n')
+                      (symMemArrays mem) elem_pf }
 updatePM UpdateOp_ptr_array (Cons ptr (Cons ix (Cons v Nil))) =
   do mem <- getMem
      let n = symMemPtrArray mem
