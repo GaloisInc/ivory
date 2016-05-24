@@ -66,5 +66,5 @@ arrayCopy to from toOffset end = do
 
 -- | Zero out reference values.
 refZero :: (GetAlloc eff ~ 'Scope s, IvoryZero a, IvoryArea a)
-        => Ref s a -> Ivory eff ()
+        => Ref ('Stack s) a -> Ivory eff ()
 refZero r0 = refCopy r0 =<< local izero
