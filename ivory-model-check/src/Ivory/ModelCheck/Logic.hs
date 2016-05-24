@@ -1300,7 +1300,8 @@ updatePM (UpdateOp_alloc _) (Cons len Nil) =
      -- Define a new function for the lengths
      lengths' <- nuM (ltypeRep :: LType (Ptr -> Literal Word64)) Nothing
      -- Define a new name for last_alloc
-     last_alloc' <- nuM (ltypeRep :: LType Ptr) Nothing
+     last_alloc' <- nuM (ltypeRep :: LType Ptr) (Just $ mkOp Op_next_ptr $
+                                                 mkVar last_alloc)
      -- Assert that (lengths' last_alloc') = len
      assumePM $
        mkEq l1funTypeRep (mkVarFun Proxy lengths' $ mkVar last_alloc') len
