@@ -672,7 +672,7 @@ type LProp tag = LExpr tag Prop
 
 
 ----------------------------------------------------------------------
--- Building expressions
+-- Building and manipulating expressions
 ----------------------------------------------------------------------
 
 -- | Helper function for building lambda-abstractions
@@ -691,6 +691,44 @@ mkVar n = LAppExpr $ LVar n
 f@(LLambda tp body) @@ arg = LAppExpr $ LApp (LApp (LOp $ Op_let tp) arg) f
 (LAppExpr app_expr) @@ arg = LAppExpr $ LApp app_expr arg
 -}
+
+-- | Match the body of a lambda-expression, eta-expanding if necessary
+matchLambda :: LExpr tag (a -> b) -> Binding a (LExpr tag b)
+matchLambda (LLambda _ body) = body
+matchLambda (LAppExpr app_expr) =
+  nu $ \n -> LAppExpr $ LApp app_expr $ mkVar n
+
+-- | Same as 'matchLambda', but on an expression inside a binding
+mbMatchLambda :: Mb ctx (LExpr tag (a -> b)) -> Mb (ctx :> a) (LExpr tag b)
+mbMatchLambda [nuP| LLambda _ body |] = mbCombine body
+mbMatchLambda [nuP| LAppExpr mb_app_expr |] =
+  mbCombine $ fmap (\app_expr -> nu $ \n ->
+                     LAppExpr $ LApp app_expr $ mkVar n) mb_app_expr
+
+-- | The "spine form" of an expression of type @a@ is an 'Op' or a variable of
+-- some type @a1 -> ... an -> a@ combined with expressions of type ai.
+data SpineForm a where
+  SpineFormOp :: Op tag (AddArrows args a) -> MapList (LExpr tag) args ->
+                 SpineForm a
+  SpineFormVar :: Name (AddArrows args a) -> MapList (LExpr tag) args ->
+                  SpineForm a
+
+-- | Convert an 'AppExpr' to spine form
+appExprSpineForm :: LAppExpr tag (AddArrows args a) ->
+                    MapList (LExpr tag) args -> SpineForm a
+appExprSpineForm (LOp op) args = SpineFormOp op args
+appExprSpineForm (LVar n) args = SpineFormVar n args
+appExprSpineForm (LApp ae arg) args =
+  appExprSpineForm ae (Cons arg args)
+
+-- | Convert an expression of base type to spine form
+spineForm :: L1Type a -> LExpr tag a -> SpineForm a
+spineForm l1tp (LLambda _ _) = no_functional_l1type l1tp
+spineForm _ (LAppExpr app_expr) = appExprSpineForm app_expr Nil
+
+-- | Convert an expression-in-binding of base type to spine form
+mbSpineForm :: L1Type a -> Mb ctx (LExpr tag a) -> Mb ctx (SpineForm a)
+mbSpineForm l1tp mb_expr = fmap (spineForm l1tp) mb_expr
 
 -- | Apply type function @f@ to the input and outputs of a function type, i.e.,
 -- replace @a1 -> ... -> an -> b@ with @f a1 -> ... -> f an -> f b@.
