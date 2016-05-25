@@ -842,7 +842,7 @@ mkExists l1tp body =
 
 
 ----------------------------------------------------------------------
--- Interpreting expressions
+-- Eliminating expressions via expression algebras
 ----------------------------------------------------------------------
 
 -- | Type class stating that @f@ commutes with the arrow type constructor
@@ -876,20 +876,102 @@ interpAppExpr ctx [clNuP| LApp f arg |] =
 
 
 ----------------------------------------------------------------------
--- Expression interpretations that use the context and spine form...
+-- Eliminating expressions via expression binding-algebras
 ----------------------------------------------------------------------
 
 -- | An 'Op' or a variable in a given context
 data OpOrVar tag ctx a
   = OpOrVar_Op (Op tag a)
-  | OpOrVar_Var (Member ctx a)
+  | OpOrVar_Var (LType a) (Member ctx a)
+
+-- | Extract the 'LType' of an 'OpOrVar'
+opOrVarType :: OpOrVar tag ctx a -> LType a
+opOrVarType (OpOrVar_Op op) = opType op
+opOrVarType (OpOrVar_Var tp _) = tp
 
 -- | Helper type to express that @a@ is either a base type or a 'PM' type
 data PMOrBaseType a where
   PMOrBaseType_base :: L1Type a -> PMOrBaseType a
   PMOrBaseType_pm :: L1Type a -> PMOrBaseType (PM a)
 
--- | The type of annotated expressions-in-context (FIXME: better explanation)
+-- | Form the type @f (ctx :> a1 :> ... :> an) b@ for @a = a1 -> ... -> an -> b@
+type family BindingApplyF (f :: RList * -> * -> *) (ctx :: RList *) a :: *
+type instance BindingApplyF f ctx (Literal a) = f ctx (Literal a)
+type instance BindingApplyF f ctx Ptr = f ctx Ptr
+type instance BindingApplyF f ctx Prop = f ctx Prop
+type instance BindingApplyF f ctx (PM a) = f ctx (PM a)
+type instance BindingApplyF f ctx (a -> b) = BindingApplyF f (ctx :> a) b
+
+-- | Helper for building a 'BindingApplyF' at base type. This is just the
+-- identity function, but it needs to examine the type to convince Haskell.
+mkL1BindingApplyF :: L1Type a -> f ctx a -> BindingApplyF f ctx a
+mkL1BindingApplyF (L1Type_lit _) x = x
+mkL1BindingApplyF L1Type_ptr x = x
+mkL1BindingApplyF L1Type_prop x = x
+
+-- | Helper for eliminated a 'BindingApplyF' at base type. This is just the
+-- identity function, but it needs to examine the type to convince Haskell.
+elimL1BindingApplyF :: L1Type a -> BindingApplyF f ctx a -> f ctx a
+elimL1BindingApplyF (L1Type_lit _) x = x
+elimL1BindingApplyF L1Type_ptr x = x
+elimL1BindingApplyF L1Type_prop x = x
+
+-- | The type associated with the type family 'BindingApplyF'
+newtype BindingApply f ctx a =
+  BindingApply { unBindingApply :: BindingApplyF f ctx a }
+
+-- | Type-class for interpreting expressions using expression binding-algebras
+class LBindingExprAlgebra tag (f :: RList * -> * -> *) where
+  interpOpOrVarB :: PMOrBaseType a -> OpOrVar tag ctx (AddArrows args a) ->
+                    MapList (BindingApply f ctx) args ->
+                    f ctx a
+
+-- | Interpret an expression using a binding-algebra
+interpMbExprB :: LBindingExprAlgebra tag f => Proxy f -> LType a ->
+                 Closed (Mb ctx (LExpr tag a)) -> BindingApplyF f ctx a
+interpMbExprB proxy (LType_fun _ tp_b) e =
+  interpMbExprB proxy tp_b $ clApply $(mkClosed [| mbMatchLambda |]) e
+interpMbExprB proxy (LType_base l1tp) [clNuP| LAppExpr e |] =
+  mkL1BindingApplyF l1tp $
+  interpMbAppExprB proxy (PMOrBaseType_base l1tp) e Nil
+interpMbExprB proxy (LType_pm l1tp) [clNuP| LAppExpr e |] =
+  interpMbAppExprB proxy (PMOrBaseType_pm l1tp) e Nil
+interpMbExprB _ _ _ =
+  error "interpMbExprB: this should be impossible! (but Haskell's coverage checking can't see it...)"
+
+-- | Interpret an 'LAppExpr' using a binding-algebra
+interpMbAppExprB :: LBindingExprAlgebra tag f =>
+                    Proxy f -> PMOrBaseType a ->
+                    Closed (Mb ctx (LAppExpr tag (AddArrows args a))) ->
+                    MapList (BindingApply f ctx) args ->
+                    f ctx a
+interpMbAppExprB proxy tp ([clNuP| LVar var_tp n |]
+                           :: Closed (Mb _ (LAppExpr tag _))) args =
+  case clApply $(mkClosed [| mbNameBoundP |]) n of
+    [clP| Left memb |] ->
+      interpOpOrVarB tp (OpOrVar_Var (mbLift $ unClosed var_tp) $
+                         unClosed memb :: OpOrVar tag _ _) args
+    [clP| Right closed_n |] -> noClosedNames closed_n
+interpMbAppExprB proxy tp [clNuP| LOp op |] args =
+  interpOpOrVarB tp (OpOrVar_Op $ mbLift $ unClosed op) args
+interpMbAppExprB proxy tp [clNuP| LApp f arg |] args =
+  let arg_tp = mbExprType (unClosed arg) in
+  interpMbAppExprB proxy tp f $
+  Cons (BindingApply $ interpMbExprB proxy arg_tp arg) args
+
+-- | Top-level function for interpreting expressions via binding-algebras
+interpExprB :: (LBindingExprAlgebra tag f, LTypeable a) => Proxy f ->
+               Closed (LExpr tag a) -> BindingApplyF f RNil a
+interpExprB proxy e =
+  interpMbExprB proxy ltypeRep $ clApply $(mkClosed [| emptyMb |]) e
+
+
+----------------------------------------------------------------------
+-- Annotated expressions
+----------------------------------------------------------------------
+
+-- | The type of expressions-in-context where every subterm of type @a@ in
+-- binding context @ctx@ is annotated with a value of type @f ctx a@
 data MbAnnotExpr (f :: RList * -> * -> *) tag (ctx :: RList *) a where
   MbAnnotExprBase :: PMOrBaseType a -> OpOrVar tag ctx (AddArrows args a) ->
                      MapList (MbAnnotExpr f tag ctx) args ->
@@ -898,11 +980,47 @@ data MbAnnotExpr (f :: RList * -> * -> *) tag (ctx :: RList *) a where
   MbAnnotExprFun :: MbAnnotExpr f tag (ctx :> a) b ->
                     MbAnnotExpr f tag ctx (a -> b)
 
--- | Type-class for annotating expressions
-class LExprAnnotation f where
-  annotateOpOrVar :: PMOrBaseType a -> OpOrVar tag ctx (AddArrows args a) ->
-                     MapList (MbAnnotExpr f tag ctx) args -> f ctx a
+-- | Extract the @f ctx a@ from an 'MbAnnotExpr
+elimMbAnnotExpr :: MbAnnotExpr f tag ctx a -> BindingApplyF f ctx a
+elimMbAnnotExpr (MbAnnotExprBase (PMOrBaseType_base l1tp) _ _ x) =
+  mkL1BindingApplyF l1tp x
+elimMbAnnotExpr (MbAnnotExprBase (PMOrBaseType_pm _) _ _ x) = x
+elimMbAnnotExpr (MbAnnotExprFun annot_expr) =
+  elimMbAnnotExpr annot_expr
 
+-- | Convert a @'BindingApplyF' ('MbAnnotExpr' f tag) ctx a@ to an
+-- @'MbAnnotExpr' f tag ctx@
+mkBindingMbAnnotExpr :: LType a -> BindingApplyF (MbAnnotExpr f tag) ctx a ->
+                        MbAnnotExpr f tag ctx a
+mkBindingMbAnnotExpr (LType_base l1tp) annot_expr =
+  elimL1BindingApplyF l1tp annot_expr
+mkBindingMbAnnotExpr (LType_pm l1tp) annot_expr = annot_expr
+mkBindingMbAnnotExpr (LType_fun tp1 tp2) x =
+  MbAnnotExprFun $ mkBindingMbAnnotExpr tp2 x
+
+-- | Convert a list of @'BindingApply' ('MbAnnotExpr' f tag) ctx a@ to a list of
+-- @'MbAnnotExpr' f tag ctx@
+mkBindingMbAnnotExprs :: (a ~ AddArrows args b) => Proxy b -> LType a ->
+                         MapList (BindingApply (MbAnnotExpr f tag) ctx) args ->
+                         MapList (MbAnnotExpr f tag ctx) args
+mkBindingMbAnnotExprs proxy (LType_fun tp1 tp2) (Cons (BindingApply arg) args) =
+  Cons (mkBindingMbAnnotExpr tp1 arg) (mkBindingMbAnnotExprs proxy tp2 args)
+mkBindingMbAnnotExprs _ _ Nil = Nil
+
+-- This instance lets us take any binding-algebra and use it to annotate an
+-- expression, saving all the intermediate results at each subterm
+instance LBindingExprAlgebra tag f =>
+         LBindingExprAlgebra tag (MbAnnotExpr f tag) where
+  interpOpOrVarB (tp :: PMOrBaseType a) opOrVar binding_args =
+    let args =
+          mkBindingMbAnnotExprs (Proxy :: Proxy a)
+          (opOrVarType opOrVar) binding_args
+    in
+      MbAnnotExprBase tp opOrVar args $
+      interpOpOrVarB tp opOrVar (ml_map (BindingApply . elimMbAnnotExpr) args)
+
+
+{-
 -- | Helper for building annotated expressions
 mkMbAnnotExprBase :: LExprAnnotation f => PMOrBaseType a ->
                      OpOrVar tag ctx (AddArrows args a) ->
@@ -940,6 +1058,7 @@ mbAnnotateAppExpr tp [clNuP| LOp op |] args =
 mbAnnotateAppExpr tp [clNuP| LApp f arg |] args =
   let arg_tp = mbExprType (unClosed arg) in
   mbAnnotateAppExpr tp f (Cons (mbAnnotateExpr arg_tp arg) args)
+-}
 
 
 ----------------------------------------------------------------------
@@ -1131,14 +1250,6 @@ interpAppExprC ctx [clNuP| LApp f arg |] =
 -- Functions to build contextual f-algebras
 ----------------------------------------------------------------------
 
--- | Form the type @f (ctx :> a1 :> ... :> an) b@ for @a = a1 -> ... -> an -> b@
-type family AddArgTypesToCtx (f :: RList * -> * -> *) (ctx :: RList *) a :: *
-type instance AddArgTypesToCtx f ctx (Literal a) = f ctx (Literal a)
-type instance AddArgTypesToCtx f ctx Ptr = f ctx Ptr
-type instance AddArgTypesToCtx f ctx Prop = f ctx Prop
-type instance AddArgTypesToCtx f ctx (PM a) = f ctx (PM a)
-type instance AddArgTypesToCtx f ctx (a -> b) = AddArgTypesToCtx f (ctx :> a) b
-
 -- | Form the type
 --
 -- > f (ctx :> a_1_1 :> ... :> a_m1_1) b1 -> ... ->
@@ -1154,7 +1265,7 @@ type instance ApplyToArgsInCtx f ctx Ptr = f ctx Ptr
 type instance ApplyToArgsInCtx f ctx Prop = f ctx Prop
 type instance ApplyToArgsInCtx f ctx (PM a) = f ctx (PM a)
 type instance ApplyToArgsInCtx f ctx (a -> b) =
-  AddArgTypesToCtx f ctx a -> ApplyToArgsInCtx f ctx b
+  BindingApplyF f ctx a -> ApplyToArgsInCtx f ctx b
 
 -- | General form for building interpretations of 'Op's. FIXME: this has not
 -- been written yet! FIXME: also, the variable-building function here should
