@@ -1019,46 +1019,12 @@ instance LBindingExprAlgebra tag f =>
       MbAnnotExprBase tp opOrVar args $
       interpOpOrVarB tp opOrVar (ml_map (BindingApply . elimMbAnnotExpr) args)
 
-
-{-
--- | Helper for building annotated expressions
-mkMbAnnotExprBase :: LExprAnnotation f => PMOrBaseType a ->
-                     OpOrVar tag ctx (AddArrows args a) ->
-                     MapList (MbAnnotExpr f tag ctx) args ->
-                     MbAnnotExpr f tag ctx a
-mkMbAnnotExprBase tp op_or_var args =
-  MbAnnotExprBase tp op_or_var args $ annotateOpOrVar tp op_or_var args
-
--- | Annotate an expression
-mbAnnotateExpr :: LExprAnnotation f => LType a ->
-                  Closed (Mb ctx (LExpr tag a)) -> MbAnnotExpr f tag ctx a
-mbAnnotateExpr (LType_fun _ tp_b) e =
-  MbAnnotExprFun $ mbAnnotateExpr tp_b $
-  clApply $(mkClosed [| mbMatchLambda |]) e
-mbAnnotateExpr (LType_base l1tp) [clNuP| LAppExpr e |] =
-  mbAnnotateAppExpr (PMOrBaseType_base l1tp) e Nil
-mbAnnotateExpr (LType_pm l1tp) [clNuP| LAppExpr e |] =
-  mbAnnotateAppExpr (PMOrBaseType_pm l1tp) e Nil
-mbAnnotateExpr _ _ =
-  error "mbAnnotateExpr: this should be impossible! (but Haskell's coverage checking can't see it...)"
-
--- | Annotate an 'LAppExpr'
-mbAnnotateAppExpr :: LExprAnnotation f =>
-                     PMOrBaseType a ->
-                     Closed (Mb ctx (LAppExpr tag (AddArrows args a))) ->
-                     MapList (MbAnnotExpr f tag ctx) args ->
-                     MbAnnotExpr f tag ctx a
-mbAnnotateAppExpr tp [clNuP| LVar _ n |] args =
-  case clApply $(mkClosed [| mbNameBoundP |]) n of
-    [clP| Left memb |] ->
-      mkMbAnnotExprBase tp (OpOrVar_Var $ unClosed memb) args
-    [clP| Right closed_n |] -> noClosedNames closed_n
-mbAnnotateAppExpr tp [clNuP| LOp op |] args =
-  mkMbAnnotExprBase tp (OpOrVar_Op $ mbLift $ unClosed op) args
-mbAnnotateAppExpr tp [clNuP| LApp f arg |] args =
-  let arg_tp = mbExprType (unClosed arg) in
-  mbAnnotateAppExpr tp f (Cons (mbAnnotateExpr arg_tp arg) args)
--}
+-- | Top-level annotation function
+annotateExpr :: (LBindingExprAlgebra tag f, LTypeable a) => Proxy f ->
+                Closed (LExpr tag a) -> MbAnnotExpr f tag RNil a
+annotateExpr (proxy :: Proxy f) (expr :: Closed (LExpr tag a)) =
+  mkBindingMbAnnotExpr ltypeRep $
+  interpExprB (Proxy :: Proxy (MbAnnotExpr f tag)) expr
 
 
 ----------------------------------------------------------------------
