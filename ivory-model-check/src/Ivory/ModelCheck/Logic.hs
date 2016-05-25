@@ -578,8 +578,8 @@ data Op tag a where
             Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
 
 -- | Get the 'LType' of an 'Op'
-opLType :: Op tag a -> LType a
-opLType = error "FIXME: write opLType!"
+opType :: Op tag a -> LType a
+opType = error "FIXME HERE: write opLType!"
 
 -- Build a NuMatching instances for Op and friends
 $(mkNuMatching [t| ArithOp1 |])
@@ -661,7 +661,7 @@ data LExpr tag a where
 
 -- | Expressions that are applications of variables or function symbols.
 data LAppExpr tag a where
-  LVar :: Name a -> LAppExpr tag a
+  LVar :: LType a -> Name a -> LAppExpr tag a
   LOp :: Op tag a -> LAppExpr tag a
   LApp :: LAppExpr tag (a -> b) -> LExpr tag a -> LAppExpr tag b
 
@@ -670,6 +670,24 @@ $(mkNuMatching [t| forall tag a. LAppExpr tag a |])
 
 type LProp tag = LExpr tag Prop
 
+-- | Get the 'LType' of an 'LAppExpr'
+appExprType :: LAppExpr tag a -> LType a
+appExprType (LVar tp _) = tp
+appExprType (LOp op) = opType op
+appExprType (LApp f arg) =
+  case appExprType f of
+    LType_fun _ tp_b -> tp_b
+
+-- | Get the 'LType' of an 'LAppExpr'-in-binding
+mbAppExprType :: Mb ctx (LAppExpr tag a) -> LType a
+mbAppExprType e = mbLift $ fmap appExprType e
+
+-- | Get the 'LType' of an expression-in-binding
+mbExprType :: Mb ctx (LExpr tag a) -> LType a
+mbExprType [nuP| LLambda tp_a body |] =
+  LType_fun (mbLift tp_a) $ mbExprType $ mbCombine body
+mbExprType [nuP| LAppExpr e |] = mbAppExprType e
+
 
 ----------------------------------------------------------------------
 -- Building and manipulating expressions
@@ -677,11 +695,15 @@ type LProp tag = LExpr tag Prop
 
 -- | Helper function for building lambda-abstractions
 mkLambda :: LType a -> (LExpr tag a -> LExpr tag b) -> LExpr tag (a -> b)
-mkLambda tp f = LLambda tp $ nu $ \x -> f (LAppExpr (LVar x))
+mkLambda tp f = LLambda tp $ nu $ \x -> f (LAppExpr (LVar tp x))
 
 -- | Helper function for building variable expressions
-mkVar :: Name a -> LExpr tag a
-mkVar n = LAppExpr $ LVar n
+mkVar :: LTypeable a => Name a -> LExpr tag a
+mkVar n = LAppExpr $ LVar ltypeRep n
+
+-- | Helper function for building variable expressions with an explicit 'LType'
+mkVarTp :: LType a -> Name a -> LExpr tag a
+mkVarTp tp n = LAppExpr $ LVar tp n
 
 -- FIXME: this requires Op_let to have an arbitrary RHS type;
 -- OR: we have to do arbitrary substitution...
@@ -696,14 +718,18 @@ f@(LLambda tp body) @@ arg = LAppExpr $ LApp (LApp (LOp $ Op_let tp) arg) f
 matchLambda :: LExpr tag (a -> b) -> Binding a (LExpr tag b)
 matchLambda (LLambda _ body) = body
 matchLambda (LAppExpr app_expr) =
-  nu $ \n -> LAppExpr $ LApp app_expr $ mkVar n
+  case appExprType app_expr of
+    LType_fun tp_a _ ->
+      nu $ \n -> LAppExpr $ LApp app_expr $ mkVarTp tp_a n
 
 -- | Same as 'matchLambda', but on an expression inside a binding
 mbMatchLambda :: Mb ctx (LExpr tag (a -> b)) -> Mb (ctx :> a) (LExpr tag b)
 mbMatchLambda [nuP| LLambda _ body |] = mbCombine body
 mbMatchLambda [nuP| LAppExpr mb_app_expr |] =
   mbCombine $ fmap (\app_expr -> nu $ \n ->
-                     LAppExpr $ LApp app_expr $ mkVar n) mb_app_expr
+                     case mbAppExprType mb_app_expr of
+                       LType_fun tp_a _ ->
+                         LAppExpr $ LApp app_expr $ mkVarTp tp_a n) mb_app_expr
 
 -- | The "spine form" of an expression of type @a@ is an 'Op' or a variable of
 -- some type @a1 -> ... an -> a@ combined with expressions of type ai.
@@ -717,7 +743,7 @@ data SpineForm a where
 appExprSpineForm :: LAppExpr tag (AddArrows args a) ->
                     MapList (LExpr tag) args -> SpineForm a
 appExprSpineForm (LOp op) args = SpineFormOp op args
-appExprSpineForm (LVar n) args = SpineFormVar n args
+appExprSpineForm (LVar _ n) args = SpineFormVar n args
 appExprSpineForm (LApp ae arg) args =
   appExprSpineForm ae (Cons arg args)
 
@@ -765,7 +791,7 @@ mkOp op = etaBuild ltypeRep (LOp op)
 
 -- | Helper function for building expression functions from variables
 mkVarFunTp :: LType a -> Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
-mkVarFunTp tp (_ :: Proxy tag) n = etaBuild tp (LVar n :: LAppExpr tag _)
+mkVarFunTp tp (_ :: Proxy tag) n = etaBuild tp (LVar tp n :: LAppExpr tag _)
 
 -- | Helper function for building expression functions from variables
 mkVarFun :: LTypeable a => Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
@@ -802,7 +828,7 @@ mkEq = error "FIXME: write mkEq!"
 mkNameEq :: L1FunType a -> Name a -> Name a -> LProp tag
 mkNameEq ftp n1 n2 =
   if n1 == n2 then mkOp Op_true else
-    mkEq ftp (mkVar n1) (mkVar n2)
+    mkEq ftp (mkVarTp (fun2typeRep ftp) n1) (mkVarTp (fun2typeRep ftp) n2)
 
 -- | Build a universal quantifier into an 'LProp'
 mkForall :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
@@ -840,13 +866,80 @@ interpExpr ctx [clNuP| LAppExpr e |] = interpAppExpr ctx e
 -- | Interpret an 'LAppExpr' to another functor @f@ using an @f@-algebra
 interpAppExpr :: LExprAlgebra tag f =>
                  MapRList f ctx -> Closed (Mb ctx (LAppExpr tag a)) -> f a
-interpAppExpr ctx [clNuP| LVar n |] =
+interpAppExpr ctx [clNuP| LVar _ n |] =
   case clApply $(mkClosed [| mbNameBoundP |]) n of
     [clP| Left memb |] -> hlistLookup (unClosed memb) ctx
     [clP| Right closed_n |] -> noClosedNames closed_n
 interpAppExpr ctx [clNuP| LOp op |] = interpOp (mbLift $ unClosed op)
 interpAppExpr ctx [clNuP| LApp f arg |] =
   interpApply (interpAppExpr ctx f) (interpExpr ctx arg)
+
+
+----------------------------------------------------------------------
+-- Expression interpretations that use the context and spine form...
+----------------------------------------------------------------------
+
+-- | An 'Op' or a variable in a given context
+data OpOrVar tag ctx a
+  = OpOrVar_Op (Op tag a)
+  | OpOrVar_Var (Member ctx a)
+
+-- | Helper type to express that @a@ is either a base type or a 'PM' type
+data PMOrBaseType a where
+  PMOrBaseType_base :: L1Type a -> PMOrBaseType a
+  PMOrBaseType_pm :: L1Type a -> PMOrBaseType (PM a)
+
+-- | The type of annotated expressions-in-context (FIXME: better explanation)
+data MbAnnotExpr (f :: RList * -> * -> *) tag (ctx :: RList *) a where
+  MbAnnotExprBase :: PMOrBaseType a -> OpOrVar tag ctx (AddArrows args a) ->
+                     MapList (MbAnnotExpr f tag ctx) args ->
+                     f ctx a ->
+                     MbAnnotExpr f tag ctx a
+  MbAnnotExprFun :: MbAnnotExpr f tag (ctx :> a) b ->
+                    MbAnnotExpr f tag ctx (a -> b)
+
+-- | Type-class for annotating expressions
+class LExprAnnotation f where
+  annotateOpOrVar :: PMOrBaseType a -> OpOrVar tag ctx (AddArrows args a) ->
+                     MapList (MbAnnotExpr f tag ctx) args -> f ctx a
+
+-- | Helper for building annotated expressions
+mkMbAnnotExprBase :: LExprAnnotation f => PMOrBaseType a ->
+                     OpOrVar tag ctx (AddArrows args a) ->
+                     MapList (MbAnnotExpr f tag ctx) args ->
+                     MbAnnotExpr f tag ctx a
+mkMbAnnotExprBase tp op_or_var args =
+  MbAnnotExprBase tp op_or_var args $ annotateOpOrVar tp op_or_var args
+
+-- | Annotate an expression
+mbAnnotateExpr :: LExprAnnotation f => LType a ->
+                  Closed (Mb ctx (LExpr tag a)) -> MbAnnotExpr f tag ctx a
+mbAnnotateExpr (LType_fun _ tp_b) e =
+  MbAnnotExprFun $ mbAnnotateExpr tp_b $
+  clApply $(mkClosed [| mbMatchLambda |]) e
+mbAnnotateExpr (LType_base l1tp) [clNuP| LAppExpr e |] =
+  mbAnnotateAppExpr (PMOrBaseType_base l1tp) e Nil
+mbAnnotateExpr (LType_pm l1tp) [clNuP| LAppExpr e |] =
+  mbAnnotateAppExpr (PMOrBaseType_pm l1tp) e Nil
+mbAnnotateExpr _ _ =
+  error "mbAnnotateExpr: this should be impossible! (but Haskell's coverage checking can't see it...)"
+
+-- | Annotate an 'LAppExpr'
+mbAnnotateAppExpr :: LExprAnnotation f =>
+                     PMOrBaseType a ->
+                     Closed (Mb ctx (LAppExpr tag (AddArrows args a))) ->
+                     MapList (MbAnnotExpr f tag ctx) args ->
+                     MbAnnotExpr f tag ctx a
+mbAnnotateAppExpr tp [clNuP| LVar _ n |] args =
+  case clApply $(mkClosed [| mbNameBoundP |]) n of
+    [clP| Left memb |] ->
+      mkMbAnnotExprBase tp (OpOrVar_Var $ unClosed memb) args
+    [clP| Right closed_n |] -> noClosedNames closed_n
+mbAnnotateAppExpr tp [clNuP| LOp op |] args =
+  mkMbAnnotExprBase tp (OpOrVar_Op $ mbLift $ unClosed op) args
+mbAnnotateAppExpr tp [clNuP| LApp f arg |] args =
+  let arg_tp = mbExprType (unClosed arg) in
+  mbAnnotateAppExpr tp f (Cons (mbAnnotateExpr arg_tp arg) args)
 
 
 ----------------------------------------------------------------------
@@ -1023,7 +1116,7 @@ interpExprC ctx [clNuP| LAppExpr e |] = interpAppExprC ctx e
 interpAppExprC :: LCtxExprAlgebra tag f =>
                   MapRList (InterpRes f dest_ctx) ctx ->
                   Closed (Mb ctx (LAppExpr tag a)) -> InterpRes f dest_ctx a
-interpAppExprC ctx [clNuP| LVar n |] =
+interpAppExprC ctx [clNuP| LVar _ n |] =
   case clApply $(mkClosed [| mbNameBoundP |]) n of
     [clP| Left memb |] -> hlistLookup (unClosed memb) ctx
     [clP| Right closed_n |] -> noClosedNames closed_n
