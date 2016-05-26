@@ -589,88 +589,88 @@ data ArithCmp
     
 
 -- | The operations / function symbols of our logic
-data Op tag args ret where
+data Op tag a where
   -- | Literals that are lifted from Haskell
-  Op_Literal :: Liftable a => LitType a -> a -> Op tag '[] (Literal a)
+  Op_Literal :: Liftable a => LitType a -> a -> Op tag (Literal a)
 
   -- * First-order operations on data
 
   -- | Unary arithmetic
-  Op_arith1 :: LitType a -> ArithOp1 -> Op tag '[Literal a] (Literal a)
+  Op_arith1 :: LitType a -> ArithOp1 -> Op tag (Literal a -> Literal a)
   -- | Binary arithmetic
   Op_arith2 :: LitType a -> ArithOp2 ->
-               Op tag '[Literal a, Literal a] (Literal a)
+               Op tag (Literal a -> Literal a -> Literal a)
   -- | Coercion between types
-  Op_coerce :: LitType a -> LitType b -> Op tag '[Literal a] (Literal b)
+  Op_coerce :: LitType a -> LitType b -> Op tag (Literal a -> Literal b)
   -- | Comparison operations
   Op_cmp :: LitType a -> ArithCmp ->
-            Op tag '[Literal a, Literal a] (Literal Bool)
+            Op tag (Literal a -> Literal a -> Literal Bool)
 
   -- | Bump a free pointer
-  Op_next_ptr :: Op tag '[Ptr] Ptr
+  Op_next_ptr :: Op tag (Ptr -> Ptr)
 
   -- * Propositional operations
   -- | The true proposition
-  Op_true :: Op tag '[] Prop
+  Op_true :: Op tag Prop
   -- | The false proposition
-  Op_false :: Op tag '[] Prop
+  Op_false :: Op tag Prop
   -- | Logical and
-  Op_and :: Op tag '[Prop, Prop] Prop
+  Op_and :: Op tag (Prop -> Prop -> Prop)
   -- | Logical or
-  Op_or :: Op tag '[Prop, Prop] Prop
+  Op_or :: Op tag (Prop -> Prop -> Prop)
   -- | Logical negation
-  Op_not :: Op tag '[Prop] Prop
+  Op_not :: Op tag (Prop -> Prop)
   -- | Equality at base type
-  Op_eq :: L1Type a -> Op tag '[a, a] Prop
+  Op_eq :: L1Type a -> Op tag (a -> a -> Prop)
   -- | Lift a 'Bool' to a 'Prop'
-  Op_istrue  :: Op tag '[Literal Bool] Prop
+  Op_istrue  :: Op tag (Literal Bool -> Prop)
 
   -- | Universal quantification
-  Op_forall :: L1Type a -> Op tag '[a -> Prop] Prop
+  Op_forall :: L1Type a -> Op tag ((a -> Prop) -> Prop)
   -- | Existential quantification
-  Op_exists :: L1Type a -> Op tag '[a -> Prop] Prop
+  Op_exists :: L1Type a -> Op tag ((a -> Prop) -> Prop)
 
   -- | Let-bindings, which are only allowed in propositions
-  Op_let :: L1Type a -> Op tag '[a, a -> Prop] Prop
+  Op_let :: L1Type a -> Op tag (a -> (a -> Prop) -> Prop)
 
   -- * Predicate monad operations
 
   -- | Return in the predicate monad
-  Op_returnP :: L1Type a -> Op tag '[a] (PM a)
+  Op_returnP :: L1Type a -> Op tag (a -> PM a)
   -- | Bind in the predicate monad
-  Op_bindP :: L1Type a -> L1Type b -> Op tag '[PM a, a -> PM b] (PM b)
+  Op_bindP :: L1Type a -> L1Type b -> Op tag (PM a -> (a -> PM b) -> PM b)
   -- | Memory read operations
   Op_readP :: ReadOp (LStorables tag) args ret ->
-              Op tag args (PM ret)
+              Op tag (AddArrows args (PM ret))
   -- | Memory update operations
   Op_updateP :: UpdateOp (LStorables tag) args ->
-                Op tag args (PM (Literal ()))
+                Op tag (AddArrows args (PM (Literal ())))
   -- | Raise an exception in the predicate monad. The 'Nothing' exception
   -- represents an un-catchable error
   Op_raiseP :: Liftable (LException tag) => Maybe (LException tag) ->
-               Op tag '[] (PM (Literal ()))
+               Op tag (PM (Literal ()))
   -- | Catch an exception
   Op_catchP :: (Eq (LException tag), Liftable (LException tag)) =>
                LException tag ->
-               Op tag '[PM (Literal ()), PM (Literal ())] (PM (Literal ()))
+               Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
   -- | Assumptions about the current execution
-  Op_assumeP :: Op tag '[Prop] (PM (Literal ()))
+  Op_assumeP :: Op tag (Prop -> PM (Literal ()))
   -- | Special-purpose assumption of false: prunes out the current execution
-  Op_falseP :: Op tag '[] (PM (Literal ()))
+  Op_falseP :: Op tag (PM (Literal ()))
   -- | Disjunctions
   Op_orP :: Eq (LException tag) =>
-            Op tag '[PM (Literal ()), PM (Literal ())] (PM (Literal ()))
-
--- | Build an 'LTypeArgs' for the type arguments of an 'Op'
-opTypeArgs :: Op tag args ret -> LTypeArgs (AddArrows args ret) args ret
-opTypeArgs = error "FIXME HERE: write opTypeArgs!"
+            Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
 
 -- | Get the 'LType' for an 'Op'
-opType :: Op tag args ret -> LType (AddArrows args ret)
-opType op = ltypeArgsFullType $ opTypeArgs op
+opType :: Op tag a -> LType a
+opType op = error "FIXME HERE: write opType!"
+
+-- | Build an 'LTypeArgs' for the type arguments of an 'Op'
+opTypeArgs :: Op tag a -> LTypeArgs a (ArgTypes a) (RetType a)
+opTypeArgs op = mkLTypeArgs $ opType op
 
 -- | Get the 'LType' for the return type of an 'Op'
-opRetType :: Op tag args ret -> LType ret
+opRetType :: Op tag a -> LType (RetType a)
 opRetType op = ltypeArgsRetType $ opTypeArgs op
 
 -- Build a NuMatching instances for Op and friends
@@ -680,7 +680,7 @@ $(mkNuMatching [t| ArithCmp |])
 $(mkNuMatching [t| forall a. NuMatching a => Maybe a |])
 $(mkNuMatching [t| forall mm args ret. ReadOp mm args ret |])
 $(mkNuMatching [t| forall mm args. UpdateOp mm args |])
-$(mkNuMatching [t| forall tag args ret. Op tag args ret |])
+$(mkNuMatching [t| forall tag a. Op tag a |])
 
 -- Build Liftable instances for Op and friends
 instance Liftable ArithOp1 where
@@ -711,7 +711,7 @@ instance Liftable (UpdateOp mm args) where
   mbLift [nuP| UpdateOp_alloc (Just elem_pf) |] =
     UpdateOp_alloc $ Just $ mbLift elem_pf
   mbLift [nuP| UpdateOp_alloc Nothing |] = UpdateOp_alloc Nothing
-instance Liftable (Op tag args ret) where
+instance Liftable (Op tag a) where
   mbLift [nuP| Op_Literal ltp x |] = Op_Literal (mbLift ltp) (mbLift x)
   mbLift [nuP| Op_arith1 ltp aop |] = Op_arith1 (mbLift ltp) (mbLift aop)
   mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
@@ -750,7 +750,7 @@ instance Liftable (Op tag args ret) where
 -- symbols to all of their arguments.
 data LExpr tag a where
   LLambda :: LType a -> Binding a (LExpr tag b) -> LExpr tag (a -> b)
-  LOp :: Op tag args ret -> LExprs tag args -> LExpr tag ret
+  LOp :: Op tag a -> LExprs tag (ArgTypes a) -> LExpr tag (RetType a)
   LVar :: LTypeArgs a args ret -> Name a -> LExprs tag args -> LExpr tag ret
 
 -- | Lists of 'LExpr's
@@ -804,11 +804,9 @@ mkVarTp (_ :: Proxy tag) tp n =
 mkVar :: LTypeable a => Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
 mkVar proxy n = mkVarTp proxy ltypeRep n
 
--- | Helper function for building expression functions from 'Op's. Note that the
--- required type equalities will always hold for known, ground types.
-mkOp :: (args ~ ArgTypes (AddArrows args ret),
-         ret ~ RetType (AddArrows args ret)) =>
-        Op tag args ret -> ApplyToArgs (LExpr tag) (AddArrows args ret)
+-- | Helper function for building expression functions from 'Op's with an
+-- explicit 'LType'
+mkOp :: Op tag a -> ApplyToArgs (LExpr tag) a
 mkOp op = curryLExprsFun (opType op) (LOp op)
 
 -- | Helper function for building literal expressions
@@ -948,7 +946,7 @@ class CommutesWithArrow f where
 -- | An expression @f@-algebra shows how to convert any 'Op' of type @a@ to an
 -- element of type @f a@. It also requires that @f@ commutes with arrow.
 class CommutesWithArrow f => LExprAlgebra tag (f :: * -> *) where
-  interpOp :: Op tag args ret -> f (AddArrows args ret)
+  interpOp :: Op tag a -> f a
 
 -- | Interpret an 'LExpr' to another functor @f@ using an @f@-algebra
 interpExpr :: LExprAlgebra tag f =>
@@ -975,8 +973,7 @@ interpExprsApply ctx f (LTypeArgs_pm l1tp) _ = f
 interpExprsApply ctx f (LTypeArgs_fun tp tp_args) [clNuP| LExprs_cons e es |] =
   interpExprsApply ctx (interpApply f (interpExpr ctx e)) tp_args es
 
-{- FIXME HERE NOW: maybe we should go back to having Ops have a single type,
-and changing the LOp constructor so that it looks just like LVar?
+{- FIXME HERE NOW
 
 
 ----------------------------------------------------------------------
