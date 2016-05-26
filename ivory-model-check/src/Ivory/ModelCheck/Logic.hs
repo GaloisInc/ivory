@@ -301,6 +301,95 @@ ltypeEq (LType_pm _) _ = Nothing
 
 
 ----------------------------------------------------------------------
+-- Extracting the argument and return types of a function type
+----------------------------------------------------------------------
+
+-- | Type family to add a list of types as arguments to a function return type
+type family AddArrows (args :: [*]) (ret :: *) :: *
+type instance AddArrows '[] ret = ret
+type instance AddArrows (a ': args) ret = a -> AddArrows args ret
+
+-- | Type family to extract the argument types from a function type. This is the
+-- inverse of 'AddArrows', in that @'ArgTypes' ('AddArrows' args ret) = args@
+-- and that @'AddArrows' ('ArgTypes' a) ('RetType' a) = a@ when all three of the
+-- type functions involved are defined.
+type family ArgTypes a :: [*]
+type instance ArgTypes (Literal a) = '[]
+type instance ArgTypes Ptr = '[]
+type instance ArgTypes Prop = '[]
+type instance ArgTypes (PM a) = '[]
+type instance ArgTypes (a -> b) = a ': ArgTypes b
+
+-- | Type family to extract the return type from a function type; see 'ArgTypes'
+type family RetType a :: *
+type instance RetType (Literal a) = (Literal a)
+type instance RetType Ptr = Ptr
+type instance RetType Prop = Prop
+type instance RetType (PM a) = PM a
+type instance RetType (a -> b) = RetType b
+
+-- | "Proof" that @a = AddArrows args ret@
+data LTypeArgs a args ret where
+  LTypeArgs_base :: L1Type a -> LTypeArgs a '[] a
+  LTypeArgs_pm :: L1Type a -> LTypeArgs (PM a) '[] (PM a)
+  LTypeArgs_fun :: LType arg -> LTypeArgs a args ret ->
+                   LTypeArgs (arg -> a) (arg ': args) ret
+
+-- | Typeclass for generating 'LTypeArgs' proofs
+class LTypeableArgs a args ret | a -> args ret , args ret -> a where
+  ltypeArgsRep :: LTypeArgs a args ret
+
+instance LitTypeable a => LTypeableArgs (Literal a) '[] (Literal a) where
+  ltypeArgsRep = LTypeArgs_base l1typeRep
+instance LTypeableArgs Ptr '[] Ptr where
+  ltypeArgsRep = LTypeArgs_base l1typeRep
+instance LTypeableArgs Prop '[] Prop where
+  ltypeArgsRep = LTypeArgs_base l1typeRep
+instance L1Typeable a => LTypeableArgs (PM a) '[] (PM a) where
+  ltypeArgsRep = LTypeArgs_pm l1typeRep
+instance (LTypeable arg, LTypeableArgs a args ret) =>
+         LTypeableArgs (arg -> a) (arg ': args) ret where
+  ltypeArgsRep = LTypeArgs_fun ltypeRep ltypeArgsRep
+
+-- | Generate an 'LTypeArgs' proof for a given type @a@
+mkLTypeArgs :: LType a -> LTypeArgs a (ArgTypes a) (RetType a)
+mkLTypeArgs (LType_base l1tp@(L1Type_lit lit_tp)) = LTypeArgs_base l1tp
+mkLTypeArgs (LType_base L1Type_prop) = LTypeArgs_base l1typeRep
+mkLTypeArgs (LType_base L1Type_ptr) = LTypeArgs_base l1typeRep
+mkLTypeArgs (LType_pm l1tp) = LTypeArgs_pm l1tp
+mkLTypeArgs (LType_fun tp_a tp_b) =
+  LTypeArgs_fun tp_a (mkLTypeArgs tp_b)
+
+-- | Convert an @'LTypeArgs' a args ret@ to an @'LType' a@
+ltypeArgsFullType :: LTypeArgs a args ret -> LType a
+ltypeArgsFullType (LTypeArgs_base l1tp) = LType_base l1tp
+ltypeArgsFullType (LTypeArgs_pm l1tp) = LType_pm l1tp
+ltypeArgsFullType (LTypeArgs_fun tp tp_args) =
+  LType_fun tp $ ltypeArgsFullType tp_args
+
+-- | Convert an 'LTypeArgs' to an 'LType' for the return type
+ltypeArgsRetType :: LTypeArgs a args ret -> LType ret
+ltypeArgsRetType (LTypeArgs_base l1tp) = LType_base l1tp
+ltypeArgsRetType (LTypeArgs_pm l1tp) = LType_pm l1tp
+ltypeArgsRetType (LTypeArgs_fun _ tp_args) = ltypeArgsRetType tp_args
+
+-- | Proof that the return type of an 'LTypeArgs' is never a function type
+no_functional_type_args_ret :: LTypeArgs a args (b -> c) -> d
+no_functional_type_args_ret (LTypeArgs_base l1tp) = no_functional_l1type l1tp
+no_functional_type_args_ret (LTypeArgs_fun _ tp_args) =
+  no_functional_type_args_ret tp_args
+
+-- Build a NuMatching instance for LTypeArgs, needed for Liftable
+$(mkNuMatching [t| forall a args ret. LTypeArgs a args ret |])
+
+instance Liftable (LTypeArgs a args ret) where
+  mbLift [nuP| LTypeArgs_base l1tp |] = LTypeArgs_base $ mbLift l1tp
+  mbLift [nuP| LTypeArgs_pm l1tp |] = LTypeArgs_pm $ mbLift l1tp
+  mbLift [nuP| LTypeArgs_fun tp tp_args |] =
+    LTypeArgs_fun (mbLift tp) (mbLift tp_args)
+
+
+----------------------------------------------------------------------
 -- The types of functions over first-order types
 ----------------------------------------------------------------------
 
@@ -484,11 +573,6 @@ class (MemoryModel (LStorables tag),
   type LStorables tag :: [*]
   type LException tag :: *
 
--- | Type family to add a list of types as arguments to a function return type
-type family AddArrows (args :: [*]) (ret :: *) :: *
-type instance AddArrows '[] ret = ret
-type instance AddArrows (a ': args) ret = a -> AddArrows args ret
-
 -- | The unary arithmetic operations
 data ArithOp1 = Op1_Abs | Op1_Signum | Op1_Neg | Op1_Complement
 
@@ -505,81 +589,89 @@ data ArithCmp
     
 
 -- | The operations / function symbols of our logic
-data Op tag a where
+data Op tag args ret where
   -- | Literals that are lifted from Haskell
-  Op_Literal :: Liftable a => LitType a -> a -> Op tag (Literal a)
+  Op_Literal :: Liftable a => LitType a -> a -> Op tag '[] (Literal a)
 
   -- * First-order operations on data
 
   -- | Unary arithmetic
-  Op_arith1 :: LitType a -> ArithOp1 -> Op tag (Literal a -> Literal a)
+  Op_arith1 :: LitType a -> ArithOp1 -> Op tag '[Literal a] (Literal a)
   -- | Binary arithmetic
   Op_arith2 :: LitType a -> ArithOp2 ->
-               Op tag (Literal a -> Literal a -> Literal a)
+               Op tag '[Literal a, Literal a] (Literal a)
   -- | Coercion between types
-  Op_coerce :: LitType a -> LitType b -> Op tag (Literal a -> Literal b)
+  Op_coerce :: LitType a -> LitType b -> Op tag '[Literal a] (Literal b)
   -- | Comparison operations
   Op_cmp :: LitType a -> ArithCmp ->
-            Op tag (Literal a -> Literal a -> Literal Bool)
+            Op tag '[Literal a, Literal a] (Literal Bool)
 
   -- | Bump a free pointer
-  Op_next_ptr :: Op tag (Ptr -> Ptr)
+  Op_next_ptr :: Op tag '[Ptr] Ptr
 
   -- * Propositional operations
   -- | The true proposition
-  Op_true :: Op tag Prop
+  Op_true :: Op tag '[] Prop
   -- | The false proposition
-  Op_false :: Op tag Prop
+  Op_false :: Op tag '[] Prop
   -- | Logical and
-  Op_and :: Op tag (Prop -> Prop -> Prop)
+  Op_and :: Op tag '[Prop, Prop] Prop
   -- | Logical or
-  Op_or :: Op tag (Prop -> Prop -> Prop)
+  Op_or :: Op tag '[Prop, Prop] Prop
   -- | Logical negation
-  Op_not :: Op tag (Prop -> Prop)
+  Op_not :: Op tag '[Prop] Prop
   -- | Equality at base type
-  Op_eq :: L1Type a -> Op tag (a -> a -> Prop)
+  Op_eq :: L1Type a -> Op tag '[a, a] Prop
   -- | Lift a 'Bool' to a 'Prop'
-  Op_istrue  :: Op tag (Literal Bool -> Prop)
+  Op_istrue  :: Op tag '[Literal Bool] Prop
 
   -- | Universal quantification
-  Op_forall :: L1Type a -> Op tag ((a -> Prop) -> Prop)
+  Op_forall :: L1Type a -> Op tag '[a -> Prop] Prop
   -- | Existential quantification
-  Op_exists :: L1Type a -> Op tag ((a -> Prop) -> Prop)
+  Op_exists :: L1Type a -> Op tag '[a -> Prop] Prop
 
-  -- | Let-bindings
-  Op_let :: L1Type a -> Op tag (a -> (a -> Prop) -> Prop)
+  -- | Let-bindings, which are only allowed in propositions
+  Op_let :: L1Type a -> Op tag '[a, a -> Prop] Prop
 
   -- * Predicate monad operations
 
   -- | Return in the predicate monad
-  Op_returnP :: L1Type a -> Op tag (a -> PM a)
+  Op_returnP :: L1Type a -> Op tag '[a] (PM a)
   -- | Bind in the predicate monad
-  Op_bindP :: L1Type a -> L1Type b -> Op tag (PM a -> (a -> PM b) -> PM b)
+  Op_bindP :: L1Type a -> L1Type b -> Op tag '[PM a, a -> PM b] (PM b)
   -- | Memory read operations
   Op_readP :: ReadOp (LStorables tag) args ret ->
-              Op tag (AddArrows args (PM ret))
+              Op tag args (PM ret)
   -- | Memory update operations
   Op_updateP :: UpdateOp (LStorables tag) args ->
-                Op tag (AddArrows args (PM (Literal ())))
+                Op tag args (PM (Literal ()))
   -- | Raise an exception in the predicate monad. The 'Nothing' exception
   -- represents an un-catchable error
   Op_raiseP :: Liftable (LException tag) => Maybe (LException tag) ->
-               Op tag (PM (Literal ()))
+               Op tag '[] (PM (Literal ()))
   -- | Catch an exception
   Op_catchP :: (Eq (LException tag), Liftable (LException tag)) =>
                LException tag ->
-               Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
+               Op tag '[PM (Literal ()), PM (Literal ())] (PM (Literal ()))
   -- | Assumptions about the current execution
-  Op_assumeP :: Op tag (Prop -> PM (Literal ()))
+  Op_assumeP :: Op tag '[Prop] (PM (Literal ()))
   -- | Special-purpose assumption of false: prunes out the current execution
-  Op_falseP :: Op tag (PM (Literal ()))
+  Op_falseP :: Op tag '[] (PM (Literal ()))
   -- | Disjunctions
   Op_orP :: Eq (LException tag) =>
-            Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
+            Op tag '[PM (Literal ()), PM (Literal ())] (PM (Literal ()))
 
--- | Get the 'LType' of an 'Op'
-opType :: Op tag a -> LType a
-opType = error "FIXME HERE: write opLType!"
+-- | Build an 'LTypeArgs' for the type arguments of an 'Op'
+opTypeArgs :: Op tag args ret -> LTypeArgs (AddArrows args ret) args ret
+opTypeArgs = error "FIXME HERE: write opTypeArgs!"
+
+-- | Get the 'LType' for an 'Op'
+opType :: Op tag args ret -> LType (AddArrows args ret)
+opType op = ltypeArgsFullType $ opTypeArgs op
+
+-- | Get the 'LType' for the return type of an 'Op'
+opRetType :: Op tag args ret -> LType ret
+opRetType op = ltypeArgsRetType $ opTypeArgs op
 
 -- Build a NuMatching instances for Op and friends
 $(mkNuMatching [t| ArithOp1 |])
@@ -588,7 +680,7 @@ $(mkNuMatching [t| ArithCmp |])
 $(mkNuMatching [t| forall a. NuMatching a => Maybe a |])
 $(mkNuMatching [t| forall mm args ret. ReadOp mm args ret |])
 $(mkNuMatching [t| forall mm args. UpdateOp mm args |])
-$(mkNuMatching [t| forall tag a. Op tag a |])
+$(mkNuMatching [t| forall tag args ret. Op tag args ret |])
 
 -- Build Liftable instances for Op and friends
 instance Liftable ArithOp1 where
@@ -619,7 +711,7 @@ instance Liftable (UpdateOp mm args) where
   mbLift [nuP| UpdateOp_alloc (Just elem_pf) |] =
     UpdateOp_alloc $ Just $ mbLift elem_pf
   mbLift [nuP| UpdateOp_alloc Nothing |] = UpdateOp_alloc Nothing
-instance Liftable (Op tag a) where
+instance Liftable (Op tag args ret) where
   mbLift [nuP| Op_Literal ltp x |] = Op_Literal (mbLift ltp) (mbLift x)
   mbLift [nuP| Op_arith1 ltp aop |] = Op_arith1 (mbLift ltp) (mbLift aop)
   mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
@@ -652,109 +744,36 @@ instance Liftable (Op tag a) where
 ----------------------------------------------------------------------
 
 -- | The expressions of our logic as a GADT. This is essentially the typed
--- lambda-calculus with function symbols. All expressions are in beta-normal
+-- lambda-calculus with function symbols. All expressions are in beta-eta-normal
 -- form, which is enforced by restricting the expressions to only the
--- lambda-abstractions and the applications of variables and function symbols.
+-- lambda-abstractions and the full applications of variables and function
+-- symbols to all of their arguments.
 data LExpr tag a where
   LLambda :: LType a -> Binding a (LExpr tag b) -> LExpr tag (a -> b)
-  LAppExpr :: LAppExpr tag a -> LExpr tag a
+  LOp :: Op tag args ret -> LExprs tag args -> LExpr tag ret
+  LVar :: LTypeArgs a args ret -> Name a -> LExprs tag args -> LExpr tag ret
 
--- | Expressions that are applications of variables or function symbols.
-data LAppExpr tag a where
-  LVar :: LType a -> Name a -> LAppExpr tag a
-  LOp :: Op tag a -> LAppExpr tag a
-  LApp :: LAppExpr tag (a -> b) -> LExpr tag a -> LAppExpr tag b
+-- | Lists of 'LExpr's
+data LExprs tag as where
+  LExprs_nil :: LExprs tag '[]
+  LExprs_cons :: LExpr tag a -> LExprs tag as -> LExprs tag (a ': as)
 
 $(mkNuMatching [t| forall tag a. LExpr tag a |])
-$(mkNuMatching [t| forall tag a. LAppExpr tag a |])
+$(mkNuMatching [t| forall tag as. LExprs tag as |])
 
 type LProp tag = LExpr tag Prop
-
--- | Get the 'LType' of an 'LAppExpr'
-appExprType :: LAppExpr tag a -> LType a
-appExprType (LVar tp _) = tp
-appExprType (LOp op) = opType op
-appExprType (LApp f arg) =
-  case appExprType f of
-    LType_fun _ tp_b -> tp_b
-
--- | Get the 'LType' of an 'LAppExpr'-in-binding
-mbAppExprType :: Mb ctx (LAppExpr tag a) -> LType a
-mbAppExprType e = mbLift $ fmap appExprType e
 
 -- | Get the 'LType' of an expression-in-binding
 mbExprType :: Mb ctx (LExpr tag a) -> LType a
 mbExprType [nuP| LLambda tp_a body |] =
   LType_fun (mbLift tp_a) $ mbExprType $ mbCombine body
-mbExprType [nuP| LAppExpr e |] = mbAppExprType e
+mbExprType [nuP| LOp op _ |] = opRetType $ mbLift op
+mbExprType [nuP| LVar tp_args _ _ |] = ltypeArgsRetType $ mbLift tp_args
 
 
 ----------------------------------------------------------------------
 -- Building and manipulating expressions
 ----------------------------------------------------------------------
-
--- | Helper function for building lambda-abstractions
-mkLambda :: LType a -> (LExpr tag a -> LExpr tag b) -> LExpr tag (a -> b)
-mkLambda tp f = LLambda tp $ nu $ \x -> f (LAppExpr (LVar tp x))
-
--- | Helper function for building variable expressions
-mkVar :: LTypeable a => Name a -> LExpr tag a
-mkVar n = LAppExpr $ LVar ltypeRep n
-
--- | Helper function for building variable expressions with an explicit 'LType'
-mkVarTp :: LType a -> Name a -> LExpr tag a
-mkVarTp tp n = LAppExpr $ LVar tp n
-
--- FIXME: this requires Op_let to have an arbitrary RHS type;
--- OR: we have to do arbitrary substitution...
-{-
--- | Apply an 'LExpr' to another
-(@@) :: LExpr tag (a -> b) -> LExpr tag a -> LExpr tag b
-f@(LLambda tp body) @@ arg = LAppExpr $ LApp (LApp (LOp $ Op_let tp) arg) f
-(LAppExpr app_expr) @@ arg = LAppExpr $ LApp app_expr arg
--}
-
--- | Match the body of a lambda-expression, eta-expanding if necessary
-matchLambda :: LExpr tag (a -> b) -> Binding a (LExpr tag b)
-matchLambda (LLambda _ body) = body
-matchLambda (LAppExpr app_expr) =
-  case appExprType app_expr of
-    LType_fun tp_a _ ->
-      nu $ \n -> LAppExpr $ LApp app_expr $ mkVarTp tp_a n
-
--- | Same as 'matchLambda', but on an expression inside a binding
-mbMatchLambda :: Mb ctx (LExpr tag (a -> b)) -> Mb (ctx :> a) (LExpr tag b)
-mbMatchLambda [nuP| LLambda _ body |] = mbCombine body
-mbMatchLambda [nuP| LAppExpr mb_app_expr |] =
-  mbCombine $ fmap (\app_expr -> nu $ \n ->
-                     case mbAppExprType mb_app_expr of
-                       LType_fun tp_a _ ->
-                         LAppExpr $ LApp app_expr $ mkVarTp tp_a n) mb_app_expr
-
--- | The "spine form" of an expression of type @a@ is an 'Op' or a variable of
--- some type @a1 -> ... an -> a@ combined with expressions of type ai.
-data SpineForm a where
-  SpineFormOp :: Op tag (AddArrows args a) -> MapList (LExpr tag) args ->
-                 SpineForm a
-  SpineFormVar :: Name (AddArrows args a) -> MapList (LExpr tag) args ->
-                  SpineForm a
-
--- | Convert an 'AppExpr' to spine form
-appExprSpineForm :: LAppExpr tag (AddArrows args a) ->
-                    MapList (LExpr tag) args -> SpineForm a
-appExprSpineForm (LOp op) args = SpineFormOp op args
-appExprSpineForm (LVar _ n) args = SpineFormVar n args
-appExprSpineForm (LApp ae arg) args =
-  appExprSpineForm ae (Cons arg args)
-
--- | Convert an expression of base type to spine form
-spineForm :: L1Type a -> LExpr tag a -> SpineForm a
-spineForm l1tp (LLambda _ _) = no_functional_l1type l1tp
-spineForm _ (LAppExpr app_expr) = appExprSpineForm app_expr Nil
-
--- | Convert an expression-in-binding of base type to spine form
-mbSpineForm :: L1Type a -> Mb ctx (LExpr tag a) -> Mb ctx (SpineForm a)
-mbSpineForm l1tp mb_expr = fmap (spineForm l1tp) mb_expr
 
 -- | Apply type function @f@ to the input and outputs of a function type, i.e.,
 -- replace @a1 -> ... -> an -> b@ with @f a1 -> ... -> f an -> f b@.
@@ -765,37 +784,92 @@ type instance ApplyToArgs f Prop = f Prop
 type instance ApplyToArgs f (PM a) = f (PM a)
 type instance ApplyToArgs f (a -> b) = f a -> ApplyToArgs f b
 
--- | Build an eta-expanded term-building function
-etaBuild :: LType a -> LAppExpr tag a -> ApplyToArgs (LExpr tag) a
-etaBuild (LType_base (L1Type_lit _)) e = LAppExpr e
-etaBuild (LType_base L1Type_ptr) e = LAppExpr e
-etaBuild (LType_base L1Type_prop) e = LAppExpr e
-etaBuild (LType_fun _ tp2) e = \x -> etaBuild tp2 (LApp e x)
+-- | Curry a @'LExprs' tag args -> 'LExpr' tag ret@ function
+curryLExprsFun :: LType a ->
+                  (LExprs tag (ArgTypes a) -> LExpr tag (RetType a)) ->
+                  ApplyToArgs (LExpr tag) a
+curryLExprsFun (LType_base (L1Type_lit _)) f = f LExprs_nil
+curryLExprsFun (LType_base L1Type_prop) f = f LExprs_nil
+curryLExprsFun (LType_base L1Type_ptr) f = f LExprs_nil
+curryLExprsFun (LType_pm l1tp) f = f LExprs_nil
+curryLExprsFun (LType_fun _ tp_b) f =
+  \e -> curryLExprsFun tp_b (\es -> f (LExprs_cons e es))
+
+-- | Helper function for building expression functions from variables
+mkVarTp :: Proxy tag -> LType a -> Name a -> ApplyToArgs (LExpr tag) a
+mkVarTp (_ :: Proxy tag) tp n =
+  curryLExprsFun tp (LVar (mkLTypeArgs tp) n :: LExprs tag _ -> _)
+
+-- | Helper function for building expression functions from variables
+mkVar :: LTypeable a => Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
+mkVar proxy n = mkVarTp proxy ltypeRep n
+
+-- | Helper function for building expression functions from 'Op's. Note that the
+-- required type equalities will always hold for known, ground types.
+mkOp :: (args ~ ArgTypes (AddArrows args ret),
+         ret ~ RetType (AddArrows args ret)) =>
+        Op tag args ret -> ApplyToArgs (LExpr tag) (AddArrows args ret)
+mkOp op = curryLExprsFun (opType op) (LOp op)
 
 -- | Helper function for building literal expressions
 mkLiteralTp :: Liftable a => LitType a -> a -> LExpr tag (Literal a)
-mkLiteralTp lit_tp a =
-  etaBuild (LType_base $ L1Type_lit lit_tp) $ LOp $ Op_Literal lit_tp a
+mkLiteralTp lit_tp a = LOp (Op_Literal lit_tp a) LExprs_nil
 
 -- | Helper function for building literal expressions
 mkLiteral :: (LitTypeable a, Liftable a) => a -> LExpr tag (Literal a)
-mkLiteral a = etaBuild ltypeRep $ LOp $ Op_Literal litTypeRep a
+mkLiteral a = mkLiteralTp litTypeRep a
 
--- | Helper function for building expression functions from 'Op's
-mkOpTp :: LType a -> Op tag a -> ApplyToArgs (LExpr tag) a
-mkOpTp tp op = etaBuild tp (LOp op)
+-- | Helper function for building lambda-abstractions
+mkLambda :: LTypeable a =>
+            (ApplyToArgs (LExpr tag) a -> LExpr tag b) -> LExpr tag (a -> b)
+mkLambda (f :: _ -> LExpr tag b) =
+  LLambda ltypeRep $ nu $ \x -> f (mkVar (Proxy :: Proxy tag) x)
 
--- | Helper function for building expression functions from 'Op's
-mkOp :: LTypeable a => Op tag a -> ApplyToArgs (LExpr tag) a
-mkOp op = etaBuild ltypeRep (LOp op)
+-- | Eta-expand a @'LExprs' tag args -> 'LExpr' tag ret@ function into an
+-- expression with functional type
+etaExpandLExprsFun :: LType a ->
+                  (LExprs tag (ArgTypes a) -> LExpr tag (RetType a)) ->
+                  LExpr tag a
+etaExpandLExprsFun (LType_base (L1Type_lit _)) f = f LExprs_nil
+etaExpandLExprsFun (LType_base L1Type_prop) f = f LExprs_nil
+etaExpandLExprsFun (LType_base L1Type_ptr) f = f LExprs_nil
+etaExpandLExprsFun (LType_pm l1tp) f = f LExprs_nil
+etaExpandLExprsFun (LType_fun tp_a tp_b) f =
+  LLambda tp_a $ nu $ \n ->
+  etaExpandLExprsFun tp_b (\es -> f (LExprs_cons (mkVarExprTp tp_a n) es))
 
--- | Helper function for building expression functions from variables
-mkVarFunTp :: LType a -> Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
-mkVarFunTp tp (_ :: Proxy tag) n = etaBuild tp (LVar tp n :: LAppExpr tag _)
+-- | Make a variable into an expression, rather than a function
+mkVarExprTp :: LType a -> Name a -> LExpr tag a
+mkVarExprTp tp n = etaExpandLExprsFun tp (LVar (mkLTypeArgs tp) n)
 
--- | Helper function for building expression functions from variables
-mkVarFun :: LTypeable a => Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
-mkVarFun proxy n = mkVarFunTp ltypeRep proxy n
+-- | Helper function for building lambda-abstractions
+mkLambdaTp :: LType a -> (LExpr tag a -> LExpr tag b) ->
+              LExpr tag (a -> b)
+mkLambdaTp tp_a (f :: _ -> LExpr tag b) =
+  LLambda tp_a $ nu $ \x -> f (mkVarExprTp tp_a x)
+
+-- FIXME: this requires Op_let to have an arbitrary RHS type;
+-- OR: we have to do arbitrary substitution...
+{-
+-- | Apply an 'LExpr' to another
+(@@) :: LExpr tag (a -> b) -> LExpr tag a -> LExpr tag b
+f@(LLambda tp body) @@ arg = LAppExpr $ LApp (LApp (LOp $ Op_let tp) arg) f
+(LAppExpr app_expr) @@ arg = LAppExpr $ LApp app_expr arg
+-}
+
+-- | Match the body of a lambda-expression
+matchLambda :: LExpr tag (a -> b) -> Binding a (LExpr tag b)
+matchLambda (LLambda _ body) = body
+matchLambda (LVar tp_args _ _) = no_functional_type_args_ret tp_args
+matchLambda (LOp op _) = no_functional_type_args_ret $ opTypeArgs op
+
+-- | Same as 'matchLambda', but on an expression inside a binding
+mbMatchLambda :: Mb ctx (LExpr tag (a -> b)) -> Mb (ctx :> a) (LExpr tag b)
+mbMatchLambda [nuP| LLambda _ body |] = mbCombine body
+mbMatchLambda [nuP| LVar tp_args _ _ |] =
+  no_functional_type_args_ret $ mbLift tp_args
+mbMatchLambda [nuP| LOp op _ |] =
+  no_functional_type_args_ret $ opTypeArgs $ mbLift op
 
 -- Num instance allows us to use arithmetic operations to build expressions.
 instance (LitTypeable a, Liftable a, Num a) =>
@@ -807,39 +881,60 @@ instance (LitTypeable a, Liftable a, Num a) =>
   signum = mkOp (Op_arith1 litTypeRep Op1_Signum)
   fromInteger i = mkLiteral (fromInteger i)
 
+-- | The true proposition
+mkTrue :: LProp tag
+mkTrue = mkOp Op_true
+
+-- | The false proposition
+mkFalse :: LProp tag
+mkFalse = mkOp Op_false
+
 -- | Negate a proposition (FIXME: make this "smart")
 mkNot :: LProp tag -> LProp tag
 mkNot = mkOp Op_not
 
 -- | Build a conjunction (FIXME: make this "smart")
 mkAnd :: [LProp tag] -> LProp tag
-mkAnd = foldr (mkOp Op_and) (mkOp Op_true)
+mkAnd = foldr (mkOp Op_and) mkTrue
 
 -- | Build a disjunction (FIXME: make this "smart")
 mkOr :: [LProp tag] -> LProp tag
-mkOr = foldr (mkOp Op_or) (mkOp Op_false)
-
--- | Build an equality at an arbitrary second-order type
-mkEq :: L1FunType a -> LExpr tag a -> LExpr tag a -> LProp tag
-mkEq = error "FIXME: write mkEq!"
-
--- | Build an equality for two 'Name's, short-circuiting the equality for
--- syntactically identical names
-mkNameEq :: L1FunType a -> Name a -> Name a -> LProp tag
-mkNameEq ftp n1 n2 =
-  if n1 == n2 then mkOp Op_true else
-    mkEq ftp (mkVarTp (fun2typeRep ftp) n1) (mkVarTp (fun2typeRep ftp) n2)
+mkOr = foldr (mkOp Op_or) mkFalse
 
 -- | Build a universal quantifier into an 'LProp'
 mkForall :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
 mkForall l1tp body =
-  LAppExpr $ LApp (LOp $ Op_forall l1tp) $ mkLambda (LType_base l1tp) body
+  mkOp (Op_forall l1tp) $ mkLambdaTp (LType_base l1tp) body
 
--- | Build an existential quantifier into an 'LProp'
+-- | Build a universal quantifier into an 'LProp'
 mkExists :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
 mkExists l1tp body =
-  LAppExpr $ LApp (LOp $ Op_exists l1tp) $ mkLambda (LType_base l1tp) body
+  mkOp (Op_exists l1tp) $ mkLambdaTp (LType_base l1tp) body
 
+-- | Build an equality at an arbitrary second-order type
+mkEqTp :: L1FunType a -> ApplyToArgs (LExpr tag) a ->
+          ApplyToArgs (LExpr tag) a -> LProp tag
+mkEqTp (L1FunType_base l1tp@(L1Type_lit _)) e1 e2 =
+  mkOp (Op_eq l1tp) e1 e2
+mkEqTp (L1FunType_base l1tp@L1Type_ptr) e1 e2 =
+  mkOp (Op_eq l1tp) e1 e2
+mkEqTp (L1FunType_base l1tp@L1Type_prop) e1 e2 =
+  mkOp (Op_eq l1tp) e1 e2
+mkEqTp (L1FunType_cons l1tp_a tp_b) f1 f2 =
+  mkForall l1tp_a $ \x -> mkEqTp tp_b (f1 x) (f2 x)
+
+-- | Build an equality at a first-order type
+mkEq1 :: L1Typeable a => LExpr tag a -> LExpr tag a -> LProp tag
+mkEq1 e1 e2 =
+  LOp (Op_eq l1typeRep) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
+
+-- | Build an equality for two 'Name's, short-circuiting the equality for
+-- syntactically identical names
+mkNameEq :: Proxy tag -> L1FunType a -> Name a -> Name a -> LProp tag
+mkNameEq proxy ftp n1 n2 =
+  if n1 == n2 then mkTrue else
+    mkEqTp ftp (mkVarTp proxy (fun2typeRep ftp) n1)
+    (mkVarTp proxy (fun2typeRep ftp) n2)
 
 ----------------------------------------------------------------------
 -- Eliminating expressions via expression algebras
@@ -853,7 +948,7 @@ class CommutesWithArrow f where
 -- | An expression @f@-algebra shows how to convert any 'Op' of type @a@ to an
 -- element of type @f a@. It also requires that @f@ commutes with arrow.
 class CommutesWithArrow f => LExprAlgebra tag (f :: * -> *) where
-  interpOp :: Op tag a -> f a
+  interpOp :: Op tag args ret -> f (AddArrows args ret)
 
 -- | Interpret an 'LExpr' to another functor @f@ using an @f@-algebra
 interpExpr :: LExprAlgebra tag f =>
@@ -861,18 +956,27 @@ interpExpr :: LExprAlgebra tag f =>
 interpExpr ctx [clNuP| LLambda _ body |] =
   interpLambda $ \x ->
   interpExpr (ctx :>: x) (clApply $(mkClosed [| mbCombine |]) body)
-interpExpr ctx [clNuP| LAppExpr e |] = interpAppExpr ctx e
-
--- | Interpret an 'LAppExpr' to another functor @f@ using an @f@-algebra
-interpAppExpr :: LExprAlgebra tag f =>
-                 MapRList f ctx -> Closed (Mb ctx (LAppExpr tag a)) -> f a
-interpAppExpr ctx [clNuP| LVar _ n |] =
+interpExpr ctx [clNuP| LVar tp_args n args |] =
   case clApply $(mkClosed [| mbNameBoundP |]) n of
-    [clP| Left memb |] -> hlistLookup (unClosed memb) ctx
+    [clP| Left memb |] ->
+      interpExprsApply ctx (hlistLookup (unClosed memb) ctx)
+      (mbLift $ unClosed tp_args) args
     [clP| Right closed_n |] -> noClosedNames closed_n
-interpAppExpr ctx [clNuP| LOp op |] = interpOp (mbLift $ unClosed op)
-interpAppExpr ctx [clNuP| LApp f arg |] =
-  interpApply (interpAppExpr ctx f) (interpExpr ctx arg)
+interpExpr ctx [clNuP| LOp mbcl_op args |] =
+  let op = mbLift $ unClosed mbcl_op in
+  interpExprsApply ctx (interpOp op) (opTypeArgs op) args
+
+-- | Helper for 'interpExpr'
+interpExprsApply :: LExprAlgebra tag f => MapRList f ctx ->
+                    f a -> LTypeArgs a args ret ->
+                    Closed (Mb ctx (LExprs tag args)) -> f ret
+interpExprsApply ctx f (LTypeArgs_base l1tp) _ = f
+interpExprsApply ctx f (LTypeArgs_pm l1tp) _ = f
+interpExprsApply ctx f (LTypeArgs_fun tp tp_args) [clNuP| LExprs_cons e es |] =
+  interpExprsApply ctx (interpApply f (interpExpr ctx e)) tp_args es
+
+{- FIXME HERE NOW: maybe we should go back to having Ops have a single type,
+and changing the LOp constructor so that it looks just like LVar?
 
 
 ----------------------------------------------------------------------
@@ -1757,3 +1861,4 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
     InterpPM_unit_pm $
     orPM (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
+-}
