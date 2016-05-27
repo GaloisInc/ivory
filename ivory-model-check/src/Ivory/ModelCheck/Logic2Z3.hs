@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, GeneralizedNewtypeDeriving, MultiParamTypeClasses,
     FlexibleInstances, FlexibleContexts, ScopedTypeVariables, UndecidableInstances,
     TypeOperators, DataKinds, EmptyCase, NamedFieldPuns,
-    TemplateHaskell, QuasiQuotes, ViewPatterns, RankNTypes #-}
+    TemplateHaskell, QuasiQuotes, ViewPatterns, RankNTypes, DeriveFunctor #-}
 
 module Ivory.ModelCheck.Logic2Z3 where
 
@@ -32,6 +32,10 @@ import Ivory.ModelCheck.Logic
 ----------------------------------------------------------------------
 -- Z3 variable contexts
 ----------------------------------------------------------------------
+
+-- FIXME: Z3Ctx's should enforce an exists-forall form, i.e., the inner-most
+-- variables should be universals and the outermost variables should be
+-- existentials
 
 -- | The type of Z3 contexts, that say how to translate free variables into
 -- Z3. Specifically, a Z3 context of type @'Z3Ctx' ctx@ indicates, for each
@@ -89,7 +93,7 @@ data Z3Info =
     -- | Sort of the unit type in Z3
     unit_sort :: Z3.Sort,
     -- | Constructor for the unit type
-    unit_ctor :: Z3.AST,
+    unit_ctor :: Z3.FuncDecl,
     -- | Sort of the Boolean type in Z3 (also used in Z3 for propositions)
     bool_sort :: Z3.Sort,
     -- | Sort of the 'Integer' type in Z3
@@ -99,6 +103,17 @@ data Z3Info =
     -- | Association list of signed bit-vector types from their lengths
     signed_bv_sorts :: [(Int, Z3.Sort)]
   }
+
+-- | Build a 'Z3Info'
+mkZ3Info :: Z3.Z3 Z3Info
+mkZ3Info =
+  do unit_sym <- Z3.mkStringSymbol "unit"
+     (unit_sort, unit_ctor, _) <- Z3.mkTupleSort unit_sym []
+     bool_sort <- Z3.mkBoolSort
+     integer_sort <- Z3.mkIntSort
+     return Z3Info { fresh_id = 1, unit_sort, unit_ctor,
+                     bool_sort, integer_sort,
+                     unsigned_bv_sorts = [], signed_bv_sorts = [] }
 
 -- | Monad built on top of 'Z3' for building Z3 expressions relative to a given
 -- variable context. The monad uses the state information in a 'Z3Info', reads a
@@ -132,6 +147,14 @@ instance RunWriterM (Z3m ctx) [Z3.AST] where
 instance BaseM (Z3m ctx) Z3.Z3 where
   inBase m = Z3m $ lift $ lift $ lift m
 
+instance RunM Z3.Z3 a (Z3.Z3 a) where
+  runM m = m
+
+instance RunM (Z3m ctx) a (Z3Ctx ctx -> Z3Info ->
+                           Z3.Z3 ((a, Z3Info), [Z3.AST])) where
+  runM m = runM $ runZ3m m
+
+{-
 instance RunM Z3.Z3 a (Maybe Z3.Logic -> Z3Opts.Opts -> IO a) where
   runM m = \logic opts -> Z3.evalZ3With logic opts m
 
@@ -139,46 +162,7 @@ instance RunM (Z3m ctx) a (Z3Ctx ctx -> Z3Info ->
                            Maybe Z3.Logic -> Z3Opts.Opts ->
                            IO ((a, Z3Info), [Z3.AST])) where
   runM m = runM $ runZ3m m
-
--- | Build a fresh 'Z3.Symbol' with base name @str@
-mkFreshSymbol :: String -> Z3m ctx Z3.Symbol
-mkFreshSymbol basename =
-  do z3info <- get
-     let i = fresh_id z3info
-     set $ z3info { fresh_id = i+1 }
-     inBase $ Z3.mkStringSymbol (basename ++ show i)
-
--- | Run a 'Z3m' computation in the context extended with a universal variable
-withUVar :: L1Type a -> Z3m (ctx :> a) b -> Z3m ctx b
-withUVar l1tp m =
-  do ctx <- ask
-     localCtx (Z3Ctx_UVar ctx l1tp) m
-
--- | Run a 'Z3m' computation in the context extended with an existential
--- variable, modeled with a fresh Z3 constant. NOTE: this is not allowed inside
--- the context of a universal, as this would require a fresh Z3 constant for
--- each of the (potentially infinitely many) possible instantiations for this
--- universal variable. Return both the computation result and the fresh Z3
--- constant.
-withEVar :: L1Type a -> Z3m (ctx :> a) b -> Z3m ctx (Z3.AST, b)
-withEVar l1tp m =
-  do ctx <- ask
-     errorIfUniversal ctx
-     sym <- mkFreshSymbol (l1type_base_name l1tp)
-     sort <- l1type_to_sort l1tp
-     const_ast <- inBase $ Z3.mkConst sym sort
-     ret <- localCtx (Z3Ctx_EVar ctx l1tp const_ast) m
-     return (const_ast, ret)
-       where
-         errorIfUniversal :: Z3Ctx ctx' -> Z3m ctx ()
-         errorIfUniversal (Z3Ctx_UVar _ _) =
-           error "withEVar: attempt to build a Z3 exists formula inside a forall!"
-         errorIfUniversal (Z3Ctx_EVar ctx _ _) =
-           errorIfUniversal ctx
-         errorIfUniversal (Z3Ctx_FVar ctx _ _) =
-           errorIfUniversal ctx
-         errorIfUniversal Z3Ctx_nil = return ()
-
+-}
 
 ----------------------------------------------------------------------
 -- Converting logical types to Z3 sorts
@@ -205,19 +189,13 @@ l1type_to_sort (L1Type_lit (LitType_bits :: LitType a)) =
 l1type_to_sort L1Type_prop = liftM bool_sort get
 l1type_to_sort L1Type_ptr = liftM integer_sort get
 
--- * Predefined 'Z3.Sort's for useful types
-z3_sort_ptr = l1type_to_sort L1Type_ptr
-z3_sort_int = l1type_to_sort (L1Type_lit LitType_int)
-
-{-
--- | Get the input and output 'Z3.Sort's for a 'Z3Type'
-z3type_to_fun_sorts :: Z3Type a -> Z3m ([Z3.Sort],Z3.Sort)
-z3type_to_fun_sorts (Z3Type_base z3tp1) =
-  liftM (\sort -> ([], sort)) $ l1type_to_sort z3tp1
-z3type_to_fun_sorts (Z3Type_fun in_z3tp1 out_z3tp) =
+-- | Get the input and output 'Z3.Sort's for a first-order function type
+l1funType_to_sorts :: L1FunType a -> Z3m ctx ([Z3.Sort],Z3.Sort)
+l1funType_to_sorts (L1FunType_base l1tp) =
+  liftM (\sort -> ([], sort)) $ l1type_to_sort l1tp
+l1funType_to_sorts (L1FunType_cons l1tp ftp) =
   liftM2 (\sort (sorts,out_sort) -> (sort:sorts, out_sort))
-  (l1type_to_sort in_z3tp1) (z3type_to_fun_sorts out_z3tp)
--}
+  (l1type_to_sort l1tp) (l1funType_to_sorts ftp)
 
 -- | Return a base name for each type, to be used for variables
 l1type_base_name :: L1Type a -> String
@@ -227,6 +205,71 @@ l1type_base_name (L1Type_lit LitType_int) = "i"
 l1type_base_name (L1Type_lit LitType_bits) = "bv"
 l1type_base_name L1Type_prop = "phi"
 l1type_base_name L1Type_ptr = "ptr"
+
+
+----------------------------------------------------------------------
+-- Monadic operations on Z3 contexts
+----------------------------------------------------------------------
+
+-- | Build a fresh 'Z3.Symbol' with base name @str@
+mkFreshSymbol :: String -> Z3m ctx Z3.Symbol
+mkFreshSymbol basename =
+  do z3info <- get
+     let i = fresh_id z3info
+     set $ z3info { fresh_id = i+1 }
+     inBase $ Z3.mkStringSymbol (basename ++ show i)
+
+-- | Make a fresh constant as a 'Z3.AST' from a first-order type
+mkFreshConstant :: L1Type a -> Z3m ctx Z3.AST
+mkFreshConstant l1tp =
+  do sym <- mkFreshSymbol (l1type_base_name l1tp)
+     sort <- l1type_to_sort l1tp
+     inBase $ Z3.mkConst sym sort
+
+-- | Make a fresh function declaration as a 'Z3.FuncDecl' from a first-order
+-- function type
+mkFreshFuncDecl :: L1FunType a -> Z3m ctx Z3.FuncDecl
+mkFreshFuncDecl ftp =
+  do sym <- mkFreshSymbol ("f_" ++ l1type_base_name (funType_ret_type ftp))
+     (arg_sorts, ret_sort) <- l1funType_to_sorts ftp
+     inBase $ Z3.mkFuncDecl sym arg_sorts ret_sort
+
+-- | Run a 'Z3m' computation in the context extended with a universal variable
+withUVar :: L1Type a -> Z3m (ctx :> a) b -> Z3m ctx b
+withUVar l1tp m =
+  do ctx <- ask
+     localCtx (Z3Ctx_UVar ctx l1tp) m
+
+-- | Run a 'Z3m' computation in the context extended with an existential
+-- variable, modeled with a fresh Z3 constant. NOTE: this is not allowed inside
+-- the context of a universal, as this would require a fresh Z3 constant for
+-- each of the (potentially infinitely many) possible instantiations for this
+-- universal variable. Return both the computation result and the fresh Z3
+-- constant.
+withEVar :: L1Type a -> Z3m (ctx :> a) b -> Z3m ctx (Z3.AST, b)
+withEVar l1tp m =
+  do ctx <- ask
+     errorIfUniversal ctx
+     const_ast <- mkFreshConstant l1tp
+     ret <- localCtx (Z3Ctx_EVar ctx l1tp const_ast) m
+     return (const_ast, ret)
+       where
+         errorIfUniversal :: Z3Ctx ctx' -> Z3m ctx ()
+         errorIfUniversal (Z3Ctx_UVar _ _) =
+           error "withEVar: attempt to build a Z3 exists formula inside a forall!"
+         errorIfUniversal (Z3Ctx_EVar ctx _ _) =
+           errorIfUniversal ctx
+         errorIfUniversal (Z3Ctx_FVar ctx _ _) =
+           errorIfUniversal ctx
+         errorIfUniversal Z3Ctx_nil = return ()
+
+-- | Build an existential 'Z3Ctx' from a list of first-order types
+mkZ3Ctx :: MapRList L1FunType ctx -> Z3m c (Z3Ctx ctx)
+mkZ3Ctx (tps :>: L1FunType_base l1tp) =
+  liftM3 Z3Ctx_EVar (mkZ3Ctx tps) (return l1tp) (mkFreshConstant l1tp)
+mkZ3Ctx (tps :>: ftp) =
+  liftM3 Z3Ctx_FVar (mkZ3Ctx tps) (return ftp) (mkFreshFuncDecl ftp)
+mkZ3Ctx MNil = return Z3Ctx_nil
 
 
 ----------------------------------------------------------------------
@@ -352,7 +395,8 @@ instance LBindingExprAlgebra tag Z3m_AST where
 
   -- Interpret literals into Z3
   interpOpB (Op_Literal LitType_unit ()) _ =
-    Z3m_AST $ liftM unit_ctor get
+    Z3m_AST $ do f <- liftM unit_ctor get
+                 inBase $ Z3.mkApp f []
   interpOpB (Op_Literal LitType_bool b) _ =
     Z3m_AST $ inBase $ Z3.mkBool b
   interpOpB (Op_Literal LitType_int i) _ =
@@ -432,3 +476,156 @@ instance LBindingExprAlgebra tag Z3m_AST where
     error "Cannot convert assumeP to Z3!"
   interpOpB Op_orP _ =
     error "Cannot convert orP to Z3!"
+
+-- | Top-level call to convert an 'LProp' into a Z3 expression
+lprop_to_z3ast :: Closed (LProp tag) -> Z3m RNil Z3.AST
+lprop_to_z3ast prop =
+  unZ3m_AST $ interpExprB Proxy prop
+
+-- | Top-level call to convert an 'LProp'-in-binding into a Z3 expression
+mb_lprop_to_z3ast :: Closed (Mb ctx (LProp tag)) -> Z3m ctx Z3.AST
+mb_lprop_to_z3ast prop =
+  unZ3m_AST $ interpMbExprB Proxy prop
+
+
+----------------------------------------------------------------------
+-- Top-level interface
+----------------------------------------------------------------------
+
+data SMTValue a where
+  SMTValue_lit :: LitType a -> a -> SMTValue (Literal a)
+  SMTValue_ptr :: Integer -> SMTValue Ptr
+  SMTValue_prop :: Bool -> SMTValue Prop
+  SMTValue_fun ::
+    L1FunType a ->
+    FinFun (MapList SMTValue (ArgTypes a)) (SMTValue (RetType a)) ->
+    SMTValue a
+
+newtype MaybeSMTValue a =
+  MaybeSMTValue { unMaybeSMTValue :: Maybe (SMTValue a) }
+
+-- | Convert a 'Z3.AST' that is known to be a value into an 'SMTValue'
+z3ast_to_value :: L1Type a -> Z3.AST -> Z3.Z3 (SMTValue a)
+z3ast_to_value (L1Type_lit lit_tp@LitType_unit) _ =
+  return (SMTValue_lit lit_tp ())
+z3ast_to_value (L1Type_lit lit_tp@LitType_bool) ast =
+  liftM (SMTValue_lit lit_tp) $ Z3.getBool ast
+z3ast_to_value (L1Type_lit lit_tp@LitType_int) ast =
+  liftM (SMTValue_lit lit_tp) $ Z3.getInt ast
+z3ast_to_value (L1Type_lit lit_tp@(LitType_bits :: LitType bv)) ast =
+  liftM (SMTValue_lit lit_tp . fromInteger) $
+  Z3.getBv ast (isSigned (zeroBits :: bv))
+z3ast_to_value L1Type_ptr ast =
+  liftM SMTValue_ptr $ Z3.getInt ast
+z3ast_to_value L1Type_prop ast =
+  liftM SMTValue_prop $ Z3.getBool ast
+
+-- | Get the value of a 'Z3.AST' from a Z3 model
+evalAST :: Z3.Model -> L1Type a -> Z3.AST -> Z3.Z3 (MaybeSMTValue a)
+evalAST z3model l1tp ast =
+  do maybe_ast <- Z3.modelEval z3model ast False
+     case maybe_ast of
+       Nothing -> return $ MaybeSMTValue Nothing
+       Just ast -> liftM (MaybeSMTValue . Just) $ z3ast_to_value l1tp ast
+
+-- | Helper for 'evalFuncEntry'
+evalFunEntryArgsFrom :: Z3.FuncEntry -> Int -> MapList L1Type args ->
+                        Z3.Z3 (MapList SMTValue args)
+evalFunEntryArgsFrom fentry i Nil = return Nil
+evalFunEntryArgsFrom fentry i (Cons l1tp tps) =
+  do arg_ast <- Z3.funcEntryGetArg fentry i
+     arg_val <- z3ast_to_value l1tp arg_ast
+     rest_vals <- evalFunEntryArgsFrom fentry (i+1) tps
+     return (Cons arg_val rest_vals)
+
+-- | Get the value of a 'Z3.FuncEntry' as a pair of 'SMTValue's for the input
+-- and output values given by the 'Z3.FuncEntry'
+evalFuncEntry :: L1FunType a -> Z3.FuncEntry ->
+                 Z3.Z3 (MapList SMTValue (ArgTypes a), SMTValue (RetType a))
+evalFuncEntry ftp fentry =
+  do arg_vals <- evalFunEntryArgsFrom fentry 0 (funType_arg_types ftp)
+     ret_ast <- Z3.funcEntryGetValue fentry
+     ret_val <- z3ast_to_value (funType_ret_type ftp) ret_ast
+     return (arg_vals, ret_val)
+
+-- | Get the value of a 'Z3.FuncInterp' as an 'SMTValue'
+evalFuncInterp :: L1FunType a -> Z3.FuncInterp -> Z3.Z3 (SMTValue a)
+evalFuncInterp ftp finterp =
+  do num_entries <- Z3.funcInterpGetNumEntries finterp
+     func_entries <- mapM (Z3.funcInterpGetEntry finterp) [0 .. num_entries - 1]
+     entry_val_map <- mapM (evalFuncEntry ftp) func_entries
+     default_ast <- Z3.funcInterpGetElse finterp
+     default_val <- z3ast_to_value (funType_ret_type ftp) default_ast
+     return $ SMTValue_fun ftp $
+       FinFun { finfunDef = default_val, finfunMap = entry_val_map }
+
+-- | Get the value of a 'Z3.FuncDecl' from a Z3 model
+evalFuncDecl :: Z3.Model -> L1FunType a -> Z3.FuncDecl ->
+                Z3.Z3 (MaybeSMTValue a)
+evalFuncDecl z3model ftp fdecl =
+  do maybe_finterp <- Z3.getFuncInterp z3model fdecl
+     case maybe_finterp of
+       Nothing -> return $ MaybeSMTValue Nothing
+       Just finterp ->
+         liftM (MaybeSMTValue . Just) $ evalFuncInterp ftp finterp
+
+-- | Get the values of all the existential values in a 'Z3Ctx' from a Z3 model
+evalZ3Ctx :: Z3.Model -> Z3Ctx ctx -> Z3.Z3 (MapRList MaybeSMTValue ctx)
+evalZ3Ctx z3model Z3Ctx_nil = return MNil
+evalZ3Ctx z3model (Z3Ctx_EVar ctx l1tp ast) =
+  liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalAST z3model l1tp ast)
+evalZ3Ctx z3model (Z3Ctx_FVar ctx ftp fdecl) =
+  liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalFuncDecl z3model ftp fdecl)
+evalZ3Ctx z3model (Z3Ctx_UVar _ _) =
+  error "evalZ3Ctx: formula has a top-level universal variable!"
+
+data SMTResult model
+  = SMT_sat model
+  | SMT_unsat
+  | SMT_unknown String
+  deriving Functor
+
+-- | The options we will pass to Z3 by default
+defaultZ3Options :: Z3Opts.Opts
+defaultZ3Options = Z3Opts.stdOpts
+
+-- | The logic we use in Z3, where 'Nothing' is the Z3 default logic
+defaultZ3Logic :: Maybe Z3.Logic
+defaultZ3Logic = Nothing
+
+-- | Run a 'Z3m' computation, using the default Z3 options and logic, a freshly
+-- created 'Z3Info', and an existential 'Z3Ctx'
+evalZ3m :: MapRList L1FunType ctx -> Z3m ctx a -> IO a
+evalZ3m tps m =
+  Z3.evalZ3With defaultZ3Logic defaultZ3Options $
+  do z3info <- mkZ3Info
+     ((ret, _), _) <-
+       runM (mkZ3Ctx tps >>= \ctx -> localCtx ctx m) Z3Ctx_nil z3info
+     return ret
+
+z3_check_sat :: MapRList L1FunType ctx -> [Closed (Mb ctx (LProp tag))] ->
+                IO (SMTResult (MapRList MaybeSMTValue ctx))
+z3_check_sat const_tps props =
+  evalZ3m const_tps $
+  do (converted_asts, collected_asts) <-
+       collect $ mapM mb_lprop_to_z3ast props
+     result <-
+       inBase $ Z3.solverCheckAssumptions $ collected_asts ++ converted_asts
+     case result of
+       Z3.Sat ->
+         do ctx <- ask
+            z3model <- inBase Z3.solverGetModel
+            vals <- inBase $ evalZ3Ctx z3model ctx
+            return (SMT_sat vals)
+       Z3.Unsat -> return SMT_unsat
+       Z3.Undef -> inBase $ liftM SMT_unknown Z3.solverGetReasonUnknown
+
+-- FIXME HERE NOW:
+--
+-- Make z3_check_sat work specifically with LogicPM, binding variables for the
+-- memory; OR: keep z3_check_sat as it is defined, and add z3_check_reachable to
+-- work on LogicPMs (Though we might need z3_check_sat to use MapList instead or
+-- MapRList, over (LStorables tag)...)
+--
+-- Change WithNames so that each name has a Decl saying where it came from; then
+-- interpret a WithNames using a mapping from each Decl to an LProp
