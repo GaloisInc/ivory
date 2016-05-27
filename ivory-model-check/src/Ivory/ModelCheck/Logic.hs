@@ -420,10 +420,25 @@ instance Liftable (L1FunType a) where
   mbLift [nuP| L1FunType_cons ltp t |] = L1FunType_cons (mbLift ltp) (mbLift t)
 
 -- | Convert an 'L1FunType' to an 'LType'
-fun2typeRep :: L1FunType a -> LType a
-fun2typeRep (L1FunType_base l1tp) = LType_base l1tp
-fun2typeRep (L1FunType_cons l1tp t) =
-  LType_fun (LType_base l1tp) (fun2typeRep t)
+funType_to_type :: L1FunType a -> LType a
+funType_to_type (L1FunType_base l1tp) = LType_base l1tp
+funType_to_type (L1FunType_cons l1tp t) =
+  LType_fun (LType_base l1tp) (funType_to_type t)
+
+-- | Get the 'L1Type's for the argument types of an 'L1FunType'
+funType_arg_types :: L1FunType a -> MapList L1Type (ArgTypes a)
+funType_arg_types (L1FunType_base l1tp@(L1Type_lit _)) = Nil
+funType_arg_types (L1FunType_base l1tp@L1Type_ptr) = Nil
+funType_arg_types (L1FunType_base l1tp@L1Type_prop) = Nil
+funType_arg_types (L1FunType_cons l1tp ftp) =
+  Cons l1tp (funType_arg_types ftp)
+
+-- | Get the 'L1Type' for the output type of an 'L1FunType'
+funType_ret_type :: L1FunType a -> L1Type (RetType a)
+funType_ret_type (L1FunType_base l1tp@(L1Type_lit _)) = l1tp
+funType_ret_type (L1FunType_base l1tp@L1Type_ptr) = l1tp
+funType_ret_type (L1FunType_base l1tp@L1Type_prop) = l1tp
+funType_ret_type (L1FunType_cons _ ftp) = funType_ret_type ftp
 
 
 ----------------------------------------------------------------------
@@ -993,8 +1008,8 @@ mkEq1 e1 e2 =
 mkNameEq :: Proxy tag -> L1FunType a -> Name a -> Name a -> LProp tag
 mkNameEq proxy ftp n1 n2 =
   if n1 == n2 then mkTrue else
-    mkEqTp ftp (mkVarTp proxy (fun2typeRep ftp) n1)
-    (mkVarTp proxy (fun2typeRep ftp) n2)
+    mkEqTp ftp (mkVarTp proxy (funType_to_type ftp) n1)
+    (mkVarTp proxy (funType_to_type ftp) n2)
 
 ----------------------------------------------------------------------
 -- Eliminating expressions via expression algebras
