@@ -112,6 +112,9 @@ stmtFold cxt opt stmt =
     I.RefCopy t e0 e1    -> do
       copies <- get
       return $ D.singleton $ I.RefCopy t (opt copies t e0) (opt copies t e1)
+    I.RefZero t e        -> do
+      copies <- get
+      return $ D.singleton $ I.RefZero t (opt copies t e)
     I.AllocRef{}         -> return $ D.singleton stmt
     I.Loop m v e incr blk' -> do
       copies <- get

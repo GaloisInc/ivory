@@ -122,6 +122,7 @@ toBody ens stmt =
     I.Deref t v ref        -> toDeref t v ref
     I.Store t ptr exp      -> toStore t ptr exp
     I.RefCopy t ptr exp    -> toStore t ptr exp -- XXX is this correct?
+    I.RefZero t ref        -> error "XXX RefZero needs to be implemented"
     I.Assign t v exp       -> toAssign t v exp
     I.Call t retV nm args  -> toCall t retV nm args
     I.Local t v inits      -> toLocal t v inits
@@ -320,7 +321,7 @@ toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
   I.ExpSym s                 -> return (var s)
   I.ExpVar v                 -> var <$> lookupVar (toVar v)
-  I.ExpLit lit               -> 
+  I.ExpLit lit               ->
     case lit of
       I.LitInteger i -> return $ intLit i
       I.LitFloat  r  -> return $ realLit $ realToFrac r

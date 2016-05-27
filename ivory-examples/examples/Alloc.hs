@@ -46,12 +46,29 @@ memcpy2 = proc "memcpy2" $ \a b -> body $ do
   arrayMap (\ix -> store (a ! (ix :: Ix 10)) 1)
   retVoid
 
-memcpy3 :: Def ('[ Ref 'Global ('Array 10 ('Stored Uint32))] ':-> ())
+memcpy3 :: Def ('[Ref 'Global ('Array 10 ('Stored Uint32))] ':-> ())
 memcpy3 = proc "memcpy3" $ \a -> body $ do
   b <- local (iarray $ replicate 10 (ival $ 0))
   refCopy b a
   arrayMap (\ix -> store (a ! (ix :: Ix 10)) 1)
   retVoid
+
+memzero1 :: Def ('[Ref 'Global ('Array 10 ('Stored Uint32))] ':-> ())
+memzero1 = proc "memzero1" $ \a -> body $ do
+  refZero a
+  retVoid
+
+memzero2 :: Def ('[Ref a ('Stored Uint32)] ':-> ())
+memzero2 = proc "memzero2" $ \a -> body $ do
+  refZero a
+  retVoid
+
+-- Can't do this (good)!
+-- memzero3 :: Def ('[ConstRef 'Global ('Stored Uint32)] ':-> ())
+-- memzero3 = proc "memzero3" $ \a -> body $ do
+--   refZero a
+--   retVoid
+
 
 -- Can't do this! (Which is good.)
 -- memcpy4 :: Def ('[ Ref Global (Array 1 (Stored (Ref (Stack s) (Stored Uint32))))] :-> ())
@@ -186,6 +203,8 @@ cmodule = package "Alloc" $ do
   incl memcpy2
   incl testToIx
   incl memcpy3
+  incl memzero1
+  incl memzero2
   defMemArea arrayTest
 
 runAlloc :: IO ()

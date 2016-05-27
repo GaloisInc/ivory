@@ -80,11 +80,19 @@ deref ref = do
 
 -- | Memory copy.  Emits an assertion that the two references are unequal.
 refCopy :: forall eff sTo ref sFrom a.
-     ( IvoryRef ref, IvoryVar (Ref sTo a), IvoryVar (ref sFrom a), IvoryArea a)
+     (IvoryRef ref, IvoryVar (Ref sTo a), IvoryVar (ref sFrom a), IvoryArea a)
   => Ref sTo a -> ref sFrom a -> Ivory eff ()
 refCopy destRef srcRef =
   emit (I.RefCopy (ivoryArea (Proxy :: Proxy a))
        (unwrapExpr destRef) (unwrapExpr srcRef))
+
+-- Zeroing ---------------------------------------------------------------------
+
+-- | Memory zeroing.
+refZero :: forall eff s a .
+     (IvoryVar (Ref s a), IvoryArea a)
+  => Ref s a -> Ivory eff ()
+refZero ref = emit (I.RefZero (ivoryArea (Proxy :: Proxy a)) (unwrapExpr ref))
 
 -- Storing ---------------------------------------------------------------------
 
