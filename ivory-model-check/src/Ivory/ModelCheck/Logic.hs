@@ -2,7 +2,8 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies, FunctionalDependencies, UndecidableInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables, DataKinds, PartialTypeSignatures, NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables, DataKinds, PartialTypeSignatures #-}
+{-# LANGUAGE NamedFieldPuns, DeriveFunctor #-}
 
 module Ivory.ModelCheck.Logic where
 
@@ -1930,3 +1931,43 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
     InterpPM_unit_pm $
     orPM (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
+
+
+----------------------------------------------------------------------
+-- SMT solver interface
+----------------------------------------------------------------------
+
+-- | A value of a given type, as returned by an SMT solver. The special value
+-- 'SMTValue_any' means that the variable with this value is unconstrained,
+-- i.e., any value will work.
+data SMTValue a where
+  SMTValue_any :: SMTValue a
+  SMTValue_lit :: LitType a -> a -> SMTValue (Literal a)
+  SMTValue_ptr :: Integer -> SMTValue Ptr
+  SMTValue_prop :: Bool -> SMTValue Prop
+  SMTValue_fun ::
+    L1FunType a ->
+    FinFun (MapList SMTValue (ArgTypes a)) (SMTValue (RetType a)) ->
+    SMTValue a
+
+-- | The result of calling an SMT solver on some set of input formulas
+data SMTResult model
+  = SMT_sat model
+    -- ^ The formulas were satisfiable; a model of the formulas is also given
+  | SMT_unsat
+    -- ^ The formulas were unsatisfiable
+  | SMT_unknown String
+    -- ^ Satisfiability could not be determined; an error message is also given
+  deriving Functor
+
+-- | Type class for registering and callng SMT solvers. The type argument
+-- @solver@ is just a placeholder that indicates which SMT solver to call.
+class SMTSolver solver where
+  -- | Call the solver indicated by the type argument @solver@, passing it a set
+  -- of propositions over some set of free variables given by @ctx@. These
+  -- variables must have first-order function type. If the formulas are
+  -- satisfiable, the result is a model of 'SMTValue's of these free variables.
+  smtSolve :: Proxy solver -> MapRList L1FunType ctx ->
+              [Closed (Mb ctx (LProp tag))] ->
+              IO (SMTResult (MapRList SMTValue ctx))
+

@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, GeneralizedNewtypeDeriving, MultiParamTypeClasses,
     FlexibleInstances, FlexibleContexts, ScopedTypeVariables, UndecidableInstances,
     TypeOperators, DataKinds, EmptyCase, NamedFieldPuns,
-    TemplateHaskell, QuasiQuotes, ViewPatterns, RankNTypes, DeriveFunctor #-}
+    TemplateHaskell, QuasiQuotes, ViewPatterns, RankNTypes #-}
 
 module Ivory.ModelCheck.Logic2Z3 where
 
@@ -492,18 +492,6 @@ mb_lprop_to_z3ast prop =
 -- Top-level interface
 ----------------------------------------------------------------------
 
-data SMTValue a where
-  SMTValue_lit :: LitType a -> a -> SMTValue (Literal a)
-  SMTValue_ptr :: Integer -> SMTValue Ptr
-  SMTValue_prop :: Bool -> SMTValue Prop
-  SMTValue_fun ::
-    L1FunType a ->
-    FinFun (MapList SMTValue (ArgTypes a)) (SMTValue (RetType a)) ->
-    SMTValue a
-
-newtype MaybeSMTValue a =
-  MaybeSMTValue { unMaybeSMTValue :: Maybe (SMTValue a) }
-
 -- | Convert a 'Z3.AST' that is known to be a value into an 'SMTValue'
 z3ast_to_value :: L1Type a -> Z3.AST -> Z3.Z3 (SMTValue a)
 z3ast_to_value (L1Type_lit lit_tp@LitType_unit) _ =
@@ -521,12 +509,12 @@ z3ast_to_value L1Type_prop ast =
   liftM SMTValue_prop $ Z3.getBool ast
 
 -- | Get the value of a 'Z3.AST' from a Z3 model
-evalAST :: Z3.Model -> L1Type a -> Z3.AST -> Z3.Z3 (MaybeSMTValue a)
+evalAST :: Z3.Model -> L1Type a -> Z3.AST -> Z3.Z3 (SMTValue a)
 evalAST z3model l1tp ast =
   do maybe_ast <- Z3.modelEval z3model ast False
      case maybe_ast of
-       Nothing -> return $ MaybeSMTValue Nothing
-       Just ast -> liftM (MaybeSMTValue . Just) $ z3ast_to_value l1tp ast
+       Nothing -> return $ SMTValue_any
+       Just ast -> z3ast_to_value l1tp ast
 
 -- | Helper for 'evalFuncEntry'
 evalFunEntryArgsFrom :: Z3.FuncEntry -> Int -> MapList L1Type args ->
@@ -560,17 +548,15 @@ evalFuncInterp ftp finterp =
        FinFun { finfunDef = default_val, finfunMap = entry_val_map }
 
 -- | Get the value of a 'Z3.FuncDecl' from a Z3 model
-evalFuncDecl :: Z3.Model -> L1FunType a -> Z3.FuncDecl ->
-                Z3.Z3 (MaybeSMTValue a)
+evalFuncDecl :: Z3.Model -> L1FunType a -> Z3.FuncDecl -> Z3.Z3 (SMTValue a)
 evalFuncDecl z3model ftp fdecl =
   do maybe_finterp <- Z3.getFuncInterp z3model fdecl
      case maybe_finterp of
-       Nothing -> return $ MaybeSMTValue Nothing
-       Just finterp ->
-         liftM (MaybeSMTValue . Just) $ evalFuncInterp ftp finterp
+       Nothing -> return SMTValue_any
+       Just finterp -> evalFuncInterp ftp finterp
 
 -- | Get the values of all the existential values in a 'Z3Ctx' from a Z3 model
-evalZ3Ctx :: Z3.Model -> Z3Ctx ctx -> Z3.Z3 (MapRList MaybeSMTValue ctx)
+evalZ3Ctx :: Z3.Model -> Z3Ctx ctx -> Z3.Z3 (MapRList SMTValue ctx)
 evalZ3Ctx z3model Z3Ctx_nil = return MNil
 evalZ3Ctx z3model (Z3Ctx_EVar ctx l1tp ast) =
   liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalAST z3model l1tp ast)
@@ -578,12 +564,6 @@ evalZ3Ctx z3model (Z3Ctx_FVar ctx ftp fdecl) =
   liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalFuncDecl z3model ftp fdecl)
 evalZ3Ctx z3model (Z3Ctx_UVar _ _) =
   error "evalZ3Ctx: formula has a top-level universal variable!"
-
-data SMTResult model
-  = SMT_sat model
-  | SMT_unsat
-  | SMT_unknown String
-  deriving Functor
 
 -- | The options we will pass to Z3 by default
 defaultZ3Options :: Z3Opts.Opts
@@ -603,22 +583,24 @@ evalZ3m tps m =
        runM (mkZ3Ctx tps >>= \ctx -> localCtx ctx m) Z3Ctx_nil z3info
      return ret
 
-z3_check_sat :: MapRList L1FunType ctx -> [Closed (Mb ctx (LProp tag))] ->
-                IO (SMTResult (MapRList MaybeSMTValue ctx))
-z3_check_sat const_tps props =
-  evalZ3m const_tps $
-  do (converted_asts, collected_asts) <-
-       collect $ mapM mb_lprop_to_z3ast props
-     result <-
-       inBase $ Z3.solverCheckAssumptions $ collected_asts ++ converted_asts
-     case result of
-       Z3.Sat ->
-         do ctx <- ask
-            z3model <- inBase Z3.solverGetModel
-            vals <- inBase $ evalZ3Ctx z3model ctx
-            return (SMT_sat vals)
-       Z3.Unsat -> return SMT_unsat
-       Z3.Undef -> inBase $ liftM SMT_unknown Z3.solverGetReasonUnknown
+-- | Dummy type to indicate the Z3 solver in the 'SMTSolver' class
+data Z3Solver
+
+instance SMTSolver Z3Solver where
+  smtSolve _ const_tps props =
+    evalZ3m const_tps $
+    do (converted_asts, collected_asts) <-
+         collect $ mapM mb_lprop_to_z3ast props
+       result <-
+         inBase $ Z3.solverCheckAssumptions $ collected_asts ++ converted_asts
+       case result of
+         Z3.Sat ->
+           do ctx <- ask
+              z3model <- inBase Z3.solverGetModel
+              vals <- inBase $ evalZ3Ctx z3model ctx
+              return (SMT_sat vals)
+         Z3.Unsat -> return SMT_unsat
+         Z3.Undef -> inBase $ liftM SMT_unknown Z3.solverGetReasonUnknown
 
 -- FIXME HERE NOW:
 --
