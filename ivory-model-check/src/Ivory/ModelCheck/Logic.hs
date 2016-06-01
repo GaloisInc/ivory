@@ -16,7 +16,6 @@ import Data.Typeable
 import Data.Int
 import Data.Word
 import Data.List
-import Numeric.Natural
 import Data.Functor.Identity
 
 import MonadLib
@@ -58,6 +57,34 @@ instance NuMatching () where
 
 instance Liftable () where
   mbLift _ = ()
+
+-- | FIXME: documentation, and put it in the right place
+doubleClose :: Closed a -> Closed (Closed a)
+doubleClose =
+  $([| \x -> $(mkClosed [| x |]) |])
+
+-- | FIXME: documentation
+clApplyCl :: Closed (Closed a -> b) -> Closed a -> Closed b
+clApplyCl f a = clApply f (doubleClose a)
+
+-- | FIXME: documentation, move this
+clMbList :: NuMatching a => Closed (Mb ctx [a]) -> [Closed (Mb ctx a)]
+clMbList [clNuP| [] |] = []
+clMbList [clNuP| (x:xs) |] = x : clMbList xs
+
+-- | Map a 'Closed' function via a 'Functor' instance
+cl_fmap :: Functor f => Closed (a -> b) -> Closed (f a) -> Closed (f b)
+cl_fmap f x =
+  $(mkClosed [| \f x -> fmap f x |]) `clApply` f `clApply` x
+
+-- | Apply 'mbCombine' to a 'Closed' name-binding
+clMbCombine :: Closed (Mb ctx1 (Mb ctx2 a)) ->
+               Closed (Mb (ctx1 :++: ctx2) a)
+clMbCombine = clApply $(mkClosed [| mbCombine |])
+
+-- | FIXME HERE NOW: this should not be possible!!
+closeBug :: a -> Closed a
+closeBug = $([| \x -> $(mkClosed [| x |]) |])
 
 
 ----------------------------------------------------------------------
@@ -132,8 +159,8 @@ data Prop deriving Typeable
 -- | Dummy type for predicate monads, i.e., set of program transitions
 data PM (a :: *) deriving Typeable
 
--- | Untyped pointers = 'Natural's
-newtype Ptr = Ptr { unPtr :: Natural } deriving (Typeable, Eq, Ord)
+-- | Untyped pointers = 'Integer's
+newtype Ptr = Ptr { unPtr :: Integer } deriving (Typeable, Eq, Ord)
 
 -- | A default pointer value
 defaultPtr :: Ptr
@@ -177,6 +204,13 @@ instance Liftable (LitType a) where
   mbLift [nuP| LitType_bool |] = LitType_bool
   mbLift [nuP| LitType_int |] = LitType_int
   mbLift [nuP| LitType_bits |] = LitType_bits
+
+-- | "Proof" that every 'LitType' is closed, i.e., has no free names
+closeLitType :: LitType a -> Closed (LitType a)
+closeLitType LitType_unit = $(mkClosed [| LitType_unit |])
+closeLitType LitType_bool = $(mkClosed [| LitType_bool |])
+closeLitType LitType_int = $(mkClosed [| LitType_int |])
+closeLitType LitType_bits = $(mkClosed [| LitType_bits |])
 
 -- | Test if two 'LitType's are equal
 litTypeEq :: LitType a -> LitType b -> Maybe (a :~: b)
@@ -223,6 +257,13 @@ instance Liftable (L1Type a) where
   mbLift [nuP| L1Type_lit ltp |] = L1Type_lit $ mbLift ltp
   mbLift [nuP| L1Type_ptr |] = L1Type_ptr
   mbLift [nuP| L1Type_prop |] = L1Type_prop
+
+-- | "Proof" that every 'L1Type' is closed, i.e., has no free names
+closeL1Type :: L1Type a -> Closed (L1Type a)
+closeL1Type (L1Type_lit lit_tp) =
+  $(mkClosed [| L1Type_lit |]) `clApply` (closeLitType lit_tp)
+closeL1Type L1Type_ptr = $(mkClosed [| L1Type_ptr |])
+closeL1Type L1Type_prop = $(mkClosed [| L1Type_prop |])
 
 -- | Test if two 'L1Type's are equal
 l1TypeEq :: L1Type a -> L1Type b -> Maybe (a :~: b)
@@ -420,6 +461,14 @@ instance Liftable (L1FunType a) where
   mbLift [nuP| L1FunType_base ltp |] = L1FunType_base $ mbLift ltp
   mbLift [nuP| L1FunType_cons ltp t |] = L1FunType_cons (mbLift ltp) (mbLift t)
 
+-- | "Proof" that every 'L1FunType' is closed, i.e., has no free names
+closeL1FunType :: L1FunType a -> Closed (L1FunType a)
+closeL1FunType (L1FunType_base l1tp) =
+  $(mkClosed [| L1FunType_base |]) `clApply` (closeL1Type l1tp)
+closeL1FunType (L1FunType_cons l1tp ftp) =
+  $(mkClosed [| L1FunType_cons |]) `clApply` (closeL1Type l1tp)
+  `clApply` (closeL1FunType ftp)
+
 -- | Convert an 'L1FunType' to an 'LType'
 funType_to_type :: L1FunType a -> LType a
 funType_to_type (L1FunType_base l1tp) = LType_base l1tp
@@ -446,30 +495,39 @@ funType_ret_type (L1FunType_cons _ ftp) = funType_ret_type ftp
 -- Finite functinos
 ----------------------------------------------------------------------
 
+-- | Build the right-nested tuple type @(a1, (.., (an, ()) .. ))@ from the type
+-- list @[a1, .., an]@
+type family TupleType (as :: [*]) :: *
+type instance TupleType '[] = ()
+type instance TupleType (a ': as) = (a, TupleType as)
+
 -- | A finite function, i.e., a function that has the same value for all but
--- finitely many inputs
-data FinFun a b = FinFun { finfunDef :: b, finfunMap :: [(a,b)] }
+-- finitely many inputs. These finite functions are un-Curried, i.e., they take
+-- 0 or more arguments at once.
+data FinFun (args :: [*]) b =
+  FinFun { finfunDef :: b, finfunMap :: [(TupleType args, b)] }
 
 -- | Make a finite function with a given default value
-mkFinFun :: b -> FinFun a b
+mkFinFun :: b -> FinFun args b
 mkFinFun def = FinFun { finfunDef = def, finfunMap = [] }
 
 -- | Apply a 'FinFun'
-applyFinFun :: Eq a => FinFun a b -> a -> b
-applyFinFun f arg =
-  case lookup arg (finfunMap f) of
+applyFinFun :: Eq (TupleType args) => FinFun args b -> TupleType args -> b
+applyFinFun f args =
+  case lookup args (finfunMap f) of
     Just ret -> ret
     Nothing -> finfunDef f
 
 -- | Update a 'FinFun'
-updateFinFun :: Eq a => FinFun a b -> a -> b -> FinFun a b
-updateFinFun f arg newval =
+updateFinFun :: Eq (TupleType args) => FinFun args b -> TupleType args -> b ->
+                FinFun args b
+updateFinFun f args newval =
   FinFun { finfunDef = finfunDef f,
            finfunMap =
-             (arg,newval):(deleteBy
-                           (\p1 p2 -> fst p1 == fst p2)
-                           (arg,newval)
-                           (finfunMap f))}
+             (args, newval):(deleteBy
+                             (\p1 p2 -> fst p1 == fst p2)
+                             (args,newval)
+                             (finfunMap f))}
 
 
 ----------------------------------------------------------------------
@@ -490,11 +548,12 @@ class MemoryModel (mm :: [*]) where
 -- type. Array stores are represented as 'FinFun's that map 'Ptr' pointer
 -- values, combined with 'Word64' indices, to the given type.
 newtype LitArrayStore a =
-  LitArrayStore { unLitArrayStore :: FinFun (Ptr, Literal Word64) (Literal a) }
+  LitArrayStore { unLitArrayStore ::
+                    FinFun '[ Ptr, Literal Word64 ] (Literal a) }
 
 -- | Build a default, empty 'LitArrayStore'
-mkLitArrayStore :: Literal a -> LitArrayStore a
-mkLitArrayStore = LitArrayStore . mkFinFun
+defaultLitArrayStore :: Literal a -> LitArrayStore a
+defaultLitArrayStore = LitArrayStore . mkFinFun
 
 -- | A memory is a collection of 'LitArrayStore's, one for each type in the
 -- memory model, as well as an array store for 'Ptr's. The memory model is given
@@ -504,15 +563,15 @@ mkLitArrayStore = LitArrayStore . mkFinFun
 -- allocated one is not considered allcated, i.e., is an invalid pointer.
 data Memory mm =
   Memory { memArrays :: MapList LitArrayStore mm,
-           memPtrArray :: FinFun (Ptr, Literal Word64) Ptr,
-           memLengths :: FinFun Ptr (Literal Word64),
+           memPtrArray :: FinFun '[ Ptr, Literal Word64 ] Ptr,
+           memLengths :: FinFun '[ Ptr ] (Literal Word64),
            memLastAlloc :: Ptr }
 
 -- | Build a default, empty 'Memory'
-mkMemory :: MemoryModel mm => Memory mm
-mkMemory =
-  Memory { memArrays = ml_map mkLitArrayStore memoryDefaults,
-           memPtrArray = mkFinFun defaultPtr,
+defaultMemory :: MemoryModel mm => Memory mm
+defaultMemory =
+  Memory { memArrays = ml_map defaultLitArrayStore memoryDefaults,
+           memPtrArray = mkFinFun (defaultPtr),
            memLengths = mkFinFun (Literal 0),
            memLastAlloc = Ptr 0 }
 
@@ -563,12 +622,12 @@ readMemory (ReadOp_array elem_pf) mem
            (Cons (Identity ptr) (Cons (Identity ix) _)) =
   applyFinFun
     (unLitArrayStore $ ml_lookup (memArrays mem) elem_pf)
-    (ptr, ix)
+    (ptr, (ix, ()))
 readMemory ReadOp_ptr_array mem
            (Cons (Identity ptr) (Cons (Identity ix) _)) =
-  applyFinFun (memPtrArray mem) (ptr, ix)
+  applyFinFun (memPtrArray mem) (ptr, (ix, ()))
 readMemory ReadOp_length mem (Cons (Identity ptr) _) =
-  applyFinFun (memLengths mem) ptr
+  applyFinFun (memLengths mem) (ptr, ())
 readMemory ReadOp_last_alloc mem _ = memLastAlloc mem
 
 -- | Perform an update operation on a 'Memory'
@@ -581,20 +640,20 @@ updateMemory (UpdateOp_array elem_pf) mem
   { memArrays =
       ml_map1
         (\las -> LitArrayStore $
-                 updateFinFun (unLitArrayStore las) (ptr, ix) newval)
+                 updateFinFun (unLitArrayStore las) (ptr, (ix, ())) newval)
         (memArrays mem)
         elem_pf
   }
 updateMemory UpdateOp_ptr_array mem
              (Cons (Identity ptr)
               (Cons (Identity ix) (Cons (Identity newval) _))) =
-  mem { memPtrArray = updateFinFun (memPtrArray mem) (ptr,ix) newval }
+  mem { memPtrArray = updateFinFun (memPtrArray mem) (ptr, (ix, ())) newval }
 updateMemory (UpdateOp_alloc elem_pf) mem
              (Cons (Identity new_len) _) =
   let new_last_alloc = Ptr (unPtr (memLastAlloc mem) + 1) in
   mem
   {
-    memLengths = updateFinFun (memLengths mem) new_last_alloc new_len,
+    memLengths = updateFinFun (memLengths mem) (new_last_alloc, ()) new_len,
     memLastAlloc = new_last_alloc
   }
 
@@ -839,7 +898,11 @@ data LExprs tag as where
 $(mkNuMatching [t| forall tag a. LExpr tag a |])
 $(mkNuMatching [t| forall tag as. LExprs tag as |])
 
+-- | The type of propositions in our logic
 type LProp tag = LExpr tag Prop
+
+-- | The type of transition relations in our logic
+type LPM tag = LExpr tag (PM (Literal ()))
 
 -- | Get the 'LType' of an expression-in-binding
 mbExprType :: Mb ctx (LExpr tag a) -> LType a
@@ -1004,6 +1067,11 @@ mkEq1 :: L1Typeable a => LExpr tag a -> LExpr tag a -> LProp tag
 mkEq1 e1 e2 =
   LOp (Op_eq l1typeRep) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
 
+-- | Build an equality at a first-order type which is given explicitly
+mkEq1Tp :: L1Type a -> LExpr tag a -> LExpr tag a -> LProp tag
+mkEq1Tp l1tp e1 e2 =
+  LOp (Op_eq l1tp) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
+
 -- | Build an equality for two 'Name's, short-circuiting the equality for
 -- syntactically identical names
 mkNameEq :: Proxy tag -> L1FunType a -> Name a -> Name a -> LProp tag
@@ -1011,6 +1079,16 @@ mkNameEq proxy ftp n1 n2 =
   if n1 == n2 then mkTrue else
     mkEqTp ftp (mkVarTp proxy (funType_to_type ftp) n1)
     (mkVarTp proxy (funType_to_type ftp) n2)
+
+-- | Build an assume expression inside the predicate monad
+mkAssumeP :: LProp tag -> LPM tag
+mkAssumeP = mkOp Op_assumeP
+
+-- | Build a catch expression inside the predicate monad
+mkCatchP :: (Eq (LException tag), Liftable (LException tag)) =>
+            LException tag -> LPM tag -> LPM tag -> LPM tag
+mkCatchP exn = mkOp (Op_catchP exn)
+
 
 ----------------------------------------------------------------------
 -- Eliminating expressions via expression algebras
@@ -1532,48 +1610,119 @@ symMemEquals mem1 mem2 =
     memArraysEqual (Cons (SymMemName l1tp n1) as1) (Cons (SymMemName _ n2) as2) =
       mkNameEq Proxy (symMemArrayFunType l1tp) n1 n2 : memArraysEqual as1 as2
 
+-- | A type context of all the variables needed to build a @'SymMemory' tag@
+-- when @mm = LStorables tag@
+type family SymMemoryCtx (mm :: [*]) :: RList *
+type instance SymMemoryCtx '[] =
+  RNil :> SymMemPtrArrayType :> (Ptr -> Literal Word64) :> Ptr
+type instance SymMemoryCtx (a ': mm) =
+  SymMemoryCtx mm :> SymMemArrayType a
+
+-- | Construct a context of types for a 'SymMemory'
+symMemoryCtxTypes :: MemoryModel (LStorables tag) => Proxy tag ->
+                     MapRList L1FunType (SymMemoryCtx (LStorables tag))
+symMemoryCtxTypes (_ :: Proxy tag) =
+  helper (memoryLitTypes :: MapList LitType (LStorables tag))
+  where
+    helper :: MapList LitType mm -> MapRList L1FunType (SymMemoryCtx mm)
+    helper (Cons lit_tp mm) = helper mm :>: symMemArrayFunType lit_tp
+    helper Nil = MNil :>: l1funTypeRep :>: l1funTypeRep :>: l1funTypeRep
+
+-- | Construct a symbolic memory from a context of free variables
+symMemoryOfNames :: MemoryModel (LStorables tag) => Proxy tag ->
+                    MapRList Name (SymMemoryCtx (LStorables tag)) ->
+                    SymMemory tag
+symMemoryOfNames _ names =
+  let (symMemArrays, symMemPtrArray,
+       symMemLengths, symMemLastAlloc) = helper memoryLitTypes names
+  in
+  SymMemory { symMemArrays, symMemPtrArray, symMemLengths, symMemLastAlloc }
+  where
+    helper :: MapList LitType mm -> MapRList Name (SymMemoryCtx mm) ->
+              (MapList SymMemName mm, Name SymMemPtrArrayType,
+               Name (Ptr -> Literal Word64), Name Ptr)
+    helper Nil (MNil :>: n1 :>: n2 :>: n3) = (Nil, n1, n2, n3)
+    helper (Cons lit_tp lit_tps) (names :>: n) =
+      let (ns, n1, n2, n3) = helper lit_tps names in
+      (Cons (SymMemName lit_tp n) ns, n1, n2, n3)
+
 
 ----------------------------------------------------------------------
 -- A monad for fresh names
 ----------------------------------------------------------------------
 
+-- | This type classifies how an existential name in a 'WithNames' is created
+data NameDecl tag a where
+  -- | An existential name with no constraints
+  NameDecl_exists :: L1FunType a -> NameDecl tag a
+  -- | A let-bound name, with a right-hand side
+  NameDecl_let :: L1Type a -> LExpr tag a -> NameDecl tag a
+
+-- | Get a list of formulas associated with a 'NameDecl'
+nameDeclProps :: NameDecl tag a -> Name a -> [LProp tag]
+nameDeclProps (NameDecl_exists tp) _ = []
+nameDeclProps (NameDecl_let l1tp rhs :: NameDecl tag a) n =
+  [mkEq1Tp l1tp (mkVarExprTp (LType_base l1tp) n) rhs]
+
+-- | Apply 'nameDeclProps' to a 'Closed' 'NameDecl' in a name-binding
+clMbNameDeclProps :: Closed (Mb ctx (NameDecl tag a)) ->
+                     [Closed (Mb (ctx :> a) (LProp tag))]
+clMbNameDeclProps clmb_decl =
+  clMbList $ clMbCombine $
+  cl_fmap $(mkClosed [|\decl -> nu $ nameDeclProps decl |]) clmb_decl
+
+-- | Extract the 'L1FunType' associated with a 'NameDecl'
+mbNameDeclFunType :: Mb ctx (NameDecl tag a) -> L1FunType a
+mbNameDeclFunType [nuP| NameDecl_exists ftp |] = mbLift ftp
+mbNameDeclFunType [nuP| NameDecl_let l1tp _ |] =
+  L1FunType_base $ mbLift l1tp
+
+-- | An object inside 0 or more name-bindings that are given by 'NameDecl's
 data WithNames tag a where
   WithNoNames :: a -> WithNames tag a
-  WithName :: LType a -> Maybe (LExpr tag a) -> Binding a (WithNames tag b) ->
-              WithNames tag b
+  WithName :: NameDecl tag a -> Binding a (WithNames tag b) -> WithNames tag b
+
+-- Make the NuMatching instances for NameDecl and WithNames
+$(mkNuMatching [t| forall tag a. NameDecl tag a |])
+$(mkNuMatching [t| forall tag a. NuMatching a => WithNames tag a |])
 
 instance Functor (WithNames tag) where
   fmap f (WithNoNames a) = WithNoNames (f a)
-  fmap f (WithName tp rhs body) = WithName tp rhs $ fmap (fmap f) body
+  fmap f (WithName decl body) = WithName decl $ fmap (fmap f) body
 
 instance Applicative (WithNames tag) where
 
 instance Monad (WithNames tag) where
   return x = WithNoNames x
   (WithNoNames x) >>= f = f x
-  (WithName tp rhs body) >>= f =
-    WithName tp rhs $ fmap (\x -> x >>= f) body
+  (WithName decl body) >>= f =
+    WithName decl $ fmap (\x -> x >>= f) body
 
+instance RunM (WithNames tag) a (WithNames tag a) where
+  runM m = m
+
+-- | Type class for monads that allow name-binding
 class Monad m => NamesMonad tag m | m -> tag where
-  nuM :: LType a -> Maybe (LExpr tag a) -> m (Name a)
+  nuM :: NameDecl tag a -> m (Name a)
 
 instance NamesMonad tag (WithNames tag) where
-  nuM tp rhs = WithName tp rhs $ nu WithNoNames
+  nuM decl = WithName decl $ nu WithNoNames
 
 instance NamesMonad tag m => NamesMonad tag (StateT s m) where
-  nuM tp rhs = lift $ nuM tp rhs
+  nuM decl = lift $ nuM decl
 
 instance NamesMonad tag m => NamesMonad tag (ChoiceT m) where
-  nuM tp rhs = lift $ nuM tp rhs
+  nuM decl = lift $ nuM decl
 
 instance NamesMonad tag m => NamesMonad tag (ExceptionT exn m) where
-  nuM tp rhs = lift $ nuM tp rhs
+  nuM decl = lift $ nuM decl
 
 
 ----------------------------------------------------------------------
 -- Logic predicate monad
 ----------------------------------------------------------------------
 
+-- | Predicate monad for transition relations (FIXME: better documentation)
 type LogicPM tag =
   ExceptionT (Maybe (LException tag))
   (StateT (SymMemory tag, [LExpr tag Prop])
@@ -1619,7 +1768,7 @@ readPM (ReadOp_array elem_pf) (Cons ptr (Cons ix Nil)) =
          return $ mkVarTp Proxy (symMemArrayType lit_tp) n ptr ix
 readPM ReadOp_ptr_array (Cons ptr (Cons ix Nil)) =
   do mem <- getMem
-     ptr_ret_n <- nuM (ltypeRep :: LType Ptr) Nothing
+     ptr_ret_n <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType Ptr)
      let ptr_ret = mkVar Proxy ptr_ret_n
      assumePM $ mkVar Proxy (symMemPtrArray mem) ptr ix ptr_ret
      return ptr_ret
@@ -1638,7 +1787,7 @@ updatePM (UpdateOp_array elem_pf) (Cons ptr (Cons ix (Cons v Nil))) =
      -- Look up the proper name with its output type
      let SymMemName ltp n = ml_lookup (symMemArrays mem) elem_pf
      -- Create a fresh name for the updated memory
-     n' <- nuM (symMemArrayType ltp) Nothing
+     n' <- nuM $ NameDecl_exists (symMemArrayFunType ltp)
      -- Assert that (n' ptr ix) = v
      assumePM $
        mkEqTp (L1FunType_base $ L1Type_lit ltp)
@@ -1658,7 +1807,7 @@ updatePM (UpdateOp_array elem_pf) (Cons ptr (Cons ix (Cons v Nil))) =
 updatePM UpdateOp_ptr_array (Cons ptr (Cons ix (Cons v Nil))) =
   do mem <- getMem
      let n = symMemPtrArray mem
-     n' <- nuM (ltypeRep :: LType SymMemPtrArrayType) Nothing
+     n' <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType SymMemPtrArrayType)
      -- Assert that n' is a valid set of pointer arrays
      assumePtrArrayName n'
      -- Assert that (n' ptr ix v) holds
@@ -1677,10 +1826,12 @@ updatePM (UpdateOp_alloc _) (Cons len Nil) =
      let lengths = symMemLengths mem
      let last_alloc = symMemLastAlloc mem
      -- Define a new function for the lengths
-     lengths' <- nuM (ltypeRep :: LType (Ptr -> Literal Word64)) Nothing
+     lengths' <-
+       nuM $ NameDecl_exists (l1funTypeRep :: L1FunType (Ptr -> Literal Word64))
      -- Define a new name for last_alloc
-     last_alloc' <- nuM (ltypeRep :: LType Ptr) (Just $ mkOp Op_next_ptr $
-                                                 mkVar Proxy last_alloc)
+     last_alloc' <-
+       nuM $ NameDecl_let (l1typeRep :: L1Type Ptr)
+       (mkOp Op_next_ptr $ mkVar Proxy last_alloc)
      -- Assert that (lengths' last_alloc') = len
      assumePM $
        mkEq1 (mkVar Proxy lengths' $ mkVar Proxy last_alloc') len
@@ -1699,11 +1850,11 @@ raisePM exn = raise exn
 
 -- | Run the first computation. If it raises the given exception, then run the
 -- second computation.
-catchPM :: Eq (LException tag) => LException tag ->
+catchPM :: Eq (LException tag) => Maybe (LException tag) ->
            LogicPM tag () -> LogicPM tag () -> LogicPM tag ()
 catchPM exn m m_exn =
   handle m $ \raised ->
-  if raised == Just exn then m_exn else raisePM raised
+  if raised == exn then m_exn else raisePM raised
 
 
 ----------------------------------------------------------------------
@@ -1727,7 +1878,7 @@ collectResultsPM pm =
 getPropsAsConstant :: LogicPM tag (LProp tag)
 getPropsAsConstant =
   do (mem, props) <- get
-     prop_n <- nuM ltypeRep (Just $ mkAnd props)
+     prop_n <- nuM $ NameDecl_let l1typeRep (mkAnd props)
      let combined_prop = mkVar Proxy prop_n
      set (mem, [combined_prop])
      return combined_prop
@@ -1740,24 +1891,25 @@ freshMemoryFrom (mem:mems) =
           do symMemArrays <-
                combineMemArrays (symMemArrays mem1) (symMemArrays mem2)
              symMemPtrArray <-
-               combineNames ltypeRep (symMemPtrArray mem1) (symMemPtrArray mem2)
+               combineNames l1funTypeRep (symMemPtrArray mem1) (symMemPtrArray mem2)
              symMemLengths <-
-               combineNames ltypeRep (symMemLengths mem1) (symMemLengths mem2)
+               combineNames l1funTypeRep (symMemLengths mem1) (symMemLengths mem2)
              symMemLastAlloc <-
-               combineNames ltypeRep
+               combineNames l1funTypeRep
                (symMemLastAlloc mem1) (symMemLastAlloc mem2)
              return $ SymMemory { symMemArrays, symMemPtrArray,
                                   symMemLengths, symMemLastAlloc }
           ) mem mems
   where
-    combineNames :: LType a -> Name a -> Name a -> LogicPM tag (Name a)
-    combineNames tp n1 n2 =
-      if n1 == n2 then return n1 else nuM tp Nothing
+    combineNames :: L1FunType a -> Name a -> Name a -> LogicPM tag (Name a)
+    combineNames ftp n1 n2 =
+      if n1 == n2 then return n1 else
+        nuM $ NameDecl_exists ftp
     combineMemArrays :: MapList SymMemName mm -> MapList SymMemName mm ->
                         LogicPM tag (MapList SymMemName mm)
     combineMemArrays Nil Nil = return Nil
     combineMemArrays (Cons (SymMemName ltp n1) as1) (Cons (SymMemName _ n2) as2) =
-      do n' <- combineNames (symMemArrayType ltp) n1 n2
+      do n' <- combineNames (symMemArrayFunType ltp) n1 n2
          as' <- combineMemArrays as1 as2
          return $ Cons (SymMemName ltp n') as'
 
@@ -1922,7 +2074,7 @@ instance LExprAlgebra tag (InterpPM tag) where
   interpOp (Op_catchP exn) =
     InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
     InterpPM_unit_pm $
-    catchPM exn (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
+    catchPM (Just exn) (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
   interpOp Op_assumeP =
     InterpPM_fun $ \(InterpPM_base _ p) -> InterpPM_unit_pm $ assumePM p
   interpOp Op_falseP =
@@ -1932,23 +2084,53 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_unit_pm $
     orPM (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
 
+-- | Top-level call to convert a predicate monad expression to a 'LogicPM'
+lexpr_to_logicPM :: Closed (LExpr tag (PM ())) -> Closed (LogicPM tag ())
+lexpr_to_logicPM expr =
+  $(mkClosed [| \clexpr -> unit_pm_of_interpPM $ interpExpr MNil clexpr |])
+  `clApplyCl`
+  (clApply $(mkClosed [| emptyMb |]) expr)
+
 
 ----------------------------------------------------------------------
 -- SMT solver interface
 ----------------------------------------------------------------------
 
--- | A value of a given type, as returned by an SMT solver. The special value
--- 'SMTValue_any' means that the variable with this value is unconstrained,
--- i.e., any value will work.
-data SMTValue a where
-  SMTValue_any :: SMTValue a
-  SMTValue_lit :: LitType a -> a -> SMTValue (Literal a)
-  SMTValue_ptr :: Integer -> SMTValue Ptr
-  SMTValue_prop :: Bool -> SMTValue Prop
-  SMTValue_fun ::
-    L1FunType a ->
-    FinFun (MapList SMTValue (ArgTypes a)) (SMTValue (RetType a)) ->
-    SMTValue a
+-- | Build the type lift @'[SMTValue a1, .., SMTValue an]@ from the type list
+-- @[a1, .., an]@
+type family SMTValues (as :: [*]) :: [*]
+type instance SMTValues '[] = '[]
+type instance SMTValues (a ': as) = SMTValue a ': SMTValues as
+
+-- | FIXME: documentation
+type SMTValueFun a =
+  FinFun (SMTValues (ArgTypes a)) (SMTValue (RetType a))
+
+-- | The type of a value returned by SMT solvers for a variable of a given type
+type family SMTValue a
+type instance SMTValue (Literal a) = Literal a
+type instance SMTValue Ptr = Ptr
+type instance SMTValue Prop = Bool
+type instance SMTValue (a -> b) = SMTValueFun (a -> b)
+
+-- | An optional value for a free variable passed to an SMT solver, where
+-- 'Nothing' means that the variable with this value is unconstrained, i.e., any
+-- value will work.
+newtype MaybeSMTValue a =
+  MaybeSMTValue { unMaybeSMTValue :: Maybe (SMTValue a) }
+
+-- | Extract a 'PTr' from a 'MaybeSMTValue' of 'Ptr' type, using the
+-- 'defaultPtr' for an unconstrained value
+extractSMTValuePtr :: MaybeSMTValue Ptr -> Ptr
+extractSMTValuePtr (MaybeSMTValue (Just p)) = p
+extractSMTValuePtr (MaybeSMTValue Nothing) = defaultPtr
+
+-- | Extract a 'FinFun' from a 'MaybeSMTValue' of functional type, using the
+-- given default return value for an unconstrained value
+extractSMTValueFun :: SMTValue (RetType (a -> b)) -> MaybeSMTValue (a -> b) ->
+                      SMTValueFun (a -> b)
+extractSMTValueFun def (MaybeSMTValue (Just f)) = f
+extractSMTValueFun def (MaybeSMTValue Nothing) = mkFinFun def
 
 -- | The result of calling an SMT solver on some set of input formulas
 data SMTResult model
@@ -1960,14 +2142,128 @@ data SMTResult model
     -- ^ Satisfiability could not be determined; an error message is also given
   deriving Functor
 
--- | Type class for registering and callng SMT solvers. The type argument
--- @solver@ is just a placeholder that indicates which SMT solver to call.
+-- | Type class indicating that a type can be used as an SMT solver. Often the
+-- @solver@ type is just a dummy type, indicating a function to be called.
 class SMTSolver solver where
   -- | Call the solver indicated by the type argument @solver@, passing it a set
   -- of propositions over some set of free variables given by @ctx@. These
   -- variables must have first-order function type. If the formulas are
   -- satisfiable, the result is a model of 'SMTValue's of these free variables.
-  smtSolve :: Proxy solver -> MapRList L1FunType ctx ->
+  smtSolve :: solver -> MapRList L1FunType ctx ->
               [Closed (Mb ctx (LProp tag))] ->
-              IO (SMTResult (MapRList SMTValue ctx))
+              IO (SMTResult (MapRList MaybeSMTValue ctx))
 
+-- | FIXME: documentation
+ptrArraysOfSymPtrArrays :: MaybeSMTValue SymMemPtrArrayType ->
+                           FinFun '[ Ptr, Literal Word64 ] Ptr
+ptrArraysOfSymPtrArrays (extractSMTValueFun False -> f) =
+  if finfunDef f == True then
+    error "ptrArraysOfSymPtrArrays: bad memory returned from SMT solver!"
+  else
+    foldl' (\arrays_f ((p_from, (i, (p_to, ()))), b) ->
+             if b then
+               updateFinFun arrays_f (p_from, (i, ())) p_to
+             else arrays_f)
+    (mkFinFun defaultPtr)
+    (finfunMap f)
+
+-- | FIXME: documentation
+memoryOfSMTValues :: MapList Literal mm ->
+                     MapRList MaybeSMTValue (SymMemoryCtx mm) ->
+                     Memory mm
+memoryOfSMTValues Nil (MNil :>: ptrs_v :>: lengths_v :>: last_alloc_v) =
+  Memory { memArrays = Nil,
+           memPtrArray = ptrArraysOfSymPtrArrays ptrs_v,
+           memLengths = extractSMTValueFun (Literal 0) lengths_v,
+           memLastAlloc = extractSMTValuePtr last_alloc_v }
+memoryOfSMTValues (Cons def mm) (mm_values :>: vals_v) =
+  let mem = memoryOfSMTValues mm mm_values in
+  mem { memArrays =
+          Cons (LitArrayStore $ extractSMTValueFun def vals_v) (memArrays mem) }
+
+
+----------------------------------------------------------------------
+-- Testing reachability using an SMT solver
+----------------------------------------------------------------------
+
+-- | Run a 'ChoiceT' computation, returning the first result for which the
+-- supplied function returns a 'Just' value, or return 'Nothing' if no such
+-- result exists. (This is similar to 'findOne'.)
+findFirst :: Monad m => (a -> Maybe b) -> ChoiceT m a -> m (Maybe b)
+findFirst f m =
+  do maybe_res <- runChoiceT m
+     case maybe_res of
+       Nothing -> return Nothing
+       Just (a, m') ->
+         case f a of
+           Nothing -> findFirst f m'
+           Just b -> return (Just b)
+
+-- | Run a 'LogicPM' computation, starting from a given symbolic memory, to get
+-- a set of formulas that must hold for that computation to terminate normally,
+-- i.e., to not throw an exception. If there is no such set of formulas, we use
+-- the single false formula.
+runLogicPM :: SymMemory tag -> LogicPM tag () -> WithNames tag [LProp tag]
+runLogicPM mem m =
+  do maybe_props <-
+       findFirst (\(either, (_, props)) ->
+                   case either of
+                     Left _ -> Nothing
+                     Right () -> Just props)
+       (runStateT (mem, []) $ runExceptionT m)
+     case maybe_props of
+       Just props -> return props
+       Nothing -> return [mkFalse]
+
+-- | FIXME: documentation, move this
+clmbExprLower1 :: Closed (Mb ctx (LExpr tag b)) ->
+                  Closed (Mb (ctx :> a) (LExpr tag b))
+clmbExprLower1 clmb_expr =
+  clMbCombine $ cl_fmap $(mkClosed [| \e -> nu $ \_ -> e |]) clmb_expr
+
+-- | Solve a set of formulas inside a 'WithNames'
+smtSolveWithNames :: SMTSolver solver => solver ->
+                     MapRList L1FunType ctx ->
+                     [Closed (Mb ctx (LProp tag))] ->
+                     Closed (Mb ctx (WithNames tag [LProp tag])) ->
+                     IO (SMTResult (MapRList MaybeSMTValue ctx))
+smtSolveWithNames solver ftps in_props [clNuP| WithNoNames props |] =
+  smtSolve solver ftps (in_props ++ clMbList props)
+smtSolveWithNames solver ftps in_props [clNuP| WithName clmb_decl body |] =
+  liftM (fmap (\(ctx :>: _) -> ctx)) $
+  smtSolveWithNames solver (ftps :>: mbNameDeclFunType (unClosed clmb_decl))
+  (clMbNameDeclProps clmb_decl ++ map clmbExprLower1 in_props)
+  (clApply $(mkClosed [| mbCombine |]) body)
+
+-- | Test if a non-exceptional output state is reachable via a 'LogicPM'
+-- computation, and, if so, return an input memory from which that output state
+-- is reachable
+reachablePM :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
+               Closed (LogicPM tag ()) ->
+               IO (SMTResult (Memory (LStorables tag)))
+reachablePM solver (closed_m :: Closed (LogicPM tag ())) =
+  liftM (fmap (memoryOfSMTValues memoryDefaults)) $
+  smtSolveWithNames solver (symMemoryCtxTypes (Proxy :: Proxy tag)) [] $
+  $(mkClosed
+    [| \m -> nuMulti (symMemoryCtxTypes (Proxy :: Proxy tag)) $ \names ->
+      runLogicPM (symMemoryOfNames (Proxy :: Proxy tag) names) m |])
+  `clApply` closed_m
+
+-- | Test reachability on a 'PM' expression, returning an example initial input
+-- memory from which a non-exceptional output state is reachable
+reachable :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
+             Closed (LExpr tag (PM ())) ->
+             IO (SMTResult (Memory (LStorables tag)))
+reachable solver expr = reachablePM solver (lexpr_to_logicPM expr)
+
+-- | Test reachability of any error states, i.e., states where the computation
+-- has raised the 'Nothing' exception
+error_reachable :: (SMTSolver solver, LExprTag tag) =>
+                   solver -> Closed (LExpr tag (PM ())) ->
+                   IO (SMTResult (Memory (LStorables tag)))
+error_reachable solver cl_expr =
+  reachablePM solver $
+  clApply $(mkClosed [| \pm -> catchPM Nothing (pm >> falsePM) (return ()) |]) $
+  lexpr_to_logicPM cl_expr
+
+-- FIXME HERE NOW: also include an 'LProp' in the output

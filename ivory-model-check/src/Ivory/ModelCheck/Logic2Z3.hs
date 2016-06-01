@@ -47,7 +47,8 @@ data Z3Ctx ctx where
   Z3Ctx_EVar :: Z3Ctx ctx -> L1Type a -> Z3.AST -> Z3Ctx (ctx :> a)
   -- ^ Add an existential variable to the context, which is associated with a Z3
   -- constant symbol, given as a 'Z3.AST'
-  Z3Ctx_FVar :: Z3Ctx ctx -> L1FunType a -> Z3.FuncDecl -> Z3Ctx (ctx :> a)
+  Z3Ctx_FVar :: Z3Ctx ctx -> L1FunType (a -> b) -> Z3.FuncDecl ->
+                Z3Ctx (ctx :> (a -> b))
   -- ^ Add an existential function variable to the context, which is associated
   -- with a Z3 function symbol, i.e., with a 'Z3.FuncDecl'
   Z3Ctx_UVar :: Z3Ctx ctx -> L1Type a -> Z3Ctx (ctx :> a)
@@ -267,7 +268,7 @@ withEVar l1tp m =
 mkZ3Ctx :: MapRList L1FunType ctx -> Z3m c (Z3Ctx ctx)
 mkZ3Ctx (tps :>: L1FunType_base l1tp) =
   liftM3 Z3Ctx_EVar (mkZ3Ctx tps) (return l1tp) (mkFreshConstant l1tp)
-mkZ3Ctx (tps :>: ftp) =
+mkZ3Ctx (tps :>: ftp@(L1FunType_cons _ _)) =
   liftM3 Z3Ctx_FVar (mkZ3Ctx tps) (return ftp) (mkFreshFuncDecl ftp)
 mkZ3Ctx MNil = return Z3Ctx_nil
 
@@ -495,41 +496,41 @@ mb_lprop_to_z3ast prop =
 -- | Convert a 'Z3.AST' that is known to be a value into an 'SMTValue'
 z3ast_to_value :: L1Type a -> Z3.AST -> Z3.Z3 (SMTValue a)
 z3ast_to_value (L1Type_lit lit_tp@LitType_unit) _ =
-  return (SMTValue_lit lit_tp ())
+  return $ Literal ()
 z3ast_to_value (L1Type_lit lit_tp@LitType_bool) ast =
-  liftM (SMTValue_lit lit_tp) $ Z3.getBool ast
+  liftM Literal $ Z3.getBool ast
 z3ast_to_value (L1Type_lit lit_tp@LitType_int) ast =
-  liftM (SMTValue_lit lit_tp) $ Z3.getInt ast
+  liftM Literal $ Z3.getInt ast
 z3ast_to_value (L1Type_lit lit_tp@(LitType_bits :: LitType bv)) ast =
-  liftM (SMTValue_lit lit_tp . fromInteger) $
-  Z3.getBv ast (isSigned (zeroBits :: bv))
+  liftM (Literal . fromInteger) $ Z3.getBv ast (isSigned (zeroBits :: bv))
 z3ast_to_value L1Type_ptr ast =
-  liftM SMTValue_ptr $ Z3.getInt ast
+  liftM Ptr $ Z3.getInt ast
 z3ast_to_value L1Type_prop ast =
-  liftM SMTValue_prop $ Z3.getBool ast
+  Z3.getBool ast
 
 -- | Get the value of a 'Z3.AST' from a Z3 model
-evalAST :: Z3.Model -> L1Type a -> Z3.AST -> Z3.Z3 (SMTValue a)
+evalAST :: Z3.Model -> L1Type a -> Z3.AST -> Z3.Z3 (MaybeSMTValue a)
 evalAST z3model l1tp ast =
   do maybe_ast <- Z3.modelEval z3model ast False
      case maybe_ast of
-       Nothing -> return $ SMTValue_any
-       Just ast -> z3ast_to_value l1tp ast
+       Nothing -> return $ MaybeSMTValue Nothing
+       Just ast -> liftM (MaybeSMTValue . Just) $ z3ast_to_value l1tp ast
 
 -- | Helper for 'evalFuncEntry'
 evalFunEntryArgsFrom :: Z3.FuncEntry -> Int -> MapList L1Type args ->
-                        Z3.Z3 (MapList SMTValue args)
-evalFunEntryArgsFrom fentry i Nil = return Nil
+                        Z3.Z3 (TupleType (SMTValues args))
+evalFunEntryArgsFrom fentry i Nil = return ()
 evalFunEntryArgsFrom fentry i (Cons l1tp tps) =
   do arg_ast <- Z3.funcEntryGetArg fentry i
      arg_val <- z3ast_to_value l1tp arg_ast
      rest_vals <- evalFunEntryArgsFrom fentry (i+1) tps
-     return (Cons arg_val rest_vals)
+     return (arg_val, rest_vals)
 
 -- | Get the value of a 'Z3.FuncEntry' as a pair of 'SMTValue's for the input
 -- and output values given by the 'Z3.FuncEntry'
 evalFuncEntry :: L1FunType a -> Z3.FuncEntry ->
-                 Z3.Z3 (MapList SMTValue (ArgTypes a), SMTValue (RetType a))
+                 Z3.Z3 (TupleType (SMTValues (ArgTypes a)),
+                        SMTValue (RetType a))
 evalFuncEntry ftp fentry =
   do arg_vals <- evalFunEntryArgsFrom fentry 0 (funType_arg_types ftp)
      ret_ast <- Z3.funcEntryGetValue fentry
@@ -537,26 +538,27 @@ evalFuncEntry ftp fentry =
      return (arg_vals, ret_val)
 
 -- | Get the value of a 'Z3.FuncInterp' as an 'SMTValue'
-evalFuncInterp :: L1FunType a -> Z3.FuncInterp -> Z3.Z3 (SMTValue a)
+evalFuncInterp :: L1FunType a -> Z3.FuncInterp -> Z3.Z3 (SMTValueFun a)
 evalFuncInterp ftp finterp =
   do num_entries <- Z3.funcInterpGetNumEntries finterp
      func_entries <- mapM (Z3.funcInterpGetEntry finterp) [0 .. num_entries - 1]
      entry_val_map <- mapM (evalFuncEntry ftp) func_entries
      default_ast <- Z3.funcInterpGetElse finterp
      default_val <- z3ast_to_value (funType_ret_type ftp) default_ast
-     return $ SMTValue_fun ftp $
-       FinFun { finfunDef = default_val, finfunMap = entry_val_map }
+     return $ FinFun { finfunDef = default_val, finfunMap = entry_val_map }
 
 -- | Get the value of a 'Z3.FuncDecl' from a Z3 model
-evalFuncDecl :: Z3.Model -> L1FunType a -> Z3.FuncDecl -> Z3.Z3 (SMTValue a)
+evalFuncDecl :: Z3.Model -> L1FunType (a -> b) -> Z3.FuncDecl ->
+                Z3.Z3 (MaybeSMTValue (a -> b))
 evalFuncDecl z3model ftp fdecl =
   do maybe_finterp <- Z3.getFuncInterp z3model fdecl
      case maybe_finterp of
-       Nothing -> return SMTValue_any
-       Just finterp -> evalFuncInterp ftp finterp
+       Nothing -> return $ MaybeSMTValue Nothing
+       Just finterp ->
+         liftM (MaybeSMTValue . Just) $ evalFuncInterp ftp finterp
 
 -- | Get the values of all the existential values in a 'Z3Ctx' from a Z3 model
-evalZ3Ctx :: Z3.Model -> Z3Ctx ctx -> Z3.Z3 (MapRList SMTValue ctx)
+evalZ3Ctx :: Z3.Model -> Z3Ctx ctx -> Z3.Z3 (MapRList MaybeSMTValue ctx)
 evalZ3Ctx z3model Z3Ctx_nil = return MNil
 evalZ3Ctx z3model (Z3Ctx_EVar ctx l1tp ast) =
   liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalAST z3model l1tp ast)
@@ -584,7 +586,7 @@ evalZ3m tps m =
      return ret
 
 -- | Dummy type to indicate the Z3 solver in the 'SMTSolver' class
-data Z3Solver
+data Z3Solver = Z3Solver
 
 instance SMTSolver Z3Solver where
   smtSolve _ const_tps props =
@@ -601,13 +603,3 @@ instance SMTSolver Z3Solver where
               return (SMT_sat vals)
          Z3.Unsat -> return SMT_unsat
          Z3.Undef -> inBase $ liftM SMT_unknown Z3.solverGetReasonUnknown
-
--- FIXME HERE NOW:
---
--- Make z3_check_sat work specifically with LogicPM, binding variables for the
--- memory; OR: keep z3_check_sat as it is defined, and add z3_check_reachable to
--- work on LogicPMs (Though we might need z3_check_sat to use MapList instead or
--- MapRList, over (LStorables tag)...)
---
--- Change WithNames so that each name has a Decl saying where it came from; then
--- interpret a WithNames using a mapping from each Decl to an LProp
