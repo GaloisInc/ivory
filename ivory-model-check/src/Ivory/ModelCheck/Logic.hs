@@ -732,6 +732,8 @@ data Op tag a where
 
   -- | Bump a free pointer
   Op_next_ptr :: Op tag (Ptr -> Ptr)
+  -- | Test pointer equality
+  Op_ptr_eq :: Op tag (Ptr -> Ptr -> Literal Bool)
 
   -- * Propositional operations
   -- | The true proposition
@@ -804,6 +806,7 @@ opType (Op_cmp lit_tp _) =
   LType_fun (LType_base $ L1Type_lit lit_tp) $
   LType_fun (LType_base $ L1Type_lit lit_tp) ltypeRep
 opType Op_next_ptr = ltypeRep
+opType Op_ptr_eq = ltypeRep
 opType Op_true = ltypeRep
 opType Op_false = ltypeRep
 opType Op_and = ltypeRep
@@ -886,6 +889,8 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
   mbLift [nuP| Op_coerce ltp1 ltp2 |] = Op_coerce (mbLift ltp1) (mbLift ltp2)
   mbLift [nuP| Op_cmp ltp acmp |] = Op_cmp (mbLift ltp) (mbLift acmp)
+  mbLift [nuP| Op_next_ptr |] = Op_next_ptr
+  mbLift [nuP| Op_ptr_eq |] = Op_ptr_eq
   mbLift [nuP| Op_and |] = Op_and
   mbLift [nuP| Op_or |] = Op_or
   mbLift [nuP| Op_not |] = Op_not
@@ -2091,6 +2096,10 @@ instance LExprAlgebra tag (InterpPM tag) where
     mkOp1InterpPM (L1Type_lit tp_from) (L1Type_lit tp_to) op
   interpOp op@(Op_cmp ltp _) =
     mkOp2InterpPM (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit LitType_bool) op
+  interpOp op@Op_next_ptr =
+    mkOp1InterpPM L1Type_ptr L1Type_ptr op
+  interpOp op@Op_ptr_eq =
+    mkOp2InterpPM L1Type_ptr L1Type_ptr l1typeRep op
   interpOp op@Op_or = mkOpInterpPM l1funTypeRep op
   interpOp op@Op_not = mkOpInterpPM l1funTypeRep op
   interpOp op@Op_istrue = mkOpInterpPM l1funTypeRep op
