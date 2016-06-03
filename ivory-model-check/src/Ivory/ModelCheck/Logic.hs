@@ -51,13 +51,6 @@ groupAList = foldr insertHelper [] where
     if k == k' then ((k',v:vs):ksvs) else (k',vs):(insertHelper (k,v) ksvs)
   insertHelper (k,v) [] = [(k,[v])]
 
--- Build a NuMatching instance for the unit type
-instance NuMatching () where
-  nuMatchingProof = error "nuMatching proof for ()"
-
-instance Liftable () where
-  mbLift _ = ()
-
 -- | FIXME: documentation, and put it in the right place
 doubleClose :: Closed a -> Closed (Closed a)
 doubleClose =
@@ -89,6 +82,50 @@ closeBug = $([| \x -> $(mkClosed [| x |]) |])
 -- | FIXME HERE NOW: put this type class into HobbitLib!
 class Closable a where
   toClosed :: a -> Closed a
+
+-- FIXME HERE NOW: figure out the best place for these instances and such
+instance NuMatching () where
+  nuMatchingProof = error "nuMatching proof for ()"
+instance Liftable () where
+  mbLift _ = ()
+
+instance NuMatching Bool where
+  nuMatchingProof = error "nuMatching proof for Bool"
+instance Liftable Bool where
+  mbLift mb_i = toEnum $ mbLift $ fmap fromEnum mb_i
+instance NuMatching Word8 where
+  nuMatchingProof = error "nuMatching proof for Word8"
+instance Liftable Word8 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+instance NuMatching Word16 where
+  nuMatchingProof = error "nuMatching proof for Word16"
+instance Liftable Word16 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+instance NuMatching Word32 where
+  nuMatchingProof = error "nuMatching proof for Word32"
+instance Liftable Word32 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+instance NuMatching Word64 where
+  nuMatchingProof = error "nuMatching proof for Word64"
+instance Liftable Word64 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+
+instance NuMatching Int8 where
+  nuMatchingProof = error "nuMatching proof for Int8"
+instance Liftable Int8 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+instance NuMatching Int16 where
+  nuMatchingProof = error "nuMatching proof for Int16"
+instance Liftable Int16 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+instance NuMatching Int32 where
+  nuMatchingProof = error "nuMatching proof for Int32"
+instance Liftable Int32 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+instance NuMatching Int64 where
+  nuMatchingProof = error "nuMatching proof for Int64"
+instance Liftable Int64 where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 
 
 ----------------------------------------------------------------------
@@ -185,7 +222,7 @@ data LitType a where
   -- formulas. For formulas (e.g., that contain quantifiers), use 'Prop'.
   LitType_int :: LitType Integer
   -- ^ Our logic also has support for unbounded integers
-  LitType_bits :: (Typeable a, Integral a, FiniteBits a) => LitType a
+  LitType_bits :: (Typeable a, Integral a, FiniteBits a, Liftable a) => LitType a
   -- ^ Any bit-vector type can be used as a literal type
 
 -- | Typeclass for 'LitType'
@@ -730,6 +767,8 @@ data Op tag a where
   Op_cmp :: LitType a -> ArithCmp ->
             Op tag (Literal a -> Literal a -> Literal Bool)
 
+  -- | The null pointer
+  Op_null_ptr :: Op tag Ptr
   -- | Bump a free pointer
   Op_next_ptr :: Op tag (Ptr -> Ptr)
   -- | Test pointer equality
@@ -805,6 +844,7 @@ opType (Op_coerce lit_tp_from lit_tp_to) =
 opType (Op_cmp lit_tp _) =
   LType_fun (LType_base $ L1Type_lit lit_tp) $
   LType_fun (LType_base $ L1Type_lit lit_tp) ltypeRep
+opType Op_null_ptr = ltypeRep
 opType Op_next_ptr = ltypeRep
 opType Op_ptr_eq = ltypeRep
 opType Op_true = ltypeRep
@@ -889,6 +929,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
   mbLift [nuP| Op_coerce ltp1 ltp2 |] = Op_coerce (mbLift ltp1) (mbLift ltp2)
   mbLift [nuP| Op_cmp ltp acmp |] = Op_cmp (mbLift ltp) (mbLift acmp)
+  mbLift [nuP| Op_null_ptr |] = Op_null_ptr
   mbLift [nuP| Op_next_ptr |] = Op_next_ptr
   mbLift [nuP| Op_ptr_eq |] = Op_ptr_eq
   mbLift [nuP| Op_and |] = Op_and
@@ -2096,6 +2137,8 @@ instance LExprAlgebra tag (InterpPM tag) where
     mkOp1InterpPM (L1Type_lit tp_from) (L1Type_lit tp_to) op
   interpOp op@(Op_cmp ltp _) =
     mkOp2InterpPM (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit LitType_bool) op
+  interpOp op@Op_null_ptr =
+    mkOpInterpPM (L1FunType_base L1Type_ptr) Op_null_ptr
   interpOp op@Op_next_ptr =
     mkOp1InterpPM L1Type_ptr L1Type_ptr op
   interpOp op@Op_ptr_eq =
