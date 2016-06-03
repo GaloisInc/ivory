@@ -13,6 +13,7 @@ library
                         Ivory.ModelCheck.Ivory2CVC4
                         Ivory.ModelCheck.Logic
                         Ivory.ModelCheck.Logic2Z3
+                        Ivory.ModelCheck.Ivory2Logic
   build-depends:        base >= 4.6,
                         base-compat,
                         containers,
