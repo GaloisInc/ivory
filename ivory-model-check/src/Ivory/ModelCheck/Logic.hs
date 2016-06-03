@@ -752,6 +752,8 @@ data Op tag a where
                Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
   -- | Assumptions about the current execution
   Op_assumeP :: Op tag (Prop -> PM (Literal ()))
+  -- | Return an arbitrary, existentially-quantified value
+  Op_existsP :: L1Type a -> Op tag (PM a)
   -- | Special-purpose assumption of false: prunes out the current execution
   Op_falseP :: Op tag (PM (Literal ()))
   -- | Disjunctions
@@ -799,6 +801,7 @@ opType (Op_updateP update_op) = updateOpType update_op
 opType (Op_raiseP _) = ltypeRep
 opType (Op_catchP _) = ltypeRep
 opType Op_assumeP = ltypeRep
+opType (Op_existsP l1tp) = LType_pm l1tp
 opType Op_falseP = ltypeRep
 opType Op_orP = ltypeRep
 
@@ -869,6 +872,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
   mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
   mbLift [nuP| Op_assumeP |] = Op_assumeP
+  mbLift [nuP| Op_existsP l1tp |] = Op_existsP $ mbLift l1tp
   mbLift [nuP| Op_falseP |] = Op_falseP
   mbLift [nuP| Op_raiseP (Just exc) |] = Op_raiseP $ Just $ mbLift exc
   mbLift [nuP| Op_raiseP Nothing |] = Op_raiseP Nothing
@@ -936,14 +940,18 @@ curryLExprsFun (LType_pm l1tp) f = f LExprs_nil
 curryLExprsFun (LType_fun _ tp_b) f =
   \e -> curryLExprsFun tp_b (\es -> f (LExprs_cons e es))
 
--- | Helper function for building expression functions from variables
+-- | Build an expression function from a variable
+mkVar :: LTypeable a => Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
+mkVar proxy n = mkVarTp proxy ltypeRep n
+
+-- | Build an expression function from a variable, with an explicity type
 mkVarTp :: Proxy tag -> LType a -> Name a -> ApplyToArgs (LExpr tag) a
 mkVarTp (_ :: Proxy tag) tp n =
   curryLExprsFun tp (LVar (mkLTypeArgs tp) n :: LExprs tag _ -> _)
 
--- | Helper function for building expression functions from variables
-mkVar :: LTypeable a => Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
-mkVar proxy n = mkVarTp proxy ltypeRep n
+-- | Make a variable into an expression, rather than a function
+mkVarExprTp :: LType a -> Name a -> LExpr tag a
+mkVarExprTp tp n = etaExpandLExprsFun tp (LVar (mkLTypeArgs tp) n)
 
 -- | Helper function for building expression functions from 'Op's with an
 -- explicit 'LType'
@@ -964,6 +972,12 @@ mkLambda :: LTypeable a =>
 mkLambda (f :: _ -> LExpr tag b) =
   LLambda ltypeRep $ nu $ \x -> f (mkVar (Proxy :: Proxy tag) x)
 
+-- | Helper function for building lambda-abstractions
+mkLambdaTp :: LType a -> (LExpr tag a -> LExpr tag b) ->
+              LExpr tag (a -> b)
+mkLambdaTp tp_a (f :: _ -> LExpr tag b) =
+  LLambda tp_a $ nu $ \x -> f (mkVarExprTp tp_a x)
+
 -- | Eta-expand a @'LExprs' tag args -> 'LExpr' tag ret@ function into an
 -- expression with functional type
 etaExpandLExprsFun :: LType a ->
@@ -976,16 +990,6 @@ etaExpandLExprsFun (LType_pm l1tp) f = f LExprs_nil
 etaExpandLExprsFun (LType_fun tp_a tp_b) f =
   LLambda tp_a $ nu $ \n ->
   etaExpandLExprsFun tp_b (\es -> f (LExprs_cons (mkVarExprTp tp_a n) es))
-
--- | Make a variable into an expression, rather than a function
-mkVarExprTp :: LType a -> Name a -> LExpr tag a
-mkVarExprTp tp n = etaExpandLExprsFun tp (LVar (mkLTypeArgs tp) n)
-
--- | Helper function for building lambda-abstractions
-mkLambdaTp :: LType a -> (LExpr tag a -> LExpr tag b) ->
-              LExpr tag (a -> b)
-mkLambdaTp tp_a (f :: _ -> LExpr tag b) =
-  LLambda tp_a $ nu $ \x -> f (mkVarExprTp tp_a x)
 
 -- FIXME: this requires Op_let to have an arbitrary RHS type;
 -- OR: we have to do arbitrary substitution...
@@ -1080,9 +1084,24 @@ mkNameEq proxy ftp n1 n2 =
     mkEqTp ftp (mkVarTp proxy (funType_to_type ftp) n1)
     (mkVarTp proxy (funType_to_type ftp) n2)
 
+-- | Build a return expression
+mkReturnP :: L1Type a -> LExpr tag a -> LExpr tag (PM a)
+mkReturnP l1tp = mkOp (Op_returnP l1tp)
+
+-- | Build a bind expression
+mkBindP :: L1Type a -> L1Type b -> LExpr tag (PM a) ->
+           (LExpr tag a -> LExpr tag (PM b)) -> LExpr tag (PM b)
+mkBindP l1tp_a l1tp_b m f =
+  mkOp (Op_bindP l1tp_a l1tp_b) m $
+  mkLambdaTp (LType_base l1tp_a) f
+
 -- | Build an assume expression inside the predicate monad
 mkAssumeP :: LProp tag -> LPM tag
 mkAssumeP = mkOp Op_assumeP
+
+-- | Build an existential transition relation
+mkExistsP :: L1Type a -> LExpr tag (PM a)
+mkExistsP l1tp = mkOp (Op_existsP l1tp)
 
 -- | Build a catch expression inside the predicate monad
 mkCatchP :: (Eq (LException tag), Liftable (LException tag)) =>
@@ -2077,6 +2096,9 @@ instance LExprAlgebra tag (InterpPM tag) where
     catchPM (Just exn) (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
   interpOp Op_assumeP =
     InterpPM_fun $ \(InterpPM_base _ p) -> InterpPM_unit_pm $ assumePM p
+  interpOp (Op_existsP l1tp) =
+    InterpPM_pm $ do n <- nuM $ NameDecl_exists (L1FunType_base l1tp)
+                     return $ mkVarExprTp (LType_base l1tp) n
   interpOp Op_falseP =
     InterpPM_unit_pm $ falsePM
   interpOp Op_orP =

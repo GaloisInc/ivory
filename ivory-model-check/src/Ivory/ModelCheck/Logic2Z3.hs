@@ -475,6 +475,8 @@ instance LBindingExprAlgebra tag Z3m_AST where
     error "Cannot convert catchP to Z3!"
   interpOpB Op_assumeP _ =
     error "Cannot convert assumeP to Z3!"
+  interpOpB (Op_existsP _) _ =
+    error "Cannot convert existsP to Z3!"
   interpOpB Op_orP _ =
     error "Cannot convert orP to Z3!"
 
