@@ -86,6 +86,10 @@ clMbCombine = clApply $(mkClosed [| mbCombine |])
 closeBug :: a -> Closed a
 closeBug = $([| \x -> $(mkClosed [| x |]) |])
 
+-- | FIXME HERE NOW: put this type class into HobbitLib!
+class Closable a where
+  toClosed :: a -> Closed a
+
 
 ----------------------------------------------------------------------
 -- Utilities for type lists
@@ -194,6 +198,15 @@ instance LitTypeable Integer where litTypeRep = LitType_int
 instance LitTypeable Word64 where litTypeRep = LitType_bits
 --instance (Typeable a, FiniteBits a) => LitTypeable a where
 --  litTypeRep = LitType_bits
+
+-- | Typeclass giving a default value for each 'LitType'
+class LitTypeable a => LitDefault a where
+  litDefault :: a
+
+instance LitDefault () where litDefault = ()
+instance LitDefault Bool where litDefault = True
+instance LitDefault Integer where litDefault = 0
+instance LitDefault Word64 where litDefault = 0
 
 -- Build a NuMatching instance for LitType, needed for Liftable
 $(mkNuMatching [t| forall a. LitType a |])
@@ -543,6 +556,14 @@ class MemoryModel (mm :: [*]) where
   memoryDefaults :: MapList Literal mm
   memoryLitTypes :: MapList LitType mm
 
+instance MemoryModel '[] where
+  memoryDefaults = Nil
+  memoryLitTypes = Nil
+
+instance (MemoryModel mm, LitDefault a) => MemoryModel (a ': mm) where
+  memoryDefaults = Cons (Literal litDefault) memoryDefaults
+  memoryLitTypes = Cons litTypeRep memoryLitTypes
+
 -- | An /array store/ represents a set of (infinite) arrays of some given type,
 -- while a /literal array store/ is an array store for some 'Literal'
 -- type. Array stores are represented as 'FinFun's that map 'Ptr' pointer
@@ -663,10 +684,11 @@ updateMemory (UpdateOp_alloc elem_pf) mem
 ----------------------------------------------------------------------
 
 -- | Type class associating meta-data with @tag@ that is needed by our logic
-class (MemoryModel (LStorables tag),
-       Eq (LException tag)) => LExprTag tag where
+class (MemoryModel (LStorables tag), Eq (LException tag),
+       Liftable (LException tag), Closable (LException tag)) =>
+      LExprTag tag where
   type LStorables tag :: [*]
-  type LException tag :: *
+  data LException tag :: *
 
 -- | The unary arithmetic operations
 data ArithOp1 = Op1_Abs | Op1_Signum | Op1_Neg | Op1_Complement
@@ -744,7 +766,7 @@ data Op tag a where
                 Op tag (AddArrows args (PM (Literal ())))
   -- | Raise an exception in the predicate monad. The 'Nothing' exception
   -- represents an un-catchable error
-  Op_raiseP :: Liftable (LException tag) => Maybe (LException tag) ->
+  Op_raiseP :: Liftable (LException tag) => LException tag ->
                Op tag (PM (Literal ()))
   -- | Catch an exception
   Op_catchP :: (Eq (LException tag), Liftable (LException tag)) =>
@@ -874,9 +896,8 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_assumeP |] = Op_assumeP
   mbLift [nuP| Op_existsP l1tp |] = Op_existsP $ mbLift l1tp
   mbLift [nuP| Op_falseP |] = Op_falseP
-  mbLift [nuP| Op_raiseP (Just exc) |] = Op_raiseP $ Just $ mbLift exc
-  mbLift [nuP| Op_raiseP Nothing |] = Op_raiseP Nothing
-  mbLift [nuP| Op_catchP exc |] = Op_catchP $ mbLift exc
+  mbLift [nuP| Op_raiseP exn |] = Op_raiseP $ mbLift exn
+  mbLift [nuP| Op_catchP exn |] = Op_catchP $ mbLift exn
   mbLift [nuP| Op_orP |] = Op_orP
 
 
@@ -1085,23 +1106,32 @@ mkNameEq proxy ftp n1 n2 =
     (mkVarTp proxy (funType_to_type ftp) n2)
 
 -- | Build a return expression
-mkReturnP :: L1Type a -> LExpr tag a -> LExpr tag (PM a)
-mkReturnP l1tp = mkOp (Op_returnP l1tp)
+mkReturnP :: L1Typeable a => LExpr tag a -> LExpr tag (PM a)
+mkReturnP = mkOp (Op_returnP l1typeRep)
 
 -- | Build a bind expression
-mkBindP :: L1Type a -> L1Type b -> LExpr tag (PM a) ->
+mkBindP :: (L1Typeable a, L1Typeable b) => LExpr tag (PM a) ->
            (LExpr tag a -> LExpr tag (PM b)) -> LExpr tag (PM b)
-mkBindP l1tp_a l1tp_b m f =
-  mkOp (Op_bindP l1tp_a l1tp_b) m $
-  mkLambdaTp (LType_base l1tp_a) f
+mkBindP m f =
+  mkOp (Op_bindP l1typeRep l1typeRep) m $
+  mkLambdaTp (LType_base l1typeRep) f
 
 -- | Build an assume expression inside the predicate monad
 mkAssumeP :: LProp tag -> LPM tag
 mkAssumeP = mkOp Op_assumeP
 
+-- | Build an assume of false inside the predicate monad
+mkFalseP :: LPM tag
+mkFalseP = mkOp Op_falseP
+
 -- | Build an existential transition relation
-mkExistsP :: L1Type a -> LExpr tag (PM a)
-mkExistsP l1tp = mkOp (Op_existsP l1tp)
+mkExistsP :: L1Typeable a => LExpr tag (PM a)
+mkExistsP = mkOp (Op_existsP l1typeRep)
+
+-- | Build a raise expression inside the predicate monad
+mkRaiseP :: (Eq (LException tag), Liftable (LException tag)) =>
+            LException tag -> LPM tag
+mkRaiseP exn = mkOp (Op_raiseP exn)
 
 -- | Build a catch expression inside the predicate monad
 mkCatchP :: (Eq (LException tag), Liftable (LException tag)) =>
@@ -1743,7 +1773,7 @@ instance NamesMonad tag m => NamesMonad tag (ExceptionT exn m) where
 
 -- | Predicate monad for transition relations (FIXME: better documentation)
 type LogicPM tag =
-  ExceptionT (Maybe (LException tag))
+  ExceptionT (LException tag)
   (StateT (SymMemory tag, [LExpr tag Prop])
    (ChoiceT
     (WithNames tag)))
@@ -1864,12 +1894,12 @@ updatePM (UpdateOp_alloc _) (Cons len Nil) =
      setMem $ mem { symMemLengths = lengths', symMemLastAlloc = last_alloc' }
 
 -- | Raise an exception in a 'LogicPM' computation
-raisePM :: Maybe (LException tag) -> LogicPM tag ()
+raisePM :: LException tag -> LogicPM tag ()
 raisePM exn = raise exn
 
 -- | Run the first computation. If it raises the given exception, then run the
 -- second computation.
-catchPM :: Eq (LException tag) => Maybe (LException tag) ->
+catchPM :: Eq (LException tag) => LException tag ->
            LogicPM tag () -> LogicPM tag () -> LogicPM tag ()
 catchPM exn m m_exn =
   handle m $ \raised ->
@@ -1884,7 +1914,7 @@ catchPM exn m m_exn =
 -- computation, grouping them together by exception or lack thereof
 collectResultsPM :: Eq (LException tag) =>
                     LogicPM tag () ->
-                    LogicPM tag [(Either (Maybe (LException tag)) (),
+                    LogicPM tag [(Either (LException tag) (),
                                   [(SymMemory tag, [LProp tag])])]
 collectResultsPM pm =
   get >>= \(mem,_) ->
@@ -2088,12 +2118,12 @@ instance LExprAlgebra tag (InterpPM tag) where
   interpOp (Op_updateP uop@(UpdateOp_alloc _)) =
     InterpPM_fun $ \(InterpPM_base _ len) ->
     InterpPM_unit_pm $ updatePM uop (Cons len Nil)
-  interpOp (Op_raiseP maybe_exn) =
-    InterpPM_unit_pm $ raisePM maybe_exn
+  interpOp (Op_raiseP exn) =
+    InterpPM_unit_pm $ raisePM exn
   interpOp (Op_catchP exn) =
     InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
     InterpPM_unit_pm $
-    catchPM (Just exn) (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
+    catchPM exn (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
   interpOp Op_assumeP =
     InterpPM_fun $ \(InterpPM_base _ p) -> InterpPM_unit_pm $ assumePM p
   interpOp (Op_existsP l1tp) =
@@ -2107,7 +2137,7 @@ instance LExprAlgebra tag (InterpPM tag) where
     orPM (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
 
 -- | Top-level call to convert a predicate monad expression to a 'LogicPM'
-lexpr_to_logicPM :: Closed (LExpr tag (PM ())) -> Closed (LogicPM tag ())
+lexpr_to_logicPM :: Closed (LPM tag) -> Closed (LogicPM tag ())
 lexpr_to_logicPM expr =
   $(mkClosed [| \clexpr -> unit_pm_of_interpPM $ interpExpr MNil clexpr |])
   `clApplyCl`
@@ -2274,18 +2304,20 @@ reachablePM solver (closed_m :: Closed (LogicPM tag ())) =
 -- | Test reachability on a 'PM' expression, returning an example initial input
 -- memory from which a non-exceptional output state is reachable
 reachable :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
-             Closed (LExpr tag (PM ())) ->
-             IO (SMTResult (Memory (LStorables tag)))
+             Closed (LPM tag) -> IO (SMTResult (Memory (LStorables tag)))
 reachable solver expr = reachablePM solver (lexpr_to_logicPM expr)
 
--- | Test reachability of any error states, i.e., states where the computation
--- has raised the 'Nothing' exception
-error_reachable :: (SMTSolver solver, LExprTag tag) =>
-                   solver -> Closed (LExpr tag (PM ())) ->
+-- | Test reachability of a given exception state
+exn_reachable :: (SMTSolver solver, LExprTag tag) =>
+                   solver -> LException tag -> Closed (LPM tag) ->
                    IO (SMTResult (Memory (LStorables tag)))
-error_reachable solver cl_expr =
-  reachablePM solver $
-  clApply $(mkClosed [| \pm -> catchPM Nothing (pm >> falsePM) (return ()) |]) $
-  lexpr_to_logicPM cl_expr
+exn_reachable solver exn cl_expr =
+  reachablePM solver $ lexpr_to_logicPM $
+  $(mkClosed
+    [| \exn expr ->
+      mkCatchP exn
+      (mkBindP expr (\_ -> mkFalseP))
+      (mkReturnP $ mkLiteral ()) |])
+  `clApply` toClosed exn `clApply` cl_expr
 
 -- FIXME HERE NOW: also include an 'LProp' in the output
