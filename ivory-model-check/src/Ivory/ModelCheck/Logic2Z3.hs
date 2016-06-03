@@ -406,6 +406,26 @@ instance LBindingExprAlgebra tag Z3m_AST where
     Z3m_AST $ do sort <- l1type_to_sort (L1Type_lit lit_tp)
                  inBase $ Z3.mkIntegral bv sort
 
+  -- Interpret arithmetic operations on Booleans
+  interpOpB (Op_arith1 LitType_bool Op1_Neg) (Cons arg1 _) =
+    -- Negation on Booleans --> not
+    Z3m_AST $ do ast1 <- extractLitArgAST arg1
+                 inBase $ Z3.mkNot ast1
+  interpOpB (Op_arith1 LitType_bool aop) (Cons arg1 _) =
+    error "In converting to Z3: Unsupported unary operation on Booleans"
+  interpOpB (Op_arith2 LitType_bool Op2_Add) (Cons arg1 (Cons arg2 _)) =
+    -- Addition on Booleans --> or
+    Z3m_AST $ do ast1 <- extractLitArgAST arg1
+                 ast2 <- extractLitArgAST arg2
+                 inBase $ Z3.mkOr [ast1, ast2]
+  interpOpB (Op_arith2 LitType_bool Op2_Mult) (Cons arg1 (Cons arg2 _)) =
+    -- Multiplication on Booleans --> and
+    Z3m_AST $ do ast1 <- extractLitArgAST arg1
+                 ast2 <- extractLitArgAST arg2
+                 inBase $ Z3.mkAnd [ast1, ast2]
+  interpOpB (Op_arith2 LitType_bool aop) _ =
+    error "In converting to Z3: Unsupported binary operation on Booleans"
+
   -- Interpret the arithmetic operations into Z3
   interpOpB (Op_arith1 _ aop) (Cons arg1 _) =
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
