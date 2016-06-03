@@ -688,7 +688,7 @@ class (MemoryModel (LStorables tag), Eq (LException tag),
        Liftable (LException tag), Closable (LException tag)) =>
       LExprTag tag where
   type LStorables tag :: [*]
-  data LException tag :: *
+  type LException tag :: *
 
 -- | The unary arithmetic operations
 data ArithOp1 = Op1_Abs | Op1_Signum | Op1_Neg | Op1_Complement
@@ -1109,6 +1109,10 @@ mkNameEq proxy ftp n1 n2 =
 mkReturnP :: L1Typeable a => LExpr tag a -> LExpr tag (PM a)
 mkReturnP = mkOp (Op_returnP l1typeRep)
 
+-- | Build a return expression with an explicit 'L1Type'
+mkReturnP_tp :: L1Type a -> LExpr tag a -> LExpr tag (PM a)
+mkReturnP_tp l1tp = mkOp (Op_returnP l1tp)
+
 -- | Build a bind expression
 mkBindP :: (L1Typeable a, L1Typeable b) => LExpr tag (PM a) ->
            (LExpr tag a -> LExpr tag (PM b)) -> LExpr tag (PM b)
@@ -1127,6 +1131,10 @@ mkFalseP = mkOp Op_falseP
 -- | Build an existential transition relation
 mkExistsP :: L1Typeable a => LExpr tag (PM a)
 mkExistsP = mkOp (Op_existsP l1typeRep)
+
+-- | Build an existential transition relation with an explicit 'L1Type'
+mkExistsP_tp :: L1Type a -> LExpr tag (PM a)
+mkExistsP_tp l1tp = mkOp (Op_existsP l1tp)
 
 -- | Build a raise expression inside the predicate monad
 mkRaiseP :: (Eq (LException tag), Liftable (LException tag)) =>
@@ -1771,9 +1779,15 @@ instance NamesMonad tag m => NamesMonad tag (ExceptionT exn m) where
 -- Logic predicate monad
 ----------------------------------------------------------------------
 
+-- | Helper container datatype for 'LException's
+newtype LExn tag = LExn { runLExn :: LException tag }
+
+instance Eq (LException tag) => Eq (LExn tag) where
+  (LExn exn1) == (LExn exn2) = exn1 == exn2
+
 -- | Predicate monad for transition relations (FIXME: better documentation)
 type LogicPM tag =
-  ExceptionT (LException tag)
+  ExceptionT (LExn tag)
   (StateT (SymMemory tag, [LExpr tag Prop])
    (ChoiceT
     (WithNames tag)))
@@ -1894,7 +1908,7 @@ updatePM (UpdateOp_alloc _) (Cons len Nil) =
      setMem $ mem { symMemLengths = lengths', symMemLastAlloc = last_alloc' }
 
 -- | Raise an exception in a 'LogicPM' computation
-raisePM :: LException tag -> LogicPM tag ()
+raisePM :: LExn tag -> LogicPM tag ()
 raisePM exn = raise exn
 
 -- | Run the first computation. If it raises the given exception, then run the
@@ -1903,7 +1917,7 @@ catchPM :: Eq (LException tag) => LException tag ->
            LogicPM tag () -> LogicPM tag () -> LogicPM tag ()
 catchPM exn m m_exn =
   handle m $ \raised ->
-  if raised == exn then m_exn else raisePM raised
+  if runLExn raised == exn then m_exn else raisePM raised
 
 
 ----------------------------------------------------------------------
@@ -1914,7 +1928,7 @@ catchPM exn m m_exn =
 -- computation, grouping them together by exception or lack thereof
 collectResultsPM :: Eq (LException tag) =>
                     LogicPM tag () ->
-                    LogicPM tag [(Either (LException tag) (),
+                    LogicPM tag [(Either (LExn tag) (),
                                   [(SymMemory tag, [LProp tag])])]
 collectResultsPM pm =
   get >>= \(mem,_) ->
@@ -2119,7 +2133,7 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_fun $ \(InterpPM_base _ len) ->
     InterpPM_unit_pm $ updatePM uop (Cons len Nil)
   interpOp (Op_raiseP exn) =
-    InterpPM_unit_pm $ raisePM exn
+    InterpPM_unit_pm $ raisePM (LExn exn)
   interpOp (Op_catchP exn) =
     InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
     InterpPM_unit_pm $
