@@ -167,8 +167,8 @@ data PM (a :: *) deriving Typeable
 newtype Ptr = Ptr { unPtr :: Integer } deriving (Typeable, Eq, Ord)
 
 -- | A default pointer value
-defaultPtr :: Ptr
-defaultPtr = Ptr 0
+nullPtr :: Ptr
+nullPtr = Ptr 0
 
 
 ----------------------------------------------------------------------
@@ -195,6 +195,13 @@ class LitTypeable a where
 instance LitTypeable () where litTypeRep = LitType_unit
 instance LitTypeable Bool where litTypeRep = LitType_bool
 instance LitTypeable Integer where litTypeRep = LitType_int
+instance LitTypeable Int8 where litTypeRep = LitType_bits
+instance LitTypeable Int16 where litTypeRep = LitType_bits
+instance LitTypeable Int32 where litTypeRep = LitType_bits
+instance LitTypeable Int64 where litTypeRep = LitType_bits
+instance LitTypeable Word8 where litTypeRep = LitType_bits
+instance LitTypeable Word16 where litTypeRep = LitType_bits
+instance LitTypeable Word32 where litTypeRep = LitType_bits
 instance LitTypeable Word64 where litTypeRep = LitType_bits
 --instance (Typeable a, FiniteBits a) => LitTypeable a where
 --  litTypeRep = LitType_bits
@@ -592,7 +599,7 @@ data Memory mm =
 defaultMemory :: MemoryModel mm => Memory mm
 defaultMemory =
   Memory { memArrays = ml_map defaultLitArrayStore memoryDefaults,
-           memPtrArray = mkFinFun (defaultPtr),
+           memPtrArray = mkFinFun (nullPtr),
            memLengths = mkFinFun (Literal 0),
            memLastAlloc = Ptr 0 }
 
@@ -2185,11 +2192,11 @@ type instance SMTValue (a -> b) = SMTValueFun (a -> b)
 newtype MaybeSMTValue a =
   MaybeSMTValue { unMaybeSMTValue :: Maybe (SMTValue a) }
 
--- | Extract a 'PTr' from a 'MaybeSMTValue' of 'Ptr' type, using the
--- 'defaultPtr' for an unconstrained value
+-- | Extract a 'PTr' from a 'MaybeSMTValue' of 'Ptr' type, using 'nullPtr' for
+-- an unconstrained value
 extractSMTValuePtr :: MaybeSMTValue Ptr -> Ptr
 extractSMTValuePtr (MaybeSMTValue (Just p)) = p
-extractSMTValuePtr (MaybeSMTValue Nothing) = defaultPtr
+extractSMTValuePtr (MaybeSMTValue Nothing) = nullPtr
 
 -- | Extract a 'FinFun' from a 'MaybeSMTValue' of functional type, using the
 -- given default return value for an unconstrained value
@@ -2230,7 +2237,7 @@ ptrArraysOfSymPtrArrays (extractSMTValueFun False -> f) =
              if b then
                updateFinFun arrays_f (p_from, (i, ())) p_to
              else arrays_f)
-    (mkFinFun defaultPtr)
+    (mkFinFun nullPtr)
     (finfunMap f)
 
 -- | FIXME: documentation
