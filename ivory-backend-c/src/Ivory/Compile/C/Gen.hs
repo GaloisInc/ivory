@@ -261,7 +261,7 @@ toBody ens stmt =
       fromRef = toExpr (I.TyRef t) vfrom
 
     I.RefZero t ref ->
-      [C.BlockStm [cstm| memcpy( $exp:(toExpr (I.TyRef t) ref), 0x0,
+      [C.BlockStm [cstm| memset( $exp:(toExpr (I.TyRef t) ref), 0x0,
                                  sizeof($ty:(toType t)) ); |] ]
 
     -- Should only be a reference (not a pointer).
