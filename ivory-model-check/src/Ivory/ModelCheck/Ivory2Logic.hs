@@ -404,6 +404,11 @@ convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpAnd [ie1,ie2]) =
   liftM2 mkAndBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
 convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpOr [ie1,ie2]) =
   liftM2 mkOrBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpCond [ie1,ie2,ie3]) =
+  do e1 <- convertExpr (L1Type_lit LitType_bool) ie1
+     e2 <- convertExpr l1tp ie2
+     e3 <- convertExpr l1tp ie3
+     return $ mkOp (Op_cond lit_tp) e1 e2 e3
 
 -- Arithmetic operations
 convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpMul [ie1,ie2]) =
@@ -460,3 +465,9 @@ convertExpr l1tp (I.ExpSizeOf itp) =
   error "convertExpr: sizeof not yet implemented!"
 convertExpr l1tp e =
   error ("convertExpr: could not convert expression: " ++ show e)
+
+
+----------------------------------------------------------------------
+-- Converting Ivory expressions into Ivory reachability logic
+----------------------------------------------------------------------
+

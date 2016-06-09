@@ -776,6 +776,10 @@ data Op tag a where
   -- | Comparison operations
   Op_cmp :: LitType a -> ArithCmp ->
             Op tag (Literal a -> Literal a -> Literal Bool)
+  -- | The condition, i.e., if-then-else; note that it operates on Booleans, not
+  -- propositions, as it cannot take in, e.g., forall formulas
+  Op_cond :: LitType a ->
+             Op tag (Literal Bool -> Literal a -> Literal a -> Literal a)
 
   -- | The null pointer
   Op_null_ptr :: Op tag Ptr
@@ -857,6 +861,11 @@ opType (Op_coerce lit_tp_from lit_tp_to) =
 opType (Op_cmp lit_tp _) =
   LType_fun (LType_base $ L1Type_lit lit_tp) $
   LType_fun (LType_base $ L1Type_lit lit_tp) ltypeRep
+opType (Op_cond lit_tp) =
+  LType_fun (LType_base $ L1Type_lit LitType_bool) $
+  LType_fun (LType_base $ L1Type_lit lit_tp) $
+  LType_fun (LType_base $ L1Type_lit lit_tp) $
+  LType_base $ L1Type_lit lit_tp
 opType Op_null_ptr = ltypeRep
 opType (Op_global_var _) = ltypeRep
 opType Op_next_ptr = ltypeRep
@@ -943,6 +952,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
   mbLift [nuP| Op_coerce ltp1 ltp2 |] = Op_coerce (mbLift ltp1) (mbLift ltp2)
   mbLift [nuP| Op_cmp ltp acmp |] = Op_cmp (mbLift ltp) (mbLift acmp)
+  mbLift [nuP| Op_cond lit_tp |] = Op_cond (mbLift lit_tp)
   mbLift [nuP| Op_null_ptr |] = Op_null_ptr
   mbLift [nuP| Op_global_var i |] = Op_global_var $ mbLift i
   mbLift [nuP| Op_next_ptr |] = Op_next_ptr
@@ -2180,6 +2190,14 @@ mkOp2InterpPM :: L1Type a -> L1Type b -> L1Type c -> Op tag (a -> b -> c) ->
 mkOp2InterpPM tp1 tp2 tp3 op =
   mkOpInterpPM (L1FunType_cons tp1 $ L1FunType_cons tp2 $ L1FunType_base tp3) op
 
+-- | Build an 'InterpM' from a trinary, first-order 'Op'
+mkOp3InterpPM :: L1Type a -> L1Type b -> L1Type c -> L1Type d ->
+                 Op tag (a -> b -> c -> d) ->
+                 InterpPM tag (a -> b -> c -> d)
+mkOp3InterpPM tp1 tp2 tp3 tp4 op =
+  mkOpInterpPM (L1FunType_cons tp1 $ L1FunType_cons tp2 $
+                L1FunType_cons tp3 $ L1FunType_base tp4) op
+
 -- CommutesWithArrow instance for InterpPM
 instance CommutesWithArrow (InterpPM tag) where
   interpApply (InterpPM_fun f) = f
@@ -2197,6 +2215,9 @@ instance LExprAlgebra tag (InterpPM tag) where
     mkOp1InterpPM (L1Type_lit tp_from) (L1Type_lit tp_to) op
   interpOp op@(Op_cmp ltp _) =
     mkOp2InterpPM (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit LitType_bool) op
+  interpOp op@(Op_cond lit_tp) =
+    mkOp3InterpPM (L1Type_lit LitType_bool) (L1Type_lit lit_tp)
+    (L1Type_lit lit_tp) (L1Type_lit lit_tp) op
   interpOp op@Op_null_ptr =
     mkOpInterpPM (L1FunType_base L1Type_ptr) Op_null_ptr
   interpOp op@(Op_global_var i) =
