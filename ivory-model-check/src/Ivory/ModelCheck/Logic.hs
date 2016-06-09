@@ -75,15 +75,19 @@ clMbCombine :: Closed (Mb ctx1 (Mb ctx2 a)) ->
                Closed (Mb (ctx1 :++: ctx2) a)
 clMbCombine = clApply $(mkClosed [| mbCombine |])
 
--- | FIXME HERE NOW: this should not be possible!!
+-- | GADT version of the 'Liftable' class
+data LiftableTp a where
+  LiftableTp :: Liftable a => LiftableTp a
+
+-- | FIXME HERE: this should not be possible!!
 closeBug :: a -> Closed a
 closeBug = $([| \x -> $(mkClosed [| x |]) |])
 
--- | FIXME HERE NOW: put this type class into HobbitLib!
+-- | FIXME HERE: put this type class into HobbitLib!
 class Closable a where
   toClosed :: a -> Closed a
 
--- FIXME HERE NOW: figure out the best place for these instances and such
+-- FIXME HERE: figure out the best place for these instances and such
 instance NuMatching () where
   nuMatchingProof = error "nuMatching proof for ()"
 instance Liftable () where
@@ -203,7 +207,7 @@ data PM (a :: *) deriving Typeable
 -- | Untyped pointers = 'Integer's
 newtype Ptr = Ptr { unPtr :: Integer } deriving (Typeable, Eq, Ord)
 
--- | A default pointer value
+-- | The null pointer value
 nullPtr :: Ptr
 nullPtr = Ptr 0
 
@@ -261,6 +265,13 @@ instance Liftable (LitType a) where
   mbLift [nuP| LitType_bool |] = LitType_bool
   mbLift [nuP| LitType_int |] = LitType_int
   mbLift [nuP| LitType_bits |] = LitType_bits
+
+-- | Build a 'Liftable' instance for any 'LitType'
+litTypeLiftable :: LitType a -> LiftableTp a
+litTypeLiftable LitType_unit = LiftableTp
+litTypeLiftable LitType_bool = LiftableTp
+litTypeLiftable LitType_int = LiftableTp
+litTypeLiftable LitType_bits = LiftableTp
 
 -- | "Proof" that every 'LitType' is closed, i.e., has no free names
 closeLitType :: LitType a -> Closed (LitType a)
@@ -747,7 +758,6 @@ data ArithCmp
   = OpCmp_EQ -- ^ Equality
   | OpCmp_LT -- ^ Less than
   | OpCmp_LE -- ^ Less than or equal to
-    
 
 -- | The operations / function symbols of our logic
 data Op tag a where
@@ -769,6 +779,9 @@ data Op tag a where
 
   -- | The null pointer
   Op_null_ptr :: Op tag Ptr
+  -- | A global variable, referred to by reference, named by number, which must
+  -- be a negative 'Integer'
+  Op_global_var :: Integer -> Op tag Ptr
   -- | Bump a free pointer
   Op_next_ptr :: Op tag (Ptr -> Ptr)
   -- | Test pointer equality
@@ -845,6 +858,7 @@ opType (Op_cmp lit_tp _) =
   LType_fun (LType_base $ L1Type_lit lit_tp) $
   LType_fun (LType_base $ L1Type_lit lit_tp) ltypeRep
 opType Op_null_ptr = ltypeRep
+opType (Op_global_var _) = ltypeRep
 opType Op_next_ptr = ltypeRep
 opType Op_ptr_eq = ltypeRep
 opType Op_true = ltypeRep
@@ -930,6 +944,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_coerce ltp1 ltp2 |] = Op_coerce (mbLift ltp1) (mbLift ltp2)
   mbLift [nuP| Op_cmp ltp acmp |] = Op_cmp (mbLift ltp) (mbLift acmp)
   mbLift [nuP| Op_null_ptr |] = Op_null_ptr
+  mbLift [nuP| Op_global_var i |] = Op_global_var $ mbLift i
   mbLift [nuP| Op_next_ptr |] = Op_next_ptr
   mbLift [nuP| Op_ptr_eq |] = Op_ptr_eq
   mbLift [nuP| Op_and |] = Op_and
@@ -991,7 +1006,7 @@ mbExprType [nuP| LVar tp_args _ _ |] = ltypeArgsRetType $ mbLift tp_args
 
 
 ----------------------------------------------------------------------
--- Building and manipulating expressions
+-- General facilities for building and manipulating expressions
 ----------------------------------------------------------------------
 
 -- | Apply type function @f@ to the input and outputs of a function type, i.e.,
@@ -1033,11 +1048,13 @@ mkOp :: Op tag a -> ApplyToArgs (LExpr tag) a
 mkOp op = curryLExprsFun (opType op) (LOp op)
 
 -- | Helper function for building literal expressions
-mkLiteralTp :: Liftable a => LitType a -> a -> LExpr tag (Literal a)
-mkLiteralTp lit_tp a = LOp (Op_Literal lit_tp a) LExprs_nil
+mkLiteralTp :: LitType a -> a -> LExpr tag (Literal a)
+mkLiteralTp lit_tp a =
+  case litTypeLiftable lit_tp of
+    LiftableTp -> LOp (Op_Literal lit_tp a) LExprs_nil
 
 -- | Helper function for building literal expressions
-mkLiteral :: (LitTypeable a, Liftable a) => a -> LExpr tag (Literal a)
+mkLiteral :: LitTypeable a => a -> LExpr tag (Literal a)
 mkLiteral a = mkLiteralTp litTypeRep a
 
 -- | Helper function for building lambda-abstractions
@@ -1088,15 +1105,48 @@ mbMatchLambda [nuP| LVar tp_args _ _ |] =
 mbMatchLambda [nuP| LOp op _ |] =
   no_functional_type_args_ret $ opTypeArgs $ mbLift op
 
+
+----------------------------------------------------------------------
+-- Building numeric and Boolean expressions
+----------------------------------------------------------------------
+
+-- | Apply an 'ArithOp1' to an expression
+mkArithOp1 :: LitType a -> ArithOp1 -> LExpr tag (Literal a) ->
+              LExpr tag (Literal a)
+mkArithOp1 lit_tp aop = mkOp (Op_arith1 lit_tp aop)
+
+-- | Apply an 'ArithOp2' to an expression
+mkArithOp2 :: LitType a -> ArithOp2 -> LExpr tag (Literal a) ->
+              LExpr tag (Literal a) -> LExpr tag (Literal a)
+mkArithOp2 lit_tp aop = mkOp (Op_arith2 lit_tp aop)
+
 -- Num instance allows us to use arithmetic operations to build expressions.
-instance (LitTypeable a, Liftable a, Num a) =>
-         Num (LExpr tag (Literal a)) where
+instance (LitTypeable a, Num a) => Num (LExpr tag (Literal a)) where
   (+) = mkOp (Op_arith2 litTypeRep Op2_Add)
   (-) = mkOp (Op_arith2 litTypeRep Op2_Sub)
   (*) = mkOp (Op_arith2 litTypeRep Op2_Mult)
   abs = mkOp (Op_arith1 litTypeRep Op1_Abs)
   signum = mkOp (Op_arith1 litTypeRep Op1_Signum)
   fromInteger i = mkLiteral (fromInteger i)
+
+-- | Negate a Boolean
+mkNotBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool)
+mkNotBool = mkOp (Op_arith1 LitType_bool Op1_Neg)
+
+-- | Conjoin two Booleans: represented using '*'
+mkAndBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool) ->
+             LExpr tag (Literal Bool)
+mkAndBool = mkOp (Op_arith2 LitType_bool Op2_Mult)
+
+-- | Disjoin two Booleans: represented using '+'
+mkOrBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool) ->
+             LExpr tag (Literal Bool)
+mkOrBool = mkOp (Op_arith2 LitType_bool Op2_Add)
+
+
+----------------------------------------------------------------------
+-- Building proposition expressions
+----------------------------------------------------------------------
 
 -- | The true proposition
 mkTrue :: LProp tag
@@ -1117,6 +1167,11 @@ mkAnd = foldr (mkOp Op_and) mkTrue
 -- | Build a disjunction (FIXME: make this "smart")
 mkOr :: [LProp tag] -> LProp tag
 mkOr = foldr (mkOp Op_or) mkFalse
+
+-- | Build an expression stating that the given Boolean is 'True' (FIXME: make
+-- this "smart" by recognizing and, or, and not)
+mkIsTrue :: LExpr tag (Literal Bool) -> LProp tag
+mkIsTrue = mkOp Op_istrue
 
 -- | Build a universal quantifier into an 'LProp'
 mkForall :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
@@ -1157,6 +1212,11 @@ mkNameEq proxy ftp n1 n2 =
   if n1 == n2 then mkTrue else
     mkEqTp ftp (mkVarTp proxy (funType_to_type ftp) n1)
     (mkVarTp proxy (funType_to_type ftp) n2)
+
+
+----------------------------------------------------------------------
+-- Building predicate monad expressions
+----------------------------------------------------------------------
 
 -- | Build a return expression
 mkReturnP :: L1Typeable a => LExpr tag a -> LExpr tag (PM a)
@@ -2139,6 +2199,8 @@ instance LExprAlgebra tag (InterpPM tag) where
     mkOp2InterpPM (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit LitType_bool) op
   interpOp op@Op_null_ptr =
     mkOpInterpPM (L1FunType_base L1Type_ptr) Op_null_ptr
+  interpOp op@(Op_global_var i) =
+    mkOpInterpPM (L1FunType_base L1Type_ptr) (Op_global_var i)
   interpOp op@Op_next_ptr =
     mkOp1InterpPM L1Type_ptr L1Type_ptr op
   interpOp op@Op_ptr_eq =
@@ -2393,4 +2455,4 @@ exn_reachable solver exn cl_expr =
       (mkReturnP $ mkLiteral ()) |])
   `clApply` toClosed exn `clApply` cl_expr
 
--- FIXME HERE NOW: also include an 'LProp' in the output
+-- FIXME HERE: also include an 'LProp' in the output

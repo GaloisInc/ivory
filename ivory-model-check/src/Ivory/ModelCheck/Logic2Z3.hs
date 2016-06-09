@@ -442,6 +442,10 @@ instance LBindingExprAlgebra tag Z3m_AST where
                  ast2 <- extractLitArgAST arg2
                  inBase $ z3ArithCmp acmp ast1 ast2
   interpOpB Op_null_ptr _ = Z3m_AST $ inBase $ Z3.mkInteger 0
+  interpOpB (Op_global_var i) _ =
+    if i < 0 then
+      Z3m_AST $ inBase $ Z3.mkInteger i
+    else error "In converting to Z3: non-negative global variable constant!"
   interpOpB Op_next_ptr (Cons arg1 _) =
     Z3m_AST $ do ast1 <- extractPtrArgAST arg1
                  ast_one <- inBase $ Z3.mkInteger 1
