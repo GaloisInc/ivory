@@ -75,9 +75,14 @@ data I2LInfo =
   {
     i2l_modules :: [I.Module],
     -- ^ The Ivory modules that are in scope
-    i2l_vars :: Map.Map I.Var SomeILName
+    i2l_vars :: Map.Map I.Var SomeILName,
     -- ^ The Ivory variables that are in scope, and the Ivory
     -- reachability logic variables associated with them
+    i2l_syms :: Map.Map I.Sym Integer,
+    -- ^ The Ivory global symbols that that have been seen so far, and
+    -- unique numbers that have been associated with them
+    i2l_next_sym_int :: Integer
+    -- ^ The number to be used for the next symbol we see
   }
 
 -- | The monad for building transition relations from Ivory expressions
@@ -163,6 +168,30 @@ withExBoundName var l1tp =
   withBoundVar var l1tp $ \k ->
   mkOp (Op_bindP l1tp l1typeRep) (mkExistsP_tp l1tp) $
   LLambda (LType_base l1tp) $ nu k
+
+
+----------------------------------------------------------------------
+-- Ivory global symbols
+----------------------------------------------------------------------
+
+-- | Convert a symbol to a pointer
+convertSymbol :: I.Sym -> I2LM (ILExpr Ptr)
+convertSymbol sym =
+  do info <- get
+     case Map.lookup sym (i2l_syms info) of
+       Just i -> return $ mkOp (Op_global_var (-i))
+       Nothing ->
+         do let i = i2l_next_sym_int info
+            set $ info { i2l_syms =
+                           Map.insertWith
+                           (\_ _ ->
+                             error ("convertSymbol: duplicate binding for symbol "
+                                    ++ show sym))
+                           sym
+                           i
+                           (i2l_syms info)
+                       , i2l_next_sym_int = i+1 }
+            return $ mkOp (Op_global_var (-i))
 
 
 ----------------------------------------------------------------------
@@ -272,12 +301,19 @@ convertType I.TyOpaque =
 data SomeILExpr where
   SomeILExpr :: L1Type a -> ILExpr a -> SomeILExpr
 
+-- | Convert an 'Integer' to a logical expression of a given type
+convertInteger :: L1Type a -> Integer -> ILExpr a
+convertInteger (L1Type_lit LitType_int) i = mkLiteral i
+convertInteger (L1Type_lit lit_tp@LitType_bits) i =
+  mkLiteralTp lit_tp $ fromInteger i
+convertInteger (L1Type_lit LitType_unit) _ =
+  error "convertInteger: unit type!"
+convertInteger (L1Type_lit LitType_bool) _ =
+  error "convertInteger: Boolean type!"
+
 -- | Convert an Ivory literal to a logical expression
 convertLiteral :: L1Type a -> I.Literal -> ILExpr a
-convertLiteral (L1Type_lit LitType_int) (I.LitInteger i) =
-  mkLiteral i
-convertLiteral (L1Type_lit lit_tp@LitType_bits) (I.LitInteger i) =
-  mkLiteralTp lit_tp $ fromInteger i
+convertLiteral l1tp (I.LitInteger i) = convertInteger l1tp i
 convertLiteral _ (I.LitFloat x) =
   error "convertLiteral: floats not (yet) supported"
 convertLiteral _ (I.LitDouble x) =
@@ -293,37 +329,41 @@ convertLiteral _ _ =
   error "convertLiteral: literal used at incorrect type"
 
 -- | Helper function to convert Ivory arithmetic comparisons
-convertArithCmp :: L1Type a -> I.Type -> ArithCmp -> [I.Expr] -> I2LM (ILExpr a)
-convertArithCmp l1tp_out itp acmp args =
-  case (l1tp_out, convertType itp, acmp, args) of
-    (L1Type_lit LitType_bool, SomeL1Type l1tp_sub@(L1Type_lit lit_tp),
-     _, [ie1, ie2]) ->
+convertArithCmp :: I.Type -> ArithCmp -> [I.Expr] ->
+                   I2LM (ILExpr (Literal Bool))
+convertArithCmp itp acmp args =
+  case (convertType itp, acmp, args) of
+    (SomeL1Type l1tp_sub@(L1Type_lit lit_tp), _, [ie1, ie2]) ->
       do e1 <- convertExpr l1tp_sub ie1
          e2 <- convertExpr l1tp_sub ie2
          return $ mkOp (Op_cmp lit_tp acmp) e1 e2
-    (L1Type_lit LitType_bool, SomeL1Type l1tp_sub@L1Type_ptr,
-     OpCmp_EQ, [ie1, ie2]) ->
+    (SomeL1Type l1tp_sub@L1Type_ptr, OpCmp_EQ, [ie1, ie2]) ->
       do e1 <- convertExpr l1tp_sub ie1
          e2 <- convertExpr l1tp_sub ie2
          return $ mkOp Op_ptr_eq e1 e2
-    (L1Type_lit LitType_bool, SomeL1Type l1tp_sub@L1Type_ptr, _, _) ->
-      error "convertArithCmp: non-equality comparison of pointers!"
-    (L1Type_lit LitType_bool, SomeL1Type l1tp_sub@L1Type_prop, _, _) ->
+    (SomeL1Type l1tp_sub@L1Type_ptr, _, _) ->
+      error "convertArithCmp: inequality comparison of pointers!"
+    (SomeL1Type l1tp_sub@L1Type_prop, _, _) ->
       error "convertArithCmp: comparison of propositions!"
-    (L1Type_lit LitType_bool, _, _, _) ->
-      error "convertArithCmp: comparison on more or fewer than 2 arguments!"
-    _ -> error "convertArithCmp: comparison at non-Boolean type!"
+    _ -> error "convertArithCmp: comparison on more or fewer than 2 arguments!"
 
 -- | Convert an Ivory expression to a logical expression of a specific type
 convertExpr :: L1Type a -> I.Expr -> I2LM (ILExpr a)
+
+-- Symbols and variables
 convertExpr l1tp (I.ExpSym sym) =
-  error "convertExpr: cannot (yet) handle symbols"
+  do ptr_expr <- convertSymbol sym
+     readArray l1tp ptr_expr (mkLiteral 0)
 convertExpr l1tp (I.ExpExtern ext) =
   error "convertExpr: cannot (yet) convert external symbols"
 convertExpr l1tp (I.ExpVar v) =
   liftM (mkVarExprTp $ LType_base l1tp) $ getVar l1tp v
+
+-- Literals
 convertExpr l1tp (I.ExpLit lit) =
   return $ convertLiteral l1tp lit
+
+-- Array and struct dereferencing
 convertExpr l1tp (I.ExpLabel (I.TyStruct s_name) s_iexpr f_name) =
   do s_expr <- convertExpr L1Type_ptr s_iexpr
      (_, f_ix) <- lookupStructField s_name f_name
@@ -334,28 +374,89 @@ convertExpr l1tp (I.ExpIndex arr_elem_itp arr_iexpr ix_itp ix_iexpr) =
       do ix_expr <- convertExpr ix_l1tp ix_iexpr
          arr_expr <- convertExpr L1Type_ptr arr_iexpr
          readArray l1tp arr_expr (mkOp (Op_coerce ix_lit_tp litTypeRep) ix_expr)
-convertExpr l1tp (I.ExpToIx iexpr modulus) =
-  error "FIXME HERE NOW"
-  -- Take expr mod integer
-convertExpr l1tp (I.ExpSafeCast to_itp iexpr) =
-  error "FIXME HERE NOW"
-  -- Never lose precision in casts
-convertExpr l1tp (I.ExpOp (I.ExpEq itp) args) =
-  convertArithCmp l1tp itp OpCmp_EQ args
-convertExpr l1tp (I.ExpOp (I.ExpNeq itp) args) =
-  do e <- convertArithCmp l1tp itp OpCmp_EQ args
-     case l1tp of
-       L1Type_lit LitType_bool ->
-         return $ mkOp (Op_arith1 LitType_bool Op1_Neg) e
-       _ -> error "convertExpr: not-equals test at non-Boolean type!"
-convertExpr l1tp (I.ExpOp _ _) =
-  error "FIXME HERE NOW"
--- FIXME HERE: handle more ExpOps
-convertExpr l1tp (I.ExpAddrOfGlobal sym) =
-  error "FIXME HERE NOW"
+
+-- Coercion between types
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpToIx iexpr modulus) =
+  do e <- convertExpr l1tp iexpr
+     return $ mkOp (Op_arith2 lit_tp Op2_Mod) e (convertInteger l1tp modulus)
+convertExpr l1tp@(L1Type_lit lit_tp_to) (I.ExpSafeCast to_itp iexpr) =
+  case convertType to_itp of
+    SomeL1Type l1tp_from@(L1Type_lit lit_tp_from) ->
+      do e <- convertExpr l1tp_from iexpr
+         return $ mkOp (Op_coerce lit_tp_from lit_tp_to) e
+    SomeL1Type _ ->
+      error "convertExpr: attempt to cast to a non-literal type!"
+
+-- Comparison operations
+convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpEq itp) args) =
+  convertArithCmp itp OpCmp_EQ args
+convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpNeq itp) args) =
+  liftM mkNotBool $ convertArithCmp itp OpCmp_EQ args
+convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpLt leq_flag itp) args) =
+  convertArithCmp itp (if leq_flag then OpCmp_LE else OpCmp_LT) args
+convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpGt leq_flag itp) [ie1,ie2]) =
+  convertArithCmp itp (if leq_flag then OpCmp_LE else OpCmp_LT) [ie2,ie1]
+
+-- Boolean operations
+convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpNot [ie]) =
+  liftM mkNotBool $ convertExpr l1tp ie
+convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpAnd [ie1,ie2]) =
+  liftM2 mkAndBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpOr [ie1,ie2]) =
+  liftM2 mkOrBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+
+-- Arithmetic operations
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpMul [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_Mult)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpAdd [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_Add)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpSub [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_Sub)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpNegate [ie1]) =
+  liftM (mkArithOp1 lit_tp Op1_Neg) $ convertExpr l1tp ie1
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpAbs [ie1]) =
+  liftM (mkArithOp1 lit_tp Op1_Abs) $ convertExpr l1tp ie1
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpSignum [ie1]) =
+  liftM (mkArithOp1 lit_tp Op1_Signum) $ convertExpr l1tp ie1
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpDiv [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_Div)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpMod [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_Mod)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpRecip [ie1]) =
+  liftM (\e -> mkArithOp2 lit_tp Op2_Div (convertInteger l1tp 1) e) $
+  convertExpr l1tp ie1
+
+-- Floating-point operations (FIXME!)
+
+-- Bitwise operations
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitAnd [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_BitAnd)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitOr [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_BitOr)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitXor [ie1,ie2]) =
+  liftM2 (mkArithOp2 lit_tp Op2_BitXor)
+  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
+convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitComplement [ie1]) =
+  liftM (mkArithOp1 lit_tp Op1_Complement) $ convertExpr l1tp ie1
+-- FIXME: bit-shifting operations!
+
+-- Getting the address of a global
+convertExpr L1Type_ptr (I.ExpAddrOfGlobal sym) =
+  convertSymbol sym
+
+-- Max/min of a type, and sizeof a type
 convertExpr l1tp (I.ExpMaxMin is_max) =
-  error "FIXME HERE NOW"
+  -- FIXME HERE: implement this!
+  error "convertExpr: max and min not yet implemented!"
 convertExpr l1tp (I.ExpSizeOf itp) =
-  error "FIXME HERE NOW"
+  -- FIXME HERE: implement this!
+  error "convertExpr: sizeof not yet implemented!"
 convertExpr l1tp e =
   error ("convertExpr: could not convert expression: " ++ show e)
