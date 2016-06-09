@@ -441,10 +441,10 @@ instance LBindingExprAlgebra tag Z3m_AST where
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
                  ast2 <- extractLitArgAST arg2
                  inBase $ z3ArithCmp acmp ast1 ast2
-  interpOpB (Op_cond lit_tp) (Cons arg1 (Cons arg2 (Cons arg3 _))) =
+  interpOpB (Op_cond l1tp) (Cons arg1 (Cons arg2 (Cons arg3 _))) =
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 ast2 <- extractLitArgAST arg2
-                 ast3 <- extractLitArgAST arg3
+                 ast2 <- extractL1ArgAST l1tp arg2
+                 ast3 <- extractL1ArgAST l1tp arg3
                  inBase $ Z3.mkIte ast1 ast2 ast3
   interpOpB Op_null_ptr _ = Z3m_AST $ inBase $ Z3.mkInteger 0
   interpOpB (Op_global_var i) _ =

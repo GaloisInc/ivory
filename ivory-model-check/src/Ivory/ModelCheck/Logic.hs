@@ -778,8 +778,7 @@ data Op tag a where
             Op tag (Literal a -> Literal a -> Literal Bool)
   -- | The condition, i.e., if-then-else; note that it operates on Booleans, not
   -- propositions, as it cannot take in, e.g., forall formulas
-  Op_cond :: LitType a ->
-             Op tag (Literal Bool -> Literal a -> Literal a -> Literal a)
+  Op_cond :: L1Type a -> Op tag (Literal Bool -> a -> a -> a)
 
   -- | The null pointer
   Op_null_ptr :: Op tag Ptr
@@ -861,11 +860,11 @@ opType (Op_coerce lit_tp_from lit_tp_to) =
 opType (Op_cmp lit_tp _) =
   LType_fun (LType_base $ L1Type_lit lit_tp) $
   LType_fun (LType_base $ L1Type_lit lit_tp) ltypeRep
-opType (Op_cond lit_tp) =
-  LType_fun (LType_base $ L1Type_lit LitType_bool) $
-  LType_fun (LType_base $ L1Type_lit lit_tp) $
-  LType_fun (LType_base $ L1Type_lit lit_tp) $
-  LType_base $ L1Type_lit lit_tp
+opType (Op_cond l1tp) =
+  LType_fun ltypeRep $
+  LType_fun (LType_base l1tp) $
+  LType_fun (LType_base l1tp) $
+  LType_base l1tp
 opType Op_null_ptr = ltypeRep
 opType (Op_global_var _) = ltypeRep
 opType Op_next_ptr = ltypeRep
@@ -952,7 +951,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
   mbLift [nuP| Op_coerce ltp1 ltp2 |] = Op_coerce (mbLift ltp1) (mbLift ltp2)
   mbLift [nuP| Op_cmp ltp acmp |] = Op_cmp (mbLift ltp) (mbLift acmp)
-  mbLift [nuP| Op_cond lit_tp |] = Op_cond (mbLift lit_tp)
+  mbLift [nuP| Op_cond l1tp |] = Op_cond (mbLift l1tp)
   mbLift [nuP| Op_null_ptr |] = Op_null_ptr
   mbLift [nuP| Op_global_var i |] = Op_global_var $ mbLift i
   mbLift [nuP| Op_next_ptr |] = Op_next_ptr
@@ -1243,6 +1242,17 @@ mkBindP m f =
   mkOp (Op_bindP l1typeRep l1typeRep) m $
   mkLambdaTp (LType_base l1typeRep) f
 
+-- | Sequence together two predicate monad expressions
+mkSeqP :: L1Typeable a => LExpr tag (PM (Literal ())) -> LExpr tag (PM a) ->
+          LExpr tag (PM a)
+mkSeqP pm1 pm2 = mkBindP pm1 (\_ -> pm2)
+
+-- | Sequence together 0 or more predicate monad expressions
+mkSequenceP :: [LPM tag] -> LPM tag
+mkSequenceP [] = mkReturnP (mkLiteral ())
+mkSequenceP [pm] = pm
+mkSequenceP (pm : pms) = mkSeqP pm (mkSequenceP pms)
+
 -- | Build an assume expression inside the predicate monad
 mkAssumeP :: LProp tag -> LPM tag
 mkAssumeP = mkOp Op_assumeP
@@ -1268,6 +1278,10 @@ mkRaiseP exn = mkOp (Op_raiseP exn)
 mkCatchP :: (Eq (LException tag), Liftable (LException tag)) =>
             LException tag -> LPM tag -> LPM tag -> LPM tag
 mkCatchP exn = mkOp (Op_catchP exn)
+
+-- | Build an orP expression inside the predicate monad
+mkOrP :: Eq (LException tag) => LPM tag -> LPM tag -> LPM tag
+mkOrP = mkOp Op_orP
 
 
 ----------------------------------------------------------------------
@@ -2215,9 +2229,8 @@ instance LExprAlgebra tag (InterpPM tag) where
     mkOp1InterpPM (L1Type_lit tp_from) (L1Type_lit tp_to) op
   interpOp op@(Op_cmp ltp _) =
     mkOp2InterpPM (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit LitType_bool) op
-  interpOp op@(Op_cond lit_tp) =
-    mkOp3InterpPM (L1Type_lit LitType_bool) (L1Type_lit lit_tp)
-    (L1Type_lit lit_tp) (L1Type_lit lit_tp) op
+  interpOp op@(Op_cond l1tp) =
+    mkOp3InterpPM (L1Type_lit LitType_bool) l1tp l1tp l1tp op
   interpOp op@Op_null_ptr =
     mkOpInterpPM (L1FunType_base L1Type_ptr) Op_null_ptr
   interpOp op@(Op_global_var i) =

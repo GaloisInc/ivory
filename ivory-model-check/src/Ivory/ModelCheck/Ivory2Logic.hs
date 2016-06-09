@@ -1,7 +1,7 @@
-{-# LANGUAGE GADTs, MultiParamTypeClasses, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GADTs, MultiParamTypeClasses, FlexibleInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
 {-# LANGUAGE DataKinds, TypeFamilies #-}
-{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE EmptyDataDecls, GeneralizedNewtypeDeriving #-}
 
 module Ivory.ModelCheck.Ivory2Logic where
 
@@ -42,18 +42,28 @@ type ILProp = LProp IvoryLogic
 -- | Transition relations in the Ivory reachability logic
 type ILPM = LPM IvoryLogic
 
--- | The exceptions in the Ivory reachability logic
-data IvoryExn = IvoryError | IvoryBreak deriving Eq
+-- | The exceptions in the Ivory reachability logic, which include all
+-- non-local exits
+data IvoryExn
+  = IvoryError
+    -- ^ An error, i.e., an assertion failure
+  | IvoryBreak
+    -- ^ A break out of a loop
+  | IvoryReturn
+    -- ^ A return from a function
+  deriving Eq
 
 $(mkNuMatching [t| IvoryExn |])
 
 instance Liftable IvoryExn where
   mbLift [nuP| IvoryError |] = IvoryError
   mbLift [nuP| IvoryBreak |] = IvoryBreak
+  mbLift [nuP| IvoryReturn |] = IvoryReturn
 
 instance Closable IvoryExn where
   toClosed IvoryError = $(mkClosed [| IvoryError |])
   toClosed IvoryBreak = $(mkClosed [| IvoryBreak |])
+  toClosed IvoryReturn = $(mkClosed [| IvoryReturn |])
 
 -- Gives the exception type and memory model for the Ivory reachability logic
 instance LExprTag IvoryLogic where
@@ -100,6 +110,23 @@ contT f = callCC $ \cc ->
  let k = runContT return . cc
  in abort =<< lift (f k)
 
+-- | The number of reserved / "special" global variable numbers
+numReservedSyms = 1
+
+-- | A pointer expression used to store return values
+returnValuePtr :: ILExpr Ptr
+returnValuePtr = mkOp (Op_global_var 1)
+
+-- An I2LM computation can be "run" by giving it Ivory modules and a
+-- default continuation (which is normally just "return")
+instance RunM I2LM a ([I.Module] -> (a -> ILPM) -> ILPM) where
+  runM (I2LM m) mods k =
+    runM m (I2LInfo { i2l_modules = mods,
+                      i2l_vars = Map.empty,
+                      i2l_syms = Map.empty,
+                      i2l_next_sym_int = numReservedSyms + 1 })
+    (return . k . fst)
+
 
 ----------------------------------------------------------------------
 -- Handling Ivory variables
@@ -126,48 +153,56 @@ getVar l1tp v =
 
 -- | Apply a name-binding operation to the output transition relation
 -- of an 'I2LM' computation, and return the bound name
-withBoundName :: ((Name a -> ILPM) -> ILPM) -> I2LM (Name a)
-withBoundName f = I2LM $ lift $ contT $ \k -> return $ f (runId . k)
+bindName :: ((Name a -> ILPM) -> ILPM) -> I2LM (Name a)
+bindName f = I2LM $ lift $ contT $ \k -> return $ f (runId . k)
 
--- | Like 'withBoundName', but convert the bound name to an expression
+-- | Like 'bindName', but convert the bound name to an expression
 -- before returning it
-withBoundNameExpr :: ((ILExpr a -> ILPM) -> ILPM) -> I2LM (ILExpr a)
-withBoundNameExpr f = I2LM $ lift $ contT $ \k -> return $ f (runId . k)
+bindNameExpr :: ((ILExpr a -> ILPM) -> ILPM) -> I2LM (ILExpr a)
+bindNameExpr f = I2LM $ lift $ contT $ \k -> return $ f (runId . k)
+
+-- | Associate an Ivory variable name with a logic variable
+linkVarAndName :: I.Var -> SomeILName -> I2LM ()
+linkVarAndName var n =
+  do info <- get
+     set $ info { i2l_vars =
+                    Map.insertWith
+                    (\_ _ ->
+                      error ("linkVarAndName: duplicate binding for variable "
+                             ++ show var))
+                    var n (i2l_vars info)
+                }
 
 -- | Apply a name-binding operation to the output transition relation
 -- of an 'I2LM' computation, and associate the bound name with an
 -- Ivory variable
-withBoundVar :: I.Var -> L1Type a -> ((Name a -> ILPM) -> ILPM) -> I2LM ()
-withBoundVar var l1tp f =
-  do n <- withBoundName f
-     info <- get
-     set $ info { i2l_vars =
-                    Map.insertWith
-                    (\_ _ ->
-                      error ("withBoundVar: duplicate binding for variable "
-                             ++ show var))
-                    var
-                    (SomeILName l1tp n)
-                    (i2l_vars info)
-                }
+bindVar :: I.Var -> L1Type a -> ((Name a -> ILPM) -> ILPM) -> I2LM ()
+bindVar var l1tp f =
+  do n <- bindName f
+     linkVarAndName var (SomeILName l1tp n)
+
+-- | Bind an Ivory variable to the result of a computation @pm@, and
+-- store this binding in the 'I2LInfo' transition-relation-building
+-- state. The binding is done by building the expression @pm >>= k@,
+-- where @k@ is the continuation of the rest of the expression being
+-- built.
+pmBindVar :: I.Var -> L1Type a -> ILExpr (PM a) -> I2LM ()
+pmBindVar var l1tp pm =
+  bindVar var l1tp $ \k ->
+  mkOp (Op_bindP l1tp l1typeRep) pm $
+  LLambda (LType_base l1tp) $ nu k
 
 -- | Let-bind an Ivory variable to a value, and store this binding in
 -- the 'I2LInfo' transition-relation-building state. The let-binding
 -- is done by building the expression @(return x) >>= k@, where @k@ is
 -- the continuation of the rest of the expression being built.
-withLetBoundName :: I.Var -> L1Type a -> ILExpr a -> I2LM ()
-withLetBoundName var l1tp rhs =
-  withBoundVar var l1tp $ \k ->
-  mkOp (Op_bindP l1tp l1typeRep) (mkReturnP_tp l1tp rhs) $
-  LLambda (LType_base l1tp) $ nu k
+letBindVar :: I.Var -> L1Type a -> ILExpr a -> I2LM ()
+letBindVar var l1tp rhs = pmBindVar var l1tp (mkReturnP_tp l1tp rhs)
 
--- | Similar to 'withLetBoundName', except the given Ivory variable is
+-- | Similar to 'letBindVar', except the given Ivory variable is
 -- existentially-bound, meaning no explicit value is given for it.
-withExBoundName :: I.Var -> L1Type a -> I2LM ()
-withExBoundName var l1tp =
-  withBoundVar var l1tp $ \k ->
-  mkOp (Op_bindP l1tp l1typeRep) (mkExistsP_tp l1tp) $
-  LLambda (LType_base l1tp) $ nu k
+exBindVar :: I.Var -> L1Type a -> I2LM ()
+exBindVar var l1tp = pmBindVar var l1tp (mkExistsP_tp l1tp)
 
 
 ----------------------------------------------------------------------
@@ -204,15 +239,31 @@ convertSymbol sym =
 readArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) ->
              I2LM (ILExpr a)
 readArray (L1Type_lit lit_tp) ptr ix =
-  withBoundNameExpr $ \k ->
+  bindNameExpr $ \k ->
   mkOp (Op_bindP l1typeRep l1typeRep)
   (mkOp (Op_readP (ReadOp_array Elem_base)) ptr ix) $
   mkLambda $ \x -> k $ mkOp (Op_coerce litTypeRep lit_tp) x
 readArray L1Type_ptr ptr ix =
-  withBoundNameExpr $ \k ->
+  bindNameExpr $ \k ->
   mkOp (Op_bindP l1typeRep l1typeRep)
   (mkOp (Op_readP ReadOp_ptr_array) ptr ix) $
   mkLambda $ k
+readArray L1Type_prop ptr ix =
+  error "readArray: attempt to read a proposition from memory!"
+
+-- | Build an Ivory reachability logic expression that performs a
+-- state update.
+updateArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) -> ILExpr a ->
+               ILPM
+updateArray (L1Type_lit lit_tp) ptr ix v =
+  mkOp (Op_updateP $ UpdateOp_array Elem_base) ptr ix $
+  -- NOTE: this is to convert v to a Word64 expression, as that is
+  -- what our memory model actually stores in Ivory
+  mkOp (Op_coerce lit_tp litTypeRep) v
+updateArray L1Type_ptr ptr ix v =
+  mkOp (Op_updateP UpdateOp_ptr_array) ptr ix v
+updateArray L1Type_ptr ptr ix v =
+  error "updateArray: attempt to write a proposition to memory!"
 
 
 ----------------------------------------------------------------------
@@ -404,11 +455,16 @@ convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpAnd [ie1,ie2]) =
   liftM2 mkAndBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
 convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpOr [ie1,ie2]) =
   liftM2 mkOrBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpCond [ie1,ie2,ie3]) =
+convertExpr l1tp@(L1Type_lit _) (I.ExpOp I.ExpCond [ie1,ie2,ie3]) =
   do e1 <- convertExpr (L1Type_lit LitType_bool) ie1
      e2 <- convertExpr l1tp ie2
      e3 <- convertExpr l1tp ie3
-     return $ mkOp (Op_cond lit_tp) e1 e2 e3
+     return $ mkOp (Op_cond l1tp) e1 e2 e3
+convertExpr l1tp@L1Type_ptr (I.ExpOp I.ExpCond [ie1,ie2,ie3]) =
+  do e1 <- convertExpr (L1Type_lit LitType_bool) ie1
+     e2 <- convertExpr l1tp ie2
+     e3 <- convertExpr l1tp ie3
+     return $ mkOp (Op_cond l1tp) e1 e2 e3
 
 -- Arithmetic operations
 convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpMul [ie1,ie2]) =
@@ -468,6 +524,49 @@ convertExpr l1tp e =
 
 
 ----------------------------------------------------------------------
--- Converting Ivory expressions into Ivory reachability logic
+-- Converting Ivory statements into Ivory reachability logic
 ----------------------------------------------------------------------
 
+-- | Convert an Ivory statement to a transition relation
+convertStmt :: I.Stmt -> I2LM ILPM
+
+-- If-then-else statements --> disjunctive transition relations
+convertStmt (I.IfTE ie stmts1 stmts2) =
+  do e <- convertExpr l1typeRep ie
+     let prop = mkIsTrue e
+     pm1 <- liftM mkSequenceP $ mapM convertStmt stmts1
+     pm2 <- liftM mkSequenceP $ mapM convertStmt stmts2
+     return $
+       mkOrP (mkSeqP (mkAssumeP prop) pm1)
+       (mkSeqP (mkAssumeP (mkNot prop)) pm2)
+
+-- Assertions --> errors if the assertion does not hold; i.e., they
+-- become @if prop then ('returnP' ()) else raise 'IvoryError'@
+convertStmt (I.Assert ie) =
+  do e <- convertExpr l1typeRep ie
+     return $
+       mkOrP (mkSeqP (mkAssumeP (mkIsTrue e)) (mkReturnP $ mkLiteral ()))
+       (mkSeqP (mkAssumeP (mkNot (mkIsTrue e))) (mkRaiseP IvoryError))
+
+-- Compiler-inserted assertions, which are the same as normal assertions
+convertStmt (I.CompilerAssert ie) =
+  do e <- convertExpr l1typeRep ie
+     return $
+       mkOrP (mkSeqP (mkAssumeP (mkIsTrue e)) (mkReturnP $ mkLiteral ()))
+       (mkSeqP (mkAssumeP (mkNot (mkIsTrue e))) (mkRaiseP IvoryError))
+
+-- Return statements --> write the returned value to the returnValue
+-- global variable and then raise an 'IvoryReturn' exception
+convertStmt (I.Return typed_ie) =
+  case convertType (I.tType typed_ie) of
+    SomeL1Type l1tp ->
+      do e <- convertExpr l1tp (I.tValue typed_ie)
+         return $
+           mkSeqP (updateArray l1tp returnValuePtr (mkLiteral 0) e) $
+           mkRaiseP IvoryReturn
+
+-- Return statements with no return value --> just raise 'IvoryReturn'
+convertStmt I.ReturnVoid = return $ mkRaiseP IvoryReturn
+
+-- Dereference statements --> read a pointer
+-- FIXME HERE NOW
