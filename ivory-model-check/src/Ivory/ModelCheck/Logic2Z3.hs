@@ -455,10 +455,10 @@ instance LBindingExprAlgebra tag Z3m_AST where
     Z3m_AST $ do ast1 <- extractPtrArgAST arg1
                  ast_one <- inBase $ Z3.mkInteger 1
                  inBase $ Z3.mkAdd [ast1, ast_one]
-  interpOpB Op_ptr_eq (Cons arg1 (Cons arg2 _)) =
+  interpOpB (Op_ptr_cmp acmp) (Cons arg1 (Cons arg2 _)) =
     Z3m_AST $ do ast1 <- extractPtrArgAST arg1
                  ast2 <- extractPtrArgAST arg2
-                 inBase $ Z3.mkEq ast1 ast2
+                 inBase $ z3ArithCmp acmp ast1 ast2
 
   -- Interpret the first-order propositional operations into Z3
   interpOpB Op_and (Cons arg1 (Cons arg2 _)) =

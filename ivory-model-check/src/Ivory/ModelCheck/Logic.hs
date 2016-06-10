@@ -669,9 +669,8 @@ data UpdateOp mm args where
                     UpdateOp mm '[ Ptr, Literal Word64, Literal a ]
   -- | Update the nth element of the 'Ptr' array store
   UpdateOp_ptr_array :: UpdateOp mm '[ Ptr, Literal Word64, Ptr ]
-  -- | Allocate a new array with a given length, whose type is either an element
-  -- of @mm@, or is 'Nothing', which represents 'Ptr'.
-  UpdateOp_alloc :: Maybe (ElemPf mm a) -> UpdateOp mm '[ Literal Word64 ]
+  -- | Allocate a new array with a given length
+  UpdateOp_alloc :: UpdateOp mm '[ Literal Word64 ]
 
 -- | Get the 'LType' of a 'ReadOp'
 readOpType :: MemoryModel mm => ReadOp mm args ret -> LType (AddArrows args (PM ret))
@@ -690,7 +689,7 @@ updateOpType (UpdateOp_array elem_pf) =
   LType_fun (LType_base $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf)
   ltypeRep
 updateOpType UpdateOp_ptr_array = ltypeRep
-updateOpType (UpdateOp_alloc _) = ltypeRep
+updateOpType UpdateOp_alloc = ltypeRep
 
 -- | Perform a read operation on a 'Memory'
 readMemory :: ReadOp mm args ret -> Memory mm -> MapList Identity args -> ret
@@ -724,7 +723,7 @@ updateMemory UpdateOp_ptr_array mem
              (Cons (Identity ptr)
               (Cons (Identity ix) (Cons (Identity newval) _))) =
   mem { memPtrArray = updateFinFun (memPtrArray mem) (ptr, (ix, ())) newval }
-updateMemory (UpdateOp_alloc elem_pf) mem
+updateMemory UpdateOp_alloc mem
              (Cons (Identity new_len) _) =
   let new_last_alloc = Ptr (unPtr (memLastAlloc mem) + 1) in
   mem
@@ -787,8 +786,8 @@ data Op tag a where
   Op_global_var :: Integer -> Op tag Ptr
   -- | Bump a free pointer
   Op_next_ptr :: Op tag (Ptr -> Ptr)
-  -- | Test pointer equality
-  Op_ptr_eq :: Op tag (Ptr -> Ptr -> Literal Bool)
+  -- | Pointer comparisons
+  Op_ptr_cmp :: ArithCmp -> Op tag (Ptr -> Ptr -> Literal Bool)
 
   -- * Propositional operations
   -- | The true proposition
@@ -868,7 +867,7 @@ opType (Op_cond l1tp) =
 opType Op_null_ptr = ltypeRep
 opType (Op_global_var _) = ltypeRep
 opType Op_next_ptr = ltypeRep
-opType Op_ptr_eq = ltypeRep
+opType (Op_ptr_cmp _) = ltypeRep
 opType Op_true = ltypeRep
 opType Op_false = ltypeRep
 opType Op_and = ltypeRep
@@ -942,9 +941,7 @@ instance Liftable (ReadOp mm args ret) where
   mbLift [nuP| ReadOp_last_alloc |] = ReadOp_last_alloc
 instance Liftable (UpdateOp mm args) where
   mbLift [nuP| UpdateOp_array elem_pf |] = UpdateOp_array $ mbLift elem_pf
-  mbLift [nuP| UpdateOp_alloc (Just elem_pf) |] =
-    UpdateOp_alloc $ Just $ mbLift elem_pf
-  mbLift [nuP| UpdateOp_alloc Nothing |] = UpdateOp_alloc Nothing
+  mbLift [nuP| UpdateOp_alloc |] = UpdateOp_alloc
 instance Liftable (Op tag a) where
   mbLift [nuP| Op_Literal ltp x |] = Op_Literal (mbLift ltp) (mbLift x)
   mbLift [nuP| Op_arith1 ltp aop |] = Op_arith1 (mbLift ltp) (mbLift aop)
@@ -955,7 +952,7 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_null_ptr |] = Op_null_ptr
   mbLift [nuP| Op_global_var i |] = Op_global_var $ mbLift i
   mbLift [nuP| Op_next_ptr |] = Op_next_ptr
-  mbLift [nuP| Op_ptr_eq |] = Op_ptr_eq
+  mbLift [nuP| Op_ptr_cmp acmp |] = Op_ptr_cmp $ mbLift acmp
   mbLift [nuP| Op_and |] = Op_and
   mbLift [nuP| Op_or |] = Op_or
   mbLift [nuP| Op_not |] = Op_not
@@ -1282,6 +1279,15 @@ mkCatchP exn = mkOp (Op_catchP exn)
 -- | Build an orP expression inside the predicate monad
 mkOrP :: Eq (LException tag) => LPM tag -> LPM tag -> LPM tag
 mkOrP = mkOp Op_orP
+
+-- | Build an assertion in the predicate monad. This builds a disjunctive
+-- transition relation, which transitions to an error state (given by the
+-- supplied exception) if the assertion does not hold, and otherwise performs a
+-- no-op transition.
+mkAssertP :: (Eq (LException tag), Liftable (LException tag)) =>
+             LException tag -> LProp tag -> LPM tag
+mkAssertP exn prop =
+  mkOrP (mkAssumeP prop) (mkSeqP (mkAssumeP (mkNot prop)) (mkRaiseP exn))
 
 
 ----------------------------------------------------------------------
@@ -2021,7 +2027,7 @@ updatePM UpdateOp_ptr_array (Cons ptr (Cons ix (Cons v Nil))) =
              mkEq1 (mkVar Proxy n p i p') (mkVar Proxy n' p i p')]
      -- Set mem' as the output memory
      setMem $ mem { symMemPtrArray = n' }
-updatePM (UpdateOp_alloc _) (Cons len Nil) =
+updatePM UpdateOp_alloc (Cons len Nil) =
   do mem <- getMem
      let lengths = symMemLengths mem
      let last_alloc = symMemLastAlloc mem
@@ -2237,7 +2243,7 @@ instance LExprAlgebra tag (InterpPM tag) where
     mkOpInterpPM (L1FunType_base L1Type_ptr) (Op_global_var i)
   interpOp op@Op_next_ptr =
     mkOp1InterpPM L1Type_ptr L1Type_ptr op
-  interpOp op@Op_ptr_eq =
+  interpOp op@(Op_ptr_cmp acmp) =
     mkOp2InterpPM L1Type_ptr L1Type_ptr l1typeRep op
   interpOp op@Op_or = mkOpInterpPM l1funTypeRep op
   interpOp op@Op_not = mkOpInterpPM l1funTypeRep op
@@ -2256,6 +2262,7 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_fun $ \x ->
     InterpPM_pm $ return $ expr_of_interpPM l1tp x
   interpOp (Op_bindP l1tp_a l1tp_b) =
+    -- FIXME HERE NOW: bind a fresh variable for the LHS!!
     InterpPM_fun $ \m ->
     InterpPM_fun $ \f_ipm ->
     InterpPM_pm (pm_of_interpPM m >>= \x ->
@@ -2284,7 +2291,7 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_fun $ \(InterpPM_base _ ix) ->
     InterpPM_fun $ \(InterpPM_base _ v) ->
     InterpPM_unit_pm $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
-  interpOp (Op_updateP uop@(UpdateOp_alloc _)) =
+  interpOp (Op_updateP uop@UpdateOp_alloc) =
     InterpPM_fun $ \(InterpPM_base _ len) ->
     InterpPM_unit_pm $ updatePM uop (Cons len Nil)
   interpOp (Op_raiseP exn) =
