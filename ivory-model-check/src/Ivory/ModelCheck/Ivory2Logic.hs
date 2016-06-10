@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, MultiParamTypeClasses, FlexibleInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
-{-# LANGUAGE DataKinds, TypeFamilies #-}
+{-# LANGUAGE DataKinds, TypeFamilies, FunctionalDependencies, UndecidableInstances #-}
 {-# LANGUAGE EmptyDataDecls, GeneralizedNewtypeDeriving #-}
 
 module Ivory.ModelCheck.Ivory2Logic where
@@ -104,11 +104,32 @@ instance StateM I2LM I2LInfo where
   get = I2LM get
   set info = I2LM $ set info
 
--- | Helper continuation operation (FIXME: documentation)
-contT :: Monad m => ((a -> m r) -> m r) -> ContT r m a
-contT f = callCC $ \cc ->
- let k = runContT return . cc
- in abort =<< lift (f k)
+-- | Typeclass for monads that allow capturing the current continuation as a
+-- pure function
+class Monad m => ShiftPureM m r | m -> r where
+  shiftPureM :: ((a -> r) -> r) -> m a
+
+instance ShiftPureM (ContT r Id) r where
+  shiftPureM f =
+    callCC $ \cc ->
+    let k = runId . runContT return . cc
+    in abort =<< return (f k)
+
+instance ShiftPureM m r => ShiftPureM (StateT i m) r where
+  shiftPureM f =
+    do s <- get
+       liftM fst $ lift $ shiftPureM $ \k -> f (\x -> k (x,s))
+
+instance ShiftPureM I2LM ILPM where
+  shiftPureM f = I2LM $ shiftPureM f
+
+-- | FIXME: documentation!
+addTransition :: ILPM -> I2LM ()
+addTransition pm = shiftPureM $ \k -> mkSeqP pm (k ())
+
+-- | FIXME: documentation!
+addBindTransition :: L1Typeable a => ILExpr (PM a) -> I2LM (ILExpr a)
+addBindTransition pm = shiftPureM $ \k -> mkBindP pm k
 
 -- | The number of reserved / "special" global variable numbers
 numReservedSyms = 1
@@ -154,12 +175,7 @@ getVar l1tp v =
 -- | Apply a name-binding operation to the output transition relation
 -- of an 'I2LM' computation, and return the bound name
 bindName :: ((Name a -> ILPM) -> ILPM) -> I2LM (Name a)
-bindName f = I2LM $ lift $ contT $ \k -> return $ f (runId . k)
-
--- | Like 'bindName', but convert the bound name to an expression
--- before returning it
-bindNameExpr :: ((ILExpr a -> ILPM) -> ILPM) -> I2LM (ILExpr a)
-bindNameExpr f = I2LM $ lift $ contT $ \k -> return $ f (runId . k)
+bindName = shiftPureM
 
 -- | Associate an Ivory variable name with a logic variable
 linkVarAndName :: I.Var -> SomeILName -> I2LM ()
@@ -233,37 +249,76 @@ convertSymbol sym =
 -- Ivory state manipulation
 ----------------------------------------------------------------------
 
--- | Build an expression that is the result of a state read. This is
--- done by building the expression @(readP read_op args) >>= k@, where
--- @k@ is the continuation of the rest of the expression being built.
-readArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) ->
-             I2LM (ILExpr a)
-readArray (L1Type_lit lit_tp) ptr ix =
-  bindNameExpr $ \k ->
+-- | Assert that a pointer and index pair is valid: check that the pointer is no
+-- greater than the last-allocated pointer, and that the index is non-negative
+-- and less than the length associated with the pointer. NOTE: negative pointers
+-- are ok, as these are used to represent constant, global pointers.
+assertPtrIndexOK :: ILExpr Ptr -> ILExpr (Literal Word64) -> I2LM ()
+assertPtrIndexOK ptr ix =
+  addTransition $
+  mkBindP (mkOp (Op_readP ReadOp_last_alloc)) $ \last_alloc ->
+  mkBindP (mkOp (Op_readP ReadOp_length) ptr) $ \len ->
+  mkAssertP IvoryError $
+  mkAnd [mkIsTrue (mkOp (Op_ptr_cmp OpCmp_LE) ptr last_alloc),
+         mkIsTrue (mkOp (Op_cmp litTypeRep OpCmp_LT) ix len),
+         mkIsTrue (mkOp (Op_cmp litTypeRep OpCmp_LE) (mkLiteral 0) ix)]
+
+-- | Bind a name that is the result of an array read, of the given pointer at
+-- the given index, of type 'Word64'. This is done by building the expression
+-- @(readP read_op args) >>= k@ in the eventual result of the continuation,
+-- where @k@ is the continuation of the rest of the expression being built.
+readArrayNameWord64 :: ILExpr Ptr -> ILExpr (Literal Word64) ->
+                       I2LM (Name (Literal Word64))
+readArrayNameWord64 ptr ix =
+  bindName $ \k ->
   mkOp (Op_bindP l1typeRep l1typeRep)
   (mkOp (Op_readP (ReadOp_array Elem_base)) ptr ix) $
-  mkLambda $ \x -> k $ mkOp (Op_coerce litTypeRep lit_tp) x
-readArray L1Type_ptr ptr ix =
-  bindNameExpr $ \k ->
+  LLambda ltypeRep $ nu k
+
+-- | Similar to 'readArrayNameWord64', but read a pointer value instead
+readArrayNamePtr :: ILExpr Ptr -> ILExpr (Literal Word64) -> I2LM (Name Ptr)
+readArrayNamePtr ptr ix =
+  bindName $ \k ->
   mkOp (Op_bindP l1typeRep l1typeRep)
   (mkOp (Op_readP ReadOp_ptr_array) ptr ix) $
-  mkLambda $ k
+  LLambda ltypeRep $ nu k
+
+-- | Read an array value, binding the result to a fresh local name and coercing
+-- the name if necessary. Also assert that the given pointer is valid, and that
+-- th eindex is within the length bounds of the array that is pointed to.
+readArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) ->
+             I2LM (ILExpr a)
+-- FIXME: special-case the Word64 case for l1tp
+readArray l1tp@(L1Type_lit lit_tp) ptr ix =
+  do n <- readArrayNameWord64 ptr ix
+     return $ mkOp (Op_coerce litTypeRep lit_tp) (mkVar Proxy n)
+readArray l1tp@L1Type_ptr ptr ix =
+  do n <- readArrayNamePtr ptr ix
+     return $ mkVarExprTp (LType_base l1tp) n
 readArray L1Type_prop ptr ix =
   error "readArray: attempt to read a proposition from memory!"
 
--- | Build an Ivory reachability logic expression that performs a
--- state update.
+-- | Update an Ivory array value
 updateArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) -> ILExpr a ->
-               ILPM
+               I2LM ()
 updateArray (L1Type_lit lit_tp) ptr ix v =
+  addTransition $
   mkOp (Op_updateP $ UpdateOp_array Elem_base) ptr ix $
   -- NOTE: this is to convert v to a Word64 expression, as that is
   -- what our memory model actually stores in Ivory
   mkOp (Op_coerce lit_tp litTypeRep) v
 updateArray L1Type_ptr ptr ix v =
+  addTransition $
   mkOp (Op_updateP UpdateOp_ptr_array) ptr ix v
 updateArray L1Type_ptr ptr ix v =
   error "updateArray: attempt to write a proposition to memory!"
+
+-- | Allocate an Ivory array of a given length, returning a pointer to it
+allocateArray :: ILExpr (Literal Word64) -> I2LM (ILExpr Ptr)
+allocateArray len =
+  addBindTransition $
+  mkSeqP (mkOp (Op_updateP UpdateOp_alloc) len) $
+  mkOp (Op_readP ReadOp_last_alloc)
 
 
 ----------------------------------------------------------------------
@@ -391,7 +446,7 @@ convertArithCmp itp acmp args =
     (SomeL1Type l1tp_sub@L1Type_ptr, OpCmp_EQ, [ie1, ie2]) ->
       do e1 <- convertExpr l1tp_sub ie1
          e2 <- convertExpr l1tp_sub ie2
-         return $ mkOp Op_ptr_eq e1 e2
+         return $ mkOp (Op_ptr_cmp OpCmp_EQ) e1 e2
     (SomeL1Type l1tp_sub@L1Type_ptr, _, _) ->
       error "convertArithCmp: inequality comparison of pointers!"
     (SomeL1Type l1tp_sub@L1Type_prop, _, _) ->
@@ -436,7 +491,7 @@ convertExpr l1tp@(L1Type_lit lit_tp_to) (I.ExpSafeCast to_itp iexpr) =
       do e <- convertExpr l1tp_from iexpr
          return $ mkOp (Op_coerce lit_tp_from lit_tp_to) e
     SomeL1Type _ ->
-      error "convertExpr: attempt to cast to a non-literal type!"
+      error "convertExpr: attempt to cast from a non-literal type!"
 
 -- Comparison operations
 convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpEq itp) args) =
@@ -523,6 +578,11 @@ convertExpr l1tp e =
   error ("convertExpr: could not convert expression: " ++ show e)
 
 
+-- | Convert an Ivory initialization expression into logic
+convertInit :: L1Type a -> I.Init -> I2LM (ILExpr a)
+convertInit l1tp _ = error "FIXME HERE NOW!"
+
+
 ----------------------------------------------------------------------
 -- Converting Ivory statements into Ivory reachability logic
 ----------------------------------------------------------------------
@@ -544,16 +604,12 @@ convertStmt (I.IfTE ie stmts1 stmts2) =
 -- become @if prop then ('returnP' ()) else raise 'IvoryError'@
 convertStmt (I.Assert ie) =
   do e <- convertExpr l1typeRep ie
-     return $
-       mkOrP (mkSeqP (mkAssumeP (mkIsTrue e)) (mkReturnP $ mkLiteral ()))
-       (mkSeqP (mkAssumeP (mkNot (mkIsTrue e))) (mkRaiseP IvoryError))
+     return $ mkAssertP IvoryError (mkIsTrue e)
 
 -- Compiler-inserted assertions, which are the same as normal assertions
 convertStmt (I.CompilerAssert ie) =
   do e <- convertExpr l1typeRep ie
-     return $
-       mkOrP (mkSeqP (mkAssumeP (mkIsTrue e)) (mkReturnP $ mkLiteral ()))
-       (mkSeqP (mkAssumeP (mkNot (mkIsTrue e))) (mkRaiseP IvoryError))
+     return $ mkAssertP IvoryError (mkIsTrue e)
 
 -- Return statements --> write the returned value to the returnValue
 -- global variable and then raise an 'IvoryReturn' exception
@@ -561,12 +617,61 @@ convertStmt (I.Return typed_ie) =
   case convertType (I.tType typed_ie) of
     SomeL1Type l1tp ->
       do e <- convertExpr l1tp (I.tValue typed_ie)
-         return $
-           mkSeqP (updateArray l1tp returnValuePtr (mkLiteral 0) e) $
-           mkRaiseP IvoryReturn
+         updateArray l1tp returnValuePtr (mkLiteral 0) e
+         return $ mkRaiseP IvoryReturn
 
 -- Return statements with no return value --> just raise 'IvoryReturn'
 convertStmt I.ReturnVoid = return $ mkRaiseP IvoryReturn
 
--- Dereference statements --> read a pointer
--- FIXME HERE NOW
+-- Dereference statements --> read a pointer and bind the result to a variable
+convertStmt (I.Deref itp var ie) =
+  case convertType itp of
+    SomeL1Type l1tp ->
+      do ptr_expr <- convertExpr L1Type_ptr ie
+         res_expr <- readArray l1tp ptr_expr (mkLiteral 0)
+         letBindVar var l1tp res_expr
+         return $ mkReturnP $ mkLiteral ()
+
+-- Assignment statements
+convertStmt (I.Store itp ilhs irhs) =
+  case convertType itp of
+    SomeL1Type l1tp ->
+      do ptr <- convertExpr L1Type_ptr ilhs
+         val <- convertExpr l1tp irhs
+         updateArray l1tp ptr (mkLiteral 0) val
+         return $ mkReturnP $ mkLiteral ()
+
+-- Function calls: not handled yet!
+convertStmt (I.Call _ _ _ _) =
+  error "convertStmt: function calls not yet handled!" -- FIXME HERE
+
+-- Local variable decl --> allocation of a new reference + initialization
+convertStmt (I.Local itp var init) =
+  case convertType itp of
+    SomeL1Type l1tp ->
+      do ptr <- allocateArray (mkLiteral 1)
+         v <- convertInit l1tp init
+         letBindVar var L1Type_ptr ptr
+         return $ mkReturnP $ mkLiteral ()
+
+-- Reference copy: not handled yet!
+convertStmt (I.RefCopy itp ilhs irhs) =
+  error "convertStmt: reference copies not yet handled!" -- FIXME HERE
+
+-- Reference allocation: not handled yet (what does the name mean?)
+convertStmt (I.AllocRef itp var nm) =
+  error "convertStmt: AllocRef not yet handled!" -- FIXME HERE
+
+-- Loops --> not handled yet
+convertStmt (I.Loop max_iters var start incr body) =
+  error "convertStmt: loops not yet handled!" -- FIXME HERE
+
+-- Loops --> not handled yet
+convertStmt (I.Forever body) =
+  error "convertStmt: loops not yet handled!" -- FIXME HERE
+
+-- Break --> raise an IvoryBreak exception
+convertStmt I.Break = return $ mkRaiseP IvoryBreak
+
+-- Comment --> no-op
+convertStmt (I.Comment _) = return $ mkReturnP $ mkLiteral ()
