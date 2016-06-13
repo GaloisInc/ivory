@@ -848,3 +848,30 @@ convertProc p =
     mapM_ (addTransition . mkAssertP IvoryError <=< convertEnsure) $
       I.procEnsures p
     returnUnitTrans
+
+
+----------------------------------------------------------------------
+-- Testing if an error is reachable in an Ivory procedure
+----------------------------------------------------------------------
+
+instance Closable ILOpts where
+  toClosed _ = error "FIXME HERE NOW"
+
+instance Closable I.Module where
+  toClosed _ = error "FIXME HERE NOW"
+
+instance Closable I.Proc where
+  toClosed _ = error "FIXME HERE NOW"
+
+instance Closable a => Closable [a] where
+  toClosed _ = error "FIXME HERE NOW"
+
+-- | Model-check an Ivory procedure, testing if an assertion failure can be
+-- reached from some input state
+modelCheckProc :: SMTSolver solver => solver ->
+                  ILOpts -> [I.Module] -> I.Proc ->
+                  IO (SMTResult (Memory '[ Word64 ]))
+modelCheckProc solver opts mods p =
+  exn_reachable solver IvoryError $
+  $(mkClosed [| \opts mods p -> runM (convertProc p) opts mods id |])
+  `clApply` (toClosed opts) `clApply` (toClosed mods) `clApply` (toClosed p)
