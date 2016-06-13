@@ -14,6 +14,7 @@ import Data.Int
 import Data.List
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 import MonadLib
 import MonadLib.Monads
@@ -112,11 +113,8 @@ data I2LInfo =
     i2l_vars :: Map.Map I.Var SomeILName,
     -- ^ The Ivory variables that are in scope, and the Ivory
     -- reachability logic variables associated with them
-    i2l_syms :: Map.Map I.Sym Integer,
-    -- ^ The Ivory global symbols that that have been seen so far, and
-    -- unique numbers that have been associated with them
-    i2l_next_sym_int :: Integer
-    -- ^ The number to be used for the next symbol we see
+    i2l_syms :: Map.Map I.Sym Integer
+    -- ^ An association from Ivory global symbols and unique numbers for them
   }
 
 -- | The monad for building transition relations from Ivory expressions
@@ -168,15 +166,28 @@ numReservedSyms = 1
 returnValuePtr :: ILExpr Ptr
 returnValuePtr = mkOp (Op_global_var 1)
 
+-- | Helper function to return the unit transition
+returnUnitTrans :: I2LM ILPM
+returnUnitTrans = return $ mkReturnP $ mkLiteral ()
+
+-- | Get all the global variable symbols in a module
+moduleGlobalSyms :: I.Module -> Set.Set I.Sym
+moduleGlobalSyms mod =
+  Set.unions [Set.fromList $ map I.externSym $ I.modExterns mod]
+-- FIXME HERE: Handle Areas and AreaImports?
+
 -- An I2LM computation can be "run" by giving it Ivory modules and a
 -- default continuation (which is normally just "return")
 instance RunM I2LM a (ILOpts -> [I.Module] -> (a -> ILPM) -> ILPM) where
   runM (I2LM m) opts mods k =
+    let global_syms = Set.toList $ Set.unions $ map moduleGlobalSyms mods in
+    let syms_map =
+          Map.fromList $ zip global_syms [numReservedSyms + 1 ..]
+    in
     runM m (I2LInfo { i2l_opts = opts,
                       i2l_modules = mods,
                       i2l_vars = Map.empty,
-                      i2l_syms = Map.empty,
-                      i2l_next_sym_int = numReservedSyms + 1 })
+                      i2l_syms = syms_map })
     (return . k . fst)
 
 
@@ -256,6 +267,13 @@ letBindVar var l1tp rhs = pmBindVar var l1tp (mkReturnP_tp l1tp rhs)
 exBindVar :: I.Var -> L1Type a -> I2LM ()
 exBindVar var l1tp = pmBindVar var l1tp (mkExistsP_tp l1tp)
 
+-- | Similar to 'exBindVar', but where the type of the variable is given as an
+-- Ivory type, using the 'I.Typed' construction
+exBindTypedVar :: I.Typed I.Var -> I2LM ()
+exBindTypedVar typed_var =
+  case convertType (I.tType typed_var) of
+    SomeL1Type l1tp -> exBindVar (I.tValue typed_var) l1tp
+
 
 ----------------------------------------------------------------------
 -- Ivory global symbols
@@ -268,6 +286,8 @@ convertSymbol sym =
      case Map.lookup sym (i2l_syms info) of
        Just i -> return $ mkOp (Op_global_var (-i))
        Nothing ->
+         error $ "convertSymbol: unexpected symbol: " ++ sym
+         {-
          do let i = i2l_next_sym_int info
             set $ info { i2l_syms =
                            Map.insertWith
@@ -279,6 +299,7 @@ convertSymbol sym =
                            (i2l_syms info)
                        , i2l_next_sym_int = i+1 }
             return $ mkOp (Op_global_var (-i))
+          -}
 
 
 ----------------------------------------------------------------------
@@ -626,7 +647,7 @@ convertInit itp I.InitZero =
     SomeL1Type l1tp@(L1Type_lit lit_tp) ->
        SomeILExpr l1tp $ mkLiteralTp lit_tp (litDefaultTp lit_tp)
     SomeL1Type L1Type_ptr -> SomeILExpr L1Type_ptr $ mkOp Op_null_ptr
-    SomeL1Type L1Type_prop -> error "convertStmt: local var of type Prop!"
+    SomeL1Type L1Type_prop -> error "convertInit: local var of type Prop!"
 convertInit itp (I.InitExpr itp' ie) =
   if itp == itp' then
     case convertType itp of
@@ -660,19 +681,46 @@ convertInit arr_itp (I.InitArray init_elems) =
 
 
 ----------------------------------------------------------------------
+-- Handling Ivory Requires and Ensures Conditions
+----------------------------------------------------------------------
+
+-- | Convert an Ivory condition into a proposition
+convertCond :: I.Cond -> I2LM (ILExpr Prop)
+convertCond (I.CondBool ie) =
+  do e <- convertExpr l1typeRep ie
+     return $ mkIsTrue e
+convertCond (I.CondDeref itp ie_ptr var cond) =
+  case convertType itp of
+    SomeL1Type l1tp ->
+      do ptr <- convertExpr L1Type_ptr ie_ptr
+         ptr_val <- readArray l1tp ptr (mkLiteral 0)
+         letBindVar var l1tp ptr_val
+         convertCond cond
+
+-- | Convert a 'Require' clause into a proposition
+convertRequire :: I.Require -> I2LM (ILExpr Prop)
+convertRequire req = convertCond $ I.getRequire req
+
+-- | Convert an 'Ensure' clause into a proposition
+convertEnsure :: I.Ensure -> I2LM (ILExpr Prop)
+convertEnsure req = convertCond $ I.getEnsure req
+
+
+----------------------------------------------------------------------
 -- Converting Ivory statements into Ivory reachability logic
 ----------------------------------------------------------------------
 
--- | Convert an Ivory statement to a transition relation
-convertStmt :: I.Stmt -> I2LM ILPM
+-- | Convert an Ivory statement to a transition relation and add it to the
+-- current transition relation
+convertStmt :: I.Stmt -> I2LM ()
 
 -- If-then-else statements --> disjunctive transition relations
 convertStmt (I.IfTE ie stmts1 stmts2) =
   do e <- convertExpr l1typeRep ie
      let prop = mkIsTrue e
-     pm1 <- liftM mkSequenceP $ mapM convertStmt stmts1
-     pm2 <- liftM mkSequenceP $ mapM convertStmt stmts2
-     return $
+     pm1 <- resetPureM $ mapM convertStmt stmts1 >> returnUnitTrans
+     pm2 <- resetPureM $ mapM convertStmt stmts2 >> returnUnitTrans
+     addTransition $
        mkOrP (mkSeqP (mkAssumeP prop) pm1)
        (mkSeqP (mkAssumeP (mkNot prop)) pm2)
 
@@ -680,12 +728,12 @@ convertStmt (I.IfTE ie stmts1 stmts2) =
 -- become @if prop then ('returnP' ()) else raise 'IvoryError'@
 convertStmt (I.Assert ie) =
   do e <- convertExpr l1typeRep ie
-     return $ mkAssertP IvoryError (mkIsTrue e)
+     addTransition $ mkAssertP IvoryError (mkIsTrue e)
 
 -- Compiler-inserted assertions, which are the same as normal assertions
 convertStmt (I.CompilerAssert ie) =
   do e <- convertExpr l1typeRep ie
-     return $ mkAssertP IvoryError (mkIsTrue e)
+     addTransition $ mkAssertP IvoryError (mkIsTrue e)
 
 -- Return statements --> write the returned value to the returnValue
 -- global variable and then raise an 'IvoryReturn' exception
@@ -694,10 +742,10 @@ convertStmt (I.Return typed_ie) =
     SomeL1Type l1tp ->
       do e <- convertExpr l1tp (I.tValue typed_ie)
          updateArray l1tp returnValuePtr (mkLiteral 0) e
-         return $ mkRaiseP IvoryReturn
+         addTransition $ mkRaiseP IvoryReturn
 
 -- Return statements with no return value --> just raise 'IvoryReturn'
-convertStmt I.ReturnVoid = return $ mkRaiseP IvoryReturn
+convertStmt I.ReturnVoid = addTransition $ mkRaiseP IvoryReturn
 
 -- Dereference statements --> read a pointer and bind the result to a variable
 convertStmt (I.Deref itp var ie) =
@@ -706,7 +754,6 @@ convertStmt (I.Deref itp var ie) =
       do ptr_expr <- convertExpr L1Type_ptr ie
          res_expr <- readArray l1tp ptr_expr (mkLiteral 0)
          letBindVar var l1tp res_expr
-         return $ mkReturnP $ mkLiteral ()
 
 -- Assignment statements
 convertStmt (I.Store itp ilhs irhs) =
@@ -715,7 +762,6 @@ convertStmt (I.Store itp ilhs irhs) =
       do ptr <- convertExpr L1Type_ptr ilhs
          val <- convertExpr l1tp irhs
          updateArray l1tp ptr (mkLiteral 0) val
-         return $ mkReturnP $ mkLiteral ()
 
 -- Function calls: not handled yet!
 convertStmt (I.Call _ _ _ _) =
@@ -734,7 +780,6 @@ convertStmt (I.Local itp var init) =
          SomeILExpr L1Type_prop e ->
            error "convertStmt: local variable of Prop type!"
      letBindVar var L1Type_ptr ptr
-     return $ mkReturnP $ mkLiteral ()
 
 -- Reference copy: not handled yet!
 convertStmt (I.RefCopy itp ilhs irhs) =
@@ -749,7 +794,6 @@ convertStmt (I.AllocRef itp var nm) =
          I.NameVar var' -> getVarExpr l1typeRep var'
          I.NameSym sym -> convertSymbol sym
      letBindVar var l1typeRep ptr
-     return $ mkReturnP $ mkLiteral ()
 
 -- Loops --> not handled yet
 convertStmt (I.Loop max_iters var start incr body) =
@@ -760,7 +804,40 @@ convertStmt (I.Forever body) =
   error "convertStmt: loops not yet handled!" -- FIXME HERE
 
 -- Break --> raise an IvoryBreak exception
-convertStmt I.Break = return $ mkRaiseP IvoryBreak
+convertStmt I.Break = addTransition $ mkRaiseP IvoryBreak
 
 -- Comment --> no-op
-convertStmt (I.Comment _) = return $ mkReturnP $ mkLiteral ()
+convertStmt (I.Comment _) = return ()
+
+
+----------------------------------------------------------------------
+-- Converting Ivory procedures into Ivory reachability logic
+----------------------------------------------------------------------
+
+-- | Convert an Ivory procedure into a transition relation for an arbitrary call
+-- to that procedure. This binds all the local variables to fresh existential
+-- variables, assumes the "require" propositions, and asserts all the "ensures"
+-- after the body has executed.
+convertProc :: I.Proc -> I2LM ILPM
+convertProc p =
+  resetPureM $
+  do
+    -- Existentially bind the argument variables
+    mapM_ exBindTypedVar (I.procArgs p)
+    -- Assume all the Requires
+    mapM_ (addTransition . mkAssumeP <=< convertRequire) (I.procRequires p)
+    -- Transition according to the body of the procedure
+    mapM_ convertStmt (I.procBody p)
+    -- Bind the return value by reading returnValuePtr
+    case convertType (I.procRetTy p) of
+      SomeL1Type (L1Type_lit LitType_unit) ->
+        -- No return value, so don't bind retval
+        return ()
+      SomeL1Type l1tp ->
+        -- Bind the Ivory variable I.retval to the dereference of returnValuePtr
+        do ret <- readArray l1tp returnValuePtr (mkLiteral 0)
+           letBindVar I.retval l1tp ret
+    -- Assert all the Ensures
+    mapM_ (addTransition . mkAssertP IvoryError <=< convertEnsure) $
+      I.procEnsures p
+    returnUnitTrans
