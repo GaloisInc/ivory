@@ -165,9 +165,9 @@ addBindTransition pm = shiftPureM $ \k -> mkBindP pm k
 -- | The number of reserved / "special" global variable numbers
 numReservedSyms = 1
 
--- | A pointer expression used to store return values
-returnValuePtr :: ILExpr Ptr
-returnValuePtr = mkOp (Op_global_var 1)
+-- | A pointer expression used to store function arguments and return values
+funArgsPtr :: ILExpr Ptr
+funArgsPtr = mkOp (Op_global_var 1)
 
 -- | Helper function to return the unit transition
 returnUnitTrans :: I2LM ILPM
@@ -748,7 +748,7 @@ convertStmt (I.Return typed_ie) =
   case convertType (I.tType typed_ie) of
     SomeL1Type l1tp ->
       do e <- convertExpr l1tp (I.tValue typed_ie)
-         updateArray l1tp returnValuePtr (mkLiteral 0) e
+         updateArray l1tp funArgsPtr (mkLiteral 0) e
          addTransition $ mkRaiseP IvoryReturn
 
 -- Return statements with no return value --> just raise 'IvoryReturn'
@@ -822,27 +822,35 @@ convertStmt (I.Comment _) = return ()
 ----------------------------------------------------------------------
 
 -- | Convert an Ivory procedure into a transition relation for an arbitrary call
--- to that procedure. This binds all the local variables to fresh existential
--- variables, assumes the "require" propositions, and asserts all the "ensures"
--- after the body has executed.
+-- to that procedure. This reads all the arguments from funArgsPtr (the global
+-- variable with index 1), assumes the "require" propositions, and asserts all
+-- the "ensures" after the body has executed.
 convertProc :: I.Proc -> I2LM ILPM
 convertProc p =
   resetPureM $
   do
-    -- Existentially bind the argument variables
-    mapM_ exBindTypedVar (I.procArgs p)
+    -- Assume that the length of funArgsPtr is as big as needed
+    args_len <- addBindTransition $ mkOp (Op_readP ReadOp_length) funArgsPtr
+    addTransition $ mkAssumeP $ mkIsTrue $
+      mkLtBool (mkLiteral64 $ length $ I.procArgs p) args_len
+    -- Read each variable from funArgsPtr
+    forM_ (zip (I.procArgs p) [0 ..]) $ \(tv, ix) ->
+      case convertType (I.tType tv) of
+        SomeL1Type l1tp ->
+          do arg_val <- readArray l1tp funArgsPtr (mkLiteral ix)
+             letBindVar (I.tValue tv) l1tp arg_val
     -- Assume all the Requires
     mapM_ (addTransition . mkAssumeP <=< convertRequire) (I.procRequires p)
     -- Transition according to the body of the procedure
     mapM_ convertStmt (I.procBody p)
-    -- Bind the return value by reading returnValuePtr
+    -- Bind the return value by reading funArgsPtr
     case convertType (I.procRetTy p) of
       SomeL1Type (L1Type_lit LitType_unit) ->
         -- No return value, so don't bind retval
         return ()
       SomeL1Type l1tp ->
-        -- Bind the Ivory variable I.retval to the dereference of returnValuePtr
-        do ret <- readArray l1tp returnValuePtr (mkLiteral 0)
+        -- Bind the Ivory variable I.retval to the dereference of funArgsPtr
+        do ret <- readArray l1tp funArgsPtr (mkLiteral 0)
            letBindVar I.retval l1tp ret
     -- Assert all the Ensures
     mapM_ (addTransition . mkAssertP IvoryError <=< convertEnsure) $

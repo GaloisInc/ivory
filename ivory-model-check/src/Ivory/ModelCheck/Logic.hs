@@ -1160,6 +1160,11 @@ mkCoerce lit_tp_from lit_tp_to expr
 mkCoerce lit_tp_from lit_tp_to expr =
   mkOp (Op_coerce lit_tp_from lit_tp_to) expr
 
+-- | Make a Boolean less-than expression
+mkLtBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
+            LExpr tag (Literal Bool)
+mkLtBool e1 e2 = mkOp (Op_cmp litTypeRep OpCmp_LT) e1 e2
+
 -- | Negate a Boolean
 mkNotBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool)
 mkNotBool = mkOp (Op_arith1 LitType_bool Op1_Neg)
