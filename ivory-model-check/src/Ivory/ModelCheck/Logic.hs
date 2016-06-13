@@ -2504,8 +2504,8 @@ reachable solver expr = reachablePM solver (lexpr_to_logicPM expr)
 
 -- | Test reachability of a given exception state
 exn_reachable :: (SMTSolver solver, LExprTag tag) =>
-                   solver -> LException tag -> Closed (LPM tag) ->
-                   IO (SMTResult (Memory (LStorables tag)))
+                 solver -> LException tag -> Closed (LPM tag) ->
+                 IO (SMTResult (Memory (LStorables tag)))
 exn_reachable solver exn cl_expr =
   reachablePM solver $ lexpr_to_logicPM $
   $(mkClosed
