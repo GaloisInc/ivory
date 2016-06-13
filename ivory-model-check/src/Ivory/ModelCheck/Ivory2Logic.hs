@@ -38,6 +38,9 @@ data ILOpts =
     debugLevel :: Int,
     -- ^ Debugging level: 0 = no debugging; 1 = print queries and results; 2 =
     -- print everything
+    skipCompilerAsserts :: Bool,
+    -- ^ Whether to skip (i.e., not generate asserts for) the compiler-inserted
+    -- assertions
     unrollLoops :: Bool,
     -- ^ Whether to unroll loops in the SMT checker
     inlineCalls :: Bool
@@ -45,8 +48,8 @@ data ILOpts =
   }
 
 -- | Default options for the Ivory reachability solver
-defaultOpts = ILOpts { debugLevel = 0, unrollLoops = False,
-                       inlineCalls = False }
+defaultOpts = ILOpts { debugLevel = 0, skipCompilerAsserts = False,
+                       unrollLoops = False, inlineCalls = False }
 
 
 ----------------------------------------------------------------------
@@ -732,8 +735,12 @@ convertStmt (I.Assert ie) =
 
 -- Compiler-inserted assertions, which are the same as normal assertions
 convertStmt (I.CompilerAssert ie) =
-  do e <- convertExpr l1typeRep ie
-     addTransition $ mkAssertP IvoryError (mkIsTrue e)
+  get >>= \info ->
+  if skipCompilerAsserts (i2l_opts info) then
+     return ()
+  else
+    do e <- convertExpr l1typeRep ie
+       addTransition $ mkAssertP IvoryError (mkIsTrue e)
 
 -- Return statements --> write the returned value to the returnValue
 -- global variable and then raise an 'IvoryReturn' exception
