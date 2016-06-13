@@ -27,6 +27,28 @@ import qualified Ivory.Language.Syntax.AST as I
 
 
 ----------------------------------------------------------------------
+-- Top-level options for converting Ivory to logic
+----------------------------------------------------------------------
+
+-- | The options that can be passed to the Ivory reachability solver
+data ILOpts =
+  ILOpts
+  {
+    debugLevel :: Int,
+    -- ^ Debugging level: 0 = no debugging; 1 = print queries and results; 2 =
+    -- print everything
+    unrollLoops :: Bool,
+    -- ^ Whether to unroll loops in the SMT checker
+    inlineCalls :: Bool
+    -- ^ Whether to inline function calls
+  }
+
+-- | Default options for the Ivory reachability solver
+defaultOpts = ILOpts { debugLevel = 0, unrollLoops = False,
+                       inlineCalls = False }
+
+
+----------------------------------------------------------------------
 -- The Ivory version of the reachability logic
 ----------------------------------------------------------------------
 
@@ -83,6 +105,8 @@ data SomeILName where SomeILName :: L1Type a -> Name a -> SomeILName
 data I2LInfo =
   I2LInfo
   {
+    i2l_opts :: ILOpts,
+    -- ^ The configuration options passed in for converting to logic
     i2l_modules :: [I.Module],
     -- ^ The Ivory modules that are in scope
     i2l_vars :: Map.Map I.Var SomeILName,
@@ -146,9 +170,10 @@ returnValuePtr = mkOp (Op_global_var 1)
 
 -- An I2LM computation can be "run" by giving it Ivory modules and a
 -- default continuation (which is normally just "return")
-instance RunM I2LM a ([I.Module] -> (a -> ILPM) -> ILPM) where
-  runM (I2LM m) mods k =
-    runM m (I2LInfo { i2l_modules = mods,
+instance RunM I2LM a (ILOpts -> [I.Module] -> (a -> ILPM) -> ILPM) where
+  runM (I2LM m) opts mods k =
+    runM m (I2LInfo { i2l_opts = opts,
+                      i2l_modules = mods,
                       i2l_vars = Map.empty,
                       i2l_syms = Map.empty,
                       i2l_next_sym_int = numReservedSyms + 1 })
