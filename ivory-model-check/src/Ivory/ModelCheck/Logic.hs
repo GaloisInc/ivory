@@ -256,6 +256,13 @@ instance LitDefault Bool where litDefault = True
 instance LitDefault Integer where litDefault = 0
 instance LitDefault Word64 where litDefault = 0
 
+-- | Build a default element of a literal type, given explicitly
+litDefaultTp :: LitType a -> a
+litDefaultTp LitType_unit = litDefault
+litDefaultTp LitType_bool = litDefault
+litDefaultTp LitType_int = litDefault
+litDefaultTp LitType_bits = 0
+
 -- Build a NuMatching instance for LitType, needed for Liftable
 $(mkNuMatching [t| forall a. LitType a |])
 
@@ -1063,6 +1070,10 @@ mkLiteralTp lit_tp a =
 mkLiteral :: LitTypeable a => a -> LExpr tag (Literal a)
 mkLiteral a = mkLiteralTp litTypeRep a
 
+-- | Helper function for building literal 'Word64' expressions from any integral
+mkLiteral64 :: Integral a => a -> LExpr tag (Literal Word64)
+mkLiteral64 i = mkLiteral $ fromInteger $ toInteger i
+
 -- | Helper function for building lambda-abstractions
 mkLambda :: LTypeable a =>
             (ApplyToArgs (LExpr tag) a -> LExpr tag b) -> LExpr tag (a -> b)
@@ -1134,6 +1145,14 @@ instance (LitTypeable a, Num a) => Num (LExpr tag (Literal a)) where
   abs = mkOp (Op_arith1 litTypeRep Op1_Abs)
   signum = mkOp (Op_arith1 litTypeRep Op1_Signum)
   fromInteger i = mkLiteral (fromInteger i)
+
+-- | Smart constructor for building coercions
+mkCoerce :: LitType a -> LitType b -> LExpr tag (Literal a) ->
+            LExpr tag (Literal b)
+mkCoerce lit_tp_from lit_tp_to expr
+  | Just Refl <- litTypeEq lit_tp_from lit_tp_to = expr
+mkCoerce lit_tp_from lit_tp_to expr =
+  mkOp (Op_coerce lit_tp_from lit_tp_to) expr
 
 -- | Negate a Boolean
 mkNotBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool)
