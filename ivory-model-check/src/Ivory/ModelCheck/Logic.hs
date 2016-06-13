@@ -544,6 +544,12 @@ closeL1FunType (L1FunType_cons l1tp ftp) =
   $(mkClosed [| L1FunType_cons |]) `clApply` (closeL1Type l1tp)
   `clApply` (closeL1FunType ftp)
 
+-- | "Proof" that every context of 'L1FunType's is closed
+closeL1FunTypes :: MapRList L1FunType ctx -> Closed (MapRList L1FunType ctx)
+closeL1FunTypes MNil = $(mkClosed [| MNil |])
+closeL1FunTypes (tps :>: tp) =
+  $(mkClosed [| (:>:) |]) `clApply` closeL1FunTypes tps `clApply` closeL1FunType tp
+
 -- | Convert an 'L1FunType' to an 'LType'
 funType_to_type :: L1FunType a -> LType a
 funType_to_type (L1FunType_base l1tp) = LType_base l1tp
@@ -2217,6 +2223,11 @@ mkL1FunInterpPM (L1FunType_cons l1tp ftp) f =
 mkOpInterpPM :: L1FunType a -> Op tag a -> InterpPM tag a
 mkOpInterpPM ftp op = mkL1FunInterpPM ftp (LOp op)
 
+-- | Build an 'InterpM' from a variable with a first-order function type
+mkVarInterpPM :: L1FunType a -> Name a -> InterpPM tag a
+mkVarInterpPM ftp n =
+  mkL1FunInterpPM ftp (LVar (mkLTypeArgs $ funType_to_type ftp) n)
+
 -- | Build an 'InterpM' from a unary, first-order 'Op'
 mkOp1InterpPM :: L1Type a -> L1Type b -> Op tag (a -> b) ->
                  InterpPM tag (a -> b)
@@ -2337,6 +2348,17 @@ lexpr_to_logicPM expr =
   $(mkClosed [| \clexpr -> unit_pm_of_interpPM $ interpExpr MNil clexpr |])
   `clApplyCl`
   (clApply $(mkClosed [| emptyMb |]) expr)
+
+-- | Top-level call to convert a predicate monad expression inside a binding to
+-- a 'LogicPM' inside a binding
+mb_lexpr_to_logicPM :: MapRList L1FunType ctx -> Closed (Mb ctx (LPM tag)) ->
+                       Closed (Mb ctx (LogicPM tag ()))
+mb_lexpr_to_logicPM tps cl_mb_expr =
+  $(mkClosed [| \tps clmb_expr ->
+               nuMulti tps $ \names ->
+               unit_pm_of_interpPM $
+               interpExpr (mapMapRList2 mkVarInterpPM tps names) clmb_expr |])
+  `clApply` closeL1FunTypes tps `clApplyCl` cl_mb_expr
 
 
 ----------------------------------------------------------------------
@@ -2482,6 +2504,21 @@ smtSolveWithNames solver ftps in_props [clNuP| WithName clmb_decl body |] =
   (clMbNameDeclProps clmb_decl ++ map clmbExprLower1 in_props)
   (clApply $(mkClosed [| mbCombine |]) body)
 
+-- | Solve the formulas returned by a 'LogicPM' computation inside a binding
+smtSolveLogicPM :: (SMTSolver solver, MemoryModel (LStorables tag)) =>
+                   solver -> MapRList L1FunType ctx ->
+                   Closed (Mb ctx (LogicPM tag ())) ->
+                   IO (SMTResult (MapRList MaybeSMTValue
+                                  (SymMemoryCtx (LStorables tag) :++: ctx)))
+smtSolveLogicPM solver tps (clmb_m :: Closed (Mb ctx (LogicPM tag ()))) =
+  smtSolveWithNames solver
+  (appendMapRList (symMemoryCtxTypes (Proxy :: Proxy tag)) tps) [] $
+  $(mkClosed
+    [| \mb_m ->
+      mbCombine $ nuMulti (symMemoryCtxTypes (Proxy :: Proxy tag)) $ \names ->
+      fmap (runLogicPM (symMemoryOfNames (Proxy :: Proxy tag) names)) mb_m |])
+  `clApply` clmb_m
+
 -- | Test if a non-exceptional output state is reachable via a 'LogicPM'
 -- computation, and, if so, return an input memory from which that output state
 -- is reachable
@@ -2490,11 +2527,8 @@ reachablePM :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
                IO (SMTResult (Memory (LStorables tag)))
 reachablePM solver (closed_m :: Closed (LogicPM tag ())) =
   liftM (fmap (memoryOfSMTValues memoryDefaults)) $
-  smtSolveWithNames solver (symMemoryCtxTypes (Proxy :: Proxy tag)) [] $
-  $(mkClosed
-    [| \m -> nuMulti (symMemoryCtxTypes (Proxy :: Proxy tag)) $ \names ->
-      runLogicPM (symMemoryOfNames (Proxy :: Proxy tag) names) m |])
-  `clApply` closed_m
+  smtSolveLogicPM solver MNil $
+  clApply $(mkClosed [| emptyMb |]) closed_m
 
 -- | Test reachability on a 'PM' expression, returning an example initial input
 -- memory from which a non-exceptional output state is reachable
@@ -2514,5 +2548,36 @@ exn_reachable solver exn cl_expr =
       (mkBindP expr (\_ -> mkFalseP))
       (mkReturnP $ mkLiteral ()) |])
   `clApply` toClosed exn `clApply` cl_expr
+
+-- | Test if a non-exceptional output state is reachable via a 'LogicPM'
+-- computation inside a binding, and, if so, return an input memory from which
+-- that output state is reachable and values for the bound variables
+mbReachablePM :: (SMTSolver solver, MemoryModel (LStorables tag)) =>
+                 solver -> MapRList L1FunType ctx ->
+                 Closed (Mb ctx (LogicPM tag ())) ->
+                 IO (SMTResult (MapRList MaybeSMTValue ctx,
+                                Memory (LStorables tag)))
+mbReachablePM solver tps mbcl_m =
+  liftM (fmap $ \vals ->
+          let (mem_vals, var_vals) = splitMapRList Proxy tps vals in
+          (var_vals, memoryOfSMTValues memoryDefaults mem_vals)) $
+  smtSolveLogicPM solver tps mbcl_m
+
+-- | Test reachability of a given exception state of a computation-in-binding
+mb_exn_reachable :: (SMTSolver solver, LExprTag tag) =>
+                    solver -> LException tag -> MapRList L1FunType ctx ->
+                    Closed (Mb ctx (LPM tag)) ->
+                    IO (SMTResult (MapRList MaybeSMTValue ctx,
+                                   Memory (LStorables tag)))
+mb_exn_reachable solver exn tps cl_mb_expr =
+  mbReachablePM solver tps $ mb_lexpr_to_logicPM tps $
+  $(mkClosed
+    [| \exn ->
+      fmap (\expr ->
+             mkCatchP exn
+             (mkBindP expr (\_ -> mkFalseP))
+             (mkReturnP $ mkLiteral ())) |])
+  `clApply` toClosed exn `clApply` cl_mb_expr
+
 
 -- FIXME HERE: also include an 'LProp' in the output
