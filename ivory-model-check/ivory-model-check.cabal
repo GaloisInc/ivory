@@ -24,7 +24,7 @@ library
                         monadLib,
                         ivory,
                         ivory-opts,
-                        hobbits >= 1.2.1,
+                        hobbits >= 1.2.3,
                         z3 >= 4.1
 
   hs-source-dirs:       src
