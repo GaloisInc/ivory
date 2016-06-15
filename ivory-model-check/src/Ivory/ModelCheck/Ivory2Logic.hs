@@ -91,6 +91,9 @@ instance LExprTag IvoryLogic where
   type LStorables IvoryLogic = '[ Word64 ]
   type LException IvoryLogic = IvoryExn
 
+-- | The type of a 'Memory' used by Ivory
+type IvoryMemory = Memory '[ Word64 ]
+
 
 ----------------------------------------------------------------------
 -- Monad for converting Ivory expressions into reachability logic
@@ -737,6 +740,11 @@ convertStmt (I.CompilerAssert ie) =
     do e <- convertExpr l1typeRep ie
        addTransition $ mkAssertP IvoryError (mkIsTrue e)
 
+-- Assumes --> assumptions in the Ivory reachability logic
+convertStmt (I.Assume ie) =
+  do e <- convertExpr l1typeRep ie
+     addTransition $ mkAssumeP (mkIsTrue e)
+
 -- Return statements --> write the returned value to the returnValue
 -- global variable and then raise an 'IvoryReturn' exception
 convertStmt (I.Return typed_ie) =
@@ -764,6 +772,13 @@ convertStmt (I.Store itp ilhs irhs) =
       do ptr <- convertExpr L1Type_ptr ilhs
          val <- convertExpr l1tp irhs
          updateArray l1tp ptr (mkLiteral 0) val
+
+-- Assignment statements
+convertStmt (I.Assign itp var irhs) =
+  case convertType itp of
+    SomeL1Type l1tp ->
+      do val <- convertExpr l1tp irhs
+         letBindVar var l1tp val
 
 -- Function calls: not handled yet!
 convertStmt (I.Call _ _ _ _) =
@@ -859,9 +874,8 @@ convertProc p =
 
 -- | Model-check an Ivory procedure, testing if an assertion failure can be
 -- reached from some input state
-modelCheckProc :: SMTSolver solver => solver ->
-                  ILOpts -> [I.Module] -> I.Proc ->
-                  IO (SMTResult (Memory '[ Word64 ]))
+modelCheckProc :: SMTSolver solver => solver -> ILOpts -> [I.Module] ->
+                  I.Proc -> IO (SMTResult IvoryMemory)
 modelCheckProc solver opts mods p =
   exn_reachable solver IvoryError $
   runM (convertProc p) opts mods id
