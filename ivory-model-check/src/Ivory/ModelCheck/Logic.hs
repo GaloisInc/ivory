@@ -51,15 +51,6 @@ groupAList = foldr insertHelper [] where
     if k == k' then ((k',v:vs):ksvs) else (k',vs):(insertHelper (k,v) ksvs)
   insertHelper (k,v) [] = [(k,[v])]
 
--- | FIXME: documentation, and put it in the right place
-doubleClose :: Closed a -> Closed (Closed a)
-doubleClose =
-  $([| \x -> $(mkClosed [| x |]) |])
-
--- | FIXME: documentation
-clApplyCl :: Closed (Closed a -> b) -> Closed a -> Closed b
-clApplyCl f a = clApply f (doubleClose a)
-
 -- | FIXME: documentation, move this
 clMbList :: NuMatching a => Closed (Mb ctx [a]) -> [Closed (Mb ctx a)]
 clMbList [clNuP| [] |] = []
@@ -79,55 +70,43 @@ clMbCombine = clApply $(mkClosed [| mbCombine |])
 data LiftableTp a where
   LiftableTp :: Liftable a => LiftableTp a
 
--- | FIXME HERE: this should not be possible!!
-closeBug :: a -> Closed a
-closeBug = $([| \x -> $(mkClosed [| x |]) |])
+$(mkNuMatching [t| Bool |])
 
--- | FIXME HERE: put this type class into HobbitLib!
-class Closable a where
-  toClosed :: a -> Closed a
-
--- FIXME HERE: figure out the best place for these instances and such
-instance NuMatching () where
-  nuMatchingProof = error "nuMatching proof for ()"
-instance Liftable () where
-  mbLift _ = ()
-
-instance NuMatching Bool where
-  nuMatchingProof = error "nuMatching proof for Bool"
 instance Liftable Bool where
-  mbLift mb_i = toEnum $ mbLift $ fmap fromEnum mb_i
+  mbLift [nuP| True |] = True
+  mbLift [nuP| False |] = False
+
 instance NuMatching Word8 where
-  nuMatchingProof = error "nuMatching proof for Word8"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Word8 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 instance NuMatching Word16 where
-  nuMatchingProof = error "nuMatching proof for Word16"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Word16 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 instance NuMatching Word32 where
-  nuMatchingProof = error "nuMatching proof for Word32"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Word32 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 instance NuMatching Word64 where
-  nuMatchingProof = error "nuMatching proof for Word64"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Word64 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 
 instance NuMatching Int8 where
-  nuMatchingProof = error "nuMatching proof for Int8"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Int8 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 instance NuMatching Int16 where
-  nuMatchingProof = error "nuMatching proof for Int16"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Int16 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 instance NuMatching Int32 where
-  nuMatchingProof = error "nuMatching proof for Int32"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Int32 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 instance NuMatching Int64 where
-  nuMatchingProof = error "nuMatching proof for Int64"
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Int64 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 
@@ -280,13 +259,6 @@ litTypeLiftable LitType_bool = LiftableTp
 litTypeLiftable LitType_int = LiftableTp
 litTypeLiftable LitType_bits = LiftableTp
 
--- | "Proof" that every 'LitType' is closed, i.e., has no free names
-closeLitType :: LitType a -> Closed (LitType a)
-closeLitType LitType_unit = $(mkClosed [| LitType_unit |])
-closeLitType LitType_bool = $(mkClosed [| LitType_bool |])
-closeLitType LitType_int = $(mkClosed [| LitType_int |])
-closeLitType LitType_bits = $(mkClosed [| LitType_bits |])
-
 -- | Test if two 'LitType's are equal
 litTypeEq :: LitType a -> LitType b -> Maybe (a :~: b)
 litTypeEq LitType_unit LitType_unit = Just Refl
@@ -332,13 +304,6 @@ instance Liftable (L1Type a) where
   mbLift [nuP| L1Type_lit ltp |] = L1Type_lit $ mbLift ltp
   mbLift [nuP| L1Type_ptr |] = L1Type_ptr
   mbLift [nuP| L1Type_prop |] = L1Type_prop
-
--- | "Proof" that every 'L1Type' is closed, i.e., has no free names
-closeL1Type :: L1Type a -> Closed (L1Type a)
-closeL1Type (L1Type_lit lit_tp) =
-  $(mkClosed [| L1Type_lit |]) `clApply` (closeLitType lit_tp)
-closeL1Type L1Type_ptr = $(mkClosed [| L1Type_ptr |])
-closeL1Type L1Type_prop = $(mkClosed [| L1Type_prop |])
 
 -- | Test if two 'L1Type's are equal
 l1TypeEq :: L1Type a -> L1Type b -> Maybe (a :~: b)
@@ -535,20 +500,6 @@ $(mkNuMatching [t| forall a. L1FunType a |])
 instance Liftable (L1FunType a) where
   mbLift [nuP| L1FunType_base ltp |] = L1FunType_base $ mbLift ltp
   mbLift [nuP| L1FunType_cons ltp t |] = L1FunType_cons (mbLift ltp) (mbLift t)
-
--- | "Proof" that every 'L1FunType' is closed, i.e., has no free names
-closeL1FunType :: L1FunType a -> Closed (L1FunType a)
-closeL1FunType (L1FunType_base l1tp) =
-  $(mkClosed [| L1FunType_base |]) `clApply` (closeL1Type l1tp)
-closeL1FunType (L1FunType_cons l1tp ftp) =
-  $(mkClosed [| L1FunType_cons |]) `clApply` (closeL1Type l1tp)
-  `clApply` (closeL1FunType ftp)
-
--- | "Proof" that every context of 'L1FunType's is closed
-closeL1FunTypes :: MapRList L1FunType ctx -> Closed (MapRList L1FunType ctx)
-closeL1FunTypes MNil = $(mkClosed [| MNil |])
-closeL1FunTypes (tps :>: tp) =
-  $(mkClosed [| (:>:) |]) `clApply` closeL1FunTypes tps `clApply` closeL1FunType tp
 
 -- | Convert an 'L1FunType' to an 'LType'
 funType_to_type :: L1FunType a -> LType a
@@ -752,7 +703,7 @@ updateMemory UpdateOp_alloc mem
 
 -- | Type class associating meta-data with @tag@ that is needed by our logic
 class (MemoryModel (LStorables tag), Eq (LException tag),
-       Liftable (LException tag), Closable (LException tag)) =>
+       Liftable (LException tag)) =>
       LExprTag tag where
   type LStorables tag :: [*]
   type LException tag :: *
@@ -1336,27 +1287,26 @@ class CommutesWithArrow f => LExprAlgebra tag (f :: * -> *) where
 
 -- | Interpret an 'LExpr' to another functor @f@ using an @f@-algebra
 interpExpr :: LExprAlgebra tag f =>
-              MapRList f ctx -> Closed (Mb ctx (LExpr tag a)) -> f a
-interpExpr ctx [clNuP| LLambda _ body |] =
+              MapRList f ctx -> Mb ctx (LExpr tag a) -> f a
+interpExpr ctx [nuP| LLambda _ body |] =
   interpLambda $ \x ->
-  interpExpr (ctx :>: x) (clApply $(mkClosed [| mbCombine |]) body)
-interpExpr ctx [clNuP| LVar tp_args n args |] =
-  case clApply $(mkClosed [| mbNameBoundP |]) n of
-    [clP| Left memb |] ->
-      interpExprsApply ctx (hlistLookup (unClosed memb) ctx)
-      (mbLift $ unClosed tp_args) args
-    [clP| Right closed_n |] -> noClosedNames closed_n
-interpExpr ctx [clNuP| LOp mbcl_op args |] =
-  let op = mbLift $ unClosed mbcl_op in
+  interpExpr (ctx :>: x) (mbCombine body)
+interpExpr ctx [nuP| LVar tp_args n args |] =
+  case mbNameBoundP n of
+    Left memb ->
+      interpExprsApply ctx (mapRListLookup memb ctx) (mbLift tp_args) args
+    Right n -> error "interpExpr: unbound name!"
+interpExpr ctx [nuP| LOp mb_op args |] =
+  let op = mbLift mb_op in
   interpExprsApply ctx (interpOp op) (opTypeArgs op) args
 
 -- | Helper for 'interpExpr'
 interpExprsApply :: LExprAlgebra tag f => MapRList f ctx ->
                     f a -> LTypeArgs a args ret ->
-                    Closed (Mb ctx (LExprs tag args)) -> f ret
+                    Mb ctx (LExprs tag args) -> f ret
 interpExprsApply ctx f (LTypeArgs_base l1tp) _ = f
 interpExprsApply ctx f (LTypeArgs_pm l1tp) _ = f
-interpExprsApply ctx f (LTypeArgs_fun tp tp_args) [clNuP| LExprs_cons e es |] =
+interpExprsApply ctx f (LTypeArgs_fun tp tp_args) [nuP| LExprs_cons e es |] =
   interpExprsApply ctx (interpApply f (interpExpr ctx e)) tp_args es
 
 ----------------------------------------------------------------------
@@ -1404,36 +1354,34 @@ class LBindingExprAlgebra tag (f :: RList * -> * -> *) where
 
 -- | Interpret an expression using a binding-algebra
 interpMbExprB :: LBindingExprAlgebra tag f => Proxy f ->
-                 Closed (Mb ctx (LExpr tag a)) -> BindingApplyF f ctx a
-interpMbExprB proxy [clNuP| LLambda _ body |] =
-  interpMbExprB proxy $ clApply $(mkClosed [| mbCombine |]) body
-interpMbExprB proxy [clNuP| LOp cl_mb_op args |] =
-  let op = mbLift $ unClosed cl_mb_op in
+                 Mb ctx (LExpr tag a) -> BindingApplyF f ctx a
+interpMbExprB proxy [nuP| LLambda _ body |] =
+  interpMbExprB proxy $ mbCombine body
+interpMbExprB proxy [nuP| LOp mb_op args |] =
+  let op = mbLift mb_op in
   mkRetBindingApplyF (opTypeArgs op) $
   interpOpB op $ interpMbExprsB proxy args
-interpMbExprB proxy ([clNuP| LVar cl_mb_tp_args n args |]
-                     :: Closed (Mb _ (LExpr tag _))) =
-  let tp_args = mbLift $ unClosed cl_mb_tp_args in
-  case clApply $(mkClosed [| mbNameBoundP |]) n of
-    [clP| Left memb |] ->
+interpMbExprB proxy ([nuP| LVar mb_tp_args n args |] :: Mb _ (LExpr tag _)) =
+  let tp_args = mbLift mb_tp_args in
+  case mbNameBoundP n of
+    Left memb ->
       mkRetBindingApplyF tp_args $
-      interpVarB (Proxy :: Proxy tag) tp_args (unClosed memb) $
+      interpVarB (Proxy :: Proxy tag) tp_args memb $
       interpMbExprsB proxy args
-    [clP| Right closed_n |] -> noClosedNames closed_n
+    Right n -> error "interpMbExprB: unbound name!"
 
 -- | Interpret a list of 'LExprs' using a binding-algebra
 interpMbExprsB :: LBindingExprAlgebra tag f =>
-                  Proxy f -> Closed (Mb ctx (LExprs tag args)) ->
+                  Proxy f -> Mb ctx (LExprs tag args) ->
                   MapList (BindingApply f ctx) args
-interpMbExprsB proxy [clNuP| LExprs_nil |] = Nil
-interpMbExprsB proxy [clNuP| LExprs_cons e es |] =
+interpMbExprsB proxy [nuP| LExprs_nil |] = Nil
+interpMbExprsB proxy [nuP| LExprs_cons e es |] =
   Cons (BindingApply $ interpMbExprB proxy e) (interpMbExprsB proxy es)
 
 -- | Top-level function for interpreting expressions via binding-algebras
 interpExprB :: LBindingExprAlgebra tag f => Proxy f ->
-               Closed (LExpr tag a) -> BindingApplyF f RNil a
-interpExprB proxy e =
-  interpMbExprB proxy $ clApply $(mkClosed [| emptyMb |]) e
+               LExpr tag a -> BindingApplyF f RNil a
+interpExprB proxy e = interpMbExprB proxy $ emptyMb e
 
 
 ----------------------------------------------------------------------
@@ -1499,8 +1447,8 @@ instance LBindingExprAlgebra tag f =>
 
 -- | Top-level annotation function
 annotateExpr :: (LBindingExprAlgebra tag f, LTypeable a) => Proxy f ->
-                Closed (LExpr tag a) -> MbAnnotExpr f tag RNil a
-annotateExpr (proxy :: Proxy f) (expr :: Closed (LExpr tag a)) =
+                LExpr tag a -> MbAnnotExpr f tag RNil a
+annotateExpr (proxy :: Proxy f) (expr :: LExpr tag a) =
   mkBindingMbAnnotExpr ltypeRep $
   interpExprB (Proxy :: Proxy (MbAnnotExpr f tag)) expr
 
@@ -1894,12 +1842,10 @@ nameDeclProps (NameDecl_exists tp) _ = []
 nameDeclProps (NameDecl_let l1tp rhs :: NameDecl tag a) n =
   [mkEq1Tp l1tp (mkVarExprTp (LType_base l1tp) n) rhs]
 
--- | Apply 'nameDeclProps' to a 'Closed' 'NameDecl' in a name-binding
-clMbNameDeclProps :: Closed (Mb ctx (NameDecl tag a)) ->
-                     [Closed (Mb (ctx :> a) (LProp tag))]
-clMbNameDeclProps clmb_decl =
-  clMbList $ clMbCombine $
-  cl_fmap $(mkClosed [|\decl -> nu $ nameDeclProps decl |]) clmb_decl
+-- | Apply 'nameDeclProps' to a 'NameDecl' in a name-binding
+mbNameDeclProps :: Mb ctx (NameDecl tag a) -> [Mb (ctx :> a) (LProp tag)]
+mbNameDeclProps mb_decl =
+  mbList $ mbCombine $ fmap (nu . nameDeclProps) mb_decl
 
 -- | Extract the 'L1FunType' associated with a 'NameDecl'
 mbNameDeclFunType :: Mb ctx (NameDecl tag a) -> L1FunType a
@@ -2348,22 +2294,17 @@ instance LExprAlgebra tag (InterpPM tag) where
     orPM (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
 
 -- | Top-level call to convert a predicate monad expression to a 'LogicPM'
-lexpr_to_logicPM :: Closed (LPM tag) -> Closed (LogicPM tag ())
-lexpr_to_logicPM expr =
-  $(mkClosed [| \clexpr -> unit_pm_of_interpPM $ interpExpr MNil clexpr |])
-  `clApplyCl`
-  (clApply $(mkClosed [| emptyMb |]) expr)
+lexpr_to_logicPM :: LPM tag -> LogicPM tag ()
+lexpr_to_logicPM expr = unit_pm_of_interpPM $ interpExpr MNil (emptyMb expr)
 
 -- | Top-level call to convert a predicate monad expression inside a binding to
 -- a 'LogicPM' inside a binding
-mb_lexpr_to_logicPM :: MapRList L1FunType ctx -> Closed (Mb ctx (LPM tag)) ->
-                       Closed (Mb ctx (LogicPM tag ()))
-mb_lexpr_to_logicPM tps cl_mb_expr =
-  $(mkClosed [| \tps clmb_expr ->
-               nuMulti tps $ \names ->
-               unit_pm_of_interpPM $
-               interpExpr (mapMapRList2 mkVarInterpPM tps names) clmb_expr |])
-  `clApply` closeL1FunTypes tps `clApplyCl` cl_mb_expr
+mb_lexpr_to_logicPM :: MapRList L1FunType ctx -> Mb ctx (LPM tag) ->
+                       Mb ctx (LogicPM tag ())
+mb_lexpr_to_logicPM tps mb_expr =
+  nuMulti tps $ \names ->
+  unit_pm_of_interpPM $
+  interpExpr (mapMapRList2 mkVarInterpPM tps names) mb_expr
 
 
 ----------------------------------------------------------------------
@@ -2424,7 +2365,7 @@ class SMTSolver solver where
   -- variables must have first-order function type. If the formulas are
   -- satisfiable, the result is a model of 'SMTValue's of these free variables.
   smtSolve :: solver -> MapRList L1FunType ctx ->
-              [Closed (Mb ctx (LProp tag))] ->
+              [Mb ctx (LProp tag)] ->
               IO (SMTResult (MapRList MaybeSMTValue ctx))
 
 -- | FIXME: documentation
@@ -2490,99 +2431,85 @@ runLogicPM mem m =
        Nothing -> return [mkFalse]
 
 -- | FIXME: documentation, move this
-clmbExprLower1 :: Closed (Mb ctx (LExpr tag b)) ->
-                  Closed (Mb (ctx :> a) (LExpr tag b))
-clmbExprLower1 clmb_expr =
-  clMbCombine $ cl_fmap $(mkClosed [| \e -> nu $ \_ -> e |]) clmb_expr
+mbExprLower1 :: Mb ctx (LExpr tag b) -> Mb (ctx :> a) (LExpr tag b)
+mbExprLower1 mb_expr = mbCombine $ fmap (\e -> nu $ \_ -> e) mb_expr
 
 -- | Solve a set of formulas inside a 'WithNames'
 smtSolveWithNames :: SMTSolver solver => solver ->
                      MapRList L1FunType ctx ->
-                     [Closed (Mb ctx (LProp tag))] ->
-                     Closed (Mb ctx (WithNames tag [LProp tag])) ->
+                     [Mb ctx (LProp tag)] ->
+                     Mb ctx (WithNames tag [LProp tag]) ->
                      IO (SMTResult (MapRList MaybeSMTValue ctx))
-smtSolveWithNames solver ftps in_props [clNuP| WithNoNames props |] =
-  smtSolve solver ftps (in_props ++ clMbList props)
-smtSolveWithNames solver ftps in_props [clNuP| WithName clmb_decl body |] =
+smtSolveWithNames solver ftps in_props [nuP| WithNoNames props |] =
+  smtSolve solver ftps (in_props ++ mbList props)
+smtSolveWithNames solver ftps in_props [nuP| WithName mb_decl body |] =
   liftM (fmap (\(ctx :>: _) -> ctx)) $
-  smtSolveWithNames solver (ftps :>: mbNameDeclFunType (unClosed clmb_decl))
-  (clMbNameDeclProps clmb_decl ++ map clmbExprLower1 in_props)
-  (clApply $(mkClosed [| mbCombine |]) body)
+  smtSolveWithNames solver (ftps :>: mbNameDeclFunType mb_decl)
+  (mbNameDeclProps mb_decl ++ map mbExprLower1 in_props)
+  (mbCombine body)
 
 -- | Solve the formulas returned by a 'LogicPM' computation inside a binding
 smtSolveLogicPM :: (SMTSolver solver, MemoryModel (LStorables tag)) =>
                    solver -> MapRList L1FunType ctx ->
-                   Closed (Mb ctx (LogicPM tag ())) ->
+                   Mb ctx (LogicPM tag ()) ->
                    IO (SMTResult (MapRList MaybeSMTValue
                                   (SymMemoryCtx (LStorables tag) :++: ctx)))
-smtSolveLogicPM solver tps (clmb_m :: Closed (Mb ctx (LogicPM tag ()))) =
+smtSolveLogicPM solver tps (mb_m :: Mb ctx (LogicPM tag ())) =
   smtSolveWithNames solver
   (appendMapRList (symMemoryCtxTypes (Proxy :: Proxy tag)) tps) [] $
-  $(mkClosed
-    [| \mb_m ->
-      mbCombine $ nuMulti (symMemoryCtxTypes (Proxy :: Proxy tag)) $ \names ->
-      fmap (runLogicPM (symMemoryOfNames (Proxy :: Proxy tag) names)) mb_m |])
-  `clApply` clmb_m
+  mbCombine $ nuMulti (symMemoryCtxTypes (Proxy :: Proxy tag)) $ \names ->
+  fmap (runLogicPM (symMemoryOfNames (Proxy :: Proxy tag) names)) mb_m
 
 -- | Test if a non-exceptional output state is reachable via a 'LogicPM'
 -- computation, and, if so, return an input memory from which that output state
 -- is reachable
 reachablePM :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
-               Closed (LogicPM tag ()) ->
+               LogicPM tag () ->
                IO (SMTResult (Memory (LStorables tag)))
-reachablePM solver (closed_m :: Closed (LogicPM tag ())) =
+reachablePM solver (m :: LogicPM tag ()) =
   liftM (fmap (memoryOfSMTValues memoryDefaults)) $
-  smtSolveLogicPM solver MNil $
-  clApply $(mkClosed [| emptyMb |]) closed_m
+  smtSolveLogicPM solver MNil $ emptyMb m
 
 -- | Test reachability on a 'PM' expression, returning an example initial input
 -- memory from which a non-exceptional output state is reachable
 reachable :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
-             Closed (LPM tag) -> IO (SMTResult (Memory (LStorables tag)))
+             LPM tag -> IO (SMTResult (Memory (LStorables tag)))
 reachable solver expr = reachablePM solver (lexpr_to_logicPM expr)
 
 -- | Test reachability of a given exception state
 exn_reachable :: (SMTSolver solver, LExprTag tag) =>
-                 solver -> LException tag -> Closed (LPM tag) ->
+                 solver -> LException tag -> LPM tag ->
                  IO (SMTResult (Memory (LStorables tag)))
-exn_reachable solver exn cl_expr =
+exn_reachable solver exn expr =
   reachablePM solver $ lexpr_to_logicPM $
-  $(mkClosed
-    [| \exn expr ->
-      mkCatchP exn
-      (mkBindP expr (\_ -> mkFalseP))
-      (mkReturnP $ mkLiteral ()) |])
-  `clApply` toClosed exn `clApply` cl_expr
+  mkCatchP exn (mkBindP expr (\_ -> mkFalseP)) (mkReturnP $ mkLiteral ())
 
 -- | Test if a non-exceptional output state is reachable via a 'LogicPM'
 -- computation inside a binding, and, if so, return an input memory from which
 -- that output state is reachable and values for the bound variables
 mbReachablePM :: (SMTSolver solver, MemoryModel (LStorables tag)) =>
                  solver -> MapRList L1FunType ctx ->
-                 Closed (Mb ctx (LogicPM tag ())) ->
+                 Mb ctx (LogicPM tag ()) ->
                  IO (SMTResult (MapRList MaybeSMTValue ctx,
                                 Memory (LStorables tag)))
-mbReachablePM solver tps mbcl_m =
+mbReachablePM solver tps mb_m =
   liftM (fmap $ \vals ->
           let (mem_vals, var_vals) = splitMapRList Proxy tps vals in
           (var_vals, memoryOfSMTValues memoryDefaults mem_vals)) $
-  smtSolveLogicPM solver tps mbcl_m
+  smtSolveLogicPM solver tps mb_m
 
 -- | Test reachability of a given exception state of a computation-in-binding
 mb_exn_reachable :: (SMTSolver solver, LExprTag tag) =>
                     solver -> LException tag -> MapRList L1FunType ctx ->
-                    Closed (Mb ctx (LPM tag)) ->
+                    Mb ctx (LPM tag) ->
                     IO (SMTResult (MapRList MaybeSMTValue ctx,
                                    Memory (LStorables tag)))
-mb_exn_reachable solver exn tps cl_mb_expr =
+mb_exn_reachable solver exn tps mb_expr =
   mbReachablePM solver tps $ mb_lexpr_to_logicPM tps $
-  $(mkClosed
-    [| \exn ->
-      fmap (\expr ->
-             mkCatchP exn
-             (mkBindP expr (\_ -> mkFalseP))
-             (mkReturnP $ mkLiteral ())) |])
-  `clApply` toClosed exn `clApply` cl_mb_expr
+  fmap (\expr ->
+         mkCatchP exn
+         (mkBindP expr (\_ -> mkFalseP))
+         (mkReturnP $ mkLiteral ())) mb_expr
 
 
 -- FIXME HERE: also include an 'LProp' in the output

@@ -515,12 +515,12 @@ instance LBindingExprAlgebra tag Z3m_AST where
     error "Cannot convert orP to Z3!"
 
 -- | Top-level call to convert an 'LProp' into a Z3 expression
-lprop_to_z3ast :: Closed (LProp tag) -> Z3m RNil Z3.AST
+lprop_to_z3ast :: LProp tag -> Z3m RNil Z3.AST
 lprop_to_z3ast prop =
   unZ3m_AST $ interpExprB Proxy prop
 
 -- | Top-level call to convert an 'LProp'-in-binding into a Z3 expression
-mb_lprop_to_z3ast :: Closed (Mb ctx (LProp tag)) -> Z3m ctx Z3.AST
+mb_lprop_to_z3ast :: Mb ctx (LProp tag) -> Z3m ctx Z3.AST
 mb_lprop_to_z3ast prop =
   unZ3m_AST $ interpMbExprB Proxy prop
 

@@ -86,11 +86,6 @@ instance Liftable IvoryExn where
   mbLift [nuP| IvoryBreak |] = IvoryBreak
   mbLift [nuP| IvoryReturn |] = IvoryReturn
 
-instance Closable IvoryExn where
-  toClosed IvoryError = $(mkClosed [| IvoryError |])
-  toClosed IvoryBreak = $(mkClosed [| IvoryBreak |])
-  toClosed IvoryReturn = $(mkClosed [| IvoryReturn |])
-
 -- Gives the exception type and memory model for the Ivory reachability logic
 instance LExprTag IvoryLogic where
   type LStorables IvoryLogic = '[ Word64 ]
@@ -862,18 +857,6 @@ convertProc p =
 -- Testing if an error is reachable in an Ivory procedure
 ----------------------------------------------------------------------
 
-instance Closable ILOpts where
-  toClosed _ = error "FIXME HERE NOW"
-
-instance Closable I.Module where
-  toClosed _ = error "FIXME HERE NOW"
-
-instance Closable I.Proc where
-  toClosed _ = error "FIXME HERE NOW"
-
-instance Closable a => Closable [a] where
-  toClosed _ = error "FIXME HERE NOW"
-
 -- | Model-check an Ivory procedure, testing if an assertion failure can be
 -- reached from some input state
 modelCheckProc :: SMTSolver solver => solver ->
@@ -881,5 +864,4 @@ modelCheckProc :: SMTSolver solver => solver ->
                   IO (SMTResult (Memory '[ Word64 ]))
 modelCheckProc solver opts mods p =
   exn_reachable solver IvoryError $
-  $(mkClosed [| \opts mods p -> runM (convertProc p) opts mods id |])
-  `clApply` (toClosed opts) `clApply` (toClosed mods) `clApply` (toClosed p)
+  runM (convertProc p) opts mods id
