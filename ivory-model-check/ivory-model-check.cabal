@@ -24,6 +24,7 @@ library
                         monadLib,
                         ivory,
                         ivory-opts,
+                        pretty,
                         hobbits >= 1.2.3,
                         z3 >= 4.1
 

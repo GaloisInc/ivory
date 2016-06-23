@@ -17,6 +17,7 @@ import Data.Int
 import Data.Word
 import Data.List
 import Data.Functor.Identity
+import Data.Type.Equality
 
 import MonadLib
 import MonadLib.Monads
@@ -155,8 +156,14 @@ instance Liftable (ElemPf l a) where
 class Elem (l :: [*]) a where
   elemPf :: ElemPf l a
 
-instance Elem (a ': l) a where elemPf = Elem_base
+{-
+instance {-# OVERLAPPING #-} Elem (a ': l) a where elemPf = Elem_base
 instance Elem l b => Elem (a ': l) b where elemPf = Elem_cons elemPf
+-}
+
+instance {-# OVERLAPPING #-} Elem (a ': l) a where elemPf = Elem_base
+instance ((a == b) ~ 'False, Elem l b) => Elem (a ': l) b where
+  elemPf = Elem_cons elemPf
 
 -- | Look up an element of a 'MapList' using an 'ElemPf'
 ml_lookup :: MapList f l -> ElemPf l a -> f a
@@ -655,7 +662,7 @@ updateOpType (UpdateOp_array elem_pf) =
 updateOpType UpdateOp_ptr_array = ltypeRep
 updateOpType UpdateOp_alloc = ltypeRep
 
--- | Perform a read operation on a 'Memory'
+-- | Perform a read generic operation on a 'Memory'
 readMemory :: ReadOp mm args ret -> Memory mm -> MapList Identity args -> ret
 readMemory (ReadOp_array elem_pf) mem
            (Cons (Identity ptr) (Cons (Identity ix) _)) =
@@ -668,6 +675,24 @@ readMemory ReadOp_ptr_array mem
 readMemory ReadOp_length mem (Cons (Identity ptr) _) =
   applyFinFun (memLengths mem) (ptr, ())
 readMemory ReadOp_last_alloc mem _ = memLastAlloc mem
+
+-- | Read a 'Literal' value from an array in a 'Memory'
+readMemoryLit :: Elem mm ret => Ptr -> Word64 -> Memory mm -> ret
+readMemoryLit ptr ix mem =
+  unLiteral $
+  readMemory (ReadOp_array elemPf) mem $
+  Cons (Identity ptr) (Cons (Identity (Literal ix)) Nil)
+
+-- | Read a 'Ptr' value from an array in a 'Memory'
+readMemoryPtr :: Ptr -> Word64 -> Memory mm -> Ptr
+readMemoryPtr ptr ix mem =
+  readMemory ReadOp_ptr_array mem $
+  Cons (Identity ptr) (Cons (Identity (Literal ix)) Nil)
+
+-- | Get the length of the array pointed to by a 'Ptr' in a 'Memory'
+readMemoryLen :: Ptr -> Memory mm -> Word64
+readMemoryLen ptr mem =
+  unLiteral $ readMemory ReadOp_length mem (Cons (Identity ptr) Nil)
 
 -- | Perform an update operation on a 'Memory'
 updateMemory :: UpdateOp mm args -> Memory mm -> MapList Identity args ->

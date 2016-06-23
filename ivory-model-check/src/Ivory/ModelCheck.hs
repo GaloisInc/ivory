@@ -6,6 +6,8 @@ module Ivory.ModelCheck where
 
 import Prelude ()
 import Prelude.Compat
+import MonadLib
+import Text.PrettyPrint
 
 import qualified Ivory.Language.Proc         as P
 import qualified Ivory.Language.Syntax       as I
@@ -18,7 +20,7 @@ import           Ivory.ModelCheck.Logic2Z3
 modelCheck' :: [I.Module] -> P.Def p -> IO ()
 modelCheck' mods p = do
   res <- modelCheck defaultOpts mods p
-  printResult p res
+  printResult mods p res
 
 -- | Model-check an Ivory definition
 modelCheck :: ILOpts -> [I.Module] -> P.Def p -> IO (SMTResult IvoryMemory)
@@ -27,8 +29,13 @@ modelCheck opts mods (P.DefProc p) = do
 modelCheck _ _ _ = error "I can only check procedures defined in Ivory!"
 
 -- | Print an 'SMTResult' for the Ivory reachability logic
-printResult :: P.Def p -> SMTResult IvoryMemory -> IO ()
-printResult _ SMT_unsat = print "No errors reachable!"
-printResult _ (SMT_unknown msg) = print $ "Error in SMT solver: " ++ msg
-printResult _ (SMT_sat mem) = print "Errors reachable!"
--- FIXME HERE NOW: print the initial error state!
+printResult :: [I.Module] -> P.Def p -> SMTResult IvoryMemory -> IO ()
+printResult _ _ SMT_unsat = print "No errors reachable!"
+printResult _ _ (SMT_unknown msg) = print $ "Error in SMT solver: " ++ msg
+printResult mods d (SMT_sat mem) = do
+  print "Errors reachable!"
+  print "Input memory:"
+  let args = case d of
+        P.DefProc p -> I.procArgs p
+        P.DefImport imp -> I.importArgs imp
+  print $ renderStyle style (runM (ppIvoryArgs args) mem mods)

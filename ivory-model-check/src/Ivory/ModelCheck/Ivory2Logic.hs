@@ -12,6 +12,8 @@ import Data.Bits
 import Data.Word
 import Data.Int
 import Data.List
+import Text.PrettyPrint
+import Numeric
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -383,22 +385,24 @@ allocateArray len =
 ----------------------------------------------------------------------
 
 -- | Look up a 'Struct' by name
-lookupStruct :: String -> I2LM I.Struct
-lookupStruct s_name =
-  liftM ((\maybe_s -> case maybe_s of
-             Just s -> s
-             Nothing -> error ("lookupStruct: struct "
-                               ++ s_name ++ " not found!"))
-         . find (struct_name_eq s_name)
-         . concatMap (I.public . I.modStructs) . i2l_modules) get
+lookupStruct :: String -> [I.Module] -> I.Struct
+lookupStruct s_name mods =
+  let pubStructs = concatMap (I.public . I.modStructs) mods in
+  case find (struct_name_eq s_name) pubStructs of
+    Just s -> s
+    Nothing -> error ("lookupStruct: struct " ++ s_name ++ " not found!")
   where
     struct_name_eq s_name (I.Struct s_name' _) = s_name == s_name'
     struct_name_eq s_name (I.Abstract s_name' _) = s_name == s_name'
 
+-- | Do a 'lookupStruct' inside the 'I2LM' monad
+lookupStructM :: String -> I2LM I.Struct
+lookupStructM s_name = lookupStruct s_name <$> i2l_modules <$> get
+
 -- | Get the type and the index number of a field in a given struct
-lookupStructField :: String -> String -> I2LM (I.Type, Int)
-lookupStructField s_name f_name =
-  liftM (helper f_name) $ lookupStruct s_name
+lookupStructField :: String -> String -> [I.Module] -> (I.Type, Int)
+lookupStructField s_name f_name mods =
+  helper f_name $ lookupStruct s_name mods
   where
     helper f_name (I.Struct _ fields) =
       find_helper f_name 0 fields
@@ -408,6 +412,11 @@ lookupStructField s_name f_name =
       error ("lookupStructField: could not find field " ++ f_name)
     find_helper f_name i (fld:_) | I.tValue fld == f_name = (I.tType fld, i)
     find_helper f_name i (_:flds) = find_helper f_name (i+1) flds
+
+-- | Do a 'lookupStructField' inside the 'I2LM' monad
+lookupStructFieldM :: String -> String -> I2LM (I.Type, Int)
+lookupStructFieldM s_name f_name =
+  lookupStructField s_name f_name <$> i2l_modules <$> get
 
 
 ----------------------------------------------------------------------
@@ -529,7 +538,7 @@ convertExpr l1tp (I.ExpLit lit) =
 -- Array and struct dereferencing
 convertExpr l1tp (I.ExpLabel (I.TyStruct s_name) s_iexpr f_name) =
   do s_expr <- convertExpr L1Type_ptr s_iexpr
-     (_, f_ix) <- lookupStructField s_name f_name
+     (_, f_ix) <- lookupStructFieldM s_name f_name
      readArray l1tp s_expr (mkLiteral $ fromInteger $ toInteger f_ix)
 convertExpr l1tp (I.ExpIndex arr_elem_itp arr_iexpr ix_itp ix_iexpr) =
   case convertType ix_itp of
@@ -659,7 +668,7 @@ convertInit (I.TyStruct s_name) (I.InitStruct init_flds) =
   do flds <-
        forM init_flds
        (\(f_name,init) ->
-         do (f_itp, f_ix) <- lookupStructField s_name f_name
+         do (f_itp, f_ix) <- lookupStructFieldM s_name f_name
             e <- convertInit f_itp init
             return (f_ix, e))
      ptr <- allocateArray $ mkLiteral64 $ 1 + maximum (map fst flds)
@@ -735,7 +744,7 @@ convertStmt (I.Assert ie) =
 convertStmt (I.CompilerAssert ie) =
   get >>= \info ->
   if skipCompilerAsserts (i2l_opts info) then
-     return ()
+    return ()
   else
     do e <- convertExpr l1typeRep ie
        addTransition $ mkAssertP IvoryError (mkIsTrue e)
@@ -879,3 +888,127 @@ modelCheckProc :: SMTSolver solver => solver -> ILOpts -> [I.Module] ->
 modelCheckProc solver opts mods p =
   exn_reachable solver IvoryError $
   runM (convertProc p) opts mods id
+
+
+----------------------------------------------------------------------
+-- Pretty-printing a memory as the input to a given procedure
+----------------------------------------------------------------------
+
+data IvoryMemPPInfo =
+  IvoryMemPPInfo
+  {
+    ivoryPP_mem :: IvoryMemory,
+    -- ^ The 'IvoryMemory' being printed
+    ivoryPP_seen_ptrs :: [Ptr],
+    -- ^ A list of all the pointers that have already been printed, to avoid
+    -- circular printing loops
+    ivoryPP_mods :: [I.Module]
+    -- ^ The Ivory modules in scope
+  }
+
+-- | A state monad for pretty-printing 'IvoryMemory's
+newtype IvoryMemPP a = IvoryMemPP { runIvoryMemPP :: State IvoryMemPPInfo a }
+                       deriving (Functor, Applicative, Monad)
+
+instance StateM IvoryMemPP IvoryMemPPInfo where
+  get = IvoryMemPP get
+  set = IvoryMemPP . set
+
+instance RunM IvoryMemPP a (IvoryMemory -> [I.Module] -> a) where
+  runM (IvoryMemPP m) mem mods =
+    fst $ runState (IvoryMemPPInfo
+                    { ivoryPP_mem = mem, ivoryPP_seen_ptrs = [],
+                      ivoryPP_mods = mods }) m
+
+-- | Read a 'Word64' from the 'IvoryMemory' being printed
+ppReadMem64 :: Ptr -> Word64 -> IvoryMemPP Word64
+ppReadMem64 ptr ix =
+  readMemoryLit ptr ix <$> ivoryPP_mem <$> get
+
+-- | Read a 'Ptr' from the 'IvoryMemory' being printed
+ppReadMemPtr :: Ptr -> Word64 -> IvoryMemPP Ptr
+ppReadMemPtr ptr ix =
+  readMemoryPtr ptr ix <$> ivoryPP_mem <$> get
+
+-- | Read the length associated with a 'Ptr' in the 'IvoryMemory' being printed
+ppPtrLen :: Ptr -> IvoryMemPP Word64
+ppPtrLen ptr = readMemoryLen ptr <$> ivoryPP_mem <$> get
+
+-- | Pretty-print a pointer, given a computation for printing its contents. This
+-- either prints the pointer value followed by the contents, if the pointer has
+-- not yet been printed, or simply prints the pointer value if it has.
+ppIvoryPtr :: Ptr -> IvoryMemPP Doc -> IvoryMemPP Doc
+ppIvoryPtr ptr ppm =
+  do let ptr_pp = text $ showHex (unPtr ptr) ""
+     info <- get
+     (if elem ptr (ivoryPP_seen_ptrs info) then
+        return ptr_pp
+      else do set $ info { ivoryPP_seen_ptrs = ptr : ivoryPP_seen_ptrs info }
+              pp <- ppm
+              return $ hang (ptr_pp <+> equals) 2 pp)
+
+-- | Pretty-print a value in memory at a given Ivory type
+ppIvoryVal :: I.Type -> Ptr -> Word64 -> IvoryMemPP Doc
+ppIvoryVal I.TyVoid _ _ = return $ text "()"
+ppIvoryVal (I.TyInt _) ptr ix =
+  -- FIXME HERE: convert to the proper number of bits + sign
+  text . showString "0x" . flip showHex "" <$> ppReadMem64 ptr ix
+ppIvoryVal (I.TyWord _) ptr ix =
+  -- FIXME HERE: convert to the proper number of bits
+  text . show <$> ppReadMem64 ptr ix
+ppIvoryVal (I.TyIndex _) ptr ix =
+  -- FIXME HERE: should we take a modulus here?
+  text . show <$> ppReadMem64 ptr ix
+ppIvoryVal I.TyBool ptr ix =
+  -- FIXME HERE: Boolean conversion...?
+  text . show <$> ppReadMem64 ptr ix
+ppIvoryVal I.TyChar ptr ix =
+  -- FIXME HERE: Character conversion...?
+  text . show <$> ppReadMem64 ptr ix
+ppIvoryVal I.TyFloat ptr ix =
+  error "ppIvoryVal: floats not yet supported"
+ppIvoryVal I.TyDouble ptr ix =
+  error "ppIvoryVal: doubles not yet supported"
+ppIvoryVal (I.TyProc _ _) ptr ix =
+  error "ppIvoryVal: function pointers not (yet?) supported"
+ppIvoryVal (I.TyRef itp) ptr ix =
+  do ptr' <- ppReadMemPtr ptr ix
+     ppIvoryPtr ptr' $ ppIvoryVal itp ptr' 0
+ppIvoryVal (I.TyConstRef itp) ptr ix =
+  -- FIXME HERE: is a constant reference different from a normal one?
+  do ptr' <- ppReadMemPtr ptr ix
+     ppIvoryPtr ptr' $ ppIvoryVal itp ptr' 0
+ppIvoryVal (I.TyPtr itp) ptr ix =
+  do ptr' <- ppReadMemPtr ptr ix
+     if ptr' == nullPtr then return $ text "null" else
+       ppIvoryPtr ptr' $ ppIvoryVal itp ptr' 0
+ppIvoryVal (I.TyArr len itp) ptr ix =
+  -- FIXME: check if the length is correct...?
+  do ptr' <- ppReadMemPtr ptr ix
+     ptr_len <- ppPtrLen ptr'
+     ppIvoryPtr ptr' $ do pps <- mapM (ppIvoryVal itp ptr') [0 .. ptr_len - 1]
+                          return $ fsep $ punctuate comma pps
+ppIvoryVal (I.TyCArray itp) ptr ix =
+  do ptr' <- ppReadMemPtr ptr ix
+     ptr_len <- ppPtrLen ptr'
+     ppIvoryPtr ptr' $ do pps <- mapM (ppIvoryVal itp ptr') [0 .. ptr_len - 1]
+                          return $ fsep $ punctuate comma pps
+ppIvoryVal (I.TyStruct s_name) ptr ix =
+  do ptr' <- ppReadMemPtr ptr ix
+     struct <- lookupStruct s_name <$> ivoryPP_mods <$> get
+     case struct of
+       I.Abstract _ _ -> return $ text ("<Abstract struct: " ++ s_name ++ ">")
+       I.Struct _ flds ->
+         ppIvoryPtr ptr' $
+         do pps <- forM (zip [0 .. ] flds) $ \(ix', fld) ->
+              hang (text (I.tValue fld) <+> equals) 2 <$>
+              ppIvoryVal (I.tType fld) ptr' ix'
+            return $ fsep $ punctuate comma pps
+
+-- | Pretty-print the arguments to an Ivory function
+ppIvoryArgs :: [I.Typed I.Var] -> IvoryMemPP Doc
+ppIvoryArgs args =
+  do pps <- forM (zip [0 .. ] args) $ \(ix, arg) ->
+       hang (text (show $ I.tValue arg) <+> equals) 2 <$>
+       ppIvoryVal (I.tType arg) (Ptr $ -1) ix
+     return $ fsep pps
