@@ -927,10 +927,12 @@ instance Liftable ArithCmp where
   mbLift [nuP| OpCmp_LE |] = OpCmp_LE
 instance Liftable (ReadOp mm args ret) where
   mbLift [nuP| ReadOp_array elem_pf |] = ReadOp_array $ mbLift elem_pf
+  mbLift [nuP| ReadOp_ptr_array |] = ReadOp_ptr_array
   mbLift [nuP| ReadOp_length |] = ReadOp_length
   mbLift [nuP| ReadOp_last_alloc |] = ReadOp_last_alloc
 instance Liftable (UpdateOp mm args) where
   mbLift [nuP| UpdateOp_array elem_pf |] = UpdateOp_array $ mbLift elem_pf
+  mbLift [nuP| UpdateOp_ptr_array |] = UpdateOp_ptr_array
   mbLift [nuP| UpdateOp_alloc |] = UpdateOp_alloc
 instance Liftable (Op tag a) where
   mbLift [nuP| Op_Literal ltp x |] = Op_Literal (mbLift ltp) (mbLift x)
@@ -943,6 +945,8 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_global_var i |] = Op_global_var $ mbLift i
   mbLift [nuP| Op_next_ptr |] = Op_next_ptr
   mbLift [nuP| Op_ptr_cmp acmp |] = Op_ptr_cmp $ mbLift acmp
+  mbLift [nuP| Op_true |] = Op_true
+  mbLift [nuP| Op_false |] = Op_false
   mbLift [nuP| Op_and |] = Op_and
   mbLift [nuP| Op_or |] = Op_or
   mbLift [nuP| Op_not |] = Op_not
@@ -958,10 +962,10 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
   mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
   mbLift [nuP| Op_assumeP |] = Op_assumeP
-  mbLift [nuP| Op_existsP l1tp |] = Op_existsP $ mbLift l1tp
-  mbLift [nuP| Op_falseP |] = Op_falseP
   mbLift [nuP| Op_raiseP exn |] = Op_raiseP $ mbLift exn
   mbLift [nuP| Op_catchP exn |] = Op_catchP $ mbLift exn
+  mbLift [nuP| Op_existsP l1tp |] = Op_existsP $ mbLift l1tp
+  mbLift [nuP| Op_falseP |] = Op_falseP
   mbLift [nuP| Op_orP |] = Op_orP
 
 
