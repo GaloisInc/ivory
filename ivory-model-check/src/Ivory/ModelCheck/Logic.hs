@@ -21,31 +21,13 @@ import Data.Functor.Identity
 import Data.Type.Equality
 
 import MonadLib
-import MonadLib.Monads
 
 import Data.Binding.Hobbits
-import Data.Type.RList
-
-import           Ivory.Language.Syntax.Type
-import           Ivory.Language.Syntax.Concrete.Location
-import           Ivory.Language.Syntax.Concrete.Pretty
 
 
 ----------------------------------------------------------------------
 -- Helper definitions
 ----------------------------------------------------------------------
-
--- | FIXME: documentation
-joinAListsM :: (Eq key, Monad m) => (val -> val -> m val) ->
-              [(key, val)] -> [(key, val)] -> m [(key, val)]
-joinAListsM _ [] alist2 = return alist2
-joinAListsM join_f ((k, v1) : alist1) alist2 =
-  case lookup k alist2 of
-    Just v2 ->
-      do v_ret <- join_f v1 v2
-         alist_ret <-
-           joinAListsM join_f alist1 (filter (\(k', _) -> k /= k') alist2)
-         return $ (k, v_ret) : alist_ret
 
 groupAList :: Eq key => [(key, val)] -> [(key, [val])]
 groupAList = foldr insertHelper [] where
@@ -60,8 +42,8 @@ clMbList [clNuP| (x:xs) |] = x : clMbList xs
 
 -- | Map a 'Closed' function via a 'Functor' instance
 cl_fmap :: Functor f => Closed (a -> b) -> Closed (f a) -> Closed (f b)
-cl_fmap f x =
-  $(mkClosed [| \f x -> fmap f x |]) `clApply` f `clApply` x
+cl_fmap f_cl x_cl =
+  $(mkClosed [| \f x -> fmap f x |]) `clApply` f_cl `clApply` x_cl
 
 -- | Apply 'mbCombine' to a 'Closed' name-binding
 clMbCombine :: Closed (Mb ctx1 (Mb ctx2 a)) ->
@@ -127,17 +109,25 @@ data MapList f (l :: [*]) where
 ml_first :: MapList f (a ': l) -> f a
 ml_first (Cons x _) = x
 
--- | Get the second element of a 'MapList'
-ml_second :: MapList f (a ': b ': l) -> f b
-ml_second (Cons _ (Cons y _)) = y
+-- | Get all but the the first element of a 'MapList'
+ml_rest :: MapList f (a ': l) -> MapList f l
+ml_rest (Cons _ l) = l
 
--- | Get the third element of a 'MapList'
-ml_third :: MapList f (a ': b ': c ': l) -> f c
-ml_third (Cons _ (Cons _ (Cons z _))) = z
+-- | Split the first from the remaining elements of a 'MapList'
+ml_first_rest :: MapList f (a ': l) -> (f a, MapList f l)
+ml_first_rest l = (ml_first l, ml_rest l)
+
+-- | Get the first and second elements of a 'MapList'
+ml_12 :: MapList f (a ': b ': l) -> (f a, f b)
+ml_12 l = (ml_first l, ml_first $ ml_rest l)
+
+-- | Get the first through third elements of a 'MapList'
+ml_123 :: MapList f (a ': b ': c ': l) -> (f a, f b, f c)
+ml_123 l = (ml_first l, ml_first $ ml_rest l, ml_first $ ml_rest $ ml_rest l)
 
 -- | Map a function over a 'MapList'
 ml_map :: (forall x. f x -> g x) -> MapList f l -> MapList g l
-ml_map f Nil = Nil
+ml_map _ Nil = Nil
 ml_map f (Cons x l) = Cons (f x) (ml_map f l)
 
 -- | Proof that type @a@ is an element of the list @l@ of types
@@ -168,13 +158,13 @@ instance ((a == b) ~ 'False, Elem l b) => Elem (a ': l) b where
 
 -- | Look up an element of a 'MapList' using an 'ElemPf'
 ml_lookup :: MapList f l -> ElemPf l a -> f a
-ml_lookup (Cons x _) Elem_base = x
-ml_lookup (Cons _ l) (Elem_cons pf) = ml_lookup l pf
+ml_lookup l Elem_base = ml_first l
+ml_lookup l (Elem_cons pf) = ml_lookup (ml_rest l) pf
 
 -- | Apply a function to a specific element of a 'MapList' given by an 'ElemPf'
 ml_map1 :: (f a -> f a) -> MapList f l -> ElemPf l a -> MapList f l
-ml_map1 f (Cons x l) Elem_base = Cons (f x) l
-ml_map1 f (Cons x l) (Elem_cons pf) = Cons x $ ml_map1 f l pf
+ml_map1 f l Elem_base = Cons (f $ ml_first l) (ml_rest l)
+ml_map1 f l (Elem_cons pf) = Cons (ml_first l) $ ml_map1 f (ml_rest l) pf
 
 
 ----------------------------------------------------------------------
@@ -443,7 +433,7 @@ instance (LTypeable arg, LTypeableArgs a args ret) =>
 
 -- | Generate an 'LTypeArgs' proof for a given type @a@
 mkLTypeArgs :: LType a -> LTypeArgs a (ArgTypes a) (RetType a)
-mkLTypeArgs (LType_base l1tp@(L1Type_lit lit_tp)) = LTypeArgs_base l1tp
+mkLTypeArgs (LType_base l1tp@(L1Type_lit _)) = LTypeArgs_base l1tp
 mkLTypeArgs (LType_base L1Type_prop) = LTypeArgs_base l1typeRep
 mkLTypeArgs (LType_base L1Type_ptr) = LTypeArgs_base l1typeRep
 mkLTypeArgs (LType_pm l1tp) = LTypeArgs_pm l1tp
@@ -517,9 +507,9 @@ funType_to_type (L1FunType_cons l1tp t) =
 
 -- | Get the 'L1Type's for the argument types of an 'L1FunType'
 funType_arg_types :: L1FunType a -> MapList L1Type (ArgTypes a)
-funType_arg_types (L1FunType_base l1tp@(L1Type_lit _)) = Nil
-funType_arg_types (L1FunType_base l1tp@L1Type_ptr) = Nil
-funType_arg_types (L1FunType_base l1tp@L1Type_prop) = Nil
+funType_arg_types (L1FunType_base (L1Type_lit _)) = Nil
+funType_arg_types (L1FunType_base L1Type_ptr) = Nil
+funType_arg_types (L1FunType_base L1Type_prop) = Nil
 funType_arg_types (L1FunType_cons l1tp ftp) =
   Cons l1tp (funType_arg_types ftp)
 
@@ -665,15 +655,13 @@ updateOpType UpdateOp_alloc = ltypeRep
 
 -- | Perform a read generic operation on a 'Memory'
 readMemory :: ReadOp mm args ret -> Memory mm -> MapList Identity args -> ret
-readMemory (ReadOp_array elem_pf) mem
-           (Cons (Identity ptr) (Cons (Identity ix) _)) =
+readMemory (ReadOp_array elem_pf) mem (ml_12 -> (Identity ptr, Identity ix)) =
   applyFinFun
     (unLitArrayStore $ ml_lookup (memArrays mem) elem_pf)
     (ptr, (ix, ()))
-readMemory ReadOp_ptr_array mem
-           (Cons (Identity ptr) (Cons (Identity ix) _)) =
+readMemory ReadOp_ptr_array mem (ml_12 -> (Identity ptr, Identity ix)) =
   applyFinFun (memPtrArray mem) (ptr, (ix, ()))
-readMemory ReadOp_length mem (Cons (Identity ptr) _) =
+readMemory ReadOp_length mem (ml_first -> Identity ptr) =
   applyFinFun (memLengths mem) (ptr, ())
 readMemory ReadOp_last_alloc mem _ = memLastAlloc mem
 
@@ -698,9 +686,9 @@ readMemoryLen ptr mem =
 -- | Perform an update operation on a 'Memory'
 updateMemory :: UpdateOp mm args -> Memory mm -> MapList Identity args ->
                 Memory mm
-updateMemory (UpdateOp_array elem_pf) mem
-             (Cons (Identity ptr)
-              (Cons (Identity ix) (Cons (Identity newval) _))) =
+updateMemory (UpdateOp_array elem_pf) mem (ml_123 ->
+                                           (Identity ptr, Identity ix,
+                                            Identity newval)) =
   mem
   { memArrays =
       ml_map1
@@ -1025,7 +1013,7 @@ curryLExprsFun :: LType a ->
 curryLExprsFun (LType_base (L1Type_lit _)) f = f LExprs_nil
 curryLExprsFun (LType_base L1Type_prop) f = f LExprs_nil
 curryLExprsFun (LType_base L1Type_ptr) f = f LExprs_nil
-curryLExprsFun (LType_pm l1tp) f = f LExprs_nil
+curryLExprsFun (LType_pm _) f = f LExprs_nil
 curryLExprsFun (LType_fun _ tp_b) f =
   \e -> curryLExprsFun tp_b (\es -> f (LExprs_cons e es))
 
@@ -1035,8 +1023,9 @@ mkVar proxy n = mkVarTp proxy ltypeRep n
 
 -- | Build an expression function from a variable, with an explicity type
 mkVarTp :: Proxy tag -> LType a -> Name a -> ApplyToArgs (LExpr tag) a
-mkVarTp (_ :: Proxy tag) tp n =
-  curryLExprsFun tp (LVar (mkLTypeArgs tp) n :: LExprs tag _ -> _)
+mkVarTp (_ :: Proxy tag) (tp :: LType a) n =
+  curryLExprsFun tp (LVar (mkLTypeArgs tp) n
+                     :: LExprs tag (ArgTypes a) -> LExpr tag (RetType a))
 
 -- | Make a variable into an expression, rather than a function
 mkVarExprTp :: LType a -> Name a -> LExpr tag a
@@ -1070,7 +1059,7 @@ mkLambda (f :: _ -> LExpr tag b) =
 -- | Helper function for building lambda-abstractions
 mkLambdaTp :: LType a -> (LExpr tag a -> LExpr tag b) ->
               LExpr tag (a -> b)
-mkLambdaTp tp_a (f :: _ -> LExpr tag b) =
+mkLambdaTp tp_a (f :: LExpr tag a -> LExpr tag b) =
   LLambda tp_a $ nu $ \x -> f (mkVarExprTp tp_a x)
 
 -- | Eta-expand a @'LExprs' tag args -> 'LExpr' tag ret@ function into an
@@ -1081,7 +1070,7 @@ etaExpandLExprsFun :: LType a ->
 etaExpandLExprsFun (LType_base (L1Type_lit _)) f = f LExprs_nil
 etaExpandLExprsFun (LType_base L1Type_prop) f = f LExprs_nil
 etaExpandLExprsFun (LType_base L1Type_ptr) f = f LExprs_nil
-etaExpandLExprsFun (LType_pm l1tp) f = f LExprs_nil
+etaExpandLExprsFun (LType_pm _) f = f LExprs_nil
 etaExpandLExprsFun (LType_fun tp_a tp_b) f =
   LLambda tp_a $ nu $ \n ->
   etaExpandLExprsFun tp_b (\es -> f (LExprs_cons (mkVarExprTp tp_a n) es))
@@ -1102,7 +1091,7 @@ matchLambda (LVar tp_args _ _) = no_functional_type_args_ret tp_args
 matchLambda (LOp op _) = no_functional_type_args_ret $ opTypeArgs op
 
 -- | Same as 'matchLambda', but on an expression inside a binding
-mbMatchLambda :: Mb ctx (LExpr tag (a -> b)) -> Mb (ctx :> a) (LExpr tag b)
+mbMatchLambda :: Mb ctx (LExpr tag (a -> b)) -> Mb (ctx ':> a) (LExpr tag b)
 mbMatchLambda [nuP| LLambda _ body |] = mbCombine body
 mbMatchLambda [nuP| LVar tp_args _ _ |] =
   no_functional_type_args_ret $ mbLift tp_args
@@ -1195,10 +1184,15 @@ mkForall :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
 mkForall l1tp body =
   mkOp (Op_forall l1tp) $ mkLambdaTp (LType_base l1tp) body
 
--- | Build a universal quantifier into an 'LProp'
+-- | Build an existential quantifier into an 'LProp'
 mkExists :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
 mkExists l1tp body =
   mkOp (Op_exists l1tp) $ mkLambdaTp (LType_base l1tp) body
+
+-- | Build a let-binding into an 'LProp'
+mkLet :: L1Type a -> LExpr tag a -> (LExpr tag a -> LProp tag) -> LProp tag
+mkLet l1tp rhs body =
+  mkOp (Op_let l1tp) rhs $ mkLambdaTp (LType_base l1tp) body
 
 -- | Build an equality at an arbitrary second-order type
 mkEqTp :: L1FunType a -> ApplyToArgs (LExpr tag) a ->
@@ -1325,7 +1319,7 @@ interpExpr ctx [nuP| LVar tp_args n args |] =
   case mbNameBoundP n of
     Left memb ->
       interpExprsApply ctx (mapRListLookup memb ctx) (mbLift tp_args) args
-    Right n -> error "interpExpr: unbound name!"
+    Right _ -> error "interpExpr: unbound name!"
 interpExpr ctx [nuP| LOp mb_op args |] =
   let op = mbLift mb_op in
   interpExprsApply ctx (interpOp op) (opTypeArgs op) args
@@ -1334,9 +1328,9 @@ interpExpr ctx [nuP| LOp mb_op args |] =
 interpExprsApply :: LExprAlgebra tag f => MapRList f ctx ->
                     f a -> LTypeArgs a args ret ->
                     Mb ctx (LExprs tag args) -> f ret
-interpExprsApply ctx f (LTypeArgs_base l1tp) _ = f
-interpExprsApply ctx f (LTypeArgs_pm l1tp) _ = f
-interpExprsApply ctx f (LTypeArgs_fun tp tp_args) [nuP| LExprs_cons e es |] =
+interpExprsApply _ f (LTypeArgs_base _) _ = f
+interpExprsApply _ f (LTypeArgs_pm _) _ = f
+interpExprsApply ctx f (LTypeArgs_fun _ tp_args) [nuP| LExprs_cons e es |] =
   interpExprsApply ctx (interpApply f (interpExpr ctx e)) tp_args es
 
 ----------------------------------------------------------------------
@@ -1349,7 +1343,7 @@ type instance BindingApplyF f ctx (Literal a) = f ctx (Literal a)
 type instance BindingApplyF f ctx Ptr = f ctx Ptr
 type instance BindingApplyF f ctx Prop = f ctx Prop
 type instance BindingApplyF f ctx (PM a) = f ctx (PM a)
-type instance BindingApplyF f ctx (a -> b) = BindingApplyF f (ctx :> a) b
+type instance BindingApplyF f ctx (a -> b) = BindingApplyF f (ctx ':> a) b
 
 -- | Helper for building a 'BindingApplyF' at a return type of an 'Op' or
 -- variable. This is just the identity function, but it needs to examine the
@@ -1391,26 +1385,26 @@ interpMbExprB proxy [nuP| LOp mb_op args |] =
   let op = mbLift mb_op in
   mkRetBindingApplyF (opTypeArgs op) $
   interpOpB op $ interpMbExprsB proxy args
-interpMbExprB proxy ([nuP| LVar mb_tp_args n args |] :: Mb _ (LExpr tag _)) =
+interpMbExprB proxy ([nuP| LVar mb_tp_args n args |] :: Mb ctx (LExpr tag a)) =
   let tp_args = mbLift mb_tp_args in
   case mbNameBoundP n of
     Left memb ->
       mkRetBindingApplyF tp_args $
       interpVarB (Proxy :: Proxy tag) tp_args memb $
       interpMbExprsB proxy args
-    Right n -> error "interpMbExprB: unbound name!"
+    Right _ -> error "interpMbExprB: unbound name!"
 
 -- | Interpret a list of 'LExprs' using a binding-algebra
 interpMbExprsB :: LBindingExprAlgebra tag f =>
                   Proxy f -> Mb ctx (LExprs tag args) ->
                   MapList (BindingApply f ctx) args
-interpMbExprsB proxy [nuP| LExprs_nil |] = Nil
+interpMbExprsB _ [nuP| LExprs_nil |] = Nil
 interpMbExprsB proxy [nuP| LExprs_cons e es |] =
   Cons (BindingApply $ interpMbExprB proxy e) (interpMbExprsB proxy es)
 
 -- | Top-level function for interpreting expressions via binding-algebras
 interpExprB :: LBindingExprAlgebra tag f => Proxy f ->
-               LExpr tag a -> BindingApplyF f RNil a
+               LExpr tag a -> BindingApplyF f 'RNil a
 interpExprB proxy e = interpMbExprB proxy $ emptyMb e
 
 
@@ -1421,7 +1415,7 @@ interpExprB proxy e = interpMbExprB proxy $ emptyMb e
 -- | The type of expressions-in-context where every subterm of type @a@ in
 -- binding context @ctx@ is annotated with a value of type @f ctx a@
 data MbAnnotExpr (f :: RList * -> * -> *) tag (ctx :: RList *) a where
-  MbAnnotExprFun :: MbAnnotExpr f tag (ctx :> a) b ->
+  MbAnnotExprFun :: MbAnnotExpr f tag (ctx ':> a) b ->
                     MbAnnotExpr f tag ctx (a -> b)
   MbAnnotExprOp :: Op tag a ->
                    MapList (MbAnnotExpr f tag ctx) args ->
@@ -1447,8 +1441,8 @@ mkBindingMbAnnotExpr :: LType a -> BindingApplyF (MbAnnotExpr f tag) ctx a ->
                         MbAnnotExpr f tag ctx a
 mkBindingMbAnnotExpr (LType_base l1tp) annot_expr =
   elimL1BindingApplyF l1tp annot_expr
-mkBindingMbAnnotExpr (LType_pm l1tp) annot_expr = annot_expr
-mkBindingMbAnnotExpr (LType_fun tp1 tp2) x =
+mkBindingMbAnnotExpr (LType_pm _) annot_expr = annot_expr
+mkBindingMbAnnotExpr (LType_fun _ tp2) x =
   MbAnnotExprFun $ mkBindingMbAnnotExpr tp2 x
 
 -- | Convert a list of @'BindingApply' ('MbAnnotExpr' f tag) ctx a@ to a list of
@@ -1456,9 +1450,11 @@ mkBindingMbAnnotExpr (LType_fun tp1 tp2) x =
 mkBindingMbAnnotExprs :: LTypeArgs a args ret ->
                          MapList (BindingApply (MbAnnotExpr f tag) ctx) args ->
                          MapList (MbAnnotExpr f tag ctx) args
-mkBindingMbAnnotExprs (LTypeArgs_fun tp tp_args) (Cons (BindingApply arg) args) =
+mkBindingMbAnnotExprs (LTypeArgs_fun tp tp_args) (ml_first_rest ->
+                                                  (BindingApply arg, args)) =
   Cons (mkBindingMbAnnotExpr tp arg) (mkBindingMbAnnotExprs tp_args args)
-mkBindingMbAnnotExprs _ Nil = Nil
+mkBindingMbAnnotExprs (LTypeArgs_pm _) _ = Nil
+mkBindingMbAnnotExprs (LTypeArgs_base _) _ = Nil
 
 -- This instance lets us take any binding-algebra and use it to annotate an
 -- expression, saving all the intermediate results at each subterm
@@ -1477,8 +1473,8 @@ instance LBindingExprAlgebra tag f =>
 
 -- | Top-level annotation function
 annotateExpr :: (LBindingExprAlgebra tag f, LTypeable a) => Proxy f ->
-                LExpr tag a -> MbAnnotExpr f tag RNil a
-annotateExpr (proxy :: Proxy f) (expr :: LExpr tag a) =
+                LExpr tag a -> MbAnnotExpr f tag 'RNil a
+annotateExpr (_ :: Proxy f) (expr :: LExpr tag a) =
   mkBindingMbAnnotExpr ltypeRep $
   interpExprB (Proxy :: Proxy (MbAnnotExpr f tag)) expr
 
@@ -1814,17 +1810,18 @@ symMemEquals mem1 mem2 =
   where
     memArraysEqual :: MapList SymMemName mm -> MapList SymMemName mm ->
                       [LProp tag]
-    memArraysEqual Nil Nil = []
-    memArraysEqual (Cons (SymMemName l1tp n1) as1) (Cons (SymMemName _ n2) as2) =
+    memArraysEqual Nil _ = []
+    memArraysEqual (Cons (SymMemName l1tp n1) as1) (ml_first_rest ->
+                                                    (SymMemName _ n2, as2)) =
       mkNameEq Proxy (symMemArrayFunType l1tp) n1 n2 : memArraysEqual as1 as2
 
 -- | A type context of all the variables needed to build a @'SymMemory' tag@
 -- when @mm = LStorables tag@
 type family SymMemoryCtx (mm :: [*]) :: RList *
 type instance SymMemoryCtx '[] =
-  RNil :> SymMemPtrArrayType :> (Ptr -> Literal Word64) :> Ptr
+  'RNil ':> SymMemPtrArrayType ':> (Ptr -> Literal Word64) ':> Ptr
 type instance SymMemoryCtx (a ': mm) =
-  SymMemoryCtx mm :> SymMemArrayType a
+  SymMemoryCtx mm ':> SymMemArrayType a
 
 -- | Construct a context of types for a 'SymMemory'
 symMemoryCtxTypes :: MemoryModel (LStorables tag) => Proxy tag ->
@@ -1850,8 +1847,8 @@ symMemoryOfNames _ names =
               (MapList SymMemName mm, Name SymMemPtrArrayType,
                Name (Ptr -> Literal Word64), Name Ptr)
     helper Nil (MNil :>: n1 :>: n2 :>: n3) = (Nil, n1, n2, n3)
-    helper (Cons lit_tp lit_tps) (names :>: n) =
-      let (ns, n1, n2, n3) = helper lit_tps names in
+    helper (Cons lit_tp lit_tps) (names' :>: n) =
+      let (ns, n1, n2, n3) = helper lit_tps names' in
       (Cons (SymMemName lit_tp n) ns, n1, n2, n3)
 
 
@@ -1868,12 +1865,12 @@ data NameDecl tag a where
 
 -- | Get a list of formulas associated with a 'NameDecl'
 nameDeclProps :: NameDecl tag a -> Name a -> [LProp tag]
-nameDeclProps (NameDecl_exists tp) _ = []
+nameDeclProps (NameDecl_exists _) _ = []
 nameDeclProps (NameDecl_let l1tp rhs :: NameDecl tag a) n =
   [mkEq1Tp l1tp (mkVarExprTp (LType_base l1tp) n) rhs]
 
 -- | Apply 'nameDeclProps' to a 'NameDecl' in a name-binding
-mbNameDeclProps :: Mb ctx (NameDecl tag a) -> [Mb (ctx :> a) (LProp tag)]
+mbNameDeclProps :: Mb ctx (NameDecl tag a) -> [Mb (ctx ':> a) (LProp tag)]
 mbNameDeclProps mb_decl =
   mbList $ mbCombine $ fmap (nu . nameDeclProps) mb_decl
 
@@ -1897,6 +1894,8 @@ instance Functor (WithNames tag) where
   fmap f (WithName decl body) = WithName decl $ fmap (fmap f) body
 
 instance Applicative (WithNames tag) where
+  pure = return
+  (<*>) = ap
 
 instance Monad (WithNames tag) where
   return x = WithNoNames x
@@ -1973,18 +1972,18 @@ assumePtrArrayName f =
 -- | Perform a read operation in the current 'LogicPM' computation
 readPM :: ReadOp (LStorables tag) args ret -> MapList (LExpr tag) args ->
           LogicPM tag (LExpr tag ret)
-readPM (ReadOp_array elem_pf) (Cons ptr (Cons ix Nil)) =
+readPM (ReadOp_array elem_pf) (ml_12 -> (ptr, ix)) =
   do mem <- getMem
      case ml_lookup (symMemArrays mem) elem_pf of
        SymMemName lit_tp n ->
          return $ mkVarTp Proxy (symMemArrayType lit_tp) n ptr ix
-readPM ReadOp_ptr_array (Cons ptr (Cons ix Nil)) =
+readPM ReadOp_ptr_array (ml_12 -> (ptr, ix)) =
   do mem <- getMem
      ptr_ret_n <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType Ptr)
      let ptr_ret = mkVar Proxy ptr_ret_n
      assumePM $ mkVar Proxy (symMemPtrArray mem) ptr ix ptr_ret
      return ptr_ret
-readPM ReadOp_length (Cons ptr Nil) =
+readPM ReadOp_length (ml_first -> ptr) =
   do mem <- getMem
      return $ mkVar Proxy (symMemLengths mem) ptr
 readPM ReadOp_last_alloc _ =
@@ -1994,7 +1993,7 @@ readPM ReadOp_last_alloc _ =
 -- | Perform an update operation in the current 'LogicPM' computation
 updatePM :: UpdateOp (LStorables tag) args -> MapList (LExpr tag) args ->
             LogicPM tag ()
-updatePM (UpdateOp_array elem_pf) (Cons ptr (Cons ix (Cons v Nil))) =
+updatePM (UpdateOp_array elem_pf) (ml_123 -> (ptr, ix, v)) =
   do mem <- getMem
      -- Look up the proper name with its output type
      let SymMemName ltp n = ml_lookup (symMemArrays mem) elem_pf
@@ -2016,7 +2015,7 @@ updatePM (UpdateOp_array elem_pf) (Cons ptr (Cons ix (Cons v Nil))) =
      setMem $ mem { symMemArrays =
                       ml_map1 (\_ -> SymMemName ltp n')
                       (symMemArrays mem) elem_pf }
-updatePM UpdateOp_ptr_array (Cons ptr (Cons ix (Cons v Nil))) =
+updatePM UpdateOp_ptr_array (ml_123 -> (ptr, ix, v)) =
   do mem <- getMem
      let n = symMemPtrArray mem
      n' <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType SymMemPtrArrayType)
@@ -2033,7 +2032,7 @@ updatePM UpdateOp_ptr_array (Cons ptr (Cons ix (Cons v Nil))) =
              mkEq1 (mkVar Proxy n p i p') (mkVar Proxy n' p i p')]
      -- Set mem' as the output memory
      setMem $ mem { symMemPtrArray = n' }
-updatePM UpdateOp_alloc (Cons len Nil) =
+updatePM UpdateOp_alloc (ml_first -> len) =
   do mem <- getMem
      let lengths = symMemLengths mem
      let last_alloc = symMemLastAlloc mem
@@ -2119,8 +2118,9 @@ freshMemoryFrom (mem:mems) =
         nuM $ NameDecl_exists ftp
     combineMemArrays :: MapList SymMemName mm -> MapList SymMemName mm ->
                         LogicPM tag (MapList SymMemName mm)
-    combineMemArrays Nil Nil = return Nil
-    combineMemArrays (Cons (SymMemName ltp n1) as1) (Cons (SymMemName _ n2) as2) =
+    combineMemArrays Nil _ = return Nil
+    combineMemArrays (Cons (SymMemName ltp n1) as1) (ml_first_rest ->
+                                                     (SymMemName _ n2, as2)) =
       do n' <- combineNames (symMemArrayFunType ltp) n1 n2
          as' <- combineMemArrays as1 as2
          return $ Cons (SymMemName ltp n') as'
@@ -2131,7 +2131,7 @@ canonicalizePM pm =
   do orig_prop <- getPropsAsConstant
      res_alist <- collectResultsPM pm
      foldr mplus mzero $
-       map (\(either, mems_with_props) ->
+       map (\(exn_or_unit, mems_with_props) ->
             do mem' <- freshMemoryFrom $ map fst mems_with_props
                set (mem',
                     [orig_prop,
@@ -2140,7 +2140,7 @@ canonicalizePM pm =
                            mkAnd (props ++ [symMemEquals mem mem']))
                      mems_with_props
                     ])
-               case either of
+               case exn_or_unit of
                  Left exn -> raise exn
                  Right () -> return ())
        res_alist
@@ -2232,6 +2232,7 @@ mkOp3InterpPM tp1 tp2 tp3 tp4 op =
 -- CommutesWithArrow instance for InterpPM
 instance CommutesWithArrow (InterpPM tag) where
   interpApply (InterpPM_fun f) = f
+  interpApply (InterpPM_base l1tp _) = no_functional_l1type l1tp
   interpLambda = InterpPM_fun
 
 -- LExprAlgebra instance for interpreting the predicate monad
@@ -2249,15 +2250,19 @@ instance LExprAlgebra tag (InterpPM tag) where
   interpOp op@(Op_cond l1tp) =
     mkOp3InterpPM (L1Type_lit LitType_bool) l1tp l1tp l1tp op
   interpOp op@Op_null_ptr =
-    mkOpInterpPM (L1FunType_base L1Type_ptr) Op_null_ptr
-  interpOp op@(Op_global_var i) =
-    mkOpInterpPM (L1FunType_base L1Type_ptr) (Op_global_var i)
+    mkOpInterpPM (L1FunType_base L1Type_ptr) op
+  interpOp op@(Op_global_var _) =
+    mkOpInterpPM (L1FunType_base L1Type_ptr) op
   interpOp op@Op_next_ptr =
     mkOp1InterpPM L1Type_ptr L1Type_ptr op
-  interpOp op@(Op_ptr_cmp acmp) =
+  interpOp op@(Op_ptr_cmp _) =
     mkOp2InterpPM L1Type_ptr L1Type_ptr l1typeRep op
+  interpOp op@Op_true = mkOpInterpPM l1funTypeRep op
+  interpOp op@Op_false = mkOpInterpPM l1funTypeRep op
+  interpOp op@Op_and = mkOpInterpPM l1funTypeRep op
   interpOp op@Op_or = mkOpInterpPM l1funTypeRep op
   interpOp op@Op_not = mkOpInterpPM l1funTypeRep op
+  interpOp op@(Op_eq l1tp) = mkOp2InterpPM l1tp l1tp l1typeRep op
   interpOp op@Op_istrue = mkOpInterpPM l1funTypeRep op
   interpOp (Op_forall l1tp) =
     InterpPM_fun $ \body_ipm ->
@@ -2269,19 +2274,29 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_base L1Type_prop $ mkExists l1tp $ \x ->
     expr_of_interpPM L1Type_prop $
     apply_interpPM body_ipm $ InterpPM_base l1tp x
+  interpOp (Op_let l1tp) =
+    InterpPM_fun $ \rhs_ipm ->
+    InterpPM_fun $ \body_ipm ->
+    InterpPM_base L1Type_prop $
+    mkLet l1tp (expr_of_interpPM l1tp rhs_ipm) $ \x ->
+    expr_of_interpPM L1Type_prop $
+    apply_interpPM body_ipm $ InterpPM_base l1tp x
   interpOp (Op_returnP l1tp) =
     InterpPM_fun $ \x ->
     InterpPM_pm $ return $ expr_of_interpPM l1tp x
-  interpOp (Op_bindP l1tp_a l1tp_b) =
-    -- FIXME HERE NOW: bind a fresh variable for the LHS!!
+  interpOp (Op_bindP l1tp_a _) =
     InterpPM_fun $ \m ->
     InterpPM_fun $ \f_ipm ->
-    InterpPM_pm (pm_of_interpPM m >>= \x ->
-                 pm_of_interpPM (apply_interpPM f_ipm $
-                                 InterpPM_base l1tp_a x))
-  interpOp (Op_readP rop@(ReadOp_array elem_pf)) =
-    InterpPM_fun $ \(InterpPM_base l1typeRep ptr) ->
-    InterpPM_fun $ \(InterpPM_base l1typeRep ix) ->
+    InterpPM_pm $
+    do res <- pm_of_interpPM m
+       -- Bind a fresh name, to avoid duplication of the value
+       nm <- nuM (NameDecl_let l1tp_a res)
+       pm_of_interpPM (apply_interpPM f_ipm $
+                       InterpPM_base l1tp_a $
+                       mkVarExprTp (LType_base l1tp_a) nm)
+  interpOp (Op_readP rop@(ReadOp_array _)) =
+    InterpPM_fun $ \(InterpPM_base _ ptr) ->
+    InterpPM_fun $ \(InterpPM_base _ ix) ->
     InterpPM_pm $ readPM rop (Cons ptr (Cons ix Nil))
   interpOp (Op_readP rop@ReadOp_ptr_array) =
     InterpPM_fun $ \(InterpPM_base _ ptr) ->
@@ -2292,7 +2307,7 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_pm $ readPM rop (Cons ptr Nil)
   interpOp (Op_readP rop@ReadOp_last_alloc) =
     InterpPM_pm $ readPM rop Nil
-  interpOp (Op_updateP uop@(UpdateOp_array elem_pf)) =
+  interpOp (Op_updateP uop@(UpdateOp_array _)) =
     InterpPM_fun $ \(InterpPM_base _ ptr) ->
     InterpPM_fun $ \(InterpPM_base _ ix) ->
     InterpPM_fun $ \(InterpPM_base _ v) ->
@@ -2374,7 +2389,7 @@ extractSMTValuePtr (MaybeSMTValue Nothing) = nullPtr
 -- given default return value for an unconstrained value
 extractSMTValueFun :: SMTValue (RetType (a -> b)) -> MaybeSMTValue (a -> b) ->
                       SMTValueFun (a -> b)
-extractSMTValueFun def (MaybeSMTValue (Just f)) = f
+extractSMTValueFun _ (MaybeSMTValue (Just f)) = f
 extractSMTValueFun def (MaybeSMTValue Nothing) = mkFinFun def
 
 -- | The result of calling an SMT solver on some set of input formulas
@@ -2454,8 +2469,8 @@ findFirst f m =
 runLogicPM :: SymMemory tag -> LogicPM tag () -> WithNames tag [LProp tag]
 runLogicPM mem m =
   do maybe_props <-
-       findFirst (\(either, (_, props)) ->
-                   case either of
+       findFirst (\(exn_or_unit, (_, props)) ->
+                   case exn_or_unit of
                      Left _ -> Nothing
                      Right () -> Just props)
        (runStateT (mem, []) $ runExceptionT m)
@@ -2464,7 +2479,7 @@ runLogicPM mem m =
        Nothing -> return [mkFalse]
 
 -- | FIXME: documentation, move this
-mbExprLower1 :: Mb ctx (LExpr tag b) -> Mb (ctx :> a) (LExpr tag b)
+mbExprLower1 :: Mb ctx (LExpr tag b) -> Mb (ctx ':> a) (LExpr tag b)
 mbExprLower1 mb_expr = mbCombine $ fmap (\e -> nu $ \_ -> e) mb_expr
 
 -- | Solve a set of formulas inside a 'WithNames'
