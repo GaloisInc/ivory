@@ -12,6 +12,7 @@ import Data.Bits
 import Data.Word
 import Data.List
 import Data.Typeable
+import Numeric.Natural
 
 import MonadLib
 import MonadLib.Monads
@@ -44,9 +45,9 @@ import Ivory.ModelCheck.Logic
 -- while universal variables are referred to be deBruijn index, i.e., by their
 -- positions in the Z3 context.
 data Z3Ctx ctx where
-  Z3Ctx_EVar :: Z3Ctx ctx -> L1Type a -> Z3.AST -> Z3Ctx (ctx :> a)
+  Z3Ctx_EVar :: Z3Ctx ctx -> L1Type a -> AST a -> Z3Ctx (ctx :> a)
   -- ^ Add an existential variable to the context, which is associated with a Z3
-  -- constant symbol, given as a 'Z3.AST'
+  -- constant symbol, given as an 'AST'
   Z3Ctx_FVar :: Z3Ctx ctx -> L1FunType (a -> b) -> Z3.FuncDecl ->
                 Z3Ctx (ctx :> (a -> b))
   -- ^ Add an existential function variable to the context, which is associated
@@ -58,7 +59,7 @@ data Z3Ctx ctx where
 
 -- | The result type of 'z3ctx_lookup'
 data Z3CtxLookupRes a
-  = Z3CtxLookupRes_EVar (L1Type a) Z3.AST
+  = Z3CtxLookupRes_EVar (L1Type a) (AST a)
   | Z3CtxLookupRes_FVar (L1FunType a) Z3.FuncDecl
   | Z3CtxLookupRes_UVar (L1Type a) Integer
 
@@ -164,13 +165,13 @@ instance (Functor f, RunM m a r) => RunM (ResumpT m) a r where
 -- | Monad built on top of 'Z3' for building Z3 expressions relative to a given
 -- variable context. The monad uses the state information in a 'Z3Info', reads a
 -- 'Z3Ctx' for the current variable context, and also outputs a set of
--- assertions, given as type 'Z3.AST', to pass to the current
--- solver. Additionally, we use a resumption monad structure to embed the 'IO'
--- monad, since, even the the 'Z3.Z3' monad contains 'IO', it requires the
--- MonadIO class, which is in the transformers packatge...
+-- assertions, given as type 'AST', to pass to the current solver. Additionally,
+-- we use a resumption monad structure to embed the 'IO' monad, since, even the
+-- the 'Z3.Z3' monad contains 'IO', it requires the MonadIO class, which is in
+-- the transformers packatge...
 newtype Z3m ctx a =
   Z3m { runZ3m :: ReaderT (Z3Ctx ctx)
-                  (StateT (Z3Info, [Z3.AST]) (ResumpT IO Z3.Z3)) a }
+                  (StateT (Z3Info, [AST Prop]) (ResumpT IO Z3.Z3)) a }
   deriving (Functor, Applicative, Monad)
 
 instance ReaderM (Z3m ctx) (Z3Ctx ctx) where
@@ -187,12 +188,12 @@ instance StateM (Z3m ctx) Z3Info where
   set info =
     Z3m $ sets_ $ \(_, props) -> (info, props)
 
-instance WriterM (Z3m ctx) [Z3.AST] where
+instance WriterM (Z3m ctx) [AST Prop] where
   put props =
     Z3m $ do (info, props') <- get
              set (info, props' ++ props)
 
-instance RunWriterM (Z3m ctx) [Z3.AST] where
+instance RunWriterM (Z3m ctx) [AST Prop] where
   collect (Z3m m) =
     Z3m $ do (info, orig_props) <- get
              set (info, [])
@@ -290,12 +291,12 @@ mkFreshSymbol basename =
      set $ z3info { fresh_id = i+1 }
      inBase $ Z3.mkStringSymbol (basename ++ show i)
 
--- | Make a fresh constant as a 'Z3.AST' from a first-order type
-mkFreshConstant :: L1Type a -> Z3m ctx Z3.AST
+-- | Make a fresh constant as an 'AST' from a first-order type
+mkFreshConstant :: L1Type a -> Z3m ctx (AST a)
 mkFreshConstant l1tp =
   do sym <- mkFreshSymbol (l1type_base_name l1tp)
      sort <- l1type_to_sort l1tp
-     inBase $ Z3.mkConst sym sort
+     AST <$> (inBase $ Z3.mkConst sym sort)
 
 -- | Make a fresh function declaration as a 'Z3.FuncDecl' from a first-order
 -- function type
@@ -317,7 +318,7 @@ withUVar l1tp m =
 -- each of the (potentially infinitely many) possible instantiations for this
 -- universal variable. Return both the computation result and the fresh Z3
 -- constant.
-withEVar :: L1Type a -> Z3m (ctx :> a) b -> Z3m ctx (Z3.AST, b)
+withEVar :: L1Type a -> Z3m (ctx :> a) b -> Z3m ctx (AST a, b)
 withEVar l1tp m =
   do ctx <- ask
      errorIfUniversal ctx
@@ -344,104 +345,330 @@ mkZ3Ctx MNil = return Z3Ctx_nil
 
 
 ----------------------------------------------------------------------
+-- Typed Z3 ASTs
+----------------------------------------------------------------------
+
+-- | Typed Z3 ASTs
+newtype AST a = AST { unAST :: Z3.AST }
+
+-- | Helper function to build an 'AST' from a 'Z3.Z3' computation
+astInBase :: Z3.Z3 Z3.AST -> Z3m ctx (AST a)
+astInBase m = AST <$> inBase m
+
+-- | Lift a unary Z3 function to a function on typed 'AST's in 'Z3m'
+z3LiftUnary :: (Z3.AST -> Z3.Z3 Z3.AST) -> AST a -> Z3m ctx (AST a)
+z3LiftUnary z3f (AST z3ast) = astInBase $ z3f z3ast
+
+-- | Lift a binary Z3 function to a function on typed 'AST's in 'Z3m'
+z3LiftBinary :: (Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST) -> AST a -> AST a ->
+                Z3m ctx (AST a)
+z3LiftBinary z3f (AST z3ast1) (AST z3ast2) =
+  astInBase $ z3f z3ast1 z3ast2
+
+-- | Turn any literal into an 'AST'
+z3Literal :: LitType a -> a -> Z3m ctx (AST (Literal a))
+z3Literal LitType_unit () =
+  do f <- liftM unit_ctor get
+     astInBase $ Z3.mkApp f []
+z3Literal LitType_bool b = astInBase $ Z3.mkBool b
+z3Literal LitType_int i = astInBase $ Z3.mkInteger i
+z3Literal lit_tp@LitType_bits bv =
+    do sort <- l1type_to_sort (L1Type_lit lit_tp)
+       astInBase $ Z3.mkIntegral bv sort
+
+-- | The 'AST' for the null pointer
+z3NullPtr :: Z3m ctx (AST Ptr)
+z3NullPtr = astInBase $ Z3.mkInteger 0
+
+-- | The 'AST' for a global variable pointer. NOTE: global variables are
+-- represented as *negative* numbers.
+z3GlobalVar :: Natural -> Z3m ctx (AST Ptr)
+z3GlobalVar n = astInBase $ Z3.mkInteger (- (toInteger n))
+
+-- | The 'AST' for the next pointer
+z3NextPtr :: AST Ptr -> Z3m ctx (AST Ptr)
+z3NextPtr (AST z3ast) =
+  do z3ast_one <- inBase $ Z3.mkInteger 1
+     astInBase $ Z3.mkAdd [z3ast, z3ast_one]
+
+-- | The absolute value function on 'AST's
+z3Abs :: LitType a -> AST (Literal a) -> Z3m ctx (AST (Literal a))
+z3Abs _ _ = error "Z3 absolute value function not (yet?) supported"
+
+-- | The signum function on 'AST's
+z3Signum :: LitType a -> AST (Literal a) -> Z3m ctx (AST (Literal a))
+z3Signum _ _ = error "Z3 signum function not (yet?) supported"
+
+-- | The negation function on 'AST's
+z3Neg :: LitType a -> AST (Literal a) -> Z3m ctx (AST (Literal a))
+z3Neg LitType_unit = return
+z3Neg LitType_bool = z3LiftUnary Z3.mkNot
+z3Neg LitType_int = z3LiftUnary Z3.mkUnaryMinus
+z3Neg lit_tp@LitType_bits = z3LiftUnary Z3.mkBvneg
+
+-- | The bit complementation function on 'AST's
+z3Complement :: LitType a -> AST (Literal a) -> Z3m ctx (AST (Literal a))
+z3Complement lit_tp@LitType_bits = z3LiftUnary Z3.mkBvnot
+z3Complement _ =
+  error "Z3 complementation function called on non-bitvector value!"
+
+-- | Apply an 'ArithOp1' to an 'AST'
+z3ArithOp1 :: ArithOp1 -> LitType a -> AST (Literal a) ->
+              Z3m ctx (AST (Literal a))
+z3ArithOp1 Op1_Abs = z3Abs
+z3ArithOp1 Op1_Signum = z3Signum
+z3ArithOp1 Op1_Neg = z3Neg
+z3ArithOp1 Op1_Complement = z3Complement
+
+-- | The binary addition function on 'AST's
+z3Add :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+         Z3m ctx (AST (Literal a))
+z3Add LitType_unit = \_ -> return
+z3Add LitType_bool = z3LiftBinary (\x y -> Z3.mkOr [x,y])
+z3Add LitType_int = z3LiftBinary (\x y -> Z3.mkAdd [x,y])
+z3Add LitType_bits = z3LiftBinary Z3.mkBvadd
+
+-- | The binary subtraction function on 'AST's
+z3Sub :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+         Z3m ctx (AST (Literal a))
+z3Sub LitType_unit = \_ -> return
+z3Sub LitType_bool = error "Z3 conversion: subtraction on Booleans!"
+z3Sub LitType_int = z3LiftBinary (\x y -> Z3.mkSub [x,y])
+z3Sub LitType_bits = z3LiftBinary Z3.mkBvsub
+
+-- | The binary multiplication function on 'AST's
+z3Mult :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+          Z3m ctx (AST (Literal a))
+z3Mult LitType_unit = \_ -> return
+z3Mult LitType_bool = z3LiftBinary (\x y -> Z3.mkAnd [x,y])
+z3Mult LitType_int = z3LiftBinary (\x y -> Z3.mkMul [x,y])
+z3Mult LitType_bits = z3LiftBinary Z3.mkBvmul
+
+-- | The binary division function on 'AST's
+z3Div :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+         Z3m ctx (AST (Literal a))
+z3Div LitType_unit = \_ -> return
+z3Div LitType_bool = error "Z3 conversion: division on Booleans!"
+z3Div LitType_int = z3LiftBinary Z3.mkDiv
+z3Div (LitType_bits :: LitType bv)
+  | isSigned (0 :: bv) = z3LiftBinary Z3.mkBvsdiv
+z3Div (LitType_bits :: LitType bv) = z3LiftBinary Z3.mkBvudiv
+
+-- | The binary modulo function on 'AST's
+z3Mod :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+         Z3m ctx (AST (Literal a))
+z3Mod LitType_unit = \_ -> return
+z3Mod LitType_bool = error "Z3 conversion: modulus on Booleans!"
+z3Mod LitType_int = z3LiftBinary Z3.mkMod
+z3Mod (LitType_bits :: LitType bv)
+  | isSigned (0 :: bv) = z3LiftBinary Z3.mkBvsmod
+z3Mod (LitType_bits :: LitType bv) = z3LiftBinary Z3.mkBvurem
+
+-- | The bitwise and function on 'AST's
+z3BitAnd :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+            Z3m ctx (AST (Literal a))
+z3BitAnd LitType_bits = z3LiftBinary Z3.mkBvand
+z3BitAnd _ = error "Z3 bitwise and function called on non-bitvector values!"
+
+-- | The bitwise and function on 'AST's
+z3BitOr :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+           Z3m ctx (AST (Literal a))
+z3BitOr LitType_bits = z3LiftBinary Z3.mkBvor
+z3BitOr _ = error "Z3 bitwise or function called on non-bitvector values!"
+
+-- | The bitwise xor function on 'AST's
+z3BitXor :: LitType a -> AST (Literal a) -> AST (Literal a) ->
+            Z3m ctx (AST (Literal a))
+z3BitXor LitType_bits = z3LiftBinary Z3.mkBvxor
+z3BitXor _ = error "Z3 bitwise xor function called on non-bitvector values!"
+
+-- | Apply an 'ArithOp2' to an 'AST'
+z3ArithOp2 :: ArithOp2 -> LitType a -> AST (Literal a) -> AST (Literal a) ->
+              Z3m ctx (AST (Literal a))
+z3ArithOp2 Op2_Add = z3Add
+z3ArithOp2 Op2_Sub = z3Sub
+z3ArithOp2 Op2_Mult = z3Mult
+z3ArithOp2 Op2_Div = z3Div
+z3ArithOp2 Op2_Mod = z3Mod
+z3ArithOp2 Op2_BitAnd = z3BitAnd
+z3ArithOp2 Op2_BitOr = z3BitOr
+z3ArithOp2 Op2_BitXor = z3BitXor
+
+-- | The equality function on 'AST's with Boolean type
+z3EqBool :: AST a -> AST a -> Z3m ctx (AST (Literal Bool))
+z3EqBool (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkEq z3ast1 z3ast2
+
+-- | The less-than function on 'AST's
+z3Lt :: L1Type a -> AST a -> AST a -> Z3m ctx (AST (Literal Bool))
+z3Lt (L1Type_lit LitType_unit) _ _ =
+  error "Z3 less-than function called on unit values!"
+z3Lt (L1Type_lit LitType_unit) _ _ =
+  error "Z3 less-than function called on Boolean values!"
+z3Lt (L1Type_lit LitType_int) (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkLt z3ast1 z3ast2
+z3Lt (L1Type_lit (LitType_bits :: LitType bv)) (AST z3ast1) (AST z3ast2)
+  | isSigned (0 :: bv) = astInBase $ Z3.mkBvslt z3ast1 z3ast2
+z3Lt (L1Type_lit LitType_bits) (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkBvult z3ast1 z3ast2
+z3Lt L1Type_ptr (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkLt z3ast1 z3ast2
+z3Lt L1Type_prop _ _ =
+  error "Z3 less-than function called on propositional values!"
+
+-- | The less-than-or-equal-to function on 'AST's
+z3Le :: L1Type a -> AST a -> AST a -> Z3m ctx (AST (Literal Bool))
+z3Le (L1Type_lit LitType_unit) _ _ =
+  error "Z3 less-than function called on unit values!"
+z3Le (L1Type_lit LitType_bool) _ _ =
+  error "Z3 less-than function called on Boolean values!"
+z3Le (L1Type_lit LitType_int) (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkLe z3ast1 z3ast2
+z3Le (L1Type_lit (LitType_bits :: LitType bv)) (AST z3ast1) (AST z3ast2)
+  | isSigned (0 :: bv) = astInBase $ Z3.mkBvsle z3ast1 z3ast2
+z3Le (L1Type_lit LitType_bits) (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkBvule z3ast1 z3ast2
+z3Le L1Type_ptr (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkLe z3ast1 z3ast2
+z3Le L1Type_prop _ _ =
+  error "Z3 less-than-or-equal-to function called on propositional values!"
+
+-- | Apply an 'ArithCmp' to two 'Z3.AST's
+z3ArithCmp :: ArithCmp -> L1Type a -> AST a -> AST a ->
+              Z3m ctx (AST (Literal Bool))
+z3ArithCmp OpCmp_EQ = \_ -> z3EqBool
+z3ArithCmp OpCmp_LT = z3Lt
+z3ArithCmp OpCmp_LE = z3Le
+
+-- | Apply a coercion function from one 'LitType' to another to an 'AST'
+z3Coerce :: LitType f -> LitType t -> AST (Literal f) ->
+            Z3m ctx (AST (Literal t))
+z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t) (AST z3ast)
+  | finiteBitSize (0 :: t) == finiteBitSize (0 :: f) =
+    return (AST z3ast)
+z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t) (AST z3ast)
+  | isSigned (0 :: f) && finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
+    astInBase $
+    Z3.mkSignExt (finiteBitSize (0 :: t) - finiteBitSize (0 :: f)) z3ast
+z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t) (AST z3ast)
+  | finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
+    astInBase $
+    Z3.mkZeroExt (finiteBitSize (0 :: t) - finiteBitSize (0 :: f)) z3ast
+z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t) (AST z3ast) =
+  astInBase $ Z3.mkExtract (finiteBitSize (0 :: t) - 1) 0 z3ast
+z3Coerce LitType_int (LitType_bits :: LitType t) (AST z3ast) =
+  astInBase $ Z3.mkInt2bv (finiteBitSize (0 :: t)) z3ast
+z3Coerce (LitType_bits :: LitType f) LitType_int (AST z3ast) =
+  astInBase $ Z3.mkBv2int z3ast (isSigned (0 :: f))
+z3Coerce LitType_int LitType_int ast = return ast
+z3Coerce LitType_bool LitType_bool ast = return ast
+z3Coerce LitType_unit LitType_unit ast = return ast
+z3Coerce _ _ _ = error "Z3 Coercion not supported!"
+
+-- | Build an if-then-else expression
+z3IfThenElse :: AST (Literal Bool) -> AST a -> AST a -> Z3m ctx (AST a)
+z3IfThenElse (AST z3ast_cond) (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkIte z3ast_cond z3ast1 z3ast2
+
+-- | The "true" 'AST'
+z3True :: Z3m ctx (AST Prop)
+z3True = astInBase $ Z3.mkTrue
+
+-- | The "false" 'AST'
+z3False :: Z3m ctx (AST Prop)
+z3False = astInBase $ Z3.mkFalse
+
+-- | Build a conjunction
+z3And :: AST Prop -> AST Prop -> Z3m ctx (AST Prop)
+z3And = z3LiftBinary $ \x y -> Z3.mkAnd [x,y]
+
+-- | Build a disjunction
+z3Or :: AST Prop -> AST Prop -> Z3m ctx (AST Prop)
+z3Or = z3LiftBinary $ \x y -> Z3.mkOr [x,y]
+
+-- | Build a negation
+z3Not :: AST Prop -> Z3m ctx (AST Prop)
+z3Not = z3LiftUnary Z3.mkNot
+
+-- | The equality function on 'AST's
+z3Eq :: AST a -> AST a -> Z3m ctx (AST Prop)
+z3Eq (AST z3ast1) (AST z3ast2) =
+  astInBase $ Z3.mkEq z3ast1 z3ast2
+
+-- | Convert a Boolean 'AST' to a propositional one
+z3IsTrue :: AST (Literal Bool) -> Z3m ctx (AST Prop)
+z3IsTrue (AST z3ast1) = return $ AST z3ast1
+
+-- | Build a universal quantifier around a computation of an 'AST'
+z3Forall :: L1Type a -> Z3m (ctx ':> a) (AST Prop) -> Z3m ctx (AST Prop)
+z3Forall l1tp body_m =
+  do body_ast <- withUVar l1tp body_m
+     sym <- mkFreshSymbol (l1type_base_name l1tp)
+     sort <- l1type_to_sort l1tp
+     astInBase $ Z3.mkForall [] [sym] [sort] $ unAST body_ast
+
+-- | Build an existential quantifier around a computation of an 'AST'
+z3Exists :: L1Type a -> Z3m (ctx ':> a) (AST Prop) -> Z3m ctx (AST Prop)
+z3Exists l1tp body_m =
+     snd <$> withEVar l1tp body_m
+
+-- | Build a let-binding around a computation of an 'AST'
+z3Let :: L1Type a -> AST a -> Z3m (ctx ':> a) (AST Prop) ->
+         Z3m ctx (AST Prop)
+z3Let l1tp rhs body_m =
+    do (const_ast, ret) <- withEVar l1tp body_m
+       equality_ast <- z3Eq const_ast rhs
+       put [equality_ast]
+       return ret
+
+
+----------------------------------------------------------------------
 -- Converting from our reachability logic into Z3
 ----------------------------------------------------------------------
 
--- | Helper type for a 'Z3.AST' inside a 'Z3m' computation. Note that the type
--- argument is ignored.
-newtype Z3m_AST ctx a = Z3m_AST { unZ3m_AST :: Z3m ctx Z3.AST }
+-- | Helper type for an 'AST' inside a 'Z3m' computation
+newtype Z3m_AST ctx a = Z3m_AST { unZ3m_AST :: Z3m ctx (AST a) }
 
 -- | Helper function for extracting a 'Z3.AST' from a typed argument passed to
 -- 'interpOpB' or 'interpVarB' in a 'BindingApply'
-extractL1ArgAST :: L1Type a -> BindingApply Z3m_AST ctx a -> Z3m ctx Z3.AST
+extractL1ArgAST :: L1Type a -> BindingApply Z3m_AST ctx a -> Z3m ctx (AST a)
 extractL1ArgAST l1tp arg =
   unZ3m_AST $ elimL1BindingApplyF l1tp $ unBindingApply arg
 
--- | Helper function for extracting a list of 'Z3.AST's from a list of typed
--- arguments passed to 'interpOpB' or 'interpVarB'
-extractArgASTs :: LTypeArgs a args ret ->
-                  MapList (BindingApply Z3m_AST ctx) args ->
-                  Z3m ctx [Z3.AST]
-extractArgASTs (LTypeArgs_base _) Nil = return []
-extractArgASTs (LTypeArgs_pm _) Nil = return []
-extractArgASTs (LTypeArgs_fun (LType_base l1tp) tp_args) (Cons arg args) =
-  do ast <- extractL1ArgAST l1tp arg
-     asts <- extractArgASTs tp_args args
-     return (ast : asts)
-extractArgASTs (LTypeArgs_fun _ tp_args) (Cons arg args) =
-  error "extractArgASTs: converting a higher-order variable to Z3!"
+-- | Apply a Z3 function constant to a list of arguments
+z3ApplyArgs :: Z3.FuncDecl -> LTypeArgs a args ret ->
+               MapList (BindingApply Z3m_AST ctx) args ->
+               Z3m ctx (AST ret)
+z3ApplyArgs fdecl tp_args args = helper fdecl [] tp_args args where
+  helper :: Z3.FuncDecl -> [Z3.AST] -> LTypeArgs a args ret ->
+            MapList (BindingApply Z3m_AST ctx) args ->
+            Z3m ctx (AST ret)
+  helper fdecl prev_args (LTypeArgs_base _) _ =
+    astInBase $ Z3.mkApp fdecl (reverse prev_args)
+  helper fdecl prev_args (LTypeArgs_pm _) _ =
+    astInBase $ Z3.mkApp fdecl (reverse prev_args)
+  helper fdecl prev_args (LTypeArgs_fun (LType_base l1tp) tp_args) args =
+    do let (arg_ba, args') = ml_first_rest args
+       arg <- extractL1ArgAST l1tp arg_ba
+       helper fdecl (unAST arg : prev_args) tp_args args'
+  helper _ _ (LTypeArgs_fun _ _) _ =
+    error "z3ApplyArgs: converting a higher-order variable to Z3!"
 
 -- | Helper function for extracting a 'Z3.AST' from an argument of type
 -- @'Literal' a@ passed to 'interpOpB' or 'interpVarB'
-extractLitArgAST :: BindingApply Z3m_AST ctx (Literal a) -> Z3m ctx Z3.AST
+extractLitArgAST :: BindingApply Z3m_AST ctx (Literal a) ->
+                    Z3m ctx (AST (Literal a))
 extractLitArgAST arg = unZ3m_AST $ unBindingApply arg
 
 -- | Helper function for extracting a 'Z3.AST' from an argument of type 'Ptr'
 -- passed to 'interpOpB' or 'interpVarB'
-extractPtrArgAST :: BindingApply Z3m_AST ctx Ptr -> Z3m ctx Z3.AST
+extractPtrArgAST :: BindingApply Z3m_AST ctx Ptr -> Z3m ctx (AST Ptr)
 extractPtrArgAST arg = unZ3m_AST $ unBindingApply arg
 
 -- | Helper function for extracting a 'Z3.AST' from an argument of type 'Prop'
 -- passed to 'interpOpB' or 'interpVarB'
-extractPropArgAST :: BindingApply Z3m_AST ctx Prop -> Z3m ctx Z3.AST
+extractPropArgAST :: BindingApply Z3m_AST ctx Prop -> Z3m ctx (AST Prop)
 extractPropArgAST arg = unZ3m_AST $ unBindingApply arg
-
--- | Apply an 'ArithOp1' to a 'Z3.AST'
-z3ArithOp1 :: ArithOp1 -> Z3.AST -> Z3.Z3 Z3.AST
-z3ArithOp1 Op1_Abs = error "Z3 absolute value function not (yet?) supported"
-z3ArithOp1 Op1_Signum = error "Z3 signum function not (yet?) supported"
-z3ArithOp1 Op1_Neg = Z3.mkUnaryMinus
-z3ArithOp1 Op1_Complement = Z3.mkBvnot
-
--- | Apply an 'ArithOp2' on a given 'LitType' to a 'Z3.AST'
-z3ArithOp2 :: LitType a -> ArithOp2 -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST
-z3ArithOp2 _ Op2_Add = \x y -> Z3.mkAdd [x,y]
-z3ArithOp2 _ Op2_Sub = \x y -> Z3.mkSub [x,y]
-z3ArithOp2 _ Op2_Mult = \x y -> Z3.mkMul [x,y]
-z3ArithOp2 (LitType_bits :: LitType a) Op2_Div
-  | isSigned (0 :: a) = Z3.mkBvudiv
-z3ArithOp2 (LitType_bits :: LitType a) Op2_Div = Z3.mkBvsdiv
-z3ArithOp2 _ Op2_Div = Z3.mkDiv
-z3ArithOp2 (LitType_bits :: LitType a) Op2_Mod
-  | isSigned (0 :: a) =
-      error "FIXME: how to translate signed mod into Z3?"
-z3ArithOp2 (LitType_bits :: LitType a) Op2_Mod = Z3.mkBvsmod
-z3ArithOp2 _ Op2_Mod = Z3.mkMod
-z3ArithOp2 (LitType_bits :: LitType a) Op2_Rem
-  | isSigned (0 :: a) = Z3.mkBvurem
-z3ArithOp2 (LitType_bits :: LitType a) Op2_Rem = Z3.mkBvsrem
-z3ArithOp2 _ Op2_Rem = Z3.mkRem
-z3ArithOp2 _ Op2_BitAnd = Z3.mkBvand
-z3ArithOp2 _ Op2_BitOr = Z3.mkBvor
-z3ArithOp2 _ Op2_BitXor = Z3.mkBvxor
-
--- | Apply a coercion function from one 'LitType' to another to a 'Z3.AST'
-z3Coerce :: LitType f -> LitType t -> Z3.AST -> Z3.Z3 Z3.AST
-z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t)
-  | finiteBitSize (0 :: t) == finiteBitSize (0 :: f) =
-    return
-z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t)
-  | isSigned (0 :: f) && finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
-    Z3.mkSignExt $ finiteBitSize (0 :: t) - finiteBitSize (0 :: f)
-z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t)
-  | finiteBitSize (0 :: t) > finiteBitSize (0 :: f) =
-    Z3.mkZeroExt $ finiteBitSize (0 :: t) - finiteBitSize (0 :: f)
-z3Coerce (LitType_bits :: LitType f) (LitType_bits :: LitType t) =
-  Z3.mkExtract (finiteBitSize (0 :: t) - 1) 0
-z3Coerce LitType_int (LitType_bits :: LitType t) =
-  Z3.mkInt2bv (finiteBitSize (0 :: t))
-z3Coerce (LitType_bits :: LitType f) LitType_int =
-  \ast -> Z3.mkBv2int ast (isSigned (0 :: f))
-z3Coerce LitType_int LitType_int = return
-z3Coerce LitType_bool LitType_bool = return
-z3Coerce LitType_unit LitType_unit = return
-z3Coerce _ _ = error "Z3 Coercion not supported!"
-
--- | Apply an 'ArithCmp' to two 'Z3.AST's
-z3ArithCmp :: ArithCmp -> Z3.AST -> Z3.AST -> Z3.Z3 Z3.AST
-z3ArithCmp OpCmp_EQ = Z3.mkEq
-z3ArithCmp OpCmp_LT = Z3.mkLt
-z3ArithCmp OpCmp_LE = Z3.mkLe
 
 -- Instance for converting LExprs to Z3 ASTs
 instance LBindingExprAlgebra tag Z3m_AST where
@@ -450,122 +677,96 @@ instance LBindingExprAlgebra tag Z3m_AST where
   interpVarB _ tp_args memb args =
     Z3m_AST $
     do z3ctx <- ask
-       arg_asts <- extractArgASTs tp_args args
-       case z3ctx_lookup z3ctx memb of
-         Z3CtxLookupRes_EVar _ ast ->
-           -- NOTE: in this case, args must be empty, because the type of the
-           -- variable must be an L1Type, but we need not "prove" that here, and
-           -- we simply ignore args
+       case (z3ctx_lookup z3ctx memb, tp_args) of
+         (Z3CtxLookupRes_EVar _ ast, LTypeArgs_base _) ->
            return ast
-         Z3CtxLookupRes_FVar _ fdecl ->
-           inBase $ Z3.mkApp fdecl arg_asts
-         Z3CtxLookupRes_UVar l1tp i ->
-           -- NOTE: as with the EVar case, arg_asts must be empty here
+         (Z3CtxLookupRes_EVar l1tp _, LTypeArgs_pm _) ->
+           no_pm_l1type l1tp
+         (Z3CtxLookupRes_EVar l1tp _, LTypeArgs_fun _ _) ->
+           no_functional_l1type l1tp
+         (Z3CtxLookupRes_FVar _ fdecl, _) ->
+           z3ApplyArgs fdecl tp_args args
+         (Z3CtxLookupRes_UVar l1tp i, LTypeArgs_base _) ->
            do sort <- l1type_to_sort l1tp
-              inBase $ Z3.mkBound (fromInteger i) sort
+              astInBase $ Z3.mkBound (fromInteger i) sort
+         (Z3CtxLookupRes_UVar l1tp _, LTypeArgs_pm _) ->
+           no_pm_l1type l1tp
+         (Z3CtxLookupRes_UVar l1tp i, LTypeArgs_fun _ _) ->
+           no_functional_l1type l1tp
 
   -- Interpret literals into Z3
-  interpOpB (Op_Literal LitType_unit ()) _ =
-    Z3m_AST $ do f <- liftM unit_ctor get
-                 inBase $ Z3.mkApp f []
-  interpOpB (Op_Literal LitType_bool b) _ =
-    Z3m_AST $ inBase $ Z3.mkBool b
-  interpOpB (Op_Literal LitType_int i) _ =
-    Z3m_AST $ inBase $ Z3.mkInteger i
-  interpOpB (Op_Literal lit_tp@LitType_bits bv) _ =
-    Z3m_AST $ do sort <- l1type_to_sort (L1Type_lit lit_tp)
-                 inBase $ Z3.mkIntegral bv sort
-
-  -- Interpret arithmetic operations on Booleans
-  interpOpB (Op_arith1 LitType_bool Op1_Neg) (Cons arg1 _) =
-    -- Negation on Booleans --> not
-    Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 inBase $ Z3.mkNot ast1
-  interpOpB (Op_arith1 LitType_bool aop) (Cons arg1 _) =
-    error "In converting to Z3: Unsupported unary operation on Booleans"
-  interpOpB (Op_arith2 LitType_bool Op2_Add) (Cons arg1 (Cons arg2 _)) =
-    -- Addition on Booleans --> or
-    Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 ast2 <- extractLitArgAST arg2
-                 inBase $ Z3.mkOr [ast1, ast2]
-  interpOpB (Op_arith2 LitType_bool Op2_Mult) (Cons arg1 (Cons arg2 _)) =
-    -- Multiplication on Booleans --> and
-    Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 ast2 <- extractLitArgAST arg2
-                 inBase $ Z3.mkAnd [ast1, ast2]
-  interpOpB (Op_arith2 LitType_bool aop) _ =
-    error "In converting to Z3: Unsupported binary operation on Booleans"
+  interpOpB (Op_Literal lit_tp x) _ = Z3m_AST $ z3Literal lit_tp x
 
   -- Interpret the arithmetic operations into Z3
-  interpOpB (Op_arith1 _ aop) (Cons arg1 _) =
+  interpOpB (Op_arith1 lit_tp aop) (ml_first -> arg1) =
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 inBase $ z3ArithOp1 aop ast1
-  interpOpB (Op_arith2 lit_tp aop) (Cons arg1 (Cons arg2 _)) =
-    Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 ast2 <- extractLitArgAST arg2
-                 inBase $ z3ArithOp2 lit_tp aop ast1 ast2
-  interpOpB (Op_coerce lit_tp_from lit_tp_to) (Cons arg1 _) =
-    Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 inBase $ z3Coerce lit_tp_from lit_tp_to ast1
-  interpOpB (Op_cmp ltp acmp) (Cons arg1 (Cons arg2 _)) =
+                 z3ArithOp1 aop lit_tp ast1
+  interpOpB (Op_arith2 lit_tp aop) (ml_12 -> (arg1, arg2)) =
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
                  ast2 <- extractLitArgAST arg2
-                 inBase $ z3ArithCmp acmp ast1 ast2
-  interpOpB (Op_cond l1tp) (Cons arg1 (Cons arg2 (Cons arg3 _))) =
+                 z3ArithOp2 aop lit_tp ast1 ast2
+  interpOpB (Op_coerce lit_tp_from lit_tp_to) (ml_first -> arg1) =
+    Z3m_AST $ do ast1 <- extractLitArgAST arg1
+                 z3Coerce lit_tp_from lit_tp_to ast1
+  interpOpB (Op_cmp lit_tp acmp) (ml_12 -> (arg1, arg2)) =
+    Z3m_AST $ do ast1 <- extractLitArgAST arg1
+                 ast2 <- extractLitArgAST arg2
+                 z3ArithCmp acmp (L1Type_lit lit_tp) ast1 ast2
+  interpOpB (Op_cond l1tp@(L1Type_lit _)) (ml_123 -> (arg1, arg2, arg3)) =
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
                  ast2 <- extractL1ArgAST l1tp arg2
                  ast3 <- extractL1ArgAST l1tp arg3
-                 inBase $ Z3.mkIte ast1 ast2 ast3
-  interpOpB Op_null_ptr _ = Z3m_AST $ inBase $ Z3.mkInteger 0
-  interpOpB (Op_global_var i) _ =
-    if i < 0 then
-      Z3m_AST $ inBase $ Z3.mkInteger i
-    else error "In converting to Z3: non-negative global variable constant!"
-  interpOpB Op_next_ptr (Cons arg1 _) =
+                 z3IfThenElse ast1 ast2 ast3
+  interpOpB (Op_cond l1tp@L1Type_ptr) (ml_123 -> (arg1, arg2, arg3)) =
+    Z3m_AST $ do ast1 <- extractLitArgAST arg1
+                 ast2 <- extractL1ArgAST l1tp arg2
+                 ast3 <- extractL1ArgAST l1tp arg3
+                 z3IfThenElse ast1 ast2 ast3
+  interpOpB (Op_cond l1tp@L1Type_prop) (ml_123 -> (arg1, arg2, arg3)) =
+    Z3m_AST $ do ast1 <- extractLitArgAST arg1
+                 ast2 <- extractL1ArgAST l1tp arg2
+                 ast3 <- extractL1ArgAST l1tp arg3
+                 z3IfThenElse ast1 ast2 ast3
+  interpOpB Op_null_ptr _ = Z3m_AST z3NullPtr
+  interpOpB (Op_global_var n) _ = Z3m_AST $ z3GlobalVar n
+  interpOpB Op_next_ptr (ml_first -> arg1) =
     Z3m_AST $ do ast1 <- extractPtrArgAST arg1
-                 ast_one <- inBase $ Z3.mkInteger 1
-                 inBase $ Z3.mkAdd [ast1, ast_one]
-  interpOpB (Op_ptr_cmp acmp) (Cons arg1 (Cons arg2 _)) =
+                 z3NextPtr ast1
+  interpOpB (Op_ptr_cmp acmp) (ml_12 -> (arg1, arg2)) =
     Z3m_AST $ do ast1 <- extractPtrArgAST arg1
                  ast2 <- extractPtrArgAST arg2
-                 inBase $ z3ArithCmp acmp ast1 ast2
+                 z3ArithCmp acmp l1typeRep ast1 ast2
 
   -- Interpret the first-order propositional operations into Z3
-  interpOpB Op_true _ = Z3m_AST $ inBase $ Z3.mkTrue
-  interpOpB Op_false _ = Z3m_AST $ inBase $ Z3.mkFalse
-  interpOpB Op_and (Cons arg1 (Cons arg2 _)) =
+  interpOpB Op_true _ = Z3m_AST z3True
+  interpOpB Op_false _ = Z3m_AST z3False
+  interpOpB Op_and (ml_12 -> (arg1, arg2)) =
     Z3m_AST $ do ast1 <- extractPropArgAST arg1
                  ast2 <- extractPropArgAST arg2
-                 inBase $ Z3.mkAnd [ast1, ast2]
-  interpOpB Op_or (Cons arg1 (Cons arg2 _)) =
+                 z3And ast1 ast2
+  interpOpB Op_or (ml_12 -> (arg1, arg2)) =
     Z3m_AST $ do ast1 <- extractPropArgAST arg1
                  ast2 <- extractPropArgAST arg2
-                 inBase $ Z3.mkOr [ast1, ast2]
-  interpOpB Op_not (Cons arg1 _) =
+                 z3Or ast1 ast2
+  interpOpB Op_not (ml_first -> arg1) =
     Z3m_AST $ do ast1 <- extractPropArgAST arg1
-                 inBase $ Z3.mkNot ast1
-  interpOpB (Op_eq l1tp) (Cons arg1 (Cons arg2 _)) =
+                 z3Not ast1
+  interpOpB (Op_eq l1tp) (ml_12 -> (arg1, arg2)) =
     Z3m_AST $ do ast1 <- extractL1ArgAST l1tp arg1
                  ast2 <- extractL1ArgAST l1tp arg2
-                 inBase $ Z3.mkEq ast1 ast2
-  interpOpB Op_istrue (Cons arg1 _) =
+                 z3Eq ast1 ast2
+  interpOpB Op_istrue (ml_first -> arg1) =
     -- NOTE: Op_istrue is the identity when converted to Z3
-    Z3m_AST $ extractLitArgAST arg1
+    Z3m_AST $ (z3IsTrue <=< extractLitArgAST) arg1
 
   -- Interpret the quantifiers into Z3
-  interpOpB (Op_forall l1tp) (Cons (BindingApply (Z3m_AST body_m)) _) =
-    Z3m_AST $ do body_ast <- withUVar l1tp body_m
-                 sym <- mkFreshSymbol (l1type_base_name l1tp)
-                 sort <- l1type_to_sort l1tp
-                 inBase $ Z3.mkForall [] [sym] [sort] body_ast
-  interpOpB (Op_exists l1tp) (Cons (BindingApply (Z3m_AST body_m)) _) =
-    Z3m_AST $ liftM snd $ withEVar l1tp body_m
-  interpOpB (Op_let l1tp) (Cons rhs (Cons (BindingApply (Z3m_AST body_m)) _)) =
+  interpOpB (Op_forall l1tp) (ml_first -> (BindingApply (Z3m_AST body_m))) =
+    Z3m_AST $ z3Forall l1tp body_m
+  interpOpB (Op_exists l1tp) (ml_first -> (BindingApply (Z3m_AST body_m))) =
+    Z3m_AST $ z3Exists l1tp body_m
+  interpOpB (Op_let l1tp) (ml_12 -> (rhs, BindingApply (Z3m_AST body_m))) =
     Z3m_AST $ do rhs_ast <- extractL1ArgAST l1tp rhs
-                 (const_ast, ret) <- withEVar l1tp body_m
-                 equality_ast <- inBase $ Z3.mkEq const_ast rhs_ast
-                 put [equality_ast]
-                 return ret
+                 z3Let l1tp rhs_ast body_m
 
   -- Signal an error if we try to convert any predicate monad operations to Z3
   interpOpB (Op_returnP _) _ = error "Cannot convert returnP to Z3"
@@ -587,12 +788,12 @@ instance LBindingExprAlgebra tag Z3m_AST where
     error "Cannot convert orP to Z3!"
 
 -- | Top-level call to convert an 'LProp' into a Z3 expression
-lprop_to_z3ast :: LProp tag -> Z3m RNil Z3.AST
+lprop_to_z3ast :: LProp tag -> Z3m RNil (AST Prop)
 lprop_to_z3ast prop =
   unZ3m_AST $ interpExprB Proxy prop
 
 -- | Top-level call to convert an 'LProp'-in-binding into a Z3 expression
-mb_lprop_to_z3ast :: Mb ctx (LProp tag) -> Z3m ctx Z3.AST
+mb_lprop_to_z3ast :: Mb ctx (LProp tag) -> Z3m ctx (AST Prop)
 mb_lprop_to_z3ast prop =
   unZ3m_AST $ interpMbExprB Proxy prop
 
@@ -669,7 +870,7 @@ evalFuncDecl z3model ftp fdecl =
 evalZ3Ctx :: Z3.Model -> Z3Ctx ctx -> Z3.Z3 (MapRList MaybeSMTValue ctx)
 evalZ3Ctx z3model Z3Ctx_nil = return MNil
 evalZ3Ctx z3model (Z3Ctx_EVar ctx l1tp ast) =
-  liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalAST z3model l1tp ast)
+  liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalAST z3model l1tp $ unAST ast)
 evalZ3Ctx z3model (Z3Ctx_FVar ctx ftp fdecl) =
   liftM2 (:>:) (evalZ3Ctx z3model ctx) (evalFuncDecl z3model ftp fdecl)
 evalZ3Ctx z3model (Z3Ctx_UVar _ _) =
@@ -698,7 +899,7 @@ instance SMTSolver Z3Solver where
     evalZ3m const_tps $
     do (converted_asts, collected_asts) <-
          collect $ mapM mb_lprop_to_z3ast props
-       let z3_props = collected_asts ++ converted_asts
+       let z3_props = map unAST $ collected_asts ++ converted_asts
        z3debug 1 solver "Performing Z3 query:"
        mapM_ (z3debug 1 solver . show) z3_props
        z3debug 1 solver ""
