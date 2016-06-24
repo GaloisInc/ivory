@@ -1261,21 +1261,23 @@ mkNot p = mkOp Op_not p
 -- "false" if any conjuncts are "false"
 mkAnd :: [LProp tag] -> LProp tag
 mkAnd ps =
-  let ps' = concatMap getConjuncts ps in
-  if any isFalse ps' then mkFalse else helper ps' where
+  let ps1 = concatMap getConjuncts ps
+      ps2 = filter (not . isTrue) ps1 in
+  if any isFalse ps2 then mkFalse else helper ps2 where
     helper [] = mkTrue
     helper [p] = p
-    helper (p1 : ps'') = mkOp Op_and p1 $ helper ps''
+    helper (p : ps') = mkOp Op_and p $ helper ps'
 
 -- | Build a right-nested disjunction, removing any "true"s and returning
 -- "false" if any disjuncts are "false"
 mkOr :: [LProp tag] -> LProp tag
 mkOr ps =
-  let ps' = concatMap getDisjuncts ps in
-  if any isFalse ps' then mkFalse else helper ps' where
-    helper [] = mkTrue
+  let ps1 = concatMap getDisjuncts ps
+      ps2 = filter (not . isFalse) ps1 in
+  if any isTrue ps2 then mkTrue else helper ps2 where
+    helper [] = mkFalse
     helper [p] = p
-    helper (p1 : ps'') = mkOp Op_or p1 $ helper ps''
+    helper (p : ps') = mkOp Op_or p $ helper ps'
 
 -- | Build an expression stating that the given Boolean is 'True' (FIXME: make
 -- this "smart" by recognizing and, or, and not)
