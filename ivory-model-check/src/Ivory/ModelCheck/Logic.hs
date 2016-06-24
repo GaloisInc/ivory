@@ -19,6 +19,7 @@ import Data.Word
 import Data.List
 import Data.Functor.Identity
 import Data.Type.Equality
+import Numeric.Natural
 
 import MonadLib
 
@@ -59,6 +60,11 @@ $(mkNuMatching [t| Bool |])
 instance Liftable Bool where
   mbLift [nuP| True |] = True
   mbLift [nuP| False |] = False
+
+instance NuMatching Natural where
+  nuMatchingProof = isoMbTypeRepr toInteger fromInteger
+instance Liftable Natural where
+  mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 
 instance NuMatching Word8 where
   nuMatchingProof = isoMbTypeRepr toInteger fromInteger
@@ -723,12 +729,33 @@ class (MemoryModel (LStorables tag), Eq (LException tag),
   type LException tag :: *
 
 -- | The unary arithmetic operations
-data ArithOp1 = Op1_Abs | Op1_Signum | Op1_Neg | Op1_Complement
+data ArithOp1 = Op1_Abs
+                -- ^ Absolute value
+              | Op1_Signum
+                -- ^ The signum function
+              | Op1_Neg
+                -- ^ Integer negation, or the "not" function on Booleans
+              | Op1_Complement
+                -- ^ Bit complementation
 
 -- | The binary arithmetic operations
 data ArithOp2
-  = Op2_Add | Op2_Sub | Op2_Mult | Op2_Div | Op2_Mod | Op2_Rem
-  | Op2_BitAnd | Op2_BitOr | Op2_BitXor
+  = Op2_Add
+    -- ^ Addition, or the "or" function on Booleans
+  | Op2_Sub
+    -- ^ Subtraction
+  | Op2_Mult
+    -- ^ Multiplication, or the "and" function on Booleans
+  | Op2_Div
+    -- ^ Division
+  | Op2_Mod
+    -- ^ The modulo function
+  | Op2_BitAnd
+    -- ^ Bitwise and
+  | Op2_BitOr
+    -- ^ Bitwise or
+  | Op2_BitXor
+    -- ^ Bitwise xor
 
 -- | The arithmetic comparison operations
 data ArithCmp
@@ -759,9 +786,8 @@ data Op tag a where
 
   -- | The null pointer
   Op_null_ptr :: Op tag Ptr
-  -- | A global variable, referred to by reference, named by number, which must
-  -- be a negative 'Integer'
-  Op_global_var :: Integer -> Op tag Ptr
+  -- | A global variable, referred to by reference, named by (natural) number
+  Op_global_var :: Natural -> Op tag Ptr
   -- | Bump a free pointer
   Op_next_ptr :: Op tag (Ptr -> Ptr)
   -- | Pointer comparisons
@@ -905,7 +931,6 @@ instance Liftable ArithOp2 where
   mbLift [nuP| Op2_Mult |] = Op2_Mult
   mbLift [nuP| Op2_Div |] = Op2_Div
   mbLift [nuP| Op2_Mod |] = Op2_Mod
-  mbLift [nuP| Op2_Rem |] = Op2_Rem
   mbLift [nuP| Op2_BitAnd |] = Op2_BitAnd
   mbLift [nuP| Op2_BitOr |] = Op2_BitOr
   mbLift [nuP| Op2_BitXor |] = Op2_BitXor
@@ -1100,7 +1125,7 @@ mbMatchLambda [nuP| LOp op _ |] =
 
 
 ----------------------------------------------------------------------
--- Building numeric and Boolean expressions
+-- Building numeric, Boolean, and pointer expressions
 ----------------------------------------------------------------------
 
 -- | Apply an 'ArithOp1' to an expression
@@ -1129,6 +1154,14 @@ mkCoerce lit_tp_from lit_tp_to expr
   | Just Refl <- litTypeEq lit_tp_from lit_tp_to = expr
 mkCoerce lit_tp_from lit_tp_to expr =
   mkOp (Op_coerce lit_tp_from lit_tp_to) expr
+
+-- | Build a null pointer expression
+mkNullPtr :: LExpr tag Ptr
+mkNullPtr = mkOp Op_null_ptr
+
+-- | Build a global variable expression
+mkGlobalVar :: Natural -> LExpr tag Ptr
+mkGlobalVar n = mkOp (Op_global_var n)
 
 -- | Make a Boolean less-than expression
 mkLtBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
