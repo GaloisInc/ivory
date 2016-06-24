@@ -208,12 +208,12 @@ addBindTransition :: L1Typeable a => ILExpr (PM a) -> I2LM (ILExpr a)
 addBindTransition pm = shiftPureM $ \k -> mkBindP pm k
 
 -- | Add an assumption to the current transition relation
-ivoryAssume :: ILProp -> ILPM ()
-ivoryAssume prop = addTransition $ mkAssumeP IvoryError prop
+ivoryAssume :: ILProp -> I2LM ()
+ivoryAssume prop = addTransition $ mkAssumeP prop
 
 -- | Add an assertion to the current transition relation
-ivoryAssert :: ILProp -> ILPM ()
-ivoryAssert prop = addTransition $ mkAssertP prop
+ivoryAssert :: ILProp -> I2LM ()
+ivoryAssert prop = addTransition $ mkAssertP IvoryError prop
 
 -- | The number of reserved / "special" global variable numbers
 numReservedSyms = 1
@@ -419,7 +419,7 @@ readArraySome :: I.Type -> ILExpr Ptr -> ILExpr (Literal Word64) ->
                  I2LM SomeILExpr
 readArraySome itp ptr ix =
   case convertType itp of
-    SomeL1Type l1tp -> readArray l1tp ptr ix
+    SomeL1Type l1tp -> SomeILExpr l1tp <$> readArray l1tp ptr ix
 
 -- | Update an Ivory array value
 updateArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) -> ILExpr a ->
@@ -530,7 +530,7 @@ coerceSomeExpr (L1Type_lit to_tp) _ (SomeILExpr (L1Type_lit from_tp) e) =
   mkCoerce from_tp to_tp e
 coerceSomeExpr L1Type_ptr _ (SomeILExpr L1Type_ptr e) = e
 coerceSomeExpr L1Type_prop _ (SomeILExpr L1Type_prop e) = e
-coerceSomeExpr _ _ err_str = error err_str
+coerceSomeExpr _ err_str _ = error err_str
 
 -- | Convert an 'Integer' to a logical expression of a given type
 convertInteger :: L1Type a -> Integer -> ILExpr a
@@ -584,7 +584,7 @@ convertArithCmp itp acmp args =
 convertSomeExpr :: I.Type -> I.Expr -> I2LM SomeILExpr
 convertSomeExpr itp ie =
   case convertType itp of
-    SomeL1Type l1tp -> SomeILExpr <$> convertExpr l1tp ie
+    SomeL1Type l1tp -> SomeILExpr l1tp <$> convertExpr l1tp ie
 
 -- | Convert a typed Ivory expression to a logical expression
 convertTypedExpr :: I.Typed I.Expr -> I2LM SomeILExpr
@@ -614,7 +614,7 @@ convertExpr l1tp (I.ExpLabel (I.TyStruct s_name) s_iexpr f_name) =
      readArray l1tp s_expr (mkLiteral $ fromInteger $ toInteger f_ix)
 convertExpr l1tp (I.ExpIndex arr_elem_itp arr_iexpr ix_itp ix_iexpr) =
   do ix_expr <-
-       coerceSomeExpr litTypeRep "convertExpr: index of non-numeric type!" <$>
+       coerceSomeExpr l1typeRep "convertExpr: index of non-numeric type!" <$>
        convertSomeExpr ix_itp ix_iexpr
      arr_expr <- convertExpr L1Type_ptr arr_iexpr
      readArray l1tp arr_expr ix_expr
@@ -844,7 +844,7 @@ convertStmt (I.Deref itp var ie) =
 convertStmt (I.Store itp ilhs irhs) =
   do ptr <- convertExpr L1Type_ptr ilhs
      val <- convertSomeExpr itp irhs
-     updateArraySome l1tp ptr (mkLiteral 0) val
+     updateArraySome ptr (mkLiteral 0) val
 
 -- Assignment statements
 convertStmt (I.Assign itp var irhs) =
@@ -861,7 +861,7 @@ convertStmt (I.Call ret_itp maybe_ret_var (I.NameSym fn_sym) iargs) =
          -- Step 1: Convert the arguments
          args <- mapM convertTypedExpr iargs
          -- Step 2: Let-bind the arguments
-         mapM_ (uncurry letBindVarSome) (zip (map I.tValue I.procArgs) args)
+         mapM_ (uncurry letBindVarSome) (zip (map I.tValue $ I.procArgs p) args)
          -- Step 3: Assert the preconditions
          mapM_ (ivoryAssert <=< convertRequire) (I.procRequires p)
          -- Step 4: Inline the call or insert an arbitrary transition
@@ -870,9 +870,10 @@ convertStmt (I.Call ret_itp maybe_ret_var (I.NameSym fn_sym) iargs) =
            -- FIXME HERE NOW: add a call here to havoc memory
            error "convertStmt: non-inlined function calls not yet supported"
          -- Step 5: Bind the special variable "retval" to the output
-         bindRetval
+         bindRetval ret_itp
          -- Step 6: Assume the postconditions
          mapM_ (ivoryAssert <=< convertEnsure) (I.procEnsures p)
+         returnUnitTrans
      -- Now add the call as a transition outside the reset
      addTransition pm
      -- Finally, bind the return variable to the return value, if necessary
@@ -954,7 +955,7 @@ convertProc p =
     -- Transition according to the body of the procedure
     convertBlock (I.procBody p)
     -- Bind the return value to the special Ivory "retval" variable
-    bindRetval
+    bindRetval (I.procRetTy p)
     -- Assert all the Ensures
     mapM_ (ivoryAssert <=< convertEnsure) $ I.procEnsures p
     returnUnitTrans
