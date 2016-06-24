@@ -15,6 +15,7 @@ import qualified Ivory.Language.Proc as I
 import qualified Ivory.Language.Syntax as I
 import Ivory.Serialize
 import Ivory.ModelCheck
+import Ivory.ModelCheck.Ivory2Logic
 
 import Text.Printf
 
@@ -75,35 +76,35 @@ examples = testGroup "examples (shouldn't crash)"
            | m <- Examples.modules
            , p <- I.public (I.modProcs m) ]
 
-testArgs :: Args
-testArgs = initArgs { printQuery = False, printEnv = False }
+testArgs :: ILOpts
+testArgs = defaultOpts { debugLevel = 1 }
 
 mkSuccess :: Def p -> [Module] -> TestTree
 mkSuccess d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
   r <- modelCheck testArgs mods d
   let msg = printf "Expected: Safe\nActual: %s"
-            (showResult r)
+            (showResult mods d r)
   assertBool msg (isSafe r)
 
 mkSuccessInline :: Def p -> [Module] -> TestTree
 mkSuccessInline d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
-  r <- modelCheck (testArgs { inlineCall = True }) mods d
+  r <- modelCheck (testArgs { inlineCalls = True }) mods d
   let msg = printf "Expected: Safe\nActual: %s"
-            (showResult r)
+            (showResult mods d r)
   assertBool msg (isSafe r)
 
 mkFailure :: Def p -> [Module] -> TestTree
 mkFailure d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
   r <- modelCheck testArgs mods d
   let msg = printf "Expected: Unsafe\nActual: %s"
-            (showResult r)
+            (showResult mods d r)
   assertBool msg (isUnsafe r)
 
 mkNotError :: Def p -> [Module] -> TestTree
 mkNotError d@(~(I.DefProc p)) mods = testCase (I.procSym p) $ do
   r <- modelCheck testArgs mods d
   let msg = printf "Expected: anything but Error\nActual: %s"
-            (showResult r)
+            (showResult mods d r)
   assertBool msg (not $ isError r)
 
 --------------------------------------------------------------------------------
