@@ -17,6 +17,7 @@ import Data.Typeable
 import Data.Int
 import Data.Word
 import Data.List
+import Data.Maybe
 import Data.Functor.Identity
 import Data.Type.Equality
 import Numeric.Natural
@@ -1187,6 +1188,59 @@ mkOrBool = mkOp (Op_arith2 LitType_bool Op2_Add)
 -- Building proposition expressions
 ----------------------------------------------------------------------
 
+-- | Get the head of an 'LExprs' list
+lexprs_head :: LExprs tag (a ': as) -> LExpr tag a
+lexprs_head (LExprs_cons e _) = e
+
+-- | Get the tail of an 'LExprs' list
+lexprs_tail :: LExprs tag (a ': as) -> LExprs tag as
+lexprs_tail (LExprs_cons _ es) = es
+
+-- | Get the first and second arguments of an 'LExprs' list
+lexprs_12 :: LExprs tag (a ': b ': any) -> (LExpr tag a, LExpr tag b)
+lexprs_12 es = (lexprs_head es, lexprs_head $ lexprs_tail es)
+
+-- | Check if an expression is a literal, and if so, return the literal value
+matchLiteral :: LExpr tag (Literal a) -> Maybe a
+matchLiteral (LOp (Op_Literal _ x) _) = Just x
+matchLiteral _ = Nothing
+
+-- | Check if a proposition is the "true" proposition
+isTrue :: LProp tag -> Bool
+isTrue (LOp Op_true _) = True
+isTrue _ = False
+
+-- | Check if a proposition is the "false" proposition
+isFalse :: LProp tag -> Bool
+isFalse (LOp Op_false _) = True
+isFalse _ = False
+
+-- | Destructure a proposition into all of its (recursive) conjuncts
+getConjuncts :: LProp tag -> [LProp tag]
+getConjuncts (LOp Op_and (lexprs_12 -> (p1, p2))) =
+  getConjuncts p1 ++ getConjuncts p2
+getConjuncts p = [p]
+
+-- | Destructure a proposition into all of its (recursive) disjuncts
+getDisjuncts :: LProp tag -> [LProp tag]
+getDisjuncts (LOp Op_or (lexprs_12 -> (p1, p2))) =
+  getDisjuncts p1 ++ getDisjuncts p2
+getDisjuncts p = [p]
+
+-- | Check if a proposition is a conjunction, and, if so, return its conjuncts.
+-- This is done recursively, so any sub-conjuncts are destructured as well.
+matchAnd :: LProp tag -> Maybe [LProp tag]
+matchAnd (LOp Op_and (lexprs_12 -> (p1, p2))) =
+  Just (getConjuncts p1 ++ getConjuncts p2)
+matchAnd _ = Nothing
+
+-- | Check if a proposition is a disjunction, and, if so, return its disjuncts.
+-- This is done recursively, so any sub-disjuncts are destructured as well.
+matchOr :: LProp tag -> Maybe [LProp tag]
+matchOr (LOp Op_or (lexprs_12 -> (p1, p2))) =
+  Just (getDisjuncts p1 ++ getDisjuncts p2)
+matchOr _ = Nothing
+
 -- | The true proposition
 mkTrue :: LProp tag
 mkTrue = mkOp Op_true
@@ -1195,17 +1249,33 @@ mkTrue = mkOp Op_true
 mkFalse :: LProp tag
 mkFalse = mkOp Op_false
 
--- | Negate a proposition (FIXME: make this "smart")
+-- | Negate a proposition (FIXME: handle quantifiers)
 mkNot :: LProp tag -> LProp tag
-mkNot = mkOp Op_not
+mkNot p | isTrue p = mkFalse
+mkNot p | isFalse p = mkTrue
+mkNot (matchAnd -> Just ps) = mkOr $ map mkNot ps
+mkNot (matchOr -> Just ps) = mkAnd $ map mkNot ps
+mkNot p = mkOp Op_not p
 
--- | Build a conjunction (FIXME: make this "smart")
+-- | Build a right-nested conjunction, removing any "true"s and returning
+-- "false" if any conjuncts are "false"
 mkAnd :: [LProp tag] -> LProp tag
-mkAnd = foldr (mkOp Op_and) mkTrue
+mkAnd ps =
+  let ps' = concatMap getConjuncts ps in
+  if any isFalse ps' then mkFalse else helper ps' where
+    helper [] = mkTrue
+    helper [p] = p
+    helper (p1 : ps'') = mkOp Op_and p1 $ helper ps''
 
--- | Build a disjunction (FIXME: make this "smart")
+-- | Build a right-nested disjunction, removing any "true"s and returning
+-- "false" if any disjuncts are "false"
 mkOr :: [LProp tag] -> LProp tag
-mkOr = foldr (mkOp Op_or) mkFalse
+mkOr ps =
+  let ps' = concatMap getDisjuncts ps in
+  if any isFalse ps' then mkFalse else helper ps' where
+    helper [] = mkTrue
+    helper [p] = p
+    helper (p1 : ps'') = mkOp Op_or p1 $ helper ps''
 
 -- | Build an expression stating that the given Boolean is 'True' (FIXME: make
 -- this "smart" by recognizing and, or, and not)
@@ -1227,27 +1297,42 @@ mkLet :: L1Type a -> LExpr tag a -> (LExpr tag a -> LProp tag) -> LProp tag
 mkLet l1tp rhs body =
   mkOp (Op_let l1tp) rhs $ mkLambdaTp (LType_base l1tp) body
 
+-- | Build an equality at a first-order type which is given explicitly.  Does
+-- some simplification.
+mkEq1Tp :: L1Type a -> LExpr tag a -> LExpr tag a -> LProp tag
+mkEq1Tp (L1Type_lit LitType_unit) e1 e2 =
+  -- Elements of the unit type are always equal
+  mkTrue
+mkEq1Tp (L1Type_lit LitType_bool) (matchLiteral -> Just x1)
+  (matchLiteral -> Just x2) =
+  if x1 == x2 then mkTrue else mkFalse
+mkEq1Tp (L1Type_lit LitType_int) (matchLiteral -> Just x1)
+  (matchLiteral -> Just x2) =
+  if x1 == x2 then mkTrue else mkFalse
+mkEq1Tp (L1Type_lit LitType_int) (matchLiteral -> Just x1)
+  (matchLiteral -> Just x2) =
+  if x1 == x2 then mkTrue else mkFalse
+mkEq1Tp (L1Type_lit LitType_bits) (matchLiteral -> Just x1)
+  (matchLiteral -> Just x2) =
+  if x1 == x2 then mkTrue else mkFalse
+mkEq1Tp l1tp e1 e2 =
+  LOp (Op_eq l1tp) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
+
 -- | Build an equality at an arbitrary second-order type
 mkEqTp :: L1FunType a -> ApplyToArgs (LExpr tag) a ->
           ApplyToArgs (LExpr tag) a -> LProp tag
 mkEqTp (L1FunType_base l1tp@(L1Type_lit _)) e1 e2 =
-  mkOp (Op_eq l1tp) e1 e2
+  mkEq1Tp l1tp e1 e2
 mkEqTp (L1FunType_base l1tp@L1Type_ptr) e1 e2 =
-  mkOp (Op_eq l1tp) e1 e2
+  mkEq1Tp l1tp e1 e2
 mkEqTp (L1FunType_base l1tp@L1Type_prop) e1 e2 =
-  mkOp (Op_eq l1tp) e1 e2
+  mkEq1Tp l1tp e1 e2
 mkEqTp (L1FunType_cons l1tp_a tp_b) f1 f2 =
   mkForall l1tp_a $ \x -> mkEqTp tp_b (f1 x) (f2 x)
 
 -- | Build an equality at a first-order type
 mkEq1 :: L1Typeable a => LExpr tag a -> LExpr tag a -> LProp tag
-mkEq1 e1 e2 =
-  LOp (Op_eq l1typeRep) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
-
--- | Build an equality at a first-order type which is given explicitly
-mkEq1Tp :: L1Type a -> LExpr tag a -> LExpr tag a -> LProp tag
-mkEq1Tp l1tp e1 e2 =
-  LOp (Op_eq l1tp) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
+mkEq1 e1 e2 = mkEq1Tp l1typeRep e1 e2
 
 -- | Build an equality for two 'Name's, short-circuiting the equality for
 -- syntactically identical names
