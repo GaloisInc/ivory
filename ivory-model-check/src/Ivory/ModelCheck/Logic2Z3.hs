@@ -12,7 +12,6 @@ import Data.Bits
 import Data.Word
 import Data.List
 import Data.Typeable
-import Data.Bifunctor
 
 import MonadLib
 import MonadLib.Monads
