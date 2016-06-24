@@ -14,6 +14,7 @@ import Data.Int
 import Data.List
 import Text.PrettyPrint
 import Numeric
+import Numeric.Natural
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -161,7 +162,7 @@ data I2LInfo =
     i2l_vars :: Map.Map I.Var SomeILName,
     -- ^ The Ivory variables that are in scope, and the Ivory
     -- reachability logic variables associated with them
-    i2l_syms :: Map.Map I.Sym Integer
+    i2l_syms :: Map.Map I.Sym Natural
     -- ^ An association from Ivory global symbols and unique numbers for them
   }
 
@@ -344,7 +345,7 @@ convertSymbol :: I.Sym -> I2LM (ILExpr Ptr)
 convertSymbol sym =
   do info <- get
      case Map.lookup sym (i2l_syms info) of
-       Just i -> return $ mkOp (Op_global_var (-i))
+       Just i -> return $ mkOp (Op_global_var i)
        Nothing ->
          error $ "convertSymbol: unexpected symbol: " ++ sym
          {-
