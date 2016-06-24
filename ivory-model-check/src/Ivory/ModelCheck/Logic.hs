@@ -4,6 +4,7 @@
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables, DataKinds, PartialTypeSignatures #-}
 {-# LANGUAGE NamedFieldPuns, DeriveFunctor #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.ModelCheck.Logic where
 
@@ -2392,6 +2393,9 @@ class SMTSolver solver where
   smtSolve :: solver -> MapRList L1FunType ctx ->
               [Mb ctx (LProp tag)] ->
               IO (SMTResult (MapRList MaybeSMTValue ctx))
+  -- | Set the debugging level of the solver: 0 = no debugging, 1 = print
+  -- queries, 2 = print everything
+  smtSetDebugLevel :: Int -> solver -> solver
 
 -- | FIXME: documentation
 ptrArraysOfSymPtrArrays :: MaybeSMTValue SymMemPtrArrayType ->

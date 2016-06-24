@@ -25,7 +25,7 @@ modelCheck' mods p = do
 -- | Model-check an Ivory definition
 modelCheck :: ILOpts -> [I.Module] -> P.Def p -> IO (SMTResult IvoryMemory)
 modelCheck opts mods (P.DefProc p) = do
-  modelCheckProc Z3Solver opts mods p
+  modelCheckProc defaultZ3Solver opts mods p
 modelCheck _ _ _ = error "I can only check procedures defined in Ivory!"
 
 -- | Print an 'SMTResult' for the Ivory reachability logic

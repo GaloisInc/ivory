@@ -482,6 +482,8 @@ convertInteger (L1Type_lit LitType_unit) _ =
   error "convertInteger: unit type!"
 convertInteger (L1Type_lit LitType_bool) _ =
   error "convertInteger: Boolean type!"
+convertInteger _ i =
+  error "convertInteger: pointer or proposition type!"
 
 -- | Convert an Ivory literal to a logical expression
 convertLiteral :: L1Type a -> I.Literal -> ILExpr a
@@ -546,6 +548,8 @@ convertExpr l1tp (I.ExpIndex arr_elem_itp arr_iexpr ix_itp ix_iexpr) =
       do ix_expr <- convertExpr ix_l1tp ix_iexpr
          arr_expr <- convertExpr L1Type_ptr arr_iexpr
          readArray l1tp arr_expr (mkCoerce ix_lit_tp litTypeRep ix_expr)
+    SomeL1Type _ ->
+      error "convertExpr: index of pointer or proposition type!"
 
 -- Coercion between types
 convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpToIx iexpr modulus) =
@@ -672,7 +676,7 @@ convertInit (I.TyStruct s_name) (I.InitStruct init_flds) =
             e <- convertInit f_itp init
             return (f_ix, e))
      ptr <- allocateArray $ mkLiteral64 $ 1 + maximum (map fst flds)
-     forM flds
+     forM_ flds
        (\(f_ix, SomeILExpr l1tp e) ->
          updateArray l1tp ptr (mkLiteral64 f_ix) e)
      return $ SomeILExpr L1Type_ptr ptr
@@ -685,7 +689,7 @@ convertInit arr_itp (I.InitArray init_elems) =
            _ -> error "convertInit: array initialization for non-array type!"
      elems <- mapM (convertInit itp) init_elems
      ptr <- allocateArray $ mkLiteral64 (1 + len)
-     forM (zip elems [1 .. len])
+     forM_ (zip elems [1 .. len])
        (\(SomeILExpr l1tp e, ix) -> updateArray l1tp ptr (mkLiteral64 ix) e)
      return $ SomeILExpr L1Type_ptr ptr
 
@@ -886,7 +890,7 @@ convertProc p =
 modelCheckProc :: SMTSolver solver => solver -> ILOpts -> [I.Module] ->
                   I.Proc -> IO (SMTResult IvoryMemory)
 modelCheckProc solver opts mods p =
-  exn_reachable solver IvoryError $
+  exn_reachable (smtSetDebugLevel (debugLevel opts) solver) IvoryError $
   runM (convertProc p) opts mods id
 
 
@@ -1004,6 +1008,7 @@ ppIvoryVal (I.TyStruct s_name) ptr ix =
               hang (text (I.tValue fld) <+> equals) 2 <$>
               ppIvoryVal (I.tType fld) ptr' ix'
             return $ fsep $ punctuate comma pps
+ppIvoryVal I.TyOpaque ptr ix = return $ text "<Opaque>"
 
 -- | Pretty-print the arguments to an Ivory function
 ppIvoryArgs :: [I.Typed I.Var] -> IvoryMemPP Doc
