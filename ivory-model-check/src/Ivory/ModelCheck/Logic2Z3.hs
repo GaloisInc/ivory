@@ -506,7 +506,7 @@ instance LBindingExprAlgebra tag Z3m_AST where
                  inBase $ z3ArithOp2 lit_tp aop ast1 ast2
   interpOpB (Op_coerce lit_tp_from lit_tp_to) (Cons arg1 _) =
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
-                 inBase $ z3Coerce lit_tp_from lit_tp_from ast1
+                 inBase $ z3Coerce lit_tp_from lit_tp_to ast1
   interpOpB (Op_cmp ltp acmp) (Cons arg1 (Cons arg2 _)) =
     Z3m_AST $ do ast1 <- extractLitArgAST arg1
                  ast2 <- extractLitArgAST arg2
