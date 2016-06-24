@@ -887,11 +887,17 @@ defaultZ3Solver = Z3Solver { z3DebugLevel = 0,
                              z3Opts = Z3Opts.stdOpts,
                              z3Logic = Nothing }
 
+-- | Conditionally perform a computation if the debug level of the given solver
+-- is at least the indicated level
+z3ifDebug :: Int -> Z3Solver -> Z3m ctx () -> Z3m ctx ()
+z3ifDebug level solver m =
+  if z3DebugLevel solver >= level then m else return ()
+
 -- | Conditionally print a string to stdout if the debug level of the given
 -- solver is at least the indicated level
 z3debug :: Int -> Z3Solver -> String -> Z3m ctx ()
 z3debug level solver str =
-  if z3DebugLevel solver >= level then liftIO (print str) else return ()
+  z3ifDebug level solver $ liftIO (putStrLn str)
 
 instance SMTSolver Z3Solver where
   smtSetDebugLevel level solver = solver { z3DebugLevel = level }
@@ -900,9 +906,11 @@ instance SMTSolver Z3Solver where
     do (converted_asts, collected_asts) <-
          collect $ mapM mb_lprop_to_z3ast props
        let z3_props = map unAST $ collected_asts ++ converted_asts
-       z3debug 1 solver "Performing Z3 query:"
-       mapM_ (z3debug 1 solver . show) z3_props
-       z3debug 1 solver ""
+       z3ifDebug 1 solver $ do
+         liftIO $ putStrLn ""
+         liftIO $ putStrLn "Performing Z3 query:"
+         mapM_ (liftIO . putStrLn <=< inBase . Z3.astToString) z3_props
+         liftIO $ putStrLn ""
        result <- inBase $ Z3.solverCheckAssumptions z3_props
        case result of
          Z3.Sat ->
