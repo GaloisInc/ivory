@@ -18,7 +18,7 @@ import MonadLib
 import MonadLib.Monads
 --import MonadLib (StateM(..),StateT(..),runStateT,
 --                 ReaderM(..),RunReaderM(..),ReaderT,runReaderT,MonadT(..))
---import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.IO.Class (MonadIO(..))
 
 --import Z3.Monad
 import qualified Z3.Monad as Z3
@@ -117,61 +117,14 @@ mkZ3Info =
                      bool_sort, integer_sort,
                      unsigned_bv_sorts = [], signed_bv_sorts = [] }
 
--- | This is something like the resumption monad, but with an extra functor...
-newtype ResumpT f m a =
-  ResumpT { runResumpT :: m (Either (f (ResumpT f m a)) a) }
-
-instance (Monad m, Functor f) => Monad (ResumpT f m) where
-  return x = ResumpT $ return $ Right x
-  ResumpT m >>= f =
-    ResumpT $ do frm_or_a <- m
-                 case frm_or_a of
-                   Left frm -> return $ Left $ fmap (\m' -> m' >>= f) frm
-                   Right a -> runResumpT (f a)
-
-instance (Monad m, Functor f) => Functor (ResumpT f m) where
-instance (Monad m, Functor f) => Applicative (ResumpT f m) where
-
-instance (Functor f, StateM m s) => StateM (ResumpT f m) s where
-  get = ResumpT $ Right <$> get
-  set s = ResumpT $ (set s >> return (Right ()))
-
-instance Functor f => MonadT (ResumpT f) where
-  lift m = ResumpT $ Right <$> m
-
--- | Lift an 'f a' into 'ResumpT'
-liftFResumpT :: (Monad m, Functor f) => f a -> ResumpT f m a
-liftFResumpT fa = ResumpT $ return $ Left $ fmap return fa
-
-instance (Functor f, RunM m (Either (f (ResumpT f m a)) a) r) =>
-         RunM (ResumpT f m) a r where
-  runM m = runM (runResumpT m)
-
--- | Run a 'ResumpT' computation, assuming that @m@ can be coerced to an @f@
-runResumpToF :: (Monad m, Monad f) => (forall b. m b -> f b) ->
-                 ResumpT f m a -> f a
-runResumpToF run_m (ResumpT m) =
-  run_m m >>= \frm_or_a ->
-  case frm_or_a of
-    Left frm -> frm >>= runResumpToF run_m
-    Right a -> return a
-
-{-
-instance (Functor f, RunM m a r) => RunM (ResumpT m) a r where
-  runM m = runM (runResumpT m)
--}
-
 
 -- | Monad built on top of 'Z3' for building Z3 expressions relative to a given
 -- variable context. The monad uses the state information in a 'Z3Info', reads a
 -- 'Z3Ctx' for the current variable context, and also outputs a set of
--- assertions, given as type 'AST', to pass to the current solver. Additionally,
--- we use a resumption monad structure to embed the 'IO' monad, since, even the
--- the 'Z3.Z3' monad contains 'IO', it requires the MonadIO class, which is in
--- the transformers packatge...
+-- assertions, given as type 'AST', to pass to the current solver.
 newtype Z3m ctx a =
   Z3m { runZ3m :: ReaderT (Z3Ctx ctx)
-                  (StateT (Z3Info, [AST Prop]) (ResumpT IO Z3.Z3)) a }
+                  (StateT (Z3Info, [AST Prop]) Z3.Z3) a }
   deriving (Functor, Applicative, Monad)
 
 instance ReaderM (Z3m ctx) (Z3Ctx ctx) where
@@ -203,11 +156,10 @@ instance RunWriterM (Z3m ctx) [AST Prop] where
              return (ret, props')
 
 instance BaseM (Z3m ctx) Z3.Z3 where
-  inBase m = Z3m $ lift $ lift $ lift m
+  inBase m = Z3m $ lift $ lift m
 
--- | Lift an 'IO' computation into 'Z3m'
-liftIO :: IO a -> Z3m ctx a
-liftIO io = Z3m $ lift $ lift $ liftFResumpT io
+instance MonadIO (Z3m ctx) where
+  liftIO m = Z3m $ lift $ lift $ liftIO m
 
 -- | The options we will pass to Z3 by default
 defaultZ3Options :: Z3Opts.Opts
@@ -223,8 +175,8 @@ instance RunM Z3.Z3 a (Maybe Z3.Logic -> Z3Opts.Opts -> IO a) where
 instance RunM (Z3m ctx) a (Maybe Z3.Logic -> Z3Opts.Opts ->
                            Z3Ctx ctx -> IO a) where
   runM (Z3m m) logic opts ctx =
-    liftM fst $ runResumpToF (Z3.evalZ3With logic opts) $
-    lift mkZ3Info >>= \info ->
+    liftM fst $ Z3.evalZ3With logic opts $
+    mkZ3Info >>= \info ->
     runStateT (info, []) $ 
     runReaderT ctx m
 
@@ -911,7 +863,8 @@ instance SMTSolver Z3Solver where
          liftIO $ putStrLn "Performing Z3 query:"
          mapM_ (liftIO . putStrLn <=< inBase . Z3.astToString) z3_props
          liftIO $ putStrLn ""
-       result <- inBase $ Z3.solverCheckAssumptions z3_props
+       mapM_ (inBase . Z3.assert) z3_props
+       result <- inBase $ Z3.solverCheckAssumptions []
        case result of
          Z3.Sat ->
            do ctx <- ask

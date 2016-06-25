@@ -22,6 +22,7 @@ library
                         directory,
                         bytestring >= 0.10,
                         monadLib,
+                        transformers,
                         ivory,
                         ivory-opts,
                         pretty,
