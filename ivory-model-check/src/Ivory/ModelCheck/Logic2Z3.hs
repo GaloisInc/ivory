@@ -900,7 +900,8 @@ evalFunEntryArgsFrom :: Z3.FuncEntry -> Int -> MapList L1Type args ->
                         Z3m ctx (TupleType (SMTValues args))
 evalFunEntryArgsFrom fentry i Nil = return ()
 evalFunEntryArgsFrom fentry i (Cons l1tp tps) =
-  do arg_ast <- Z3.funcEntryGetArg fentry i
+  do z3debug 3 ("evalFuncEntryArgsFrom " ++ show i)
+     arg_ast <- Z3.funcEntryGetArg fentry i
      arg_val_maybe <- z3ast_to_maybe_value l1tp arg_ast
      arg_val <-
        case arg_val_maybe of
@@ -918,7 +919,8 @@ evalFuncEntry :: L1FunType a -> Z3.FuncEntry ->
                  Z3m ctx (TupleType (SMTValues (ArgTypes a)),
                         SMTValue (RetType a))
 evalFuncEntry ftp fentry =
-  do arg_vals <- evalFunEntryArgsFrom fentry 0 (funType_arg_types ftp)
+  do z3debug 3 $ "evalFuncEntry"
+     arg_vals <- evalFunEntryArgsFrom fentry 0 (funType_arg_types ftp)
      ret_ast <- Z3.funcEntryGetValue fentry
      ret_val_maybe <- z3ast_to_maybe_value (funType_ret_type ftp) ret_ast
      let ret_val =
@@ -942,6 +944,8 @@ evalFuncInterp ftp finterp =
              Nothing -> error "evalFuncInterp: default value has no value!"
      return $ FinFun { finfunDef = default_val, finfunMap = entry_val_map }
 
+-- FIXME HERE NOW: This does not work if the function is just defined in terms
+-- of other functions... which Z3 seems to do a lot!
 -- | Get the value of a 'Z3.FuncDecl' from a Z3 model
 evalFuncDecl :: Z3.Model -> L1FunType (a -> b) -> Z3.FuncDecl ->
                 Z3m ctx (MaybeSMTValue (a -> b))
@@ -976,6 +980,7 @@ defaultZ3Solver = Z3Solver { z3DebugLevel = 0,
                              z3Logic = Nothing }
 
 instance SMTSolver Z3Solver where
+  smtGetDebugLevel solver = z3DebugLevel solver
   smtSetDebugLevel level solver = solver { z3DebugLevel = level }
   smtSolve solver const_tps props =
     evalZ3m (z3DebugLevel solver) const_tps $
