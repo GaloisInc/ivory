@@ -1971,6 +1971,23 @@ symMemoryOfNames _ names =
       let (ns, n1, n2, n3) = helper lit_tps names' in
       (Cons (SymMemName lit_tp n) ns, n1, n2, n3)
 
+-- | Build the proposition stating that @n@ is a valid name for use as a
+-- 'symMemPtrArray' field in a 'SymMemory'. This means that (n ptr ix ptr')
+-- should only hold for at most one ptr' value, for any given ptr and ix values.
+validPtrArrayName :: Name SymMemPtrArrayType -> LProp tag
+validPtrArrayName f =
+  mkForall L1Type_ptr $ \p ->
+  mkForall (L1Type_lit LitType_bits) $ \i ->
+  mkForall L1Type_ptr $ \p1 ->
+  mkForall L1Type_ptr $ \p2 ->
+  mkOr [mkNot (mkVar Proxy f p i p1),
+        mkNot (mkVar Proxy f p i p2),
+        mkEq1 p1 p2]
+
+-- | Construct the proposition that a 'SymMemory' is well-formed
+validSymMemoryProp :: SymMemory tag -> LProp tag
+validSymMemoryProp mem = validPtrArrayName $ symMemPtrArray mem
+
 
 ----------------------------------------------------------------------
 -- A monad for fresh names
@@ -2080,14 +2097,7 @@ assumePM prop = sets_ $ \(mem, props) -> (mem, prop:props)
 -- 'SymMemory'. This means that (n ptr ix ptr') should only hold for at most one
 -- ptr' value, for any given ptr and ix values.
 assumePtrArrayName :: Name SymMemPtrArrayType -> LogicPM tag ()
-assumePtrArrayName f =
-  assumePM $ mkForall L1Type_ptr $ \p ->
-  mkForall (L1Type_lit LitType_bits) $ \i ->
-  mkForall L1Type_ptr $ \p1 ->
-  mkForall L1Type_ptr $ \p2 ->
-  mkOr [mkNot (mkVar Proxy f p i p1),
-        mkNot (mkVar Proxy f p i p2),
-        mkEq1 p1 p2]
+assumePtrArrayName f = assumePM $ validPtrArrayName f
 
 -- | Perform a read operation in the current 'LogicPM' computation
 readPM :: ReadOp (LStorables tag) args ret -> MapList (LExpr tag) args ->
@@ -2138,6 +2148,7 @@ updatePM (UpdateOp_array elem_pf) (ml_123 -> (ptr, ix, v)) =
 updatePM UpdateOp_ptr_array (ml_123 -> (ptr, ix, v)) =
   do mem <- getMem
      let n = symMemPtrArray mem
+     -- Create a fresh name for the updated memory
      n' <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType SymMemPtrArrayType)
      -- Assert that n' is a valid set of pointer arrays
      assumePtrArrayName n'
@@ -2595,7 +2606,9 @@ runLogicPM mem m =
                      Right () -> Just props)
        (runStateT (mem, []) $ runExceptionT m)
      case maybe_props of
-       Just props -> return props
+       Just props ->
+         -- NOTE: we implicitly add the assertion that mem is valid
+         return $ validSymMemoryProp mem : props
        Nothing -> return [mkFalse]
 
 -- | FIXME: documentation, move this
