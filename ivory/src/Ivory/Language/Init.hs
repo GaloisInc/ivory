@@ -60,6 +60,12 @@ newtype Init (area :: Area *) = Init { getInit :: XInit }
 class IvoryZero (area :: Area *) where
   izero :: Init area
 
+-- | Zero the memory pointed to by this reference, as long as it could have been
+-- created with a zero initializer.
+refZero :: forall eff s a. (IvoryZero a, IvoryArea a) => Ref s a -> Ivory eff ()
+refZero ref = emit (I.RefZero (ivoryArea (Proxy :: Proxy a)) (unwrapExpr ref))
+
+
 -- Running Initializers --------------------------------------------------------
 
 class Monad m => FreshName m where

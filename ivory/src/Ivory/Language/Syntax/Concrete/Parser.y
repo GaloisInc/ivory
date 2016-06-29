@@ -494,7 +494,7 @@ exp : integer            { let TokInteger i = unLoc $1 in
     | '*' exp              { LocExp (atBin (ExpDeref $2) $1 $2) }
     | exp '@' exp          { LocExp (atBin (ExpArray $1 $3) $1 $3) }
     | exp '[' exp ']'      { LocExp (atBin (ExpDeref (ExpArray $1 $3)) $1 $3) }
-     | exp '.' exp         { LocExp (atBin (ExpStruct $1 $3) $1 $3) }
+    | exp '.' exp          { LocExp (atBin (ExpStruct $1 $3) $1 $3) }
     | exp '->' exp         { LocExp (atBin (ExpDeref (ExpStruct $1 $3)) $1 $3) }
     | '&' ident            { LocExp (atBin (ExpAddrOf (unLoc $2)) $1 $2) }
 
@@ -508,7 +508,7 @@ exp : integer            { let TokInteger i = unLoc $1 in
 
     -- Unary operators
     | '!'       exp      { LocExp (atBin (ExpOp NotOp [$2]) $1 $2) }
-    | '-'       exp      { LocExp (atBin (ExpOp NegateOp [$2]) $1 $2) }
+    | '-'       exp      { LocExp (atBin (mkNegate $2) $1 $2) }
     | '~'       exp      { LocExp (atBin (ExpOp BitComplementOp [$2]) $1 $2) }
 
     -- Binary operators
@@ -820,3 +820,14 @@ tyident :
                                     atBin (t0 ++ '.':t1) $1 $3 }
 
 --------------------------------------------------------------------------------
+{
+mkNegate :: Exp -> Exp
+mkNegate e = go e
+  where
+  go (ExpLit l) = case l of
+    LitInteger i -> ExpLit (LitInteger (negate i))
+    LitFloat   f -> ExpLit (LitFloat   (negate f))
+    _            -> ExpOp NegateOp [e]
+  go (LocExp x) = go (locValue x)
+  go _          = ExpOp NegateOp [e]
+}

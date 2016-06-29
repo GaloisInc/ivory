@@ -10,6 +10,7 @@ import Data.Int (Int8,Int16,Int32,Int64)
 
 -- | 8-bit integers.
 newtype Sint8 = Sint8 { getSint8 :: I.Expr }
+  deriving Show
 
 instance IvoryType Sint8 where
   ivoryType _ = I.TyInt I.Int8
@@ -36,6 +37,7 @@ instance Bounded Sint8 where
 
 -- | 16-bit integers.
 newtype Sint16 = Sint16 { getSint16 :: I.Expr }
+  deriving Show
 
 instance IvoryType Sint16 where
   ivoryType _ = I.TyInt I.Int16
@@ -62,6 +64,7 @@ instance Bounded Sint16 where
 
 -- | 32-bit integers.
 newtype Sint32 = Sint32 { getSint32 :: I.Expr }
+  deriving Show
 
 instance IvoryType Sint32 where
   ivoryType _ = I.TyInt I.Int32
@@ -88,6 +91,7 @@ instance Bounded Sint32 where
 
 -- | 64-bit integers.
 newtype Sint64 = Sint64 { getSint64 :: I.Expr }
+  deriving Show
 
 instance IvoryType Sint64 where
   ivoryType _ = I.TyInt I.Int64
