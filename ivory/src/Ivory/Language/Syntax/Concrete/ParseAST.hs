@@ -7,10 +7,10 @@
 
 module Ivory.Language.Syntax.Concrete.ParseAST where
 
-import Prelude ()
-import Prelude.Compat hiding (init)
+import           Prelude                                 ()
+import           Prelude.Compat                          hiding (init)
 
-import Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.Location
 
 --------------------------------------------------------------------------------
 
@@ -67,10 +67,10 @@ data IncludeDef = IncludeDef
 -- Externs
 
 data Extern = Extern
-  { externSym   :: String
-  , externFile  :: String
-  , externType  :: Type
-  , externLoc   :: SrcLoc
+  { externSym  :: String
+  , externFile :: String
+  , externType :: Type
+  , externLoc  :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
@@ -107,14 +107,14 @@ data ProcDef = ProcDef
 -- | We distinguish the name used from the name imported so the same symbol can
 -- be used twice at different types. (E.g., @printf@).
 data IncludeProc = IncludeProc
-  { procInclTy      :: Type         -- ^ Return type
-  , procInclSym     :: FnSym        -- ^ Function name used
-  , procInclArgs    :: [(Type,Var)] -- ^ Argument types
+  { procInclTy   :: Type         -- ^ Return type
+  , procInclSym  :: FnSym        -- ^ Function name used
+  , procInclArgs :: [(Type,Var)] -- ^ Argument types
 -- XXX add later
 --  , procInclPrePost :: [PrePost]
-  , procIncl        :: (String, FnSym) -- ^ Header to import from and function
+  , procIncl     :: (String, FnSym) -- ^ Header to import from and function
                                        -- name imported
-  , procInclLoc     :: SrcLoc
+  , procInclLoc  :: SrcLoc
   } deriving (Show, Read, Eq, Ord)
 
 -- Pre and post conditions
@@ -553,4 +553,3 @@ instance HasLocation Constr where
 instance HasLocation BitField where
   getLoc = bitFieldLoc
   stripLoc (BitField n t _) = BitField n (stripLoc t) mempty
-

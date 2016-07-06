@@ -1,8 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 --
 -- Ivory QuasiQuoter.
@@ -18,35 +18,38 @@ module Ivory.Language.Syntax.Concrete.QQ
   )
     where
 
-import           Prelude hiding (exp, init, const)
 import           Data.Char
 import           Data.Maybe
+import qualified Data.Text.Lazy                              as L
+import qualified Data.Text.Lazy.IO                           as L
+import           Prelude                                     hiding (const, exp,
+                                                              init)
 import           System.FilePath
-import qualified Data.Text.Lazy    as L
-import qualified Data.Text.Lazy.IO as L
 
-import qualified Language.Haskell.TH        as Q
-import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
+import           Language.Haskell.TH                         hiding (Exp, Stmt,
+                                                              Type)
+import qualified Language.Haskell.TH                         as Q
 import           Language.Haskell.TH.Quote
-import           Language.Haskell.TH.Syntax (addDependentFile)
+import           Language.Haskell.TH.Syntax                  (addDependentFile)
 
-import qualified Ivory.Language.Const  as I
-import qualified Ivory.Language.Syntax as I
-import qualified Ivory.Language.Proxy  as I
-import qualified Ivory.Language.Module as I
+import qualified Ivory.Language.Const                        as I
+import qualified Ivory.Language.Module                       as I
+import qualified Ivory.Language.Proxy                        as I
+import qualified Ivory.Language.Syntax                       as I
 
-import Ivory.Language.Syntax.Concrete.QQ.BitDataQQ
-import Ivory.Language.Syntax.Concrete.QQ.StructQQ
-import Ivory.Language.Syntax.Concrete.QQ.ProcQQ
-import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
-import Ivory.Language.Syntax.Concrete.QQ.ExprQQ
-import Ivory.Language.Syntax.Concrete.QQ.StmtQQ
-import Ivory.Language.Syntax.Concrete.QQ.Common
+import           Ivory.Language.Syntax.Concrete.QQ.AreaQQ
+import           Ivory.Language.Syntax.Concrete.QQ.BitDataQQ
+import           Ivory.Language.Syntax.Concrete.QQ.Common
+import           Ivory.Language.Syntax.Concrete.QQ.ExprQQ
+import           Ivory.Language.Syntax.Concrete.QQ.ProcQQ
+import           Ivory.Language.Syntax.Concrete.QQ.StmtQQ
+import           Ivory.Language.Syntax.Concrete.QQ.StructQQ
+import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
-import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
-import Ivory.Language.Syntax.Concrete.Lexer (scan)
-import qualified Ivory.Language.Syntax.Concrete.Parser as P
-import qualified Ivory.Language.Syntax.Concrete.ParseCore as P
+import           Ivory.Language.Syntax.Concrete.Lexer        (scan)
+import           Ivory.Language.Syntax.Concrete.ParseAST     hiding (tyDef)
+import qualified Ivory.Language.Syntax.Concrete.ParseCore    as P
+import qualified Ivory.Language.Syntax.Concrete.Parser       as P
 
 --------------------------------------------------------------------------------
 
