@@ -1,5 +1,5 @@
+{-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 --
 -- QuasiQuoter for Ivory statements.
@@ -12,26 +12,27 @@ module Ivory.Language.Syntax.Concrete.QQ.StmtQQ
  ( fromProgram
  ) where
 
-import           Prelude hiding (exp, init)
+import           Prelude                                   hiding (exp, init)
 
-import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
-import qualified Language.Haskell.TH   as T
+import           Language.Haskell.TH                       hiding (Exp, Stmt,
+                                                            Type)
+import qualified Language.Haskell.TH                       as T
 
-import qualified Ivory.Language.Init   as I
-import qualified Ivory.Language.Ref    as I
-import qualified Ivory.Language.Proc   as I
-import qualified Ivory.Language.Assert as I
-import qualified Ivory.Language.IBool  as I
-import qualified Ivory.Language.Loop   as I
-import qualified Ivory.Language.Monad  as I
+import qualified Ivory.Language.Assert                     as I
+import qualified Ivory.Language.IBool                      as I
+import qualified Ivory.Language.Init                       as I
+import qualified Ivory.Language.Loop                       as I
+import qualified Ivory.Language.Monad                      as I
+import qualified Ivory.Language.Proc                       as I
+import qualified Ivory.Language.Ref                        as I
 
-import           Control.Monad (forM_)
+import           Control.Monad                             (forM_)
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Concrete.ParseAST
-import Ivory.Language.Syntax.Concrete.QQ.BindExp
-import Ivory.Language.Syntax.Concrete.QQ.Common
-import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.ParseAST
+import           Ivory.Language.Syntax.Concrete.QQ.BindExp
+import           Ivory.Language.Syntax.Concrete.QQ.Common
+import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 --------------------------------------------------------------------------------
 
