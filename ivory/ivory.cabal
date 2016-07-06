@@ -64,6 +64,7 @@ library
                         Ivory.Language.Syntax.Concrete.ParseCore,
                         Ivory.Language.Syntax.Concrete.Pretty,
                         Ivory.Language.Syntax.Concrete.QQ,
+                        Ivory.Language.Syntax.Concrete.QQ.AreaQQ,
                         Ivory.Language.Syntax.Concrete.QQ.BindExp,
                         Ivory.Language.Syntax.Concrete.QQ.BitDataQQ,
                         Ivory.Language.Syntax.Concrete.QQ.Common,

@@ -25,15 +25,35 @@ type MacroVar  = String
 --------------------------------------------------------------------------------
 
 -- Top level symbols.
-data GlobalSym = GlobalProc     ProcDef
-               | GlobalInclProc IncludeProc
-               | GlobalStruct   StructDef
-               | GlobalBitData  BitDataDef
-               | GlobalTypeDef  TypeDef
-               | GlobalConstDef ConstDef
-               | GlobalInclude  IncludeDef
-               | GlobalExtern   Extern
+data GlobalSym = GlobalProc       ProcDef
+               | GlobalInclProc   IncludeProc
+               | GlobalStruct     StructDef
+               | GlobalBitData    BitDataDef
+               | GlobalTypeDef    TypeDef
+               | GlobalConstDef   ConstDef
+               | GlobalInclude    IncludeDef
+               | GlobalExtern     Extern
+               | GlobalArea       AreaDef
+               | GlobalAreaImport AreaImportDef
   deriving (Show, Read, Eq, Ord)
+
+--------------------------------------------------------------------------------
+-- Mem Areas
+
+data AreaDef = AreaDef
+  { areaConst  :: Bool
+  , areaType   :: Type
+  , areaInit   :: AllocRef
+  , memAreaLoc :: SrcLoc
+  } deriving (Show, Read, Eq, Ord)
+
+data AreaImportDef = AreaImportDef
+  { aiSym   :: String
+  , aiConst :: Bool
+  , aiType  :: Type
+  , aiFile  :: String
+  , aiLoc   :: SrcLoc
+  } deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
 -- Includes
@@ -261,6 +281,13 @@ data AllocRef
   | AllocStruct  RefVar StructInit
   deriving (Show, Read, Eq, Ord)
 
+allocRefVar :: AllocRef -> RefVar
+allocRefVar a =
+  case a of
+    AllocBase   v _ -> v
+    AllocArr    v _ -> v
+    AllocStruct v _ -> v
+
 -- | AST for parsing C-like statements.
 data Stmt
   = IfTE Exp [Stmt] [Stmt]
@@ -362,14 +389,16 @@ data BitField = BitField
 instance HasLocation GlobalSym where
   getLoc = mempty
   stripLoc g = case g of
-    GlobalProc p     -> GlobalProc     (stripLoc p)
-    GlobalInclProc p -> GlobalInclProc (stripLoc p)
-    GlobalStruct s   -> GlobalStruct   (stripLoc s)
-    GlobalBitData b  -> GlobalBitData  (stripLoc b)
-    GlobalTypeDef t  -> GlobalTypeDef  (stripLoc t)
-    GlobalConstDef c -> GlobalConstDef (stripLoc c)
-    GlobalInclude i  -> GlobalInclude  (stripLoc i)
-    GlobalExtern e   -> GlobalExtern   (stripLoc e)
+    GlobalProc p       -> GlobalProc       (stripLoc p)
+    GlobalInclProc p   -> GlobalInclProc   (stripLoc p)
+    GlobalStruct s     -> GlobalStruct     (stripLoc s)
+    GlobalBitData b    -> GlobalBitData    (stripLoc b)
+    GlobalTypeDef t    -> GlobalTypeDef    (stripLoc t)
+    GlobalConstDef c   -> GlobalConstDef   (stripLoc c)
+    GlobalInclude i    -> GlobalInclude    (stripLoc i)
+    GlobalExtern e     -> GlobalExtern     (stripLoc e)
+    GlobalArea   a     -> GlobalArea       (stripLoc a)
+    GlobalAreaImport a -> GlobalAreaImport (stripLoc a)
 
 instance HasLocation IncludeDef where
   getLoc = inclDefLoc
@@ -400,6 +429,14 @@ instance HasLocation PrePost where
   stripLoc pp = case pp of
     PreCond e  -> PreCond (stripLoc e)
     PostCond e -> PostCond (stripLoc e)
+
+instance HasLocation AreaDef where
+  getLoc _ = mempty
+  stripLoc p = p { memAreaLoc = mempty }
+
+instance HasLocation AreaImportDef where
+    getLoc _ = mempty
+    stripLoc p = p { aiLoc = mempty }
 
 instance HasLocation Type where
   getLoc ty = case ty of
@@ -444,8 +481,8 @@ instance HasLocation Exp where
 instance HasLocation AllocRef where
   getLoc _ = mempty
   stripLoc a = case a of
-    AllocBase v e      -> AllocBase v (stripLoc e)
-    AllocArr v es      -> AllocArr v (stripLoc es)
+    AllocBase v e      -> AllocBase   v (stripLoc e)
+    AllocArr v es      -> AllocArr    v (stripLoc es)
     AllocStruct v init -> AllocStruct v (stripLoc init)
 
 instance HasLocation StructInit where

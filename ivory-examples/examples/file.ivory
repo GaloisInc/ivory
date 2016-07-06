@@ -6,7 +6,25 @@ import (stdio.h, printf) int32_t printf2(string x, int32_t y)
 include concreteIvory --for printf definitions in ConcreteFile.hs
 include stdlibStringModule
 
--- extern foo.h G* uint8_t myptr
+-- Define a struct. A base type is turned into a memory area by adding a
+-- '&'. Note this is a type-level operator. Arrays and structs are always memory
+-- areas.
+struct Bar00 {
+  &int32_t aBar00;
+}
+
+-- Import global memory areas from `foo.h`.
+import foo.h &int32_t *anArea1
+import foo.h &int32_t const *anArea2
+import foo.h &int32_t[4] const anArea3[]
+
+-- Declare some global memory areas. They may be initizlied (otherwise, are initialized to zero).
+&int32_t alloc *myArea1;
+&int32_t const alloc *myArea2 = 3;
+struct Bar00 alloc myArea3{} = { aBar00 = 3 };
+&int32_t[3] alloc myArea4[] = {1,2,3};
+
+extern foo.h G* uint8_t myptr
 
 -- A top level definition.
 bar = 3 + 2;
@@ -15,13 +33,6 @@ bar = 3 + 2;
 type Boo = int8_t;
 
 -- (Both of the above can be done on Haskell and you can use antiquotation.)
-
--- Define a struct. A base type is turned into a memory area by adding a
--- '&'. Note this is a type-level operator. Arrays and structs are always memory
--- areas.
-struct Bar00 {
-  &int32_t aBar00;
-}
 
 struct Foo
  { -- When context makes apparent and we can syntactically check the type, a

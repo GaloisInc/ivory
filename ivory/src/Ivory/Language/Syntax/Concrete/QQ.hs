@@ -137,26 +137,30 @@ justExpQQ expQQ = QuasiQuoter
 -- | Filter module data from all global definitions.
 getModData :: GlobalSym -> Maybe ModuleData
 getModData sym = case sym of
-  GlobalProc       d -> Just (ModProc d)
-  GlobalInclProc   d -> Just (ModImportProc d)
-  GlobalExtern     e -> Just (ModExtern e)
-  GlobalStruct     d -> Just (ModStruct d)
-  GlobalBitData{}    -> Nothing
-  GlobalTypeDef{}    -> Nothing
-  GlobalConstDef{}   -> Nothing
-  GlobalInclude    d -> Just (ModInclude d)
+  GlobalProc        d -> Just (ModProc d)
+  GlobalInclProc    d -> Just (ModImportProc d)
+  GlobalExtern      e -> Just (ModExtern e)
+  GlobalStruct      d -> Just (ModStruct d)
+  GlobalBitData{}     -> Nothing
+  GlobalTypeDef{}     -> Nothing
+  GlobalConstDef{}    -> Nothing
+  GlobalInclude     d -> Just (ModInclude d)
+  GlobalArea        a -> Just (ModArea a)
+  GlobalAreaImport  a -> Just (ModAreaImport a)
 
 mkDef :: GlobalSym -> Q [Dec]
 mkDef def = case def of
-  GlobalProc     d      -> fromProc d
-  GlobalInclProc d      -> fromInclProc d
-  GlobalExtern   e      -> fromExtern e
-  GlobalStruct   d      -> fromStruct d
-  GlobalBitData  d      -> fromBitData d
-  GlobalTypeDef  tyDef  -> fromTypeDef tyDef
-  GlobalConstDef const  -> fromConstDef const
+  GlobalProc       d      -> fromProc d
+  GlobalInclProc   d      -> fromInclProc d
+  GlobalExtern     e      -> fromExtern e
+  GlobalStruct     d      -> fromStruct d
+  GlobalBitData    d      -> fromBitData d
+  GlobalTypeDef    tyDef  -> fromTypeDef tyDef
+  GlobalConstDef   const  -> fromConstDef const
+  GlobalArea       a      -> fromArea a
+  GlobalAreaImport a      -> fromAreaImport a
   -- No definition to make for includes, source depends.
-  GlobalInclude{}       -> return []
+  GlobalInclude{}         -> return []
 
 -- | Define an Ivory module, one per Haskell module.
 ivoryMod :: String -> [ModuleData] -> Q [Dec]
@@ -196,6 +200,16 @@ ivoryMod  modName incls = do
       -> AppE (VarE 'I.incl) (VarE $ mkName $ procInclSym proc)
     ModExtern ext
       -> AppE (VarE 'I.inclSym) (VarE $ mkName $ externSym ext)
+    ModArea a
+      -> AppE (VarE d) (VarE $ mkName $ allocRefVar $ areaInit a)
+      where
+        d = if areaConst a then 'I.defConstMemArea else 'I.defMemArea
+    ModAreaImport a
+      -> AppE (VarE d) (VarE $ mkName $ aiSym a)
+      where
+        d = if aiConst a then 'I.defConstMemArea else 'I.defMemArea
+
+
 
 --------------------------------------------------------------------------------
 
@@ -206,6 +220,8 @@ data ModuleData =
   | ModInclude    IncludeDef
   | ModImportProc IncludeProc
   | ModExtern     Extern
+  | ModArea       AreaDef
+  | ModAreaImport AreaImportDef
   deriving (Show, Read, Eq, Ord)
 
 --------------------------------------------------------------------------------
