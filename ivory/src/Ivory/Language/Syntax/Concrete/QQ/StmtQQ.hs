@@ -1,5 +1,5 @@
+{-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 --
 -- QuasiQuoter for Ivory statements.
@@ -12,26 +12,27 @@ module Ivory.Language.Syntax.Concrete.QQ.StmtQQ
  ( fromProgram
  ) where
 
-import           Prelude hiding (exp, init)
+import           Prelude                                   hiding (exp, init)
 
-import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
-import qualified Language.Haskell.TH   as T
+import           Language.Haskell.TH                       hiding (Exp, Stmt,
+                                                            Type)
+import qualified Language.Haskell.TH                       as T
 
-import qualified Ivory.Language.Init   as I
-import qualified Ivory.Language.Ref    as I
-import qualified Ivory.Language.Proc   as I
-import qualified Ivory.Language.Assert as I
-import qualified Ivory.Language.IBool  as I
-import qualified Ivory.Language.Loop   as I
-import qualified Ivory.Language.Monad  as I
+import qualified Ivory.Language.Assert                     as I
+import qualified Ivory.Language.IBool                      as I
+import qualified Ivory.Language.Init                       as I
+import qualified Ivory.Language.Loop                       as I
+import qualified Ivory.Language.Monad                      as I
+import qualified Ivory.Language.Proc                       as I
+import qualified Ivory.Language.Ref                        as I
 
-import           Control.Monad (forM_)
+import           Control.Monad                             (forM_)
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Concrete.ParseAST
-import Ivory.Language.Syntax.Concrete.QQ.BindExp
-import Ivory.Language.Syntax.Concrete.QQ.Common
-import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.ParseAST
+import           Ivory.Language.Syntax.Concrete.QQ.BindExp
+import           Ivory.Language.Syntax.Concrete.QQ.Common
+import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 --------------------------------------------------------------------------------
 
@@ -146,19 +147,19 @@ fromAlloc alloc = case alloc of
           let p = mkName ref
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.ival) e))
-  AllocArr arr exps
+  AllocArr ref exps
     -> do es <- mapM fromExpStmt exps
           let mkIval = AppE (VarE 'I.ival)
           let init = ListE (map mkIval es)
-          let p = mkName arr
+          let p = mkName ref
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.iarray) init))
-  AllocStruct s init
+  AllocStruct ref init
     -> do i <- fromInit
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) i)
     where
-    p = mkName s
+    p = mkName ref
     fromInit = case init of
       Empty
         -> liftQ $ appE (varE 'I.istruct) [|[]|]
