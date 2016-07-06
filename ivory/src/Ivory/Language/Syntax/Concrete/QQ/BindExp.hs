@@ -1,5 +1,5 @@
+{-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 --
 -- Binding expressions that are Ivory statements.
@@ -15,16 +15,17 @@ module Ivory.Language.Syntax.Concrete.QQ.BindExp
   , fromAreaStmt
   ) where
 
-import Prelude hiding (exp)
+import           Prelude                                  hiding (exp)
 
-import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
-import qualified Language.Haskell.TH as T
+import           Language.Haskell.TH                      hiding (Exp, Stmt,
+                                                           Type)
+import qualified Language.Haskell.TH                      as T
 
-import qualified Ivory.Language.Proc     as I
-import qualified Ivory.Language.Ref      as I
+import qualified Ivory.Language.Proc                      as I
+import qualified Ivory.Language.Ref                       as I
 
-import           Ivory.Language.Syntax.Concrete.QQ.Common
 import           Ivory.Language.Syntax.Concrete.ParseAST
+import           Ivory.Language.Syntax.Concrete.QQ.Common
 import           Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 
 --------------------------------------------------------------------------------
@@ -32,7 +33,7 @@ import           Ivory.Language.Syntax.Concrete.QQ.ExprQQ
 -- Insert statements
 
 -- Collect up expressions that turn into Ivory statements. This call comes from
--- a the use of an expression in a statement.
+-- a use of an expression in a statement.
 --
 -- This isn't heavily optimized (for the sake of simplicity): we might duplicate
 --dereference statements for e_1 and e_2 in the same statement.
