@@ -59,6 +59,16 @@ tokens :-
   @bitlit      { emitS readBitLit }
   @float       { emitS readFloat }
 
+
+-- Reserved words
+  struct   { keyword }
+  abstract { keyword }
+  string   { keyword }
+  type     { keyword }
+  include  { keyword }
+  import   { keyword }
+  extern   { keyword }
+
 -- Reserved words: statements
   if         { keyword }
   else       { keyword }
@@ -129,15 +139,6 @@ tokens :-
   sizeOf           { keyword }
   nullPtr          { keyword }
   refToPtr         { keyword }
-
--- Reserved words
-  struct   { keyword }
-  abstract { keyword }
-  string   { keyword }
-  type     { keyword }
-  include  { keyword }
-  import   { keyword }
-  extern   { keyword }
 
   -- C style
   bool     { keyword }
@@ -362,4 +363,3 @@ begin :: Int -> AlexAction (Lexer (Maybe Lexeme))
 begin code _ _ = alexSetStartCode code >> return Nothing
 
 }
-
