@@ -162,4 +162,3 @@ instance IvoryAddrOf MemArea Ref where
 
 instance IvoryAddrOf ConstMemArea ConstRef where
   addrOf (ConstMemArea mem) = wrapExpr (primAddrOf mem)
-

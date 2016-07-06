@@ -40,11 +40,10 @@ macroStmtsRet ::
 macroStmtsRet x y = do
   a <- local (ival 0)
   store a (x + y)
-  return =<< deref a
+  deref a
 
 macroExp :: IvoryOrd a => a -> a -> IBool
-macroExp x y = do
-  x <? y
+macroExp x y = x <? y
 
 toIx' :: ANat n => Uint32 -> Ix n
 toIx' ix = toIx (twosComplementCast ix)
