@@ -389,3 +389,17 @@ void str_to_arr(* uint8_t[5] arr
                ) {
   $sz_from_istr(arr, s);
 }
+
+int16_t return_negative() { return -32767; }
+int16_t return_negative2() { return -32768; }
+
+struct x {
+    int32_t a;
+    int32_t b;
+}
+
+void test() {
+    alloc myref{};
+    $refZero (myref);
+    store myref.a as 1;
+}
