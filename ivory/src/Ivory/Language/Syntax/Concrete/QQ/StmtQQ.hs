@@ -147,19 +147,19 @@ fromAlloc alloc = case alloc of
           let p = mkName ref
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.ival) e))
-  AllocArr arr exps
+  AllocArr ref exps
     -> do es <- mapM fromExpStmt exps
           let mkIval = AppE (VarE 'I.ival)
           let init = ListE (map mkIval es)
-          let p = mkName arr
+          let p = mkName ref
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.iarray) init))
-  AllocStruct s init
+  AllocStruct ref init
     -> do i <- fromInit
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) i)
     where
-    p = mkName s
+    p = mkName ref
     fromInit = case init of
       Empty
         -> liftQ $ appE (varE 'I.istruct) [|[]|]
