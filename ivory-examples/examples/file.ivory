@@ -261,7 +261,7 @@ void fizzbuzzUp() {
 }
 
 void fizzbuzzUpFrom() {
-  upFromTo 50 100 ix {
+  upFromTo (50, 100) ix {
     -- for typechecking
     let (ix_t 101) ix' = ix;
     let i = fromIx(ix);
@@ -299,7 +299,7 @@ void fizzbuzzDown() {
 }
 
 void fizzbuzzDownFromTo() {
-  downFromTo 100 50 ix {
+  downFromTo (100, 50) ix {
     -- for typechecking
     let (ix_t 101) ix' = ix;
     let i = fromIx(ix);

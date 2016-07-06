@@ -427,12 +427,19 @@ blkStmt :
                                                         [$1, getLoc $2, getLoc $4]) }
   | upTo exp ident '{' stmts '}'           { LocStmt (atList (UpTo $2 (unLoc $3) (reverse $5))
                                                         [$1, getLoc $2, getLoc $3, getLoc $5]) }
-  | upFromTo exp exp ident '{' stmts '}'   { LocStmt (atList (UpFromTo $2 $3 (unLoc $4) (reverse $6))
-                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
   | downFrom exp ident '{' stmts '}'       { LocStmt (atList (DownFrom $2 (unLoc $3) (reverse $5))
                                                         [$1, getLoc $2, getLoc $3, getLoc $5]) }
-  | downFromTo exp exp ident '{' stmts '}' { LocStmt (atList (DownFromTo $2 $3 (unLoc $4) (reverse $6))
-                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
+
+  | upFromTo '(' exp ',' exp ')' ident '{' stmts '}'
+      { LocStmt (atList (UpFromTo $3 $5 (unLoc $7) (reverse $9))
+          [$1, getLoc $3, getLoc $5, getLoc $7, getLoc $9])
+      }
+
+  | downFromTo '(' exp ',' exp ')' ident '{' stmts '}'
+      { LocStmt (atList (DownFromTo $3 $5 (unLoc $7) (reverse $9))
+          [$1, getLoc $3, getLoc $5, getLoc $7, getLoc $9])
+      }
+
   | forever '{' stmts '}'                  { LocStmt (atBin (Forever (reverse $3)) $1 $2) }
 
   | if exp '{' stmts '}'
