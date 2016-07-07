@@ -85,6 +85,10 @@ instance Monoid CodeBlock where
 runIvory :: Ivory (E.ProcEffects s r) a -> (a,CodeBlock)
 runIvory b = fst $ primRunIvory 0 b
 
+-- | Run an Ivory block computation that could require any effect, and provide a fresh 
+--   variable supply. The function returns the fresh variable supply at the end of the computation.
+--
+-- XXX do not export
 primRunIvory :: Int -> Ivory (E.ProcEffects s r) a -> ((a,CodeBlock),Int)
 primRunIvory n m = (MonadLib.runM (unIvory m) n)
 
