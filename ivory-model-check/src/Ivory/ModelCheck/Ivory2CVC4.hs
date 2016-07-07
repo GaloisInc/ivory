@@ -208,6 +208,7 @@ toInit ty init =
           Nothing -> error $ "I don't know how to initialize field " ++ f
                           ++ " of struct " ++ s
       return tv
+    I.InitNewType -> error "illegal use of newtype"
   where
   lookupField f (I.Struct _ tfs) = listToMaybe [ t | I.Typed t f' <- tfs, f == f' ]
   lookupField f (I.Abstract _ _) = Nothing
@@ -485,6 +486,7 @@ toType t = case t of
   I.TyCArray t'    -> Array <$> toType t'
   I.TyOpaque       -> return Opaque
   I.TyStruct name  -> return $ Struct name
+  I.TyNewType s    -> return $ NewType s
 
 updateEnvRef :: I.Type -> I.Expr -> ModelCheck Var
 updateEnvRef t ref =

@@ -312,6 +312,8 @@ instance Pretty I.Type where
       -> text "CArray" <+> pretty t
     I.TyOpaque
       -> text "Opaque"
+    I.TyNewType s
+      -> text ("Newtype " ++ s)
 
 --------------------------------------------------------------------------------
 -- Unused for now.

@@ -440,6 +440,7 @@ data Init
   | InitExpr Type Expr         -- ^ @ expr @
   | InitStruct [(String,Init)] -- ^ @ { .f1 = i1, ..., .fn = in } @
   | InitArray [Init]           -- ^ @ { i1, ..., in } @
+  | InitNewType                -- ^ @ Nothing @
     deriving (Show, Eq, Ord)
 
 

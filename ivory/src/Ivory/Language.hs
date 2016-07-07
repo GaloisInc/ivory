@@ -29,7 +29,7 @@ module Ivory.Language (
   , IvoryZeroVal(izeroval)
   , IvoryZero(izero)
   , iarray
-  , InitStruct(), (.=), istruct
+  , InitStruct(), (.=), istruct, inewtype
   , local
 
     -- ** SizeOf

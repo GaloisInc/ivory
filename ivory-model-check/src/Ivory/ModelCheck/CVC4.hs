@@ -111,6 +111,7 @@ data Type = Void
           | Struct String
           | Array Type
           | Opaque
+          | NewType String
   deriving (Show, Read, Eq)
 
 instance Concrete Type where

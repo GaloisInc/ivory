@@ -148,6 +148,7 @@ stmtFold ef stmt = case stmt of
   I.Forever blk                   -> do blk' <- runFreshStmts ef blk
                                         insert (I.Forever blk')
   I.Comment _                     -> insert stmt
+  
   where
   efTyped (I.Typed ty e) = ef ty e
   efIncr incr = case incr of
@@ -159,6 +160,7 @@ stmtFold ef stmt = case stmt of
     I.InitExpr ty e     -> ef ty e
     I.InitStruct inits  -> mapM_ (efInit . snd) inits
     I.InitArray inits   -> mapM_ efInit inits
+    I.InitNewType       -> return ()
 
 --------------------------------------------------------------------------------
 

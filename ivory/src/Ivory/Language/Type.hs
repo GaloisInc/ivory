@@ -6,6 +6,7 @@ module Ivory.Language.Type where
 
 import Ivory.Language.Proxy
 import qualified Ivory.Language.Syntax as AST
+import GHC.TypeLits (Symbol)
 
 -- Ivory Types -----------------------------------------------------------------
 
@@ -54,3 +55,10 @@ data OpaqueType = OpaqueType
 
 instance IvoryType OpaqueType where
   ivoryType _ = AST.TyOpaque
+
+-- New Types -------------------------------------------------------------------
+
+newtype NewType (sym :: Symbol) = NewType { getNewType :: AST.Expr }
+
+mkNewType :: (ASymbol sym) => Proxy (sym :: Symbol) -> AST.Type
+mkNewType p = AST.TyNewType (fromTypeSym p)

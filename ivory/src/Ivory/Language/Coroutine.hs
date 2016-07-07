@@ -524,6 +524,7 @@ updateInit (AST.InitStruct fields) =
 updateInit (AST.InitArray elems) =
   -- An 'AST.InitArray' is a list of 'AST.Init' which we must recurse over:
   AST.InitArray <$> mapM updateInit elems
+updateInit AST.InitNewType = return AST.InitNewType
 
 -- | Basically 'updateExpr', but on a typed expression.
 updateTypedExpr :: AST.Typed AST.Expr -> UpdateExpr (AST.Typed AST.Expr)

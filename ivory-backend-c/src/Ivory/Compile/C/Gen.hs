@@ -71,9 +71,10 @@ compileArea visibility area = do
       ty | I.areaConst area = [cty| const $ty:aty |]
          | otherwise        = aty
   case i of
-    I.InitZero -> putSrc [cedecl| $ty:(type' visibility ty) $id:(I.areaSym area) ; |]
-    _          -> putSrc [cedecl| $ty:(type' visibility ty)
-                                 $id:(I.areaSym area) = $init:(toInit i) ; |]
+    I.InitZero    -> putSrc [cedecl| $ty:(type' visibility ty) $id:(I.areaSym area) ; |]
+    I.InitNewType -> putSrc [cedecl| $ty:(type' visibility ty) $id:(I.areaSym area) ; |]
+    _             -> putSrc [cedecl| $ty:(type' visibility ty)
+                                     $id:(I.areaSym area) = $init:(toInit i) ; |]
   where
   type' Public ty' = [cty|$ty:ty'|]
   type' Private ty' = [cty|static $ty:ty'|]
@@ -184,6 +185,7 @@ toTypeCxt arrCase = convert
       [cty| $ty:(convert retTy) (*)
             ($params:(map (toParam . convert) argTys)) |]
     I.TyOpaque            -> error "Opaque type is not implementable."
+    I.TyNewType s         -> [cty| typename $id:s |] 
 
 intSize :: I.IntSize -> C.Type
 intSize I.Int8  = [cty| typename int8_t  |]
@@ -243,6 +245,8 @@ toBody ens stmt =
     I.Deref t var exp      -> [C.BlockDecl
       [cdecl| $ty:(toType t) $id:(toVar var) = $exp:(derefExp (toExpr (I.TyRef t) exp)); |]]
 
+    I.Local t var I.InitNewType   -> [C.BlockDecl
+      [cdecl| $ty:(toType t) $id:(toVar var); |]]
     I.Local t var inits    -> [C.BlockDecl
       [cdecl| $ty:(toType t) $id:(toVar var)
                 = $init:(toInit inits); |]]
@@ -328,6 +332,8 @@ toBody ens stmt =
       [cstm| $comment:("/* " ++ c ++ " */"); |]]
     I.Comment (I.SourcePos src)   -> [C.BlockStm
       [cstm| $comment:("/* " ++ prettyPrint (pretty src) ++ " */"); |]]
+
+
 -- | Return statement.
 typedRet :: I.Typed I.Expr -> C.Exp
 typedRet I.Typed { I.tType  = t
@@ -343,6 +349,7 @@ toInit i = case i of
   I.InitArray is  -> [cinit|{$inits:([ toInit j | j <- is ])}|]
   I.InitStruct fs ->
     C.CompoundInitializer [ (Just (fieldDes f), toInit j) | (f,j) <- fs ] noLoc
+  I.InitNewType   -> error "illegal use of newtype during toInit"
 
 fieldDes :: String -> C.Designation
 fieldDes n = C.Designation [ C.MemberDesignator (C.Id n noLoc) noLoc ] noLoc
