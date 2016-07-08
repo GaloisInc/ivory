@@ -14,7 +14,7 @@ import qualified Ivory.Language.Syntax       as I
 import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.ModelCheck.Logic
 import           Ivory.ModelCheck.Ivory2Logic
-import           Ivory.ModelCheck.Logic2Z3
+import           Ivory.ModelCheck.Logic2SimpleSMT
 
 -- | Model-check an Ivory definition with the default options
 modelCheck' :: [I.Module] -> P.Def p -> IO ()
