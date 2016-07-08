@@ -2543,8 +2543,11 @@ class SMTSolver solver where
   smtSolve :: solver -> MapRList L1FunType ctx ->
               [Mb ctx (LProp tag)] ->
               IO (SMTResult (MapRList MaybeSMTValue ctx))
+  -- | Get the debugging level of the solver: 0 = no debugging, 1 = print
+  -- queries, higher levels = more info
+  smtGetDebugLevel :: solver -> Int
   -- | Set the debugging level of the solver: 0 = no debugging, 1 = print
-  -- queries, 2 = print everything
+  -- queries, higher levels = more info
   smtSetDebugLevel :: Int -> solver -> solver
 
 -- | FIXME: documentation
