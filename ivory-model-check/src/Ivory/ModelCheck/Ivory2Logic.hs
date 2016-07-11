@@ -16,6 +16,8 @@ import Text.PrettyPrint
 import Numeric
 import Numeric.Natural
 
+import Debug.Trace
+
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -943,6 +945,10 @@ convertProc :: I.Proc -> I2LM ILPM
 convertProc p =
   resetPureM $
   do
+    -- Print the proc if debugging is on
+    debug_level <- debugLevel <$> i2l_opts <$> get
+    if debug_level >= 3 then
+      traceM ("Converting proc:\n" ++ show (I.procBody p)) else return ()
     -- Assume that the length of funArgsPtr is as big as needed
     args_len <- addBindTransition $ mkOp (Op_readP ReadOp_length) funArgsPtr
     ivoryAssume $ mkIsTrue $
