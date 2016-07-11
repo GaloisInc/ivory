@@ -26,6 +26,9 @@ import MonadLib
 
 import Data.Binding.Hobbits
 
+-- Debug flag to turn off logical simplifications (should usually be True)
+doSimplifications = True
+
 
 ----------------------------------------------------------------------
 -- Helper definitions
@@ -1251,6 +1254,7 @@ mkFalse = mkOp Op_false
 
 -- | Negate a proposition (FIXME: handle quantifiers)
 mkNot :: LProp tag -> LProp tag
+mkNot p | not doSimplifications = mkOp Op_not p
 mkNot p | isTrue p = mkFalse
 mkNot p | isFalse p = mkTrue
 mkNot (matchAnd -> Just ps) = mkOr $ map mkNot ps
@@ -1260,6 +1264,7 @@ mkNot p = mkOp Op_not p
 -- | Build a right-nested conjunction, removing any "true"s and returning
 -- "false" if any conjuncts are "false"
 mkAnd :: [LProp tag] -> LProp tag
+mkAnd ps | not doSimplifications = foldl' (mkOp Op_and) mkTrue ps
 mkAnd ps =
   let ps1 = concatMap getConjuncts ps
       ps2 = filter (not . isTrue) ps1 in
@@ -1271,6 +1276,7 @@ mkAnd ps =
 -- | Build a right-nested disjunction, removing any "true"s and returning
 -- "false" if any disjuncts are "false"
 mkOr :: [LProp tag] -> LProp tag
+mkOr ps | not doSimplifications = foldl' (mkOp Op_or) mkFalse ps
 mkOr ps =
   let ps1 = concatMap getDisjuncts ps
       ps2 = filter (not . isFalse) ps1 in
@@ -1302,6 +1308,9 @@ mkLet l1tp rhs body =
 -- | Build an equality at a first-order type which is given explicitly.  Does
 -- some simplification.
 mkEq1Tp :: L1Type a -> LExpr tag a -> LExpr tag a -> LProp tag
+mkEq1Tp l1tp e1 e2
+  | not doSimplifications
+  = LOp (Op_eq l1tp) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
 mkEq1Tp (L1Type_lit LitType_unit) e1 e2 =
   -- Elements of the unit type are always equal
   mkTrue
@@ -1340,7 +1349,7 @@ mkEq1 e1 e2 = mkEq1Tp l1typeRep e1 e2
 -- syntactically identical names
 mkNameEq :: Proxy tag -> L1FunType a -> Name a -> Name a -> LProp tag
 mkNameEq proxy ftp n1 n2 =
-  if n1 == n2 then mkTrue else
+  if n1 == n2 && doSimplifications then mkTrue else
     mkEqTp ftp (mkVarTp proxy (funType_to_type ftp) n1)
     (mkVarTp proxy (funType_to_type ftp) n2)
 
