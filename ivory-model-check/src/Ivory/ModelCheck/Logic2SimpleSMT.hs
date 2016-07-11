@@ -323,9 +323,16 @@ smtCoerce LitType_int (LitType_bits :: LitType t) (SMTExpr _) =
 smtCoerce (LitType_bits :: LitType f) LitType_int (SMTExpr _) =
   error "smtCoerce: bit-vector to integer conversion not (yet?) supported"
   --AST <$> Z3.mkBv2int sexpr (isSigned (0 :: f))
-smtCoerce LitType_int LitType_int ast = ast
-smtCoerce LitType_bool LitType_bool ast = ast
-smtCoerce LitType_unit LitType_unit ast = ast
+smtCoerce LitType_int LitType_int e = e
+smtCoerce LitType_bool LitType_bool e = e
+smtCoerce LitType_unit LitType_unit e = e
+smtCoerce LitType_bool lit_tp@LitType_bits (SMTExpr sexpr) =
+  -- Conversion from Bool -> bit-vector: (ite sexpr #b1 #b0)
+  SMTExpr $ SMT.ite sexpr (unSMTExpr $ smtLiteral lit_tp 1)
+  (unSMTExpr $ smtLiteral lit_tp 0)
+smtCoerce lit_tp@LitType_bits LitType_bool (SMTExpr sexpr) =
+  -- Conversion from bit-vector -> Bool: (= (0th bit of sexpr) #b1)
+  SMTExpr $ SMT.eq (SMT.extract sexpr 1 0) (SMT.bvBin 1 0)
 smtCoerce _ _ _ = error "smtCoerce: coercion not supported!"
 
 -- | Build an if-then-else expression
