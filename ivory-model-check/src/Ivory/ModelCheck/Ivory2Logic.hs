@@ -904,10 +904,11 @@ convertStmt (I.Local itp var init) =
            error "convertStmt: local variable of Prop type!"
      letBindVar var L1Type_ptr ptr
 
--- Reference copy: not handled yet!
-convertStmt (I.RefCopy itp ilhs irhs) =
-  -- FIXME HERE: add a copy UpdateOp
-  error "convertStmt: reference copies not yet handled!"
+-- Reference copy: do a shallow copy of the array pointed to by irhs to ilhs
+convertStmt (I.RefCopy _ ilhs irhs) =
+  do ptr_rhs <- convertExpr L1Type_ptr irhs
+     ptr_lhs <- convertExpr L1Type_ptr ilhs
+     addTransition $ mkOp (Op_updateP UpdateOp_ptr_copy) ptr_rhs ptr_lhs
 
 -- Reference allocation: this is essentially the identity in the logic (its
 -- actual use in Ivory is to convert C lvalues into C rvalues)

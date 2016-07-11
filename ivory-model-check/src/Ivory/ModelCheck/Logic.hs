@@ -641,6 +641,9 @@ data UpdateOp mm args where
                     UpdateOp mm '[ Ptr, Literal Word64, Literal a ]
   -- | Update the nth element of the 'Ptr' array store
   UpdateOp_ptr_array :: UpdateOp mm '[ Ptr, Literal Word64, Ptr ]
+  -- | Copy the contents of one array to another, like a memcopy (NOTE: the
+  -- first pointer is the source, the second is the destination)
+  UpdateOp_ptr_copy :: UpdateOp mm '[ Ptr, Ptr ]
   -- | Allocate a new array with a given length
   UpdateOp_alloc :: UpdateOp mm '[ Literal Word64 ]
 
@@ -661,6 +664,7 @@ updateOpType (UpdateOp_array elem_pf) =
   LType_fun (LType_base $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf)
   ltypeRep
 updateOpType UpdateOp_ptr_array = ltypeRep
+updateOpType UpdateOp_ptr_copy = ltypeRep
 updateOpType UpdateOp_alloc = ltypeRep
 
 -- | Perform a read generic operation on a 'Memory'
@@ -711,6 +715,17 @@ updateMemory UpdateOp_ptr_array mem
              (Cons (Identity ptr)
               (Cons (Identity ix) (Cons (Identity newval) _))) =
   mem { memPtrArray = updateFinFun (memPtrArray mem) (ptr, (ix, ())) newval }
+updateMemory UpdateOp_ptr_copy mem
+             (Cons (Identity ptr_src) (Cons (Identity ptr_dest) _)) =
+  error "FIXME HERE: write the updateMemory case for pointer copy!"
+updateMemory UpdateOp_alloc mem
+             (Cons (Identity new_len) _) =
+  let new_last_alloc = Ptr (unPtr (memLastAlloc mem) + 1) in
+  mem
+  {
+    memLengths = updateFinFun (memLengths mem) (new_last_alloc, ()) new_len,
+    memLastAlloc = new_last_alloc
+  }
 updateMemory UpdateOp_alloc mem
              (Cons (Identity new_len) _) =
   let new_last_alloc = Ptr (unPtr (memLastAlloc mem) + 1) in
@@ -950,6 +965,7 @@ instance Liftable (ReadOp mm args ret) where
 instance Liftable (UpdateOp mm args) where
   mbLift [nuP| UpdateOp_array elem_pf |] = UpdateOp_array $ mbLift elem_pf
   mbLift [nuP| UpdateOp_ptr_array |] = UpdateOp_ptr_array
+  mbLift [nuP| UpdateOp_ptr_copy |] = UpdateOp_ptr_copy
   mbLift [nuP| UpdateOp_alloc |] = UpdateOp_alloc
 instance Liftable (Op tag a) where
   mbLift [nuP| Op_Literal ltp x |] = Op_Literal (mbLift ltp) (mbLift x)
@@ -2172,6 +2188,49 @@ updatePM UpdateOp_ptr_array (ml_123 -> (ptr, ix, v)) =
              mkEq1 (mkVar Proxy n p i p') (mkVar Proxy n' p i p')]
      -- Set mem' as the output memory
      setMem $ mem { symMemPtrArray = n' }
+updatePM UpdateOp_ptr_copy (ml_12 -> (ptr_src, ptr_dest :: LExpr tag Ptr)) =
+  do mem <- getMem
+     let n = symMemPtrArray mem
+     -- Create a fresh name for the pointer memory
+     n' <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType SymMemPtrArrayType)
+     -- Assert that (n' ptr_dest ix p) = (n ptr_src ix p)
+     assumePM $ mkForall l1typeRep $ \ix ->
+       mkForall l1typeRep $ \p ->
+       mkEq1 (mkVar Proxy n' ptr_dest ix p) (mkVar Proxy n ptr_src ix p)
+     -- Assert that (n' p ix p') = (n p ix p') when p != ptr_dest
+     assumePM $ mkForall l1typeRep $ \p ->
+       mkForall l1typeRep $ \ix ->
+       mkForall l1typeRep $ \p' ->
+       mkOr [mkEq1 p ptr_dest,
+             mkEq1 (mkVar Proxy n' p ix p') (mkVar Proxy n p ix p')]
+     -- Use the helper to make new symbolic memories for the non-pointer types
+     arrays' <- copy_helper (symMemArrays mem)
+     -- Set the updated memory with the new names
+     setMem $ mem { symMemArrays = arrays', symMemPtrArray = n' }
+       where
+         copy_helper :: MapList SymMemName mm ->
+                        LogicPM tag (MapList SymMemName mm)
+         copy_helper Nil = return Nil
+         copy_helper (Cons (SymMemName lit_tp n) arrays) =
+           do let l1tp = L1Type_lit lit_tp
+              let n_type = symMemArrayType lit_tp
+              -- Create a fresh name for the updated memory
+              n' <- nuM $ NameDecl_exists (symMemArrayFunType lit_tp)
+              -- Assert that (n' ptr_dest ix) = (n ptr_src ix)
+              assumePM $ mkForall l1typeRep $ \ix ->
+                mkEq1Tp l1tp (mkVarTp Proxy n_type n' ptr_dest ix)
+                (mkVarTp Proxy n_type n ptr_src ix)
+              -- Assert that (n' p ix) = (n p ix) when p != ptr_dest
+              assumePM $ mkForall l1typeRep $ \p ->
+                mkForall l1typeRep $ \ix ->
+                mkOr [mkEq1 p ptr_dest,
+                      mkEq1Tp l1tp
+                      (mkVarTp Proxy n_type n' p ix)
+                      (mkVarTp Proxy n_type n p ix)]
+              -- Recurse, and combine the result with n'
+              arrays' <- copy_helper arrays
+              return (Cons (SymMemName lit_tp n') arrays')
+
 updatePM UpdateOp_alloc (ml_first -> len) =
   do mem <- getMem
      let lengths = symMemLengths mem
@@ -2457,6 +2516,10 @@ instance LExprAlgebra tag (InterpPM tag) where
     InterpPM_fun $ \(InterpPM_base _ ix) ->
     InterpPM_fun $ \(InterpPM_base _ v) ->
     InterpPM_unit_pm $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
+  interpOp (Op_updateP uop@UpdateOp_ptr_copy) =
+    InterpPM_fun $ \(InterpPM_base _ ptr_src) ->
+    InterpPM_fun $ \(InterpPM_base _ ptr_dest) ->
+    InterpPM_unit_pm $ updatePM uop (Cons ptr_src (Cons ptr_dest Nil))
   interpOp (Op_updateP uop@UpdateOp_alloc) =
     InterpPM_fun $ \(InterpPM_base _ len) ->
     InterpPM_unit_pm $ updatePM uop (Cons len Nil)
