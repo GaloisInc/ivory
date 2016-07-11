@@ -122,7 +122,7 @@ binarySMT f (SMTExpr sexpr1) (SMTExpr sexpr2) = SMTExpr $ f sexpr1 sexpr2
 
 -- | Turn any literal into an 'SMTExpr'
 smtLiteral :: LitType a -> a -> SMTExpr (Literal a)
-smtLiteral LitType_unit () = SMTExpr $ SMT.bvHex 1 0
+smtLiteral LitType_unit () = SMTExpr $ SMT.bvBin 1 0
 smtLiteral LitType_bool b = SMTExpr $ SMT.bool b
 smtLiteral LitType_int i = SMTExpr $ SMT.int i
 smtLiteral (LitType_bits :: LitType a) bv =
@@ -876,8 +876,14 @@ is_constant_sexpr var_names (SMT.List sexprs) =
 -- default value
 parseFunBody :: Model -> [String] -> SMT.SExpr ->
                 ([([SMT.Value], SMT.Value)], SMT.Value)
+
 -- Special case: empty variable list -> a constant function
 parseFunBody _ [] sexpr = ([], sexprToVal sexpr)
+
+-- Special case: constant expression
+parseFunBody _ var_names sexpr
+  | is_constant_sexpr var_names sexpr = ([], sexprToVal sexpr)
+
 -- Parse an if-then-else expression
 parseFunBody model var_names sexpr@(SMT.List [SMT.Atom "ite", sexpr_cond,
                                               sexpr_then, sexpr_else]) =
@@ -895,9 +901,9 @@ parseFunBody model var_names sexpr@(SMT.List [SMT.Atom "ite", sexpr_cond,
   where
     -- Parse the condition of an if-expression
     parse_ite_cond :: SMT.SExpr -> [(String, SMT.Value)]
-    parse_ite_cond (SMT.List [SMT.Atom "==", SMT.Atom var, val_sexpr])
+    parse_ite_cond (SMT.List [SMT.Atom "=", SMT.Atom var, val_sexpr])
       | elem var var_names = [(var, constant_sexpr_to_val val_sexpr)]
-    parse_ite_cond (SMT.List [SMT.Atom "==", val_sexpr, SMT.Atom var])
+    parse_ite_cond (SMT.List [SMT.Atom "=", val_sexpr, SMT.Atom var])
       | elem var var_names = [(var, constant_sexpr_to_val val_sexpr)]
     parse_ite_cond (SMT.List (SMT.Atom "and" : sexprs)) =
       foldl' (unionBy
@@ -907,6 +913,9 @@ parseFunBody model var_names sexpr@(SMT.List [SMT.Atom "ite", sexpr_cond,
                          " occurs multiple times in an if-expression condition")
                 else False))
       [] (map parse_ite_cond sexprs)
+    parse_ite_cond sexpr =
+      error ("parseFunBody: could not parse if-then-else expression:\n"
+             ++ ppSExpr sexpr)
 
     -- Parse an s-expression into a value, making sure that it is constant
     constant_sexpr_to_val :: SMT.SExpr -> SMT.Value
@@ -1046,6 +1055,7 @@ getModel :: SMTm ctx Model
 getModel =
   do solver <- getSolver
      model_sexpr <- inBase $ SMT.command solver (SMT.List [SMT.Atom "get-model"])
+     smtDebug 3 ("Model:\n" ++ ppSExpr model_sexpr)
      case model_sexpr of
        SMT.List (SMT.Atom "model" : fun_decls) ->
          return $
