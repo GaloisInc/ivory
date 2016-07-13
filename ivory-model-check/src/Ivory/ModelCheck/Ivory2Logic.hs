@@ -232,8 +232,11 @@ returnUnitTrans = return $ mkReturnP $ mkLiteral ()
 -- | Get all the global variable symbols in a module
 moduleGlobalSyms :: I.Module -> Set.Set I.Sym
 moduleGlobalSyms mod =
-  Set.unions [Set.fromList $ map I.externSym $ I.modExterns mod]
--- FIXME HERE: Handle Areas and AreaImports?
+  Set.unions [Set.fromList $ map I.externSym $ I.modExterns mod,
+              Set.fromList $ map I.importSym $ I.modImports mod,
+              Set.fromList $ map I.areaSym $ I.public $ I.modAreas mod,
+              Set.fromList $ map I.areaSym $ I.private $ I.modAreas mod,
+              Set.fromList $ map I.aiSym $ I.modAreaImports mod]
 
 -- An I2LM computation can be "run" by giving it Ivory modules and a
 -- default continuation (which is normally just "return")
@@ -470,8 +473,10 @@ bindRetval itp =
 moduleLookup :: (Show key, Eq key) => (I.Module -> I.Visible res) ->
                 (res -> key) -> key -> String -> [I.Module] -> res
 moduleLookup readMod readKey key res_name mods =
-  let pubElems = concatMap (I.public . readMod) mods in
-  case find ((==) key . readKey) pubElems of
+  let elems =
+        concatMap (I.public . readMod) mods ++
+        concatMap (I.private . readMod) mods in
+  case find ((==) key . readKey) elems of
     Just elem -> elem
     Nothing ->
       error $ "moduleLookup: " ++ res_name ++ " " ++ show key ++ " not found!"
