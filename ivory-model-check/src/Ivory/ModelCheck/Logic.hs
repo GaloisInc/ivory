@@ -216,6 +216,15 @@ data LitType a where
   LitType_bits :: (Typeable a, Integral a, FiniteBits a, Liftable a) => LitType a
   -- ^ Any bit-vector type can be used as a literal type
 
+-- Printing LitTypes
+instance Show (LitType a) where
+  show LitType_unit = "unit"
+  show LitType_bool = "Bool"
+  show LitType_int = "int"
+  show (LitType_bits :: LitType bv) =
+    (if isSigned (0 :: bv) then "sbits" else "ubits")
+    ++ "[" ++ show (finiteBitSize (0 :: bv)) ++ "]"
+
 -- | Typeclass for 'LitType'
 class LitTypeable a where
   litTypeRep :: LitType a
@@ -294,6 +303,12 @@ data L1Type a where
   L1Type_prop :: L1Type Prop
   -- ^ The type of formulas that may or may not be decidable; e.g., formulas
   -- with quantifiers
+
+-- Printing L1Types
+instance Show (L1Type a) where
+  show (L1Type_lit lit_tp) = "Literal " ++ show lit_tp
+  show L1Type_ptr = "Ptr"
+  show L1Type_prop = "Prop"
 
 -- | Typeclass for 'L1Type'
 class L1Typeable a where
