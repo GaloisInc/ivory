@@ -128,7 +128,7 @@ convertType (I.TyWord I.Word16) = mkSomeLitType (litTypeRep :: LitType Word16)
 convertType (I.TyWord I.Word32) = mkSomeLitType (litTypeRep :: LitType Word32)
 convertType (I.TyWord I.Word64) = mkSomeLitType (litTypeRep :: LitType Word64)
 convertType (I.TyIndex upper_bound) =
-  mkSomeLitType (litTypeRep :: LitType Word64)
+  mkSomeLitType (litTypeRep :: LitType Int32)
 convertType I.TyBool = mkSomeLitType (litTypeRep :: LitType Bool)
 convertType I.TyChar = error "convertType: cannot (yet) handle Char type"
 convertType I.TyFloat = error "convertType: cannot (yet) handle Float type"
@@ -274,7 +274,9 @@ getVar l1tp v =
          case l1TypeEq l1tp l1tp' of
            Just Refl -> return n
            Nothing ->
-             error ("getVar: Ivory variable " ++ show v ++ " has the wrong type")
+             error ("getVar: Ivory variable " ++ show v ++
+                    " has the wrong type; expected: " ++ show l1tp ++
+                    "; found: " ++ show l1tp')
 
 -- | Get the logical variable associated with an Ivory variable, at a specific
 -- type, and convert it to a logical expression
