@@ -1203,6 +1203,11 @@ mkLtBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
             LExpr tag (Literal Bool)
 mkLtBool e1 e2 = mkOp (Op_cmp litTypeRep OpCmp_LT) e1 e2
 
+-- | Make a Boolean less-than-or-equal expression
+mkLeBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
+            LExpr tag (Literal Bool)
+mkLeBool e1 e2 = mkOp (Op_cmp litTypeRep OpCmp_LE) e1 e2
+
 -- | Negate a Boolean
 mkNotBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool)
 mkNotBool = mkOp (Op_arith1 LitType_bool Op1_Neg)
@@ -2293,22 +2298,24 @@ collectResultsPM :: Eq (LException tag) =>
                     LogicPM tag [(Either (LExn tag) (),
                                   [(SymMemory tag, [LProp tag])])]
 collectResultsPM pm =
-  get >>= \(mem,_) ->
+  get >>= \s ->
   liftM groupAList $
-  lift $ lift $ lift $ findAll $ runStateT (mem, []) $ runExceptionT pm
+  lift $ lift $ lift $ findAll $ runStateT s $ runExceptionT pm
 
 -- | Get the current propositions for this computation branch and bind a fresh
--- name equal to the conjunction of these propositions, returning this
--- fresh name after first setting it as the output proposition.
-getPropsAsConstant :: LogicPM tag (LProp tag)
-getPropsAsConstant =
+-- name equal to the conjunction of these propositions, returning this fresh
+-- name after first clearing the input propositions (the motiviation for this
+-- being that the caller is going to use the returned newly-let-bound prop)
+letBindInputProps :: LogicPM tag (LProp tag)
+letBindInputProps =
   do (mem, props) <- get
      prop_n <- nuM $ NameDecl_let l1typeRep (mkAnd props)
      let combined_prop = mkVar Proxy prop_n
-     set (mem, [combined_prop])
+     set (mem, [])
      return combined_prop
 
--- | FIXME: documentation
+-- | Join a list of symbolic memories into a single symbolic memory, creating
+-- fresh names for the components that differ between the memories.
 freshMemoryFrom :: [SymMemory tag] -> LogicPM tag (SymMemory tag)
 freshMemoryFrom [] = error "freshMemoryFrom: empty list!"
 freshMemoryFrom (mem:mems) =
@@ -2342,7 +2349,7 @@ freshMemoryFrom (mem:mems) =
 -- | FIXME: documentation
 canonicalizePM :: Eq (LException tag) => LogicPM tag () -> LogicPM tag ()
 canonicalizePM pm =
-  do orig_prop <- getPropsAsConstant
+  do orig_prop <- letBindInputProps
      res_alist <- collectResultsPM pm
      foldr mplus mzero $
        map (\(exn_or_unit, mems_with_props) ->
@@ -2670,36 +2677,26 @@ memoryOfSMTValues (Cons def mm) (mm_values :>: vals_v) =
 -- Testing reachability using an SMT solver
 ----------------------------------------------------------------------
 
--- | Run a 'ChoiceT' computation, returning the first result for which the
--- supplied function returns a 'Just' value, or return 'Nothing' if no such
--- result exists. (This is similar to 'findOne'.)
-findFirst :: Monad m => (a -> Maybe b) -> ChoiceT m a -> m (Maybe b)
-findFirst f m =
-  do maybe_res <- runChoiceT m
-     case maybe_res of
-       Nothing -> return Nothing
-       Just (a, m') ->
-         case f a of
-           Nothing -> findFirst f m'
-           Just b -> return (Just b)
-
 -- | Run a 'LogicPM' computation, starting from a given symbolic memory, to get
 -- a set of formulas that must hold for that computation to terminate normally,
 -- i.e., to not throw an exception. If there is no such set of formulas, we use
 -- the single false formula.
-runLogicPM :: SymMemory tag -> LogicPM tag () -> WithNames tag [LProp tag]
-runLogicPM mem m =
-  do maybe_props <-
-       findFirst (\(exn_or_unit, (_, props)) ->
+runLogicPM :: Eq (LException tag) => SymMemory tag -> LogicPM tag () ->
+              WithNames tag [LProp tag]
+runLogicPM mem pm =
+  do res_alist <-
+       liftM groupAList $ findAll $ runStateT (mem,[]) $ runExceptionT $
+       canonicalizePM pm
+     case filter (\(exn_or_unit, _) ->
                    case exn_or_unit of
-                     Left _ -> Nothing
-                     Right () -> Just props)
-       (runStateT (mem, []) $ runExceptionT m)
-     case maybe_props of
-       Just props ->
+                     Left _ -> False
+                     Right () -> True) res_alist of
+       [] -> return [mkFalse]
+       [(_, [(_, props)])] ->
          -- NOTE: we implicitly add the assertion that mem is valid
          return $ validSymMemoryProp mem : props
-       Nothing -> return [mkFalse]
+       _ ->
+         error "runLogicPM: non-canonical computation!"
 
 -- | FIXME: documentation, move this
 mbExprLower1 :: Mb ctx (LExpr tag b) -> Mb (ctx ':> a) (LExpr tag b)
@@ -2720,7 +2717,7 @@ smtSolveWithNames solver ftps in_props [nuP| WithName mb_decl body |] =
   (mbCombine body)
 
 -- | Solve the formulas returned by a 'LogicPM' computation inside a binding
-smtSolveLogicPM :: (SMTSolver solver, MemoryModel (LStorables tag)) =>
+smtSolveLogicPM :: (SMTSolver solver, LExprTag tag) =>
                    solver -> MapRList L1FunType ctx ->
                    Mb ctx (LogicPM tag ()) ->
                    IO (SMTResult (MapRList MaybeSMTValue
@@ -2734,7 +2731,7 @@ smtSolveLogicPM solver tps (mb_m :: Mb ctx (LogicPM tag ())) =
 -- | Test if a non-exceptional output state is reachable via a 'LogicPM'
 -- computation, and, if so, return an input memory from which that output state
 -- is reachable
-reachablePM :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
+reachablePM :: (SMTSolver solver, LExprTag tag) => solver ->
                LogicPM tag () ->
                IO (SMTResult (Memory (LStorables tag)))
 reachablePM solver (m :: LogicPM tag ()) =
@@ -2743,7 +2740,7 @@ reachablePM solver (m :: LogicPM tag ()) =
 
 -- | Test reachability on a 'PM' expression, returning an example initial input
 -- memory from which a non-exceptional output state is reachable
-reachable :: (SMTSolver solver, MemoryModel (LStorables tag)) => solver ->
+reachable :: (SMTSolver solver, LExprTag tag) => solver ->
              LPM tag -> IO (SMTResult (Memory (LStorables tag)))
 reachable solver expr = reachablePM solver (lexpr_to_logicPM expr)
 
@@ -2758,7 +2755,7 @@ exn_reachable solver exn expr =
 -- | Test if a non-exceptional output state is reachable via a 'LogicPM'
 -- computation inside a binding, and, if so, return an input memory from which
 -- that output state is reachable and values for the bound variables
-mbReachablePM :: (SMTSolver solver, MemoryModel (LStorables tag)) =>
+mbReachablePM :: (SMTSolver solver, LExprTag tag) =>
                  solver -> MapRList L1FunType ctx ->
                  Mb ctx (LogicPM tag ()) ->
                  IO (SMTResult (MapRList MaybeSMTValue ctx,
