@@ -141,6 +141,13 @@ smtZeroOfType (L1Type_lit lit_tp@LitType_bits) = smtLiteral lit_tp 0
 smtZeroOfType L1Type_ptr = smtNullPtr
 smtZeroOfType L1Type_prop = smtFalse
 
+-- | Build a "1" object of a given type, if possible
+smtOneOfType :: LitType a -> SMTExpr (Literal a)
+smtOneOfType (lit_tp@LitType_unit) = smtLiteral lit_tp ()
+smtOneOfType (lit_tp@LitType_bool) = smtLiteral lit_tp True
+smtOneOfType (lit_tp@LitType_int) = smtLiteral lit_tp 1
+smtOneOfType (lit_tp@LitType_bits) = smtLiteral lit_tp 1
+
 -- | The 'SMTExpr' for a global variable pointer. NOTE: global variables are
 -- represented as *negative* numbers.
 smtGlobalVar :: Natural -> SMTExpr Ptr
@@ -171,6 +178,14 @@ smtComplement LitType_bits = unarySMT SMT.bvNot
 smtComplement _ =
   error "SMT complementation function called on non-bitvector value!"
 
+-- | The increment-by-1 function on 'SMTExpr's
+smtIncr :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a)
+smtIncr lit_tp e = smtAdd lit_tp e (smtOneOfType lit_tp)
+
+-- | The decrement-by-1 function on 'SMTExpr's
+smtDecr :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a)
+smtDecr lit_tp e = smtAdd lit_tp e (smtOneOfType lit_tp)
+
 -- | Apply an 'ArithOp1' to an 'SMTExpr'
 smtArithOp1 :: ArithOp1 -> LitType a -> SMTExpr (Literal a) ->
                SMTExpr (Literal a)
@@ -178,6 +193,8 @@ smtArithOp1 Op1_Abs = smtAbs
 smtArithOp1 Op1_Signum = smtSignum
 smtArithOp1 Op1_Neg = smtNeg
 smtArithOp1 Op1_Complement = smtComplement
+smtArithOp1 Op1_Incr = smtIncr
+smtArithOp1 Op1_Decr = smtDecr
 
 -- | The binary addition function on 'SMTExpr's
 smtAdd :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a) ->
@@ -332,7 +349,7 @@ smtCoerce LitType_bool lit_tp@LitType_bits (SMTExpr sexpr) =
   (unSMTExpr $ smtLiteral lit_tp 0)
 smtCoerce lit_tp@LitType_bits LitType_bool (SMTExpr sexpr) =
   -- Conversion from bit-vector -> Bool: (= (0th bit of sexpr) #b1)
-  SMTExpr $ SMT.eq (SMT.extract sexpr 1 0) (SMT.bvBin 1 0)
+  SMTExpr $ SMT.eq (SMT.extract sexpr 0 0) (SMT.bvBin 1 0)
 smtCoerce _ _ _ = error "smtCoerce: coercion not supported!"
 
 -- | Build an if-then-else expression

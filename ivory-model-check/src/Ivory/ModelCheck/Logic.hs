@@ -763,14 +763,19 @@ class (MemoryModel (LStorables tag), Eq (LException tag),
   type LException tag :: *
 
 -- | The unary arithmetic operations
-data ArithOp1 = Op1_Abs
-                -- ^ Absolute value
-              | Op1_Signum
-                -- ^ The signum function
-              | Op1_Neg
-                -- ^ Integer negation, or the "not" function on Booleans
-              | Op1_Complement
-                -- ^ Bit complementation
+data ArithOp1
+  = Op1_Abs
+    -- ^ Absolute value
+  | Op1_Signum
+    -- ^ The signum function
+  | Op1_Neg
+    -- ^ Integer negation, or the "not" function on Booleans
+  | Op1_Complement
+    -- ^ Bit complementation
+  | Op1_Incr
+    -- ^ Helper operation: increment by 1
+  | Op1_Decr
+    -- ^ Helper operation: decrement by 1
 
 -- | The binary arithmetic operations
 data ArithOp2
@@ -959,6 +964,8 @@ instance Liftable ArithOp1 where
   mbLift [nuP| Op1_Signum |] = Op1_Signum
   mbLift [nuP| Op1_Neg |] = Op1_Neg
   mbLift [nuP| Op1_Complement |] = Op1_Complement
+  mbLift [nuP| Op1_Incr |] = Op1_Incr
+  mbLift [nuP| Op1_Decr |] = Op1_Decr
 instance Liftable ArithOp2 where
   mbLift [nuP| Op2_Add |] = Op2_Add
   mbLift [nuP| Op2_Sub |] = Op2_Sub
