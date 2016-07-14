@@ -956,11 +956,14 @@ convertProc p =
     -- Print the proc if debugging is on
     debug_level <- debugLevel <$> i2l_opts <$> get
     if debug_level >= 3 then
-      traceM ("Converting proc:\n" ++ show (I.procBody p)) else return ()
+      traceM ("\nConverting proc " ++ show (I.procSym p)
+              ++ "\nRequires:\n" ++ show (I.procRequires p)
+              ++ "\nEnsures:\n" ++ show (I.procEnsures p)
+              ++ "\nBody:\n" ++ show (I.procBody p)) else return ()
     -- Assume that the length of funArgsPtr is as big as needed
     args_len <- addBindTransition $ mkOp (Op_readP ReadOp_length) funArgsPtr
     ivoryAssume $ mkIsTrue $
-      mkLtBool (mkLiteral64 $ length $ I.procArgs p) args_len
+      mkLeBool (mkLiteral64 $ length $ I.procArgs p) args_len
     -- Read each variable from funArgsPtr
     forM_ (zip (I.procArgs p) [0 ..]) $ \(tv, ix) ->
       do arg_val <- readArraySome (I.tType tv) funArgsPtr (mkLiteral ix)
