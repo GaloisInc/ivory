@@ -44,6 +44,7 @@ l1type_to_sort (L1Type_lit LitType_unit) =
   SMTSort $ SMT.tBits 1
 l1type_to_sort (L1Type_lit LitType_bool) = SMTSort SMT.tBool
 l1type_to_sort (L1Type_lit LitType_int) = SMTSort SMT.tInt
+l1type_to_sort (L1Type_lit LitType_rat) = SMTSort SMT.tReal
 l1type_to_sort (L1Type_lit (LitType_bits :: LitType a)) =
   SMTSort $ SMT.tBits $ toInteger $ finiteBitSize (zeroBits :: a)
 l1type_to_sort L1Type_prop = SMTSort SMT.tBool
@@ -84,6 +85,7 @@ l1type_base_name :: L1Type a -> String
 l1type_base_name (L1Type_lit LitType_unit) = "u"
 l1type_base_name (L1Type_lit LitType_bool) = "b"
 l1type_base_name (L1Type_lit LitType_int) = "i"
+l1type_base_name (L1Type_lit LitType_rat) = "r"
 l1type_base_name (L1Type_lit LitType_bits) = "bv"
 l1type_base_name L1Type_prop = "phi"
 l1type_base_name L1Type_ptr = "ptr"
@@ -125,6 +127,7 @@ smtLiteral :: LitType a -> a -> SMTExpr (Literal a)
 smtLiteral LitType_unit () = SMTExpr $ SMT.bvBin 1 0
 smtLiteral LitType_bool b = SMTExpr $ SMT.bool b
 smtLiteral LitType_int i = SMTExpr $ SMT.int i
+smtLiteral LitType_rat r = SMTExpr $ SMT.real r
 smtLiteral (LitType_bits :: LitType a) bv =
   SMTExpr $ SMT.bvHex (finiteBitSize (zeroBits :: a)) (toInteger bv)
 
@@ -137,6 +140,7 @@ smtZeroOfType :: L1Type a -> SMTExpr a
 smtZeroOfType (L1Type_lit lit_tp@LitType_unit) = smtLiteral lit_tp ()
 smtZeroOfType (L1Type_lit lit_tp@LitType_bool) = smtLiteral lit_tp False
 smtZeroOfType (L1Type_lit lit_tp@LitType_int) = smtLiteral lit_tp 0
+smtZeroOfType (L1Type_lit lit_tp@LitType_rat) = smtLiteral lit_tp 0
 smtZeroOfType (L1Type_lit lit_tp@LitType_bits) = smtLiteral lit_tp 0
 smtZeroOfType L1Type_ptr = smtNullPtr
 smtZeroOfType L1Type_prop = smtFalse
@@ -146,6 +150,7 @@ smtOneOfType :: LitType a -> SMTExpr (Literal a)
 smtOneOfType (lit_tp@LitType_unit) = smtLiteral lit_tp ()
 smtOneOfType (lit_tp@LitType_bool) = smtLiteral lit_tp True
 smtOneOfType (lit_tp@LitType_int) = smtLiteral lit_tp 1
+smtOneOfType (lit_tp@LitType_rat) = smtLiteral lit_tp 1
 smtOneOfType (lit_tp@LitType_bits) = smtLiteral lit_tp 1
 
 -- | The 'SMTExpr' for a global variable pointer. NOTE: global variables are
@@ -170,6 +175,7 @@ smtNeg :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a)
 smtNeg LitType_unit = id
 smtNeg LitType_bool = unarySMT SMT.not
 smtNeg LitType_int = unarySMT SMT.neg
+smtNeg LitType_rat = unarySMT SMT.neg
 smtNeg LitType_bits = unarySMT SMT.bvNeg
 
 -- | The bit complementation function on 'SMTExpr's
@@ -202,6 +208,7 @@ smtAdd :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a) ->
 smtAdd LitType_unit = \_ -> id
 smtAdd LitType_bool = binarySMT SMT.or
 smtAdd LitType_int = binarySMT SMT.add
+smtAdd LitType_rat = binarySMT SMT.add
 smtAdd LitType_bits = binarySMT SMT.bvAdd
 
 -- | The binary subtraction function on 'SMTExpr's
@@ -210,6 +217,7 @@ smtSub :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a) ->
 smtSub LitType_unit = \_ -> id
 smtSub LitType_bool = error "SMT conversion: subtraction on Booleans!"
 smtSub LitType_int = binarySMT SMT.sub
+smtSub LitType_rat = binarySMT SMT.sub
 smtSub LitType_bits = binarySMT SMT.bvSub
 
 -- | The binary multiplication function on 'SMTExpr's
@@ -218,6 +226,7 @@ smtMult :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a) ->
 smtMult LitType_unit = \_ -> id
 smtMult LitType_bool = binarySMT SMT.and
 smtMult LitType_int = binarySMT SMT.mul
+smtMult LitType_rat = binarySMT SMT.mul
 smtMult LitType_bits = binarySMT SMT.bvMul
 
 -- | The binary division function on 'SMTExpr's
@@ -226,6 +235,7 @@ smtDiv :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a) ->
 smtDiv LitType_unit = \_ -> id
 smtDiv LitType_bool = error "SMT conversion: division on Booleans!"
 smtDiv LitType_int = binarySMT SMT.div
+smtDiv LitType_rat = binarySMT SMT.realDiv
 smtDiv (LitType_bits :: LitType bv)
   | isSigned (0 :: bv) = binarySMT SMT.bvSDiv
 smtDiv (LitType_bits :: LitType bv) = binarySMT SMT.bvUDiv
@@ -236,6 +246,7 @@ smtMod :: LitType a -> SMTExpr (Literal a) -> SMTExpr (Literal a) ->
 smtMod LitType_unit = \_ -> id
 smtMod LitType_bool = error "SMT conversion: modulus on Booleans!"
 smtMod LitType_int = binarySMT SMT.mod
+smtMod LitType_rat = error "SMT convertion: modulus on rationals!"
 smtMod (LitType_bits :: LitType bv)
   | isSigned (0 :: bv) = binarySMT SMT.bvSRem
 smtMod (LitType_bits :: LitType bv) = binarySMT SMT.bvURem
@@ -283,6 +294,8 @@ smtLt (L1Type_lit LitType_bool) _ _ =
   error "SMT less-than function called on Boolean values!"
 smtLt (L1Type_lit LitType_int) (SMTExpr sexpr1) (SMTExpr sexpr2) =
   SMTExpr $ SMT.lt sexpr1 sexpr2
+smtLt (L1Type_lit LitType_rat) (SMTExpr sexpr1) (SMTExpr sexpr2) =
+  SMTExpr $ SMT.lt sexpr1 sexpr2
 smtLt (L1Type_lit (LitType_bits :: LitType bv)) (SMTExpr sexpr1) (SMTExpr sexpr2)
   | isSigned (0 :: bv) = SMTExpr $ SMT.bvSLt sexpr1 sexpr2
 smtLt (L1Type_lit LitType_bits) (SMTExpr sexpr1) (SMTExpr sexpr2) =
@@ -299,6 +312,8 @@ smtLe (L1Type_lit LitType_unit) _ _ =
 smtLe (L1Type_lit LitType_bool) _ _ =
   error "SMT less-than function called on Boolean values!"
 smtLe (L1Type_lit LitType_int) (SMTExpr sexpr1) (SMTExpr sexpr2) =
+  SMTExpr $ SMT.leq sexpr1 sexpr2
+smtLe (L1Type_lit LitType_rat) (SMTExpr sexpr1) (SMTExpr sexpr2) =
   SMTExpr $ SMT.leq sexpr1 sexpr2
 smtLe (L1Type_lit (LitType_bits :: LitType bv)) (SMTExpr sexpr1) (SMTExpr sexpr2)
   | isSigned (0 :: bv) = SMTExpr $ SMT.bvSLeq sexpr1 sexpr2
@@ -350,7 +365,9 @@ smtCoerce LitType_bool lit_tp@LitType_bits (SMTExpr sexpr) =
 smtCoerce lit_tp@LitType_bits LitType_bool (SMTExpr sexpr) =
   -- Conversion from bit-vector -> Bool: (= (0th bit of sexpr) #b1)
   SMTExpr $ SMT.eq (SMT.extract sexpr 0 0) (SMT.bvBin 1 0)
-smtCoerce _ _ _ = error "smtCoerce: coercion not supported!"
+smtCoerce lit_tp_from lit_tp_to _ =
+  error ("smtCoerce: coercion not supported from " ++ show lit_tp_from
+         ++ " to " ++ show lit_tp_to)
 
 -- | Build an if-then-else expression
 smtIfThenElse :: SMTExpr (Literal Bool) -> SMTExpr a -> SMTExpr a -> SMTExpr a
@@ -1106,6 +1123,10 @@ value_to_smt_value (L1Type_lit LitType_int) (SMT.Int i) =
   Literal i
 value_to_smt_value (L1Type_lit LitType_int) v =
   error ("value_to_smt_value: integer expected, found: " ++ show v)
+value_to_smt_value (L1Type_lit LitType_rat) (SMT.Real r) =
+  Literal r
+value_to_smt_value (L1Type_lit LitType_rat) v =
+  error ("value_to_smt_value: rational expected, found: " ++ show v)
 value_to_smt_value (L1Type_lit LitType_bits) (SMT.Bits _ i) =
   Literal $ fromInteger i
 value_to_smt_value (L1Type_lit LitType_bits) v =

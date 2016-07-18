@@ -13,6 +13,7 @@ import Prelude.Compat hiding (exp)
 
 import Data.Proxy
 import Data.Bits
+import Data.Ratio
 import Data.Typeable
 import Data.Int
 import Data.Word
@@ -103,6 +104,13 @@ instance NuMatching Int64 where
   nuMatchingProof = isoMbTypeRepr toInteger fromInteger
 instance Liftable Int64 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
+
+instance (Integral a, NuMatching a) => NuMatching (Ratio a) where
+  nuMatchingProof =
+    isoMbTypeRepr (\r -> (numerator r, denominator r)) (\(n,d) -> n%d)
+instance (Integral a, Liftable a) => Liftable (Ratio a) where
+  mbLift mb_r =
+    (\(n,d) -> n%d) $ mbLift $ fmap (\r -> (numerator r, denominator r)) mb_r
 
 
 ----------------------------------------------------------------------
@@ -212,7 +220,10 @@ data LitType a where
   -- ^ The type of Booleans that can be computed; i.e., not the type of
   -- formulas. For formulas (e.g., that contain quantifiers), use 'Prop'.
   LitType_int :: LitType Integer
-  -- ^ Our logic also has support for unbounded integers
+  -- ^ Our logic has support for unbounded integers
+  LitType_rat :: LitType Rational
+  -- ^ Our logic also has support for arbitrary-precision rational numbers
+  -- (which SMT solvers often call "real numbers")
   LitType_bits :: (Typeable a, Integral a, FiniteBits a, Liftable a) => LitType a
   -- ^ Any bit-vector type can be used as a literal type
 
@@ -221,6 +232,7 @@ instance Show (LitType a) where
   show LitType_unit = "unit"
   show LitType_bool = "Bool"
   show LitType_int = "int"
+  show LitType_rat = "rational"
   show (LitType_bits :: LitType bv) =
     (if isSigned (0 :: bv) then "sbits" else "ubits")
     ++ "[" ++ show (finiteBitSize (0 :: bv)) ++ "]"
@@ -232,6 +244,7 @@ class LitTypeable a where
 instance LitTypeable () where litTypeRep = LitType_unit
 instance LitTypeable Bool where litTypeRep = LitType_bool
 instance LitTypeable Integer where litTypeRep = LitType_int
+instance LitTypeable Rational where litTypeRep = LitType_rat
 instance LitTypeable Int8 where litTypeRep = LitType_bits
 instance LitTypeable Int16 where litTypeRep = LitType_bits
 instance LitTypeable Int32 where litTypeRep = LitType_bits
@@ -250,6 +263,7 @@ class LitTypeable a => LitDefault a where
 instance LitDefault () where litDefault = ()
 instance LitDefault Bool where litDefault = True
 instance LitDefault Integer where litDefault = 0
+instance LitDefault Rational where litDefault = 0
 instance LitDefault Word64 where litDefault = 0
 
 -- | Build a default element of a literal type, given explicitly
@@ -257,6 +271,7 @@ litDefaultTp :: LitType a -> a
 litDefaultTp LitType_unit = litDefault
 litDefaultTp LitType_bool = litDefault
 litDefaultTp LitType_int = litDefault
+litDefaultTp LitType_rat = litDefault
 litDefaultTp LitType_bits = 0
 
 -- Build a NuMatching instance for LitType, needed for Liftable
@@ -267,6 +282,7 @@ instance Liftable (LitType a) where
   mbLift [nuP| LitType_unit |] = LitType_unit
   mbLift [nuP| LitType_bool |] = LitType_bool
   mbLift [nuP| LitType_int |] = LitType_int
+  mbLift [nuP| LitType_rat |] = LitType_rat
   mbLift [nuP| LitType_bits |] = LitType_bits
 
 -- | Build a 'Liftable' instance for any 'LitType'
@@ -274,6 +290,7 @@ litTypeLiftable :: LitType a -> LiftableTp a
 litTypeLiftable LitType_unit = LiftableTp
 litTypeLiftable LitType_bool = LiftableTp
 litTypeLiftable LitType_int = LiftableTp
+litTypeLiftable LitType_rat = LiftableTp
 litTypeLiftable LitType_bits = LiftableTp
 
 -- | Test if two 'LitType's are equal
@@ -284,6 +301,8 @@ litTypeEq LitType_bool LitType_bool = Just Refl
 litTypeEq LitType_bool _ = Nothing
 litTypeEq LitType_int LitType_int = Just Refl
 litTypeEq LitType_int _ = Nothing
+litTypeEq LitType_rat LitType_rat = Just Refl
+litTypeEq LitType_rat _ = Nothing
 litTypeEq LitType_bits LitType_bits = eqT
 litTypeEq LitType_bits _ = Nothing
 
@@ -1363,7 +1382,7 @@ mkEq1Tp (L1Type_lit LitType_bool) (matchLiteral -> Just x1)
 mkEq1Tp (L1Type_lit LitType_int) (matchLiteral -> Just x1)
   (matchLiteral -> Just x2) =
   if x1 == x2 then mkTrue else mkFalse
-mkEq1Tp (L1Type_lit LitType_int) (matchLiteral -> Just x1)
+mkEq1Tp (L1Type_lit LitType_rat) (matchLiteral -> Just x1)
   (matchLiteral -> Just x2) =
   if x1 == x2 then mkTrue else mkFalse
 mkEq1Tp (L1Type_lit LitType_bits) (matchLiteral -> Just x1)
