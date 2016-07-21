@@ -56,6 +56,7 @@ data ILOpts =
   }
 
 -- | Default options for the Ivory reachability solver
+defaultOpts :: ILOpts
 defaultOpts = ILOpts { debugLevel = 0, skipCompilerAsserts = False,
                        loopUnrollingMax = 5, inlineCalls = False }
 
@@ -903,19 +904,32 @@ convertExpr i1tp (I.ExpLit lit) =
   return $ convertLiteral i1tp lit
 
 -- Array and struct dereferencing
-convertExpr i1tp (I.ExpLabel (I.TyStruct s_name) s_iexpr f_name) =
-  do s_expr <- convertExpr (ITyStructPtr Nothing s_name) s_iexpr
+convertExpr i1tp (I.ExpLabel s_itp s_iexpr f_name) =
+  do let s_name =
+           case s_itp of
+             I.TyStruct s_name -> s_name
+             _ -> error ("convertExpr: struct label indexing on non-struct type!")
+     s_expr <- convertExpr (mkRefType (ITyStructPtr Nothing s_name)) s_iexpr
      (_, f_ix) <- lookupStructFieldM s_name f_name
      assertPtrIndexOK s_expr (mkLiteral64 f_ix)
      readArray i1tp s_expr (mkLiteral64 f_ix)
-convertExpr i1tp (I.ExpIndex arr_itp arr_iexpr ix_itp ix_iexpr) =
-  do let arr_i1tp =
-           case convertType arr_itp of
-             -- FIXME: test that the element type == i1tp
-             SomeI1Type arr_i1tp@(ITyArrayPtr Nothing _ _) -> arr_i1tp
-             SomeI1Type arr_i1tp@(ITyCArrayPtr Nothing _) -> arr_i1tp
-             _ -> error ("convertExpr: array indexing at non-array type!")
-     arr_expr <- convertExpr arr_i1tp arr_iexpr
+convertExpr i1tp ie@(I.ExpIndex (convertType -> SomeI1Type arr_i1tp) arr_iexpr
+                     ix_itp ix_iexpr) =
+  do () <-
+       case arr_i1tp of
+         ITyArrayPtr Nothing _ elem_i1tp ->
+           if flattenI1Type i1tp == flattenI1Type elem_i1tp then return ()
+           else
+             error ("convertExpr: array has wrong type in index expression: "
+                    ++ show ie)
+         ITyCArrayPtr Nothing elem_i1tp ->
+           if flattenI1Type i1tp == flattenI1Type elem_i1tp then return ()
+           else
+             error ("convertExpr: array has wrong type in index expression: "
+                    ++ show ie)
+         _ ->
+           error ("convertExpr: index expression on non-array type: " ++ show ie)
+     arr_expr <- convertExpr (mkRefType arr_i1tp) arr_iexpr
      ix_expr <- ivoryCoerceSome ITyBits =<< convertSomeExpr ix_itp ix_iexpr
      assertPtrIndexOK arr_expr ix_expr
      readArray i1tp arr_expr ix_expr
