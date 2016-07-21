@@ -1188,13 +1188,15 @@ evalSMTCtx _ (SMTCtx_UVar _ _ _) =
 -- class. Includes a debugging level.
 data SimpleSolver = SimpleSolver { smtDebugLevel :: Int,
                                    smtSolverPath :: String,
-                                   smtSolverArgs :: [String] }
+                                   smtSolverArgs :: [String],
+                                   smtTimeout_ms :: Maybe Integer }
 
 -- | Default 'SMTSolver' for SMT
 defaultZ3Solver :: SimpleSolver
 defaultZ3Solver = SimpleSolver { smtDebugLevel = 0,
                                  smtSolverPath = "z3",
-                                 smtSolverArgs = ["-smt2", "-in"] }
+                                 smtSolverArgs = ["-smt2", "-in"],
+                                 smtTimeout_ms = Just 2000 }
 
 -- | Run an 'SMTm' computation using an 'SMTSolver'
 runWithSolver :: SimpleSolver -> MapRList L1FunType ctx -> SMTm ctx a -> IO a
@@ -1205,6 +1207,14 @@ runWithSolver solver tps m =
        else return Nothing
      smt_solver <-
        SMT.newSolver (smtSolverPath solver) (smtSolverArgs solver) maybe_logger
+     -- Set the :timeout value if a timeout value is given
+     case smtTimeout_ms solver of
+       Nothing -> return ()
+       Just timeout ->
+         do res <- SMT.setOptionMaybe smt_solver ":timeout" (show timeout)
+            if not res then
+              putStrLn "Warning: the :timeout option is not supported"
+              else return ()
      runM m smt_solver (smtDebugLevel solver) tps
 
 instance SMTSolver SimpleSolver where
