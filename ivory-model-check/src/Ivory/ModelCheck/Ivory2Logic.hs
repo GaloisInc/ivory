@@ -1,7 +1,8 @@
 {-# LANGUAGE GADTs, MultiParamTypeClasses, FlexibleInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
-{-# LANGUAGE DataKinds, TypeFamilies, FunctionalDependencies, UndecidableInstances #-}
-{-# LANGUAGE EmptyDataDecls, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DataKinds, TypeFamilies, FunctionalDependencies #-}
+{-# LANGUAGE EmptyDataDecls, GeneralizedNewtypeDeriving, TypeOperators #-}
+{-# LANGUAGE UndecidableInstances, ScopedTypeVariables #-}
 
 module Ivory.ModelCheck.Ivory2Logic where
 
@@ -12,6 +13,7 @@ import Data.Bits
 import Data.Word
 import Data.Int
 import Data.List
+import Data.Typeable
 import Text.PrettyPrint
 import Numeric
 import Numeric.Natural
@@ -94,65 +96,205 @@ instance Liftable IvoryExn where
 
 -- Gives the exception type and memory model for the Ivory reachability logic
 instance LExprTag IvoryLogic where
-  type LStorables IvoryLogic = '[ Word64 ]
+  type LStorables IvoryLogic = '[ Word64 , Rational ]
   type LException IvoryLogic = IvoryExn
 
 -- | The type of a 'Memory' used by Ivory
-type IvoryMemory = Memory '[ Word64 ]
+type IvoryMemory = Memory '[ Word64, Rational ]
 
 
 ----------------------------------------------------------------------
--- Converting Ivory types into Ivory reachability logic
+-- A GADT version of the Ivory types
 ----------------------------------------------------------------------
 
--- | Some existentially-quantified first-order type
-data SomeL1Type where
-  SomeL1Type :: L1Type a -> SomeL1Type
+-- | First-order Ivory types
+data I1Type a where
+  ITyVoid :: I1Type (Literal ())
+  ITyBits :: (Typeable a, Integral a, FiniteBits a, Liftable a) =>
+             I1Type (Literal a)
+  ITyIndex :: Integer -> I1Type (Literal Int32)
+  ITyBool :: I1Type (Literal Bool)
+  ITyChar :: I1Type (Literal Char)
+  ITyFloat :: I1Type (Literal Rational)
+  ITyDouble :: I1Type (Literal Rational)
+  ITyPtr :: IPtrSort -> I1Type a -> I1Type Ptr
+  ITyArrayPtr :: Maybe IPtrSort -> Int -> I1Type a -> I1Type Ptr
+  ITyStructPtr :: Maybe IPtrSort -> String -> I1Type Ptr
+  ITyCArrayPtr :: Maybe IPtrSort -> I1Type a -> I1Type Ptr
+  ITyOpaque :: I1Type (Literal ())
 
--- | Helper for converting Ivory types to first-order types
-mkSomeLitType :: LitType a -> SomeL1Type
-mkSomeLitType lit_tp = SomeL1Type $ L1Type_lit lit_tp
+-- | The different sorts of pointers in Ivory
+data IPtrSort
+  = IPtrSort_Ptr
+  | IPtrSort_Ref
+  | IPtrSort_ConstRef
+  deriving Eq
 
--- | Helper for building the 'Ptr' type
-somePtrType :: SomeL1Type
-somePtrType = SomeL1Type L1Type_ptr
+-- | Convert a first-order Ivory type to a first-order logical type
+ivory2L1Type :: I1Type a -> L1Type a
+ivory2L1Type ITyVoid = l1typeRep
+ivory2L1Type ITyBits = L1Type_lit LitType_bits
+ivory2L1Type (ITyIndex _) = l1typeRep
+ivory2L1Type ITyBool = l1typeRep
+ivory2L1Type ITyChar = error "ivory2L1Type: Char type not yet implemented!"
+ivory2L1Type ITyFloat = l1typeRep
+ivory2L1Type ITyDouble = l1typeRep
+ivory2L1Type (ITyPtr _ _) = l1typeRep
+ivory2L1Type (ITyArrayPtr _ _ _) = l1typeRep
+ivory2L1Type (ITyStructPtr _ _) = l1typeRep
+ivory2L1Type (ITyCArrayPtr _ _) = l1typeRep
+ivory2L1Type ITyOpaque = l1typeRep
 
--- | Convert an Ivory type into Ivory reachability logic
-convertType :: I.Type -> SomeL1Type
-convertType I.TyVoid = mkSomeLitType (litTypeRep :: LitType ())
-convertType (I.TyInt I.Int8) = mkSomeLitType (litTypeRep :: LitType Int8)
-convertType (I.TyInt I.Int16) = mkSomeLitType (litTypeRep :: LitType Int16)
-convertType (I.TyInt I.Int32) = mkSomeLitType (litTypeRep :: LitType Int32)
-convertType (I.TyInt I.Int64) = mkSomeLitType (litTypeRep :: LitType Int64)
-convertType (I.TyWord I.Word8) = mkSomeLitType (litTypeRep :: LitType Word8)
-convertType (I.TyWord I.Word16) = mkSomeLitType (litTypeRep :: LitType Word16)
-convertType (I.TyWord I.Word32) = mkSomeLitType (litTypeRep :: LitType Word32)
-convertType (I.TyWord I.Word64) = mkSomeLitType (litTypeRep :: LitType Word64)
-convertType (I.TyIndex upper_bound) =
-  mkSomeLitType (litTypeRep :: LitType Int32)
-convertType I.TyBool = mkSomeLitType (litTypeRep :: LitType Bool)
-convertType I.TyChar = error "convertType: cannot (yet) handle Char type"
-convertType I.TyFloat = error "convertType: cannot (yet) handle Float type"
-convertType I.TyDouble = error "convertType: cannot (yet) handle Double type"
+-- | Some existentially-quantified first-order Ivory type
+data SomeI1Type where
+  SomeI1Type :: I1Type a -> SomeI1Type
+
+-- | Flatten a pointer sort into a function on Ivory types
+flattenPtrSort :: Maybe IPtrSort -> I.Type -> I.Type
+flattenPtrSort Nothing itp = itp
+flattenPtrSort (Just IPtrSort_Ptr) itp = I.TyPtr itp
+flattenPtrSort (Just IPtrSort_Ref) itp = I.TyRef itp
+flattenPtrSort (Just IPtrSort_ConstRef) itp = I.TyConstRef itp
+
+-- | Convert a GADT Ivory type to its "flat" counterpart
+flattenI1Type :: I1Type a -> I.Type
+flattenI1Type ITyVoid = I.TyVoid
+flattenI1Type (ITyBits :: I1Type lit_bv) =
+  -- README: because we cannot directly match the type of ITyBits as having the
+  -- form Literal bv for some bv, we instead match this type against the type
+  -- variable lit_bv, then use unLiteral to extract 0 of type bv
+  let zero_bv = unLiteral (Literal 0 :: lit_bv) in
+  case (isSigned zero_bv, finiteBitSize zero_bv) of
+    (True, 8) -> I.TyInt I.Int8
+    (True, 16) -> I.TyInt I.Int16
+    (True, 32) -> I.TyInt I.Int32
+    (True, 64) -> I.TyInt I.Int64
+    (False, 8) -> I.TyWord I.Word8
+    (False, 16) -> I.TyWord I.Word16
+    (False, 32) -> I.TyWord I.Word32
+    (False, 64) -> I.TyWord I.Word64
+    (s, bits) ->
+      error ("flattenI1Type: unexpected bit-vector type: "
+             ++ (if s then "signed" else "unsigned") ++ ", "
+             ++ show bits ++ " bits")
+flattenI1Type (ITyIndex i) = I.TyIndex i
+flattenI1Type ITyBool = I.TyBool
+flattenI1Type ITyChar = I.TyChar
+flattenI1Type ITyFloat = I.TyFloat
+flattenI1Type ITyDouble = I.TyDouble
+flattenI1Type (ITyPtr ptr_sort i1tp) =
+  flattenPtrSort (Just ptr_sort) $ flattenI1Type i1tp
+flattenI1Type (ITyArrayPtr maybe_ptr_sort len i1tp) =
+  flattenPtrSort maybe_ptr_sort $ I.TyArr len $ flattenI1Type i1tp
+flattenI1Type (ITyStructPtr maybe_ptr_sort s_name) =
+  flattenPtrSort maybe_ptr_sort $ I.TyStruct s_name
+flattenI1Type (ITyCArrayPtr maybe_ptr_sort i1tp) =
+  flattenPtrSort maybe_ptr_sort $ I.TyCArray $ flattenI1Type i1tp
+flattenI1Type ITyOpaque = I.TyOpaque
+
+-- Show first-order Ivory types by showing their flat counterparts
+instance Show (I1Type a) where
+  show i1tp = show (flattenI1Type i1tp)
+
+-- | Add a pointer sort to an Ivory logic type, coalescing pointers to structs
+-- and arrays into the single struct / array pointer types
+addPtrSort :: IPtrSort -> I1Type a -> I1Type Ptr
+addPtrSort ps i1tp@(ITyPtr _ _) = ITyPtr ps i1tp
+addPtrSort ps (ITyArrayPtr Nothing len i1tp) = ITyArrayPtr (Just ps) len i1tp
+addPtrSort ps i1tp@(ITyArrayPtr (Just _) _ _) = ITyPtr ps i1tp
+addPtrSort ps (ITyStructPtr Nothing s_name) = ITyStructPtr (Just ps) s_name
+addPtrSort ps i1tp@(ITyStructPtr (Just _) _) = ITyPtr ps i1tp
+addPtrSort ps (ITyCArrayPtr Nothing i1tp) = ITyCArrayPtr (Just ps) i1tp
+addPtrSort ps i1tp@(ITyCArrayPtr (Just _) _) = ITyPtr ps i1tp
+addPtrSort ps i1tp = ITyPtr ps i1tp
+
+-- | The same as 'addPtrSort', but for existentially quantified Ivory types
+addPtrSortSome :: IPtrSort -> SomeI1Type -> SomeI1Type
+addPtrSortSome ps (SomeI1Type i1tp) = SomeI1Type $ addPtrSort ps i1tp
+
+-- | Helper for 'addPtrSort' using the 'IPtrSort_Ref' sort
+mkRefType :: I1Type a -> I1Type Ptr
+mkRefType i1tp = addPtrSort IPtrSort_Ref i1tp
+
+-- | Convert a "flat" Ivory type into its GADT representation
+convertType :: I.Type -> SomeI1Type
+convertType I.TyVoid = SomeI1Type ITyVoid
+convertType (I.TyInt I.Int8) = SomeI1Type (ITyBits :: I1Type (Literal Int8))
+convertType (I.TyInt I.Int16) = SomeI1Type (ITyBits :: I1Type (Literal Int16))
+convertType (I.TyInt I.Int32) = SomeI1Type (ITyBits :: I1Type (Literal Int32))
+convertType (I.TyInt I.Int64) = SomeI1Type (ITyBits :: I1Type (Literal Int64))
+convertType (I.TyWord I.Word8) = SomeI1Type (ITyBits :: I1Type (Literal Word8))
+convertType (I.TyWord I.Word16) = SomeI1Type (ITyBits :: I1Type (Literal Word16))
+convertType (I.TyWord I.Word32) = SomeI1Type (ITyBits :: I1Type (Literal Word32))
+convertType (I.TyWord I.Word64) = SomeI1Type (ITyBits :: I1Type (Literal Word64))
+convertType (I.TyIndex upper_bound) = SomeI1Type (ITyIndex upper_bound)
+convertType I.TyBool = SomeI1Type ITyBool
+convertType I.TyChar = SomeI1Type ITyChar
+convertType I.TyFloat = SomeI1Type ITyFloat
+convertType I.TyDouble = SomeI1Type ITyDouble
 convertType (I.TyProc out_type in_types) =
   error "convertType: cannot (yet) handle function types"
-convertType (I.TyRef _) = somePtrType
-convertType (I.TyConstRef _) = somePtrType
-convertType (I.TyPtr _) = somePtrType
-convertType (I.TyArr _ _) = somePtrType
-convertType (I.TyStruct _) = somePtrType
-convertType (I.TyCArray _) = somePtrType
-convertType I.TyOpaque =
-  error "convertType: cannot (yet) handle opaque types"
+convertType (I.TyRef itp) = addPtrSortSome IPtrSort_Ref $ convertType itp
+convertType (I.TyConstRef itp) =
+  addPtrSortSome IPtrSort_ConstRef $ convertType itp
+convertType (I.TyPtr itp) = addPtrSortSome IPtrSort_Ptr $ convertType itp
+convertType (I.TyArr len itp) =
+  case convertType itp of
+    SomeI1Type i1tp -> SomeI1Type $ ITyArrayPtr Nothing len i1tp
+convertType (I.TyStruct s_name) = SomeI1Type $ ITyStructPtr Nothing s_name
+convertType (I.TyCArray itp) =
+  case convertType itp of
+    SomeI1Type i1tp -> SomeI1Type $ ITyCArrayPtr Nothing i1tp
+convertType I.TyOpaque = SomeI1Type ITyOpaque
+
+-- | Test equality for Ivory types
+i1TypeEq :: I1Type a -> I1Type b -> Maybe (a :~: b)
+i1TypeEq ITyVoid ITyVoid = Just Refl
+i1TypeEq ITyVoid _ = Nothing
+i1TypeEq ITyBits ITyBits = eqT
+i1TypeEq ITyBits _ = Nothing
+i1TypeEq (ITyIndex i) (ITyIndex j) | i == j = Just Refl
+i1TypeEq (ITyIndex _) _ = Nothing
+i1TypeEq ITyBool ITyBool = Just Refl
+i1TypeEq ITyBool _ = Nothing
+i1TypeEq ITyChar ITyChar = Just Refl
+i1TypeEq ITyChar _ = Nothing
+i1TypeEq ITyFloat ITyFloat = Just Refl
+i1TypeEq ITyFloat _ = Nothing
+i1TypeEq ITyDouble ITyDouble = Just Refl
+i1TypeEq ITyDouble _ = Nothing
+i1TypeEq (ITyPtr ps i1tp) (ITyPtr ps' i1tp')
+  | ps == ps'
+  = case i1TypeEq i1tp i1tp' of
+      Just Refl -> Just Refl
+      Nothing -> Nothing
+i1TypeEq (ITyPtr _ _) _ = Nothing
+i1TypeEq (ITyArrayPtr ps len i1tp) (ITyArrayPtr ps' len' i1tp')
+  | len == len' && ps == ps'
+  = case i1TypeEq i1tp i1tp' of
+      Just Refl -> Just Refl
+      Nothing -> Nothing
+i1TypeEq (ITyArrayPtr _ _ _) _ = Nothing
+i1TypeEq (ITyStructPtr ps s_name) (ITyStructPtr ps' s_name')
+  | s_name == s_name' && ps == ps' = Just Refl
+i1TypeEq (ITyStructPtr _ _) _ = Nothing
+i1TypeEq (ITyCArrayPtr ps i1tp) (ITyCArrayPtr ps' i1tp')
+  | ps == ps'
+  = case i1TypeEq i1tp i1tp' of
+      Just Refl -> Just Refl
+      Nothing -> Nothing
+i1TypeEq (ITyCArrayPtr _ _) _ = Nothing
+i1TypeEq ITyOpaque ITyOpaque = Just Refl
+i1TypeEq ITyOpaque _ = Nothing
 
 
 ----------------------------------------------------------------------
 -- Monad for converting Ivory expressions into reachability logic
 ----------------------------------------------------------------------
 
--- | An Ivory variable that has been converted into Ivory reachability
--- logic, by associating it with a base type and a variable name
-data SomeILName where SomeILName :: L1Type a -> Name a -> SomeILName
+-- | An Ivory variable that has been converted into Ivory reachability logic, by
+-- associating it with a first-order type and a variable name
+data SomeILName where SomeILName :: I1Type a -> Name a -> SomeILName
 
 -- | The state information used for building transition relations
 data I2LInfo =
@@ -165,8 +307,12 @@ data I2LInfo =
     i2l_vars :: Map.Map I.Var SomeILName,
     -- ^ The Ivory variables that are in scope, and the Ivory
     -- reachability logic variables associated with them
-    i2l_syms :: Map.Map I.Sym Natural
+    i2l_syms :: Map.Map I.Sym Natural,
     -- ^ An association from Ivory global symbols and unique numbers for them
+    i2l_single_err :: Maybe (Name (Literal Rational -> Literal Rational)),
+    -- ^ A function for the relative round-off error for the @Float@ type
+    i2l_double_err :: Maybe (Name (Literal Rational -> Literal Rational))
+    -- ^ A function for the relative round-off error for the @Double@ type
   }
 
 -- | The monad for building transition relations from Ivory expressions
@@ -210,7 +356,7 @@ addTransition pm = shiftPureM $ \k -> mkSeqP pm (k ())
 
 -- | Add a bind transition to the output, that binds the result of a transition
 -- with a value to a fresh variable
-addBindTransition :: L1Typeable a => ILExpr (PM a) -> I2LM (ILExpr a)
+addBindTransition :: LTypeable a => ILExpr (PM a) -> I2LM (ILExpr a)
 addBindTransition pm = shiftPureM $ \k -> mkBindP pm k
 
 -- | Use 'resetPureM' computation to collect a computation's transition(s)
@@ -280,28 +426,31 @@ lookupVar v =
 
 -- | Get the logical variable associated with an Ivory variable at a
 -- specific type, raising an error if this does not work
-getVar :: L1Type a -> I.Var -> I2LM (Name a)
-getVar l1tp v =
+getVar :: I1Type a -> I.Var -> I2LM (Name a)
+getVar i1tp v =
   do maybe_some_name <- lookupVar v
      case maybe_some_name of
        Nothing -> error ("getVar: could not find Ivory variable " ++ show v)
-       Just (SomeILName l1tp' n) ->
-         case l1TypeEq l1tp l1tp' of
+       Just (SomeILName i1tp' n) ->
+         case i1TypeEq i1tp i1tp' of
            Just Refl -> return n
            Nothing ->
              error ("getVar: Ivory variable " ++ show v ++
-                    " has the wrong type; expected: " ++ show l1tp ++
-                    "; found: " ++ show l1tp')
+                    " has the wrong type; expected: " ++ show i1tp ++
+                    "; found: " ++ show i1tp')
 
 -- | Get the logical variable associated with an Ivory variable, at a specific
 -- type, and convert it to a logical expression
-getVarExpr :: L1Type a -> I.Var -> I2LM (ILExpr a)
-getVarExpr l1tp var = liftM (mkVarExprTp $ LType_base l1tp) $ getVar l1tp var
+getVarExpr :: I1Type a -> I.Var -> I2LM (ILExpr a)
+getVarExpr i1tp var =
+  liftM (mkVarExprTp $ LType_base $ ivory2L1Type i1tp) $ getVar i1tp var
 
--- | Apply a name-binding operation to the output transition relation
--- of an 'I2LM' computation, and return the bound name
-bindName :: ((Name a -> ILPM) -> ILPM) -> I2LM (Name a)
-bindName = shiftPureM
+-- | Bind a logical variable to the result of a 'PM' logical expression, and
+-- return the bound name. This is done by building the expression @pm >>= k@,
+-- where @k@ is the continuation of the rest of the expression being built.
+bindName :: LType a -> ILExpr (PM a) -> I2LM (Name a)
+bindName ltp e =
+  shiftPureM $ \k -> mkOp (Op_bindP ltp ltypeRep) e $ LLambda ltp $ nu k
 
 -- | Associate an Ivory variable name with a logic variable
 linkVarAndName :: I.Var -> SomeILName -> I2LM ()
@@ -315,77 +464,124 @@ linkVarAndName var n =
                     var n (i2l_vars info)
                 }
 
--- | Apply a name-binding operation to the output transition relation
--- of an 'I2LM' computation, and associate the bound name with an
--- Ivory variable
-bindVar :: I.Var -> L1Type a -> ((Name a -> ILPM) -> ILPM) -> I2LM ()
-bindVar var l1tp f =
-  do n <- bindName f
-     linkVarAndName var (SomeILName l1tp n)
-
 -- | Bind an Ivory variable to the result of a computation @pm@, and
 -- store this binding in the 'I2LInfo' transition-relation-building
 -- state. The binding is done by building the expression @pm >>= k@,
 -- where @k@ is the continuation of the rest of the expression being
 -- built.
-pmBindVar :: I.Var -> L1Type a -> ILExpr (PM a) -> I2LM ()
-pmBindVar var l1tp pm =
-  bindVar var l1tp $ \k ->
-  mkOp (Op_bindP l1tp l1typeRep) pm $
-  LLambda (LType_base l1tp) $ nu k
+pmBindVar :: I.Var -> I1Type a -> ILExpr (PM a) -> I2LM ()
+pmBindVar var i1tp pm =
+  do n <- bindName (LType_base $ ivory2L1Type i1tp) pm
+     linkVarAndName var (SomeILName i1tp n)
 
 -- | Let-bind an Ivory variable to a value, and store this binding in
 -- the 'I2LInfo' transition-relation-building state. The let-binding
 -- is done by building the expression @(return x) >>= k@, where @k@ is
 -- the continuation of the rest of the expression being built.
-letBindVar :: I.Var -> L1Type a -> ILExpr a -> I2LM ()
-letBindVar var l1tp (LVar (LTypeArgs_base _) n _) =
+letBindVar :: I.Var -> I1Type a -> ILExpr a -> I2LM ()
+letBindVar var i1tp (LVar (LTypeArgs_base _) n _) =
   -- Special case: if the RHS is already a variable, no need to bind a new one!
-  linkVarAndName var (SomeILName l1tp n)
-letBindVar var l1tp rhs = pmBindVar var l1tp (mkReturnP_tp l1tp rhs)
+  linkVarAndName var (SomeILName i1tp n)
+letBindVar var i1tp rhs =
+  pmBindVar var i1tp (mkReturnP_tp (ivory2L1Type i1tp) rhs)
 
 -- | Let-bind an Ivory variable to a value of unknown type (see 'letBindVar')
 letBindVarSome :: I.Var -> SomeILExpr -> I2LM ()
-letBindVarSome var (SomeILExpr l1tp e) = letBindVar var l1tp e
+letBindVarSome var (SomeILExpr i1tp e) = letBindVar var i1tp e
 
 -- | Similar to 'letBindVar', except the given Ivory variable is
 -- existentially-bound, meaning no explicit value is given for it.
-exBindVar :: I.Var -> L1Type a -> I2LM ()
-exBindVar var l1tp = pmBindVar var l1tp (mkExistsP_tp l1tp)
+exBindVar :: I.Var -> I1Type a -> I2LM ()
+exBindVar var i1tp = pmBindVar var i1tp (mkExistsP_tp $ ivory2L1Type i1tp)
 
 -- | Similar to 'exBindVar', but where the type of the variable is given as an
 -- Ivory type, using the 'I.Typed' construction
 exBindTypedVar :: I.Typed I.Var -> I2LM ()
 exBindTypedVar typed_var =
   case convertType (I.tType typed_var) of
-    SomeL1Type l1tp -> exBindVar (I.tValue typed_var) l1tp
+    SomeI1Type i1tp -> exBindVar (I.tValue typed_var) i1tp
 
 
 ----------------------------------------------------------------------
--- Ivory global symbols
+-- Handling floating-point round-off error
 ----------------------------------------------------------------------
 
--- | Convert a symbol to a pointer
-convertSymbol :: I.Sym -> I2LM (ILExpr Ptr)
-convertSymbol sym =
-  do info <- get
-     case Map.lookup sym (i2l_syms info) of
-       Just i -> return $ mkOp (Op_global_var i)
+-- | Generate a floating-point error function symbol given two parameters: the
+-- relative error (aka the "machine epsilon") and the max non-infinite number
+-- (FIXME: this does not correctly handle numbers very close to 0...)
+mkFloatErrFun :: Rational -> Rational ->
+                 I2LM (Name (Literal Rational -> Literal Rational))
+mkFloatErrFun rel_err max_val =
+  do err_fun <- bindName ltypeRep (mkExistsP_ftp l1funTypeRep)
+     ivoryAssert $
+       mkForall l1typeRep $ \r ->
+       mkOr [mkLt (mkLiteral max_val) r,
+             mkLt (mkLiteral (- max_val)) r,
+             mkAnd [mkLe (mkLiteral (- rel_err)) (mkVar Proxy err_fun r),
+                    mkLe (mkVar Proxy err_fun r) (mkLiteral rel_err)]]
+     return err_fun
+
+-- | Look up the round-off error function for the single-precision
+-- floating-point type, creating it if necessary
+getSingleErrFun :: I2LM (Name (Literal Rational -> Literal Rational))
+getSingleErrFun =
+  do s <- get
+     case i2l_single_err s of
+       Just err_fun -> return err_fun
        Nothing ->
-         error $ "convertSymbol: unexpected symbol: " ++ sym
-         {-
-         do let i = i2l_next_sym_int info
-            set $ info { i2l_syms =
-                           Map.insertWith
-                           (\_ _ ->
-                             error ("convertSymbol: duplicate binding for symbol "
-                                    ++ show sym))
-                           sym
-                           i
-                           (i2l_syms info)
-                       , i2l_next_sym_int = i+1 }
-            return $ mkOp (Op_global_var (-i))
-          -}
+         do err_fun <- mkFloatErrFun (2 ^^ (-24)) (2 ^^ 128)
+            set $ s { i2l_single_err = Just err_fun }
+            return err_fun
+
+-- | Look up the round-off error function for the double-precision
+-- floating-point type, creating it if necessary
+getDoubleErrFun :: I2LM (Name (Literal Rational -> Literal Rational))
+getDoubleErrFun =
+  do s <- get
+     case i2l_double_err s of
+       Just err_fun -> return err_fun
+       Nothing ->
+         do err_fun <- mkFloatErrFun (2 ^^ (-53)) (2 ^^ 128)
+            set $ s { i2l_double_err = Just err_fun }
+            return err_fun
+
+-- | Round an expression if its type requires it
+roundIfNeeded :: I1Type a -> ILExpr a -> I2LM (ILExpr a)
+roundIfNeeded ITyFloat e =
+  do err_fun <- getSingleErrFun
+     return $ e * (mkVar Proxy err_fun e)
+roundIfNeeded ITyDouble e =
+  do err_fun <- getDoubleErrFun
+     return $ e * (mkVar Proxy err_fun e)
+roundIfNeeded _ e = return e
+
+
+----------------------------------------------------------------------
+-- Coercion between (first-order) Ivory types
+----------------------------------------------------------------------
+
+-- | Coerce an Ivory logic expression from one Ivory type to another
+ivoryCoerce :: I1Type f -> I1Type t -> ILExpr f -> I2LM (ILExpr t)
+ivoryCoerce (ivory2L1Type -> L1Type_lit lit_tp_f) (ITyIndex bound) e =
+  -- To coerce to an index type, first coerce to Int32 then take the mod
+  return $
+  mkArithOp2 litTypeRep Op2_Mod (mkCoerce lit_tp_f litTypeRep e)
+  (convertInteger ITyBits bound)
+ivoryCoerce ITyDouble ITyFloat e =
+  -- Reducing floating-point precision causes extra rounding
+  roundIfNeeded ITyFloat e
+ivoryCoerce (ivory2L1Type -> L1Type_lit lit_tp_f)
+  (ivory2L1Type -> L1Type_lit lit_tp_t) e =
+  -- Default: use the underlying coercion in the reachability logic
+  return $ mkCoerce lit_tp_f lit_tp_t e
+ivoryCoerce i1tp_from i1tp_to _ =
+  error ("ivoryCoerce: Could not coerce from type " ++ show i1tp_from
+         ++ " to type " ++ show i1tp_to)
+
+-- | Coerce an expression of unknown type to a given type
+ivoryCoerceSome :: I1Type a -> SomeILExpr -> I2LM (ILExpr a)
+ivoryCoerceSome i1tp_to (SomeILExpr i1tp_from e) =
+  ivoryCoerce i1tp_from i1tp_to e
 
 
 ----------------------------------------------------------------------
@@ -413,59 +609,107 @@ assertPtrIndexOK ptr ix =
 readArrayNameWord64 :: ILExpr Ptr -> ILExpr (Literal Word64) ->
                        I2LM (Name (Literal Word64))
 readArrayNameWord64 ptr ix =
-  bindName $ \k ->
-  mkOp (Op_bindP l1typeRep l1typeRep)
-  (mkOp (Op_readP (ReadOp_array Elem_base)) ptr ix) $
-  LLambda ltypeRep $ nu k
+  bindName ltypeRep $ mkOp (Op_readP (ReadOp_array Elem_base)) ptr ix
+
+-- | Similar to 'readArrayNameWord64', but read a 'Rational' value instead
+readArrayNameRational :: ILExpr Ptr -> ILExpr (Literal Word64) ->
+                         I2LM (Name (Literal Rational))
+readArrayNameRational ptr ix =
+  bindName ltypeRep $
+  mkOp (Op_readP (ReadOp_array $ Elem_cons Elem_base)) ptr ix
 
 -- | Similar to 'readArrayNameWord64', but read a pointer value instead
 readArrayNamePtr :: ILExpr Ptr -> ILExpr (Literal Word64) -> I2LM (Name Ptr)
 readArrayNamePtr ptr ix =
-  bindName $ \k ->
-  mkOp (Op_bindP l1typeRep l1typeRep)
-  (mkOp (Op_readP ReadOp_ptr_array) ptr ix) $
-  LLambda ltypeRep $ nu k
+  bindName ltypeRep $ mkOp (Op_readP ReadOp_ptr_array) ptr ix
 
 -- | Read an array value, binding the result to a fresh local name and coercing
--- the name if necessary. Also assert that the given pointer is valid, and that
--- th eindex is within the length bounds of the array that is pointed to.
-readArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) ->
+-- the name if necessary
+readArray :: I1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) ->
              I2LM (ILExpr a)
-readArray l1tp@(L1Type_lit lit_tp) ptr ix =
+readArray ITyVoid ptr ix = return $ mkLiteral ()
+readArray itp@ITyBits ptr ix =
   do n <- readArrayNameWord64 ptr ix
-     return $ mkCoerce litTypeRep lit_tp $ mkVar Proxy n
-readArray l1tp@L1Type_ptr ptr ix =
+     ivoryCoerce ITyBits itp $ mkVar Proxy n
+readArray itp@(ITyIndex _) ptr ix =
+  do n <- readArrayNameWord64 ptr ix
+     ivoryCoerce ITyBits itp $ mkVar Proxy n
+readArray itp@ITyBool ptr ix =
+  do n <- readArrayNameWord64 ptr ix
+     ivoryCoerce ITyBits itp $ mkVar Proxy n
+readArray ITyChar ptr ix =
+  error "readArray: type Char not yet supported"
+readArray ITyFloat ptr ix =
+  do n <- readArrayNameRational ptr ix
+     return $ mkVar Proxy n
+readArray ITyDouble ptr ix =
+  do n <- readArrayNameRational ptr ix
+     return $ mkVar Proxy n
+readArray (ITyPtr _ _) ptr ix =
   do n <- readArrayNamePtr ptr ix
-     return $ mkVarExprTp (LType_base l1tp) n
-readArray L1Type_prop ptr ix =
-  error "readArray: attempt to read a proposition from memory!"
+     return $ mkVar Proxy n
+readArray (ITyArrayPtr _ _ _) ptr ix =
+  do n <- readArrayNamePtr ptr ix
+     return $ mkVar Proxy n
+readArray (ITyStructPtr _ _) ptr ix =
+  do n <- readArrayNamePtr ptr ix
+     return $ mkVar Proxy n
+readArray (ITyCArrayPtr _ _) ptr ix =
+  do n <- readArrayNamePtr ptr ix
+     return $ mkVar Proxy n
+readArray ITyOpaque ptr ix = return $ mkLiteral ()
 
--- | Perform a 'readArray' using an Ivory type
+-- | Perform a 'readArray' using a flattened Ivory type
 readArraySome :: I.Type -> ILExpr Ptr -> ILExpr (Literal Word64) ->
                  I2LM SomeILExpr
 readArraySome itp ptr ix =
   case convertType itp of
-    SomeL1Type l1tp -> SomeILExpr l1tp <$> readArray l1tp ptr ix
+    SomeI1Type i1tp -> SomeILExpr i1tp <$> readArray i1tp ptr ix
 
--- | Update an Ivory array value
-updateArray :: L1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) -> ILExpr a ->
+-- | Update an Ivory 64-bit word array value
+updateArrayWord64 :: ILExpr Ptr -> ILExpr (Literal Word64) ->
+                     ILExpr (Literal Word64) -> I2LM ()
+updateArrayWord64 ptr ix v =
+  addTransition $ mkOp (Op_updateP $ UpdateOp_array Elem_base) ptr ix v
+
+-- | Update an Ivory 'Rational' array value
+updateArrayRational :: ILExpr Ptr -> ILExpr (Literal Word64) ->
+                       ILExpr (Literal Rational) -> I2LM ()
+updateArrayRational ptr ix v =
+  addTransition $
+  mkOp (Op_updateP $ UpdateOp_array $ Elem_cons Elem_base) ptr ix v
+
+-- | Update an Ivory 'Ptr' array value
+updateArrayPtr :: ILExpr Ptr -> ILExpr (Literal Word64) -> ILExpr Ptr -> I2LM ()
+updateArrayPtr ptr ix v =
+  addTransition $ mkOp (Op_updateP UpdateOp_ptr_array) ptr ix v
+
+-- | Update an Ivory array value, coercing the written value if necessary
+updateArray :: I1Type a -> ILExpr Ptr -> ILExpr (Literal Word64) -> ILExpr a ->
                I2LM ()
-updateArray (L1Type_lit lit_tp) ptr ix v =
-  addTransition $
-  mkOp (Op_updateP $ UpdateOp_array Elem_base) ptr ix $
-  -- NOTE: this is to convert v to a Word64 expression, as that is
-  -- what our memory model actually stores in Ivory
-  mkCoerce lit_tp litTypeRep v
-updateArray L1Type_ptr ptr ix v =
-  addTransition $
-  mkOp (Op_updateP UpdateOp_ptr_array) ptr ix v
-updateArray L1Type_prop ptr ix v =
-  error "updateArray: attempt to write a proposition to memory!"
+updateArray ITyVoid _ _ _ =
+  -- Writing a void object is just a no-op
+  return ()
+updateArray itp@ITyBits ptr ix v =
+  updateArrayWord64 ptr ix =<< ivoryCoerce itp ITyBits v
+updateArray itp@(ITyIndex _) ptr ix v =
+  updateArrayWord64 ptr ix =<< ivoryCoerce itp ITyBits v
+updateArray itp@ITyBool ptr ix v =
+  updateArrayWord64 ptr ix =<< ivoryCoerce itp ITyBits v
+updateArray ITyChar ptr ix v =
+  error "updateArray: Char type not yet handled"
+updateArray ITyFloat ptr ix v = updateArrayRational ptr ix v
+updateArray ITyDouble ptr ix v = updateArrayRational ptr ix v
+updateArray (ITyPtr _ _) ptr ix v = updateArrayPtr ptr ix v
+updateArray (ITyArrayPtr _ _ _) ptr ix v = updateArrayPtr ptr ix v
+updateArray (ITyStructPtr _ _) ptr ix v = updateArrayPtr ptr ix v
+updateArray (ITyCArrayPtr _ _) ptr ix v = updateArrayPtr ptr ix v
+updateArray ITyOpaque ptr ix v = return ()
 
 -- | Perform an 'updateArray' with a value of an unknown type
 updateArraySome :: ILExpr Ptr -> ILExpr (Literal Word64) -> SomeILExpr ->
                    I2LM ()
-updateArraySome ptr ix (SomeILExpr l1tp v) = updateArray l1tp ptr ix v
+updateArraySome ptr ix (SomeILExpr i1tp v) = updateArray i1tp ptr ix v
 
 -- | Allocate an Ivory array of a given length, returning a pointer to it
 allocateArray :: ILExpr (Literal Word64) -> I2LM (ILExpr Ptr)
@@ -476,13 +720,13 @@ allocateArray len =
 
 -- | Let-bind the special Ivory variable "retval" to the result of a function
 -- call, by reading this result from the current memory
-bindRetval :: I.Type -> I2LM ()
-bindRetval I.TyVoid =
+bindRetval :: I1Type a -> I2LM ()
+bindRetval ITyVoid =
   -- Special case: don't bind a "void"-typed variable
   return ()
-bindRetval itp =
-  do ret <- readArraySome itp funArgsPtr (mkLiteral 0)
-     letBindVarSome I.retval ret
+bindRetval i1tp =
+  do ret <- readArray i1tp funArgsPtr (mkLiteral 0)
+     letBindVar I.retval i1tp ret
 
 
 ----------------------------------------------------------------------
@@ -532,6 +776,14 @@ lookupStructFieldM :: String -> String -> I2LM (I.Type, Int)
 lookupStructFieldM s_name f_name =
   lookupStructField s_name f_name <$> i2l_modules <$> get
 
+-- | Look up the number of fields in a struct
+lookupStructLengthM :: String -> I2LM Int
+lookupStructLengthM s_name =
+  do s <- lookupStructM s_name
+     case s of
+       I.Struct _ fields -> return $ length fields
+       _ -> error "lookupStructLengthM: abstract struct!"
+
 -- | Look up an Ivory function
 lookupProc :: I.Sym -> [I.Module] -> I.Proc
 lookupProc sym mods =
@@ -549,70 +801,85 @@ lookupProcM sym = lookupProc sym <$> i2l_modules <$> get
 -- | An Ivory expression that has been converted into an Ivory reachability
 -- logic expression of some unknown first-order type
 data SomeILExpr where
-  SomeILExpr :: L1Type a -> ILExpr a -> SomeILExpr
+  SomeILExpr :: I1Type a -> ILExpr a -> SomeILExpr
 
--- | Coerce an expression of unknown type to a definite type, raising the given
--- error message if the coercion is not possible
-coerceSomeExpr :: L1Type a -> String -> SomeILExpr -> ILExpr a
-coerceSomeExpr (L1Type_lit to_tp) _ (SomeILExpr (L1Type_lit from_tp) e) =
-  mkCoerce from_tp to_tp e
-coerceSomeExpr L1Type_ptr _ (SomeILExpr L1Type_ptr e) = e
-coerceSomeExpr L1Type_prop _ (SomeILExpr L1Type_prop e) = e
-coerceSomeExpr _ err_str _ = error err_str
+-- | Convert a symbol to a pointer
+convertSymbol :: I.Sym -> I2LM (ILExpr Ptr)
+convertSymbol sym =
+  do info <- get
+     case Map.lookup sym (i2l_syms info) of
+       Just i -> return $ mkOp (Op_global_var i)
+       Nothing ->
+         error $ "convertSymbol: unexpected symbol: " ++ sym
+         {-
+         do let i = i2l_next_sym_int info
+            set $ info { i2l_syms =
+                           Map.insertWith
+                           (\_ _ ->
+                             error ("convertSymbol: duplicate binding for symbol "
+                                    ++ show sym))
+                           sym
+                           i
+                           (i2l_syms info)
+                       , i2l_next_sym_int = i+1 }
+            return $ mkOp (Op_global_var (-i))
+          -}
 
--- | Convert an 'Integer' to a logical expression of a given type
-convertInteger :: L1Type a -> Integer -> ILExpr a
-convertInteger (L1Type_lit LitType_int) i = mkLiteral i
-convertInteger (L1Type_lit lit_tp@LitType_bits) i =
-  mkLiteralTp lit_tp $ fromInteger i
-convertInteger (L1Type_lit LitType_unit) _ =
-  error "convertInteger: unit type!"
-convertInteger (L1Type_lit LitType_bool) _ =
-  error "convertInteger: Boolean type!"
-convertInteger _ i =
-  error "convertInteger: pointer or proposition type!"
+-- | Convert an 'Integer' to a logical expression of a given type. We assume
+-- that, for floating-point types, integers can be represented exactly.
+convertInteger :: I1Type a -> Integer -> ILExpr a
+convertInteger ITyBits i = mkLiteralTp LitType_bits $ fromInteger i
+convertInteger (ITyIndex bound) i = mkLiteral $ fromInteger $ mod i bound
+convertInteger ITyFloat i = mkLiteral $ fromInteger i
+convertInteger ITyDouble i = mkLiteral $ fromInteger i
+convertInteger i1tp _ =
+  error ("convertInteger: unsupported type: " ++ show i1tp)
 
--- | Convert an Ivory literal to a logical expression
-convertLiteral :: L1Type a -> I.Literal -> ILExpr a
-convertLiteral l1tp (I.LitInteger i) = convertInteger l1tp i
-convertLiteral _ (I.LitFloat x) =
-  error "convertLiteral: floats not (yet) supported"
-convertLiteral _ (I.LitDouble x) =
-  error "convertLiteral: floats not (yet) supported"
+-- | Convert an Ivory literal to a logical expression. We assume that, for
+-- floating-point types, literal values can be represented exactly.
+convertLiteral :: I1Type a -> I.Literal -> ILExpr a
+convertLiteral i1tp (I.LitInteger i) = convertInteger i1tp i
+convertLiteral ITyFloat (I.LitFloat x) = mkLiteral $ toRational x
+convertLiteral ITyDouble (I.LitDouble x) = mkLiteral $ toRational x
 convertLiteral _ (I.LitChar c) =
   error "convertLiteral: characters not (yet) supported"
-convertLiteral (L1Type_lit LitType_bool) (I.LitBool b) =
-  mkLiteral b
-convertLiteral L1Type_ptr I.LitNull = mkOp Op_null_ptr
+convertLiteral ITyBool (I.LitBool b) = mkLiteral b
+convertLiteral (ivory2L1Type -> L1Type_ptr) I.LitNull = mkOp Op_null_ptr
 convertLiteral _ (I.LitString str) =
   error "convertLiteral: strings not (yet) supported"
 convertLiteral _ _ =
   error "convertLiteral: literal used at incorrect type"
 
--- | Helper function to convert Ivory arithmetic comparisons
-convertArithCmp :: I.Type -> ArithCmp -> [I.Expr] ->
+-- | Convert an expressions an apply an 'ArithOp1' to it
+convertArithOp1 :: I1Type a -> ArithOp1 -> I.Expr -> I2LM (ILExpr a)
+convertArithOp1 i1tp@(ivory2L1Type -> L1Type_lit lit_tp) aop ie =
+  do e <- convertExpr i1tp ie
+     roundIfNeeded i1tp $ mkOp (Op_arith1 lit_tp aop) e
+convertArithOp1 i1tp _ _ =
+  error ("convertArithOp1: arithmetic on unsupported type: " ++ show i1tp)
+
+-- | Convert two expressions an apply an 'ArithOp2' to them
+convertArithOp2 :: I1Type a -> ArithOp2 -> I.Expr -> I.Expr -> I2LM (ILExpr a)
+convertArithOp2 i1tp@(ivory2L1Type -> L1Type_lit lit_tp) aop ie1 ie2 =
+  do e1 <- convertExpr i1tp ie1
+     e2 <- convertExpr i1tp ie2
+     roundIfNeeded i1tp $ mkOp (Op_arith2 lit_tp aop) e1 e2
+convertArithOp2 i1tp _ _ _ =
+  error ("convertArithOp2: arithmetic on unsupported type: " ++ show i1tp)
+
+-- | Convert two expressions an apply an 'ArithCmp' to them
+convertArithCmp :: I.Type -> ArithCmp -> I.Expr -> I.Expr ->
                    I2LM (ILExpr (Literal Bool))
-convertArithCmp itp acmp args =
-  case (convertType itp, acmp, args) of
-    (SomeL1Type l1tp_sub@(L1Type_lit lit_tp), _, [ie1, ie2]) ->
-      do e1 <- convertExpr l1tp_sub ie1
-         e2 <- convertExpr l1tp_sub ie2
-         return $ mkOp (Op_cmp lit_tp acmp) e1 e2
-    (SomeL1Type l1tp_sub@L1Type_ptr, OpCmp_EQ, [ie1, ie2]) ->
-      do e1 <- convertExpr l1tp_sub ie1
-         e2 <- convertExpr l1tp_sub ie2
-         return $ mkOp (Op_ptr_cmp OpCmp_EQ) e1 e2
-    (SomeL1Type l1tp_sub@L1Type_ptr, _, _) ->
-      error "convertArithCmp: inequality comparison of pointers!"
-    (SomeL1Type l1tp_sub@L1Type_prop, _, _) ->
-      error "convertArithCmp: comparison of propositions!"
-    _ -> error "convertArithCmp: comparison on more or fewer than 2 arguments!"
+convertArithCmp (convertType -> SomeI1Type i1tp) acmp ie1 ie2 =
+  do e1 <- convertExpr i1tp ie1
+     e2 <- convertExpr i1tp ie2
+     return $ mkArithCmpTp (ivory2L1Type i1tp) acmp e1 e2
 
 -- | Convert an Ivory expression to a logical expression using an Ivory type
 convertSomeExpr :: I.Type -> I.Expr -> I2LM SomeILExpr
 convertSomeExpr itp ie =
   case convertType itp of
-    SomeL1Type l1tp -> SomeILExpr l1tp <$> convertExpr l1tp ie
+    SomeI1Type i1tp -> SomeILExpr i1tp <$> convertExpr i1tp ie
 
 -- | Convert a typed Ivory expression to a logical expression
 convertTypedExpr :: I.Typed I.Expr -> I2LM SomeILExpr
@@ -620,123 +887,119 @@ convertTypedExpr typed_ie =
   convertSomeExpr (I.tType typed_ie) (I.tValue typed_ie)
 
 -- | Convert an Ivory expression to a logical expression of a specific type
-convertExpr :: L1Type a -> I.Expr -> I2LM (ILExpr a)
+convertExpr :: I1Type a -> I.Expr -> I2LM (ILExpr a)
 
 -- Symbols and variables
-convertExpr l1tp (I.ExpSym sym) =
+convertExpr i1tp (I.ExpSym sym) =
   do ptr_expr <- convertSymbol sym
-     readArray l1tp ptr_expr (mkLiteral 0)
-convertExpr l1tp (I.ExpExtern ext) =
+     readArray i1tp ptr_expr (mkLiteral 0)
+convertExpr i1tp (I.ExpExtern ext) =
   do ptr_expr <- convertSymbol (I.externSym ext)
-     readArray l1tp ptr_expr (mkLiteral 0)
-convertExpr l1tp (I.ExpVar v) = getVarExpr l1tp v
+     readArray i1tp ptr_expr (mkLiteral 0)
+convertExpr i1tp (I.ExpVar v) = getVarExpr i1tp v
 
 -- Literals
-convertExpr l1tp (I.ExpLit lit) =
-  return $ convertLiteral l1tp lit
+convertExpr i1tp (I.ExpLit lit) =
+  return $ convertLiteral i1tp lit
 
 -- Array and struct dereferencing
-convertExpr l1tp (I.ExpLabel (I.TyStruct s_name) s_iexpr f_name) =
-  do s_expr <- convertExpr L1Type_ptr s_iexpr
+convertExpr i1tp (I.ExpLabel (I.TyStruct s_name) s_iexpr f_name) =
+  do s_expr <- convertExpr (ITyStructPtr Nothing s_name) s_iexpr
      (_, f_ix) <- lookupStructFieldM s_name f_name
-     readArray l1tp s_expr (mkLiteral $ fromInteger $ toInteger f_ix)
-convertExpr l1tp (I.ExpIndex arr_elem_itp arr_iexpr ix_itp ix_iexpr) =
-  do ix_expr <-
-       coerceSomeExpr l1typeRep "convertExpr: index of non-numeric type!" <$>
-       convertSomeExpr ix_itp ix_iexpr
-     arr_expr <- convertExpr L1Type_ptr arr_iexpr
-     readArray l1tp arr_expr ix_expr
+     assertPtrIndexOK s_expr (mkLiteral64 f_ix)
+     readArray i1tp s_expr (mkLiteral64 f_ix)
+convertExpr i1tp (I.ExpIndex arr_itp arr_iexpr ix_itp ix_iexpr) =
+  do let arr_i1tp =
+           case convertType arr_itp of
+             -- FIXME: test that the element type == i1tp
+             SomeI1Type arr_i1tp@(ITyArrayPtr Nothing _ _) -> arr_i1tp
+             SomeI1Type arr_i1tp@(ITyCArrayPtr Nothing _) -> arr_i1tp
+             _ -> error ("convertExpr: array indexing at non-array type!")
+     arr_expr <- convertExpr arr_i1tp arr_iexpr
+     ix_expr <- ivoryCoerceSome ITyBits =<< convertSomeExpr ix_itp ix_iexpr
+     assertPtrIndexOK arr_expr ix_expr
+     readArray i1tp arr_expr ix_expr
 
 -- Coercion between types
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpToIx iexpr modulus) =
-  do e <- convertExpr l1tp iexpr
-     return $ mkOp (Op_arith2 lit_tp Op2_Mod) e (convertInteger l1tp modulus)
-convertExpr l1tp (I.ExpSafeCast from_itp iexpr) =
-  coerceSomeExpr l1tp "convertExpr: disallowed cast!" <$>
-  convertSomeExpr from_itp iexpr
+convertExpr i1tp (I.ExpToIx iexpr bound) =
+  -- README: Ivory sometimes seems to automatically convert index types back to
+  -- 32-bit signed integer types, so we generalize this and allow any upcast
+  -- here
+  ivoryCoerce (ITyIndex bound) i1tp =<< convertExpr (ITyIndex bound) iexpr
+convertExpr i1tp (I.ExpSafeCast from_itp iexpr) =
+  ivoryCoerceSome i1tp =<< convertSomeExpr from_itp iexpr
 
 -- Comparison operations
-convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpEq itp) args) =
-  convertArithCmp itp OpCmp_EQ args
-convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpNeq itp) args) =
-  liftM mkNotBool $ convertArithCmp itp OpCmp_EQ args
-convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpLt leq_flag itp) args) =
-  convertArithCmp itp (if leq_flag then OpCmp_LE else OpCmp_LT) args
-convertExpr (L1Type_lit LitType_bool) (I.ExpOp (I.ExpGt leq_flag itp) [ie1,ie2]) =
-  convertArithCmp itp (if leq_flag then OpCmp_LE else OpCmp_LT) [ie2,ie1]
+convertExpr ITyBool (I.ExpOp (I.ExpEq itp) [ie1, ie2]) =
+  convertArithCmp itp OpCmp_EQ ie1 ie2
+convertExpr ITyBool (I.ExpOp (I.ExpNeq itp) [ie1, ie2]) =
+  liftM mkNotBool $ convertArithCmp itp OpCmp_EQ ie1 ie2
+convertExpr ITyBool (I.ExpOp (I.ExpLt leq_flag itp) [ie1, ie2]) =
+  convertArithCmp itp (if leq_flag then OpCmp_LE else OpCmp_LT) ie1 ie2
+convertExpr ITyBool (I.ExpOp (I.ExpGt leq_flag itp) [ie1, ie2]) =
+  convertArithCmp itp (if leq_flag then OpCmp_LE else OpCmp_LT) ie2 ie1
 
 -- Boolean operations
-convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpNot [ie]) =
-  liftM mkNotBool $ convertExpr l1tp ie
-convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpAnd [ie1,ie2]) =
-  liftM2 mkAndBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit LitType_bool) (I.ExpOp I.ExpOr [ie1,ie2]) =
-  liftM2 mkOrBool (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit _) (I.ExpOp I.ExpCond [ie1,ie2,ie3]) =
-  do e1 <- convertExpr (L1Type_lit LitType_bool) ie1
-     e2 <- convertExpr l1tp ie2
-     e3 <- convertExpr l1tp ie3
-     return $ mkOp (Op_cond l1tp) e1 e2 e3
-convertExpr l1tp@L1Type_ptr (I.ExpOp I.ExpCond [ie1,ie2,ie3]) =
-  do e1 <- convertExpr (L1Type_lit LitType_bool) ie1
-     e2 <- convertExpr l1tp ie2
-     e3 <- convertExpr l1tp ie3
-     return $ mkOp (Op_cond l1tp) e1 e2 e3
+convertExpr i1tp@ITyBool (I.ExpOp I.ExpNot [ie]) =
+  liftM mkNotBool $ convertExpr i1tp ie
+convertExpr i1tp@ITyBool (I.ExpOp I.ExpAnd [ie1,ie2]) =
+  liftM2 mkAndBool (convertExpr i1tp ie1) (convertExpr i1tp ie2)
+convertExpr i1tp@ITyBool (I.ExpOp I.ExpOr [ie1,ie2]) =
+  liftM2 mkOrBool (convertExpr i1tp ie1) (convertExpr i1tp ie2)
+convertExpr i1tp (I.ExpOp I.ExpCond [ie1,ie2,ie3]) =
+  do e1 <- convertExpr ITyBool ie1
+     e2 <- convertExpr i1tp ie2
+     e3 <- convertExpr i1tp ie3
+     return $ mkCond (ivory2L1Type i1tp) e1 e2 e3
 
 -- Arithmetic operations
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpMul [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_Mult)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpAdd [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_Add)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpSub [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_Sub)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpNegate [ie1]) =
-  liftM (mkArithOp1 lit_tp Op1_Neg) $ convertExpr l1tp ie1
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpAbs [ie1]) =
-  liftM (mkArithOp1 lit_tp Op1_Abs) $ convertExpr l1tp ie1
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpSignum [ie1]) =
-  liftM (mkArithOp1 lit_tp Op1_Signum) $ convertExpr l1tp ie1
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpDiv [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_Div)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpMod [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_Mod)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpRecip [ie1]) =
-  liftM (\e -> mkArithOp2 lit_tp Op2_Div (convertInteger l1tp 1) e) $
-  convertExpr l1tp ie1
+convertExpr i1tp (I.ExpOp I.ExpMul [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_Mult ie1 ie2
+convertExpr i1tp (I.ExpOp I.ExpAdd [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_Add ie1 ie2
+convertExpr i1tp (I.ExpOp I.ExpSub [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_Sub ie1 ie2
+convertExpr i1tp (I.ExpOp I.ExpNegate [ie1]) =
+  convertArithOp1 i1tp Op1_Neg ie1
+convertExpr i1tp (I.ExpOp I.ExpAbs [ie1]) =
+  convertArithOp1 i1tp Op1_Abs ie1
+convertExpr i1tp (I.ExpOp I.ExpSignum [ie1]) =
+  convertArithOp1 i1tp Op1_Signum ie1
+convertExpr i1tp (I.ExpOp I.ExpDiv [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_Div ie1 ie2
+convertExpr i1tp (I.ExpOp I.ExpMod [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_Mod ie1 ie2
+convertExpr i1tp@(ivory2L1Type -> L1Type_lit lit_tp) (I.ExpOp I.ExpRecip [ie1]) =
+  do e1 <- convertExpr i1tp ie1
+     roundIfNeeded i1tp $ mkArithOp2 lit_tp Op2_Div (convertInteger i1tp 1) e1
 
 -- Floating-point operations (FIXME!)
 
 -- Bitwise operations
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitAnd [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_BitAnd)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitOr [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_BitOr)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitXor [ie1,ie2]) =
-  liftM2 (mkArithOp2 lit_tp Op2_BitXor)
-  (convertExpr l1tp ie1) (convertExpr l1tp ie2)
-convertExpr l1tp@(L1Type_lit lit_tp) (I.ExpOp I.ExpBitComplement [ie1]) =
-  liftM (mkArithOp1 lit_tp Op1_Complement) $ convertExpr l1tp ie1
+convertExpr i1tp (I.ExpOp I.ExpBitAnd [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_BitAnd ie1 ie2
+convertExpr i1tp (I.ExpOp I.ExpBitOr [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_BitOr ie1 ie2
+convertExpr i1tp (I.ExpOp I.ExpBitXor [ie1,ie2]) =
+  convertArithOp2 i1tp Op2_BitXor ie1 ie2
+convertExpr i1tp (I.ExpOp I.ExpBitComplement [ie1]) =
+  convertArithOp1 i1tp Op1_Complement ie1
+
 -- FIXME: bit-shifting operations!
 
 -- Getting the address of a global
-convertExpr L1Type_ptr (I.ExpAddrOfGlobal sym) =
+convertExpr (ivory2L1Type -> L1Type_ptr) (I.ExpAddrOfGlobal sym) =
+  -- FIXME: should the type matter...?
   convertSymbol sym
 
 -- Max/min of a type, and sizeof a type
-convertExpr l1tp (I.ExpMaxMin is_max) =
+convertExpr i1tp (I.ExpMaxMin is_max) =
   -- FIXME HERE: implement this!
   error "convertExpr: max and min not yet implemented!"
-convertExpr l1tp (I.ExpSizeOf itp) =
+convertExpr i1tp (I.ExpSizeOf itp) =
   -- FIXME HERE: implement this!
   error "convertExpr: sizeof not yet implemented!"
-convertExpr l1tp e =
+convertExpr i1tp e =
   error ("convertExpr: could not convert expression: " ++ show e)
 
 
@@ -746,43 +1009,47 @@ convertExpr l1tp e =
 
 -- | Convert an Ivory initializer into a logical expression. Struct and array
 -- initializers become pointers.
-convertInit :: I.Type -> I.Init -> I2LM SomeILExpr
-convertInit itp I.InitZero =
+convertInit :: I1Type a -> I.Init -> I2LM (ILExpr a)
+convertInit i1tp I.InitZero =
   return $
-  case convertType itp of
-    SomeL1Type l1tp@(L1Type_lit lit_tp) ->
-       SomeILExpr l1tp $ mkLiteralTp lit_tp (litDefaultTp lit_tp)
-    SomeL1Type L1Type_ptr -> SomeILExpr L1Type_ptr $ mkOp Op_null_ptr
-    SomeL1Type L1Type_prop -> error "convertInit: local var of type Prop!"
-convertInit itp (I.InitExpr itp' ie) =
-  if itp == itp' then
-    convertSomeExpr itp ie
-  else
-    error "convertInit: init expression type did not match expected type!"
-convertInit (I.TyStruct s_name) (I.InitStruct init_flds) =
-  do flds <-
-       forM init_flds
+  case ivory2L1Type i1tp of
+    L1Type_lit lit_tp -> mkLiteralTp lit_tp (litDefaultTp lit_tp)
+    L1Type_ptr -> mkOp Op_null_ptr
+    L1Type_prop -> error "convertInit: local var of type Prop!"
+convertInit i1tp (I.InitExpr itp' ie) =
+  case convertType itp' of
+    SomeI1Type (i1TypeEq i1tp -> Just Refl) ->
+      convertExpr i1tp ie
+    _ ->
+      error "convertInit: init expression type did not match expected type!"
+convertInit (ITyStructPtr Nothing s_name) (I.InitStruct init_flds) =
+  do len <- lookupStructLengthM s_name
+     ptr <- allocateArray $ mkLiteral64 len
+     forM_ init_flds
        (\(f_name,init) ->
          do (f_itp, f_ix) <- lookupStructFieldM s_name f_name
-            e <- convertInit f_itp init
-            return (f_ix, e))
-     ptr <- allocateArray $ mkLiteral64 $ 1 + maximum (map fst flds)
-     forM_ flds
-       (\(f_ix, SomeILExpr l1tp e) ->
-         updateArray l1tp ptr (mkLiteral64 f_ix) e)
-     return $ SomeILExpr L1Type_ptr ptr
+            case convertType f_itp of
+              SomeI1Type f_i1tp ->
+                do e <- convertInit f_i1tp init
+                   updateArray f_i1tp ptr (mkLiteral64 f_ix) e)
+     return ptr
 convertInit _ (I.InitStruct _) =
   error "convertInit: struct initialization for non-struct type!"
-convertInit arr_itp (I.InitArray init_elems) =
-  do let (len, itp) = case arr_itp of
-           I.TyArr len itp -> (len, itp)
-           I.TyCArray itp -> (length init_elems, itp)
-           _ -> error "convertInit: array initialization for non-array type!"
-     elems <- mapM (convertInit itp) init_elems
-     ptr <- allocateArray $ mkLiteral64 (1 + len)
-     forM_ (zip elems [1 .. len])
-       (\(SomeILExpr l1tp e, ix) -> updateArray l1tp ptr (mkLiteral64 ix) e)
-     return $ SomeILExpr L1Type_ptr ptr
+convertInit arr_i1tp (I.InitArray init_elems) =
+  case arr_i1tp of
+    ITyArrayPtr Nothing len elem_i1tp ->
+      convertArrayInit len elem_i1tp init_elems
+    ITyCArrayPtr Nothing elem_i1tp ->
+      convertArrayInit (length init_elems) elem_i1tp init_elems
+    _ -> error "convertInit: array initialization for non-array type!"
+  where
+    convertArrayInit :: Int -> I1Type a -> [I.Init] -> I2LM (ILExpr Ptr)
+    convertArrayInit len i1tp init_elems =
+      do elems <- mapM (convertInit i1tp) init_elems
+         ptr <- allocateArray $ mkLiteral64 (1 + len)
+         forM_ (zip elems [1 .. len])
+           (\(e, ix) -> updateArray i1tp ptr (mkLiteral64 ix) e)
+         return ptr
 
 
 ----------------------------------------------------------------------
@@ -792,12 +1059,13 @@ convertInit arr_itp (I.InitArray init_elems) =
 -- | Convert an Ivory condition into a proposition
 convertCond :: I.Cond -> I2LM (ILExpr Prop)
 convertCond (I.CondBool ie) =
-  do e <- convertExpr l1typeRep ie
+  do e <- convertExpr ITyBool ie
      return $ mkIsTrue e
-convertCond (I.CondDeref itp ie_ptr var cond) =
-  do ptr <- convertExpr L1Type_ptr ie_ptr
-     ptr_val <- readArraySome itp ptr (mkLiteral 0)
-     letBindVarSome var ptr_val
+convertCond (I.CondDeref (convertType -> SomeI1Type i1tp) ie_ptr var cond) =
+  do ptr <- convertExpr (mkRefType i1tp) ie_ptr
+     ptr_val <- readArray i1tp ptr (mkLiteral 0)
+     assertPtrIndexOK ptr (mkLiteral 0)
+     letBindVar var i1tp ptr_val
      convertCond cond
 
 -- | Convert a 'Require' clause into a proposition
@@ -824,7 +1092,7 @@ convertStmt :: I.Stmt -> I2LM ()
 
 -- If-then-else statements --> disjunctive transition relations
 convertStmt (I.IfTE ie stmts1 stmts2) =
-  do e <- convertExpr l1typeRep ie
+  do e <- convertExpr ITyBool ie
      let prop = mkIsTrue e
      pm1 <- collectTransitions $ convertBlock stmts1
      pm2 <- collectTransitions $ convertBlock stmts2
@@ -835,7 +1103,7 @@ convertStmt (I.IfTE ie stmts1 stmts2) =
 -- Assertions --> errors if the assertion does not hold; i.e., they
 -- become @if prop then ('returnP' ()) else raise 'IvoryError'@
 convertStmt (I.Assert ie) =
-  do e <- convertExpr l1typeRep ie
+  do e <- convertExpr ITyBool ie
      ivoryAssert (mkIsTrue e)
 
 -- Compiler-inserted assertions, which are the same as normal assertions
@@ -844,12 +1112,12 @@ convertStmt (I.CompilerAssert ie) =
   if skipCompilerAsserts (i2l_opts info) then
     return ()
   else
-    do e <- convertExpr l1typeRep ie
+    do e <- convertExpr ITyBool ie
        ivoryAssert (mkIsTrue e)
 
 -- Assumes --> assumptions in the Ivory reachability logic
 convertStmt (I.Assume ie) =
-  do e <- convertExpr l1typeRep ie
+  do e <- convertExpr ITyBool ie
      ivoryAssume (mkIsTrue e)
 
 -- Return statements --> write the returned value to the returnValue
@@ -863,24 +1131,26 @@ convertStmt (I.Return typed_ie) =
 convertStmt I.ReturnVoid = addTransition $ mkRaiseP IvoryReturn
 
 -- Dereference statements --> read a pointer and bind the result to a variable
-convertStmt (I.Deref itp var ie) =
-  do ptr_expr <- convertExpr L1Type_ptr ie
-     res_expr <- readArraySome itp ptr_expr (mkLiteral 0)
-     letBindVarSome var res_expr
+convertStmt (I.Deref (convertType -> SomeI1Type i1tp) var ie) =
+  do ptr_expr <- convertExpr (mkRefType i1tp) ie
+     assertPtrIndexOK ptr_expr (mkLiteral 0)
+     res_expr <- readArray i1tp ptr_expr (mkLiteral 0)
+     letBindVar var i1tp res_expr
 
 -- Assignment statements
-convertStmt (I.Store itp ilhs irhs) =
-  do ptr <- convertExpr L1Type_ptr ilhs
-     val <- convertSomeExpr itp irhs
-     updateArraySome ptr (mkLiteral 0) val
+convertStmt (I.Store (convertType -> SomeI1Type i1tp) ilhs irhs) =
+  do ptr <- convertExpr (mkRefType i1tp) ilhs
+     val <- convertExpr i1tp irhs
+     updateArray i1tp ptr (mkLiteral 0) val
 
 -- Assignment statements
-convertStmt (I.Assign itp var irhs) =
-  do val <- convertSomeExpr itp irhs
-     letBindVarSome var val
+convertStmt (I.Assign (convertType -> SomeI1Type i1tp) var irhs) =
+  do val <- convertExpr i1tp irhs
+     letBindVar var i1tp val
 
 -- Function calls
-convertStmt (I.Call ret_itp maybe_ret_var (I.NameSym fn_sym) iargs) =
+convertStmt (I.Call (convertType -> SomeI1Type ret_i1tp) maybe_ret_var
+             (I.NameSym fn_sym) iargs) =
   do p <- lookupProcM fn_sym
      -- We wrap the actual call in a reset, since it binds local variables (in
      -- order to assert the pre-/post-conditions)
@@ -898,7 +1168,7 @@ convertStmt (I.Call ret_itp maybe_ret_var (I.NameSym fn_sym) iargs) =
            -- FIXME HERE NOW: add a call here to havoc memory
            error "convertStmt: non-inlined function calls not yet supported"
          -- Step 5: Bind the special variable "retval" to the output
-         bindRetval ret_itp
+         bindRetval ret_i1tp
          -- Step 6: Assume the postconditions
          mapM_ (ivoryAssert <=< convertEnsure) (I.procEnsures p)
      -- Now add the call as a transition outside the reset
@@ -906,91 +1176,97 @@ convertStmt (I.Call ret_itp maybe_ret_var (I.NameSym fn_sym) iargs) =
      -- Finally, bind the return variable to the return value, if necessary
      case maybe_ret_var of
        Just ret_var ->
-         do ret_val <- readArraySome ret_itp funArgsPtr (mkLiteral 0)
-            letBindVarSome ret_var ret_val
+         do ret_val <- readArray ret_i1tp funArgsPtr (mkLiteral 0)
+            letBindVar ret_var ret_i1tp ret_val
        Nothing -> return ()
 
 -- Indirect function calls: not handled yet!
-convertStmt (I.Call ret_itp maybe_ret_var (I.NameVar fn_var) iargs) =
+convertStmt (I.Call (convertType -> SomeI1Type ret_i1tp) maybe_ret_var
+             (I.NameVar fn_var) iargs) =
   error "convertStmt: indirect function calls not (yet) handled"
 
--- Local variable decl --> allocation of a new reference + initialization
-convertStmt (I.Local itp var init) =
-  do some_expr <- convertInit itp init
-     ptr <-
-       case some_expr of
-         SomeILExpr l1tp@(L1Type_lit lit_tp) e ->
-           do ptr <- allocateArray (mkLiteral 1)
-              updateArray l1tp ptr (mkLiteral 0) e
+-- Local variable decl --> create an lvalue and return its address
+convertStmt (I.Local (convertType -> SomeI1Type i1tp) var init) =
+  do ptr <-
+       case i1tp of
+         i1tp@(ITyStructPtr Nothing _) ->
+           -- convertInit already promotes struct values to pointers, so we just
+           -- return the value created by convertInit
+           convertInit i1tp init
+         i1tp@(ITyArrayPtr Nothing _ _) ->
+           -- Similarly with array values
+           convertInit i1tp init
+         i1tp@(ITyCArrayPtr Nothing _) ->
+           -- Similarly with C array values
+           convertInit i1tp init
+         _ ->
+           -- Otherwise, we allocate a reference for the value returned by
+           -- convertInit, and store it there
+           do e <- convertInit i1tp init
+              ptr <- allocateArray (mkLiteral 1)
+              updateArray i1tp ptr (mkLiteral 0) e
               return ptr
-         SomeILExpr L1Type_ptr e -> return e
-         SomeILExpr L1Type_prop e ->
-           error "convertStmt: local variable of Prop type!"
-     letBindVar var L1Type_ptr ptr
+     -- Now we let-bind var to ptr
+     letBindVar var (mkRefType i1tp) ptr
 
 -- Reference copy: do a shallow copy of the array pointed to by irhs to ilhs
-convertStmt (I.RefCopy _ ilhs irhs) =
-  do ptr_rhs <- convertExpr L1Type_ptr irhs
-     ptr_lhs <- convertExpr L1Type_ptr ilhs
+convertStmt (I.RefCopy (convertType -> SomeI1Type i1tp) ilhs irhs) =
+  do ptr_rhs <- convertExpr (mkRefType i1tp) irhs
+     ptr_lhs <- convertExpr (mkRefType i1tp) ilhs
      addTransition $ mkOp (Op_updateP UpdateOp_ptr_copy) ptr_rhs ptr_lhs
 
 -- Reference allocation: this is essentially the identity in the logic (its
 -- actual use in Ivory is to convert C lvalues into C rvalues)
-convertStmt (I.AllocRef itp var nm) =
+convertStmt (I.AllocRef (convertType -> SomeI1Type i1tp) var nm) =
   do ptr <-
        case nm of
-         I.NameVar var' -> getVarExpr l1typeRep var'
+         I.NameVar var' -> getVarExpr (mkRefType i1tp) var'
          I.NameSym sym -> convertSymbol sym
-     letBindVar var l1typeRep ptr
+     letBindVar var (mkRefType i1tp) ptr
 
 -- Loops
 convertStmt (I.Loop max_iters var istart incr body) =
-  case convertType (I.TyIndex max_iters) of
-    SomeL1Type l1tp@(L1Type_lit lit_tp) ->
-      do
-        -- Convert the start value and store it in the global loop variable
-        start <- convertExpr l1tp istart
-        updateArray l1tp loopCounterPtr (mkLiteral 0) start
-        -- Extract the loop bound and whether the loop is an increment loop
-        let (ibound, loop_is_incr_p) =
-              case incr of
-                I.IncrTo ibound -> (ibound, True)
-                I.DecrTo ibound -> (ibound, False)
-        -- Convert the loop bound into a logical expression
-        loop_bound <- convertExpr l1tp ibound
-        -- Convert body (inside a reset, as it binds vars, raises exns, etc.)
-        body_pm <- collectTransitions $ do
-          -- Read the loop counter into var
-          ctr_val <- readArray l1tp loopCounterPtr (mkLiteral 0)
-          letBindVar var l1tp ctr_val
-          -- Run the loop test, raising IvoryBreak if it fails
-          let loop_test =
-                mkIsTrue $
-                if loop_is_incr_p then
-                  mkOp (Op_cmp lit_tp OpCmp_LT) ctr_val loop_bound
-                else
-                  mkOp (Op_cmp lit_tp OpCmp_LT) loop_bound ctr_val
-          addTransition $
-            mkOrP (mkSeqP (mkAssumeP loop_test) (mkReturnP $ mkLiteral ()))
-            (mkSeqP (mkAssumeP (mkNot loop_test)) (mkRaiseP IvoryBreak))
-          -- Run the body
-          convertBlock body
-          -- Compute the new counter value (NOTE: we don't re-read from
-          -- loopCounterPtr in case a sub-computation contains a loop)
-          let upd_op = if loop_is_incr_p then Op1_Incr else Op1_Decr
-          let ctr_val' = mkOp (Op_arith1 lit_tp upd_op) ctr_val
-          updateArray l1tp loopCounterPtr (mkLiteral 0) ctr_val'
+  do let i1tp = ITyIndex max_iters
+     -- Convert the start value and store it in the global loop variable
+     start <- convertExpr i1tp istart
+     updateArray i1tp loopCounterPtr (mkLiteral 0) start
+     -- Extract the loop bound and whether the loop is an increment loop
+     let (ibound, loop_is_incr_p) =
+           case incr of
+             I.IncrTo ibound -> (ibound, True)
+             I.DecrTo ibound -> (ibound, False)
+     -- Convert the loop bound into a logical expression
+     loop_bound <- convertExpr i1tp ibound
+     -- Convert body (inside a reset, as it binds vars, raises exns, etc.)
+     body_pm <- collectTransitions $ do
+       -- Read the loop counter into var
+       ctr_val <- readArray i1tp loopCounterPtr (mkLiteral 0)
+       letBindVar var i1tp ctr_val
+       -- Run the loop test, raising IvoryBreak if it fails
+       let loop_test =
+             mkIsTrue $
+             if loop_is_incr_p then mkLtBool ctr_val loop_bound
+             else mkLtBool loop_bound ctr_val
+       addTransition $
+         mkOrP (mkSeqP (mkAssumeP loop_test) (mkReturnP $ mkLiteral ()))
+         (mkSeqP (mkAssumeP (mkNot loop_test)) (mkRaiseP IvoryBreak))
+       -- Run the body
+       convertBlock body
+       -- Compute the new counter value (NOTE: we don't re-read from
+       -- loopCounterPtr in case a sub-computation contains a loop)
+       let upd_op = if loop_is_incr_p then Op1_Incr else Op1_Decr
+       let ctr_val' = mkOp (Op_arith1 litTypeRep upd_op) ctr_val
+       updateArray i1tp loopCounterPtr (mkLiteral 0) ctr_val'
 
-        -- Read the options to get the loop unrolling maximum
-        unroll_max <- loopUnrollingMax <$> i2l_opts <$> get
-        if max_iters <= unroll_max then
-          -- Unrolling loops = replicate body_pm max_iters times, catching any
-          -- IvoryBreak exceptions if the loop ends early
-          ivoryCatch IvoryBreak (replicateM_ (fromInteger max_iters) $
-                                 addTransition body_pm)
-          else
-          error ("convertStmt: loop unrolling bound exceeded; "
-                 ++ "non-unrolled loops not yet handled!") -- FIXME HERE
+     -- Read the options to get the loop unrolling maximum
+     unroll_max <- loopUnrollingMax <$> i2l_opts <$> get
+     if max_iters <= unroll_max then
+       -- Unrolling loops = replicate body_pm max_iters times, catching any
+       -- IvoryBreak exceptions if the loop ends early
+       ivoryCatch IvoryBreak (replicateM_ (fromInteger max_iters) $
+                              addTransition body_pm)
+       else error ("convertStmt: loop unrolling bound exceeded; "
+                   ++ "non-unrolled loops not yet handled!") -- FIXME HERE
 
 -- Forever Loops --> not handled yet
 convertStmt (I.Forever body) =
@@ -1035,7 +1311,8 @@ convertProc p =
     -- Transition according to the body of the procedure, catching any returns
     ivoryCatch IvoryReturn (convertBlock (I.procBody p))
     -- Bind the return value to the special Ivory "retval" variable
-    bindRetval (I.procRetTy p)
+    case convertType (I.procRetTy p) of
+      SomeI1Type i1tp -> bindRetval i1tp
     -- Finally, assert all the Ensures
     mapM_ (ivoryAssert <=< convertEnsure) $ I.procEnsures p
 
