@@ -378,7 +378,7 @@ data LType (a :: *) where
   -- ^ Any first-order type is a type
   LType_fun :: LType a -> LType b -> LType (a -> b)
   -- ^ Function types
-  LType_pm :: L1Type a -> LType (PM a)
+  LType_pm :: LType a -> LType (PM a)
   -- ^ The type of transition relations, using a predicate monad
 
 -- | Typeclass for 'LType'
@@ -391,8 +391,8 @@ instance LitTypeable a => LTypeable (Literal a) where
   ltypeRep = LType_base $ L1Type_lit litTypeRep
 instance LTypeable Ptr where ltypeRep = LType_base $ l1typeRep
 instance LTypeable Prop where ltypeRep = LType_base $ l1typeRep
-instance L1Typeable a => LTypeable (PM a) where
-  ltypeRep = LType_pm l1typeRep
+instance LTypeable a => LTypeable (PM a) where
+  ltypeRep = LType_pm ltypeRep
 instance (LTypeable a, LTypeable b) => LTypeable (a -> b) where
   ltypeRep = LType_fun ltypeRep ltypeRep
 
@@ -418,7 +418,7 @@ ltypeEq (LType_fun t1 t1') (LType_fun t2 t2') =
     _ -> Nothing
 ltypeEq (LType_fun _ _) _ = Nothing
 ltypeEq (LType_pm tp1) (LType_pm tp2) =
-  case l1TypeEq tp1 tp2 of
+  case ltypeEq tp1 tp2 of
     Just Refl -> Just Refl
     _ -> Nothing
 ltypeEq (LType_pm _) _ = Nothing
@@ -455,7 +455,7 @@ type instance RetType (a -> b) = RetType b
 -- | "Proof" that @a = AddArrows args ret@
 data LTypeArgs a args ret where
   LTypeArgs_base :: L1Type a -> LTypeArgs a '[] a
-  LTypeArgs_pm :: L1Type a -> LTypeArgs (PM a) '[] (PM a)
+  LTypeArgs_pm :: LType a -> LTypeArgs (PM a) '[] (PM a)
   LTypeArgs_fun :: LType arg -> LTypeArgs a args ret ->
                    LTypeArgs (arg -> a) (arg ': args) ret
 
@@ -469,8 +469,8 @@ instance LTypeableArgs Ptr '[] Ptr where
   ltypeArgsRep = LTypeArgs_base l1typeRep
 instance LTypeableArgs Prop '[] Prop where
   ltypeArgsRep = LTypeArgs_base l1typeRep
-instance L1Typeable a => LTypeableArgs (PM a) '[] (PM a) where
-  ltypeArgsRep = LTypeArgs_pm l1typeRep
+instance LTypeable a => LTypeableArgs (PM a) '[] (PM a) where
+  ltypeArgsRep = LTypeArgs_pm ltypeRep
 instance (LTypeable arg, LTypeableArgs a args ret) =>
          LTypeableArgs (arg -> a) (arg ': args) ret where
   ltypeArgsRep = LTypeArgs_fun ltypeRep ltypeArgsRep
@@ -480,21 +480,21 @@ mkLTypeArgs :: LType a -> LTypeArgs a (ArgTypes a) (RetType a)
 mkLTypeArgs (LType_base l1tp@(L1Type_lit _)) = LTypeArgs_base l1tp
 mkLTypeArgs (LType_base L1Type_prop) = LTypeArgs_base l1typeRep
 mkLTypeArgs (LType_base L1Type_ptr) = LTypeArgs_base l1typeRep
-mkLTypeArgs (LType_pm l1tp) = LTypeArgs_pm l1tp
+mkLTypeArgs (LType_pm ltp) = LTypeArgs_pm ltp
 mkLTypeArgs (LType_fun tp_a tp_b) =
   LTypeArgs_fun tp_a (mkLTypeArgs tp_b)
 
 -- | Convert an @'LTypeArgs' a args ret@ to an @'LType' a@
 ltypeArgsFullType :: LTypeArgs a args ret -> LType a
 ltypeArgsFullType (LTypeArgs_base l1tp) = LType_base l1tp
-ltypeArgsFullType (LTypeArgs_pm l1tp) = LType_pm l1tp
+ltypeArgsFullType (LTypeArgs_pm ltp) = LType_pm ltp
 ltypeArgsFullType (LTypeArgs_fun tp tp_args) =
   LType_fun tp $ ltypeArgsFullType tp_args
 
 -- | Convert an 'LTypeArgs' to an 'LType' for the return type
 ltypeArgsRetType :: LTypeArgs a args ret -> LType ret
 ltypeArgsRetType (LTypeArgs_base l1tp) = LType_base l1tp
-ltypeArgsRetType (LTypeArgs_pm l1tp) = LType_pm l1tp
+ltypeArgsRetType (LTypeArgs_pm ltp) = LType_pm ltp
 ltypeArgsRetType (LTypeArgs_fun _ tp_args) = ltypeArgsRetType tp_args
 
 -- | Proof that the return type of an 'LTypeArgs' is never a function type
@@ -508,7 +508,7 @@ $(mkNuMatching [t| forall a args ret. LTypeArgs a args ret |])
 
 instance Liftable (LTypeArgs a args ret) where
   mbLift [nuP| LTypeArgs_base l1tp |] = LTypeArgs_base $ mbLift l1tp
-  mbLift [nuP| LTypeArgs_pm l1tp |] = LTypeArgs_pm $ mbLift l1tp
+  mbLift [nuP| LTypeArgs_pm ltp |] = LTypeArgs_pm $ mbLift ltp
   mbLift [nuP| LTypeArgs_fun tp tp_args |] =
     LTypeArgs_fun (mbLift tp) (mbLift tp_args)
 
@@ -685,7 +685,7 @@ data UpdateOp mm args where
 readOpType :: MemoryModel mm => ReadOp mm args ret -> LType (AddArrows args (PM ret))
 readOpType (ReadOp_array elem_pf) =
   LType_fun ltypeRep $ LType_fun ltypeRep $
-  LType_pm $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf
+  LType_pm $ LType_base $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf
 readOpType ReadOp_ptr_array = ltypeRep
 readOpType ReadOp_length = ltypeRep
 readOpType ReadOp_last_alloc = ltypeRep
@@ -878,9 +878,9 @@ data Op tag a where
   -- * Predicate monad operations
 
   -- | Return in the predicate monad
-  Op_returnP :: L1Type a -> Op tag (a -> PM a)
+  Op_returnP :: LType a -> Op tag (a -> PM a)
   -- | Bind in the predicate monad
-  Op_bindP :: L1Type a -> L1Type b -> Op tag (PM a -> (a -> PM b) -> PM b)
+  Op_bindP :: LType a -> LType b -> Op tag (PM a -> (a -> PM b) -> PM b)
   -- | Memory read operations
   Op_readP :: MemoryModel (LStorables tag) =>
               ReadOp (LStorables tag) args ret ->
@@ -900,7 +900,7 @@ data Op tag a where
   -- | Assumptions about the current execution
   Op_assumeP :: Op tag (Prop -> PM (Literal ()))
   -- | Return an arbitrary, existentially-quantified value
-  Op_existsP :: L1Type a -> Op tag (PM a)
+  Op_existsP :: L1FunType a -> Op tag (PM a)
   -- | Special-purpose assumption of false: prunes out the current execution
   Op_falseP :: Op tag (PM (Literal ()))
   -- | Disjunctions
@@ -945,18 +945,18 @@ opType (Op_exists l1tp) =
 opType (Op_let l1tp) =
   LType_fun (LType_base l1tp) $
   LType_fun (LType_fun (LType_base l1tp) ltypeRep) ltypeRep
-opType (Op_returnP l1tp) =
-  LType_fun (LType_base l1tp) (LType_pm l1tp)
-opType (Op_bindP l1tp_a l1tp_b) =
-  LType_fun (LType_pm l1tp_a) $
-  LType_fun (LType_fun (LType_base l1tp_a) (LType_pm l1tp_b)) $
-  LType_pm l1tp_b
+opType (Op_returnP ltp) =
+  LType_fun ltp (LType_pm ltp)
+opType (Op_bindP ltp_a ltp_b) =
+  LType_fun (LType_pm ltp_a) $
+  LType_fun (LType_fun ltp_a $ LType_pm ltp_b) $
+  LType_pm ltp_b
 opType (Op_readP read_op) = readOpType read_op
 opType (Op_updateP update_op) = updateOpType update_op
 opType (Op_raiseP _) = ltypeRep
 opType (Op_catchP _) = ltypeRep
 opType Op_assumeP = ltypeRep
-opType (Op_existsP l1tp) = LType_pm l1tp
+opType (Op_existsP ftp) = LType_pm $ funType_to_type ftp
 opType Op_falseP = ltypeRep
 opType Op_orP = ltypeRep
 
@@ -1030,15 +1030,15 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_exists l1tp |] = Op_exists $ mbLift l1tp
   mbLift [nuP| Op_let tp |] = Op_let $ mbLift tp
   --mbLift [nuP| Op_LetRead read_op |] = Op_LetRead $ mbLift read_op
-  mbLift [nuP| Op_returnP l1tp |] = Op_returnP $ mbLift l1tp
-  mbLift [nuP| Op_bindP l1tp_a l1tp_b |] =
-    Op_bindP (mbLift l1tp_a) (mbLift l1tp_b)
+  mbLift [nuP| Op_returnP ltp |] = Op_returnP $ mbLift ltp
+  mbLift [nuP| Op_bindP ltp_a ltp_b |] =
+    Op_bindP (mbLift ltp_a) (mbLift ltp_b)
   mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
   mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
   mbLift [nuP| Op_assumeP |] = Op_assumeP
   mbLift [nuP| Op_raiseP exn |] = Op_raiseP $ mbLift exn
   mbLift [nuP| Op_catchP exn |] = Op_catchP $ mbLift exn
-  mbLift [nuP| Op_existsP l1tp |] = Op_existsP $ mbLift l1tp
+  mbLift [nuP| Op_existsP ftp |] = Op_existsP $ mbLift ftp
   mbLift [nuP| Op_falseP |] = Op_falseP
   mbLift [nuP| Op_orP |] = Op_orP
 
@@ -1208,6 +1208,10 @@ instance (LitTypeable a, Num a) => Num (LExpr tag (Literal a)) where
   signum = mkOp (Op_arith1 litTypeRep Op1_Signum)
   fromInteger i = mkLiteral (fromInteger i)
 
+-- | Build a negation expression
+mkNeg :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a)
+mkNeg e = mkOp (Op_arith1 litTypeRep Op1_Neg) e
+
 -- | Smart constructor for building coercions
 mkCoerce :: LitType a -> LitType b -> LExpr tag (Literal a) ->
             LExpr tag (Literal b)
@@ -1224,15 +1228,26 @@ mkNullPtr = mkOp Op_null_ptr
 mkGlobalVar :: Natural -> LExpr tag Ptr
 mkGlobalVar n = mkOp (Op_global_var n)
 
--- | Make a Boolean less-than expression
+-- | Make a Boolean less-than expression over a 'Literal' type
 mkLtBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
             LExpr tag (Literal Bool)
 mkLtBool e1 e2 = mkOp (Op_cmp litTypeRep OpCmp_LT) e1 e2
 
--- | Make a Boolean less-than-or-equal expression
+-- | Make a Boolean less-than-or-equal expression over a 'Literal' type
 mkLeBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
             LExpr tag (Literal Bool)
 mkLeBool e1 e2 = mkOp (Op_cmp litTypeRep OpCmp_LE) e1 e2
+
+-- | Make a Boolean comparison at a first-order type, raising an error if that
+-- first-order type is 'Prop'
+mkArithCmpTp :: L1Type a -> ArithCmp -> LExpr tag a -> LExpr tag a ->
+                LExpr tag (Literal Bool)
+mkArithCmpTp (L1Type_lit lit_tp) acmp e1 e2 =
+  mkOp (Op_cmp lit_tp acmp) e1 e2
+mkArithCmpTp L1Type_ptr acmp e1 e2 =
+  mkOp (Op_ptr_cmp acmp) e1 e2
+mkArithCmpTp L1Type_prop _ _ _ =
+  error "mkArithCmpTp: arithmetic comparison of propositions!"
 
 -- | Negate a Boolean
 mkNotBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool)
@@ -1247,6 +1262,13 @@ mkAndBool = mkOp (Op_arith2 LitType_bool Op2_Mult)
 mkOrBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool) ->
              LExpr tag (Literal Bool)
 mkOrBool = mkOp (Op_arith2 LitType_bool Op2_Add)
+
+-- | Build a conditional expression
+mkCond :: L1Type a -> LExpr tag (Literal Bool) -> LExpr tag a -> LExpr tag a ->
+          LExpr tag a
+mkCond l1tp@(L1Type_lit _) = mkOp (Op_cond l1tp)
+mkCond l1tp@L1Type_ptr = mkOp (Op_cond l1tp)
+mkCond l1tp@L1Type_prop = mkOp (Op_cond l1tp)
 
 
 ----------------------------------------------------------------------
@@ -1352,6 +1374,16 @@ mkOr ps =
 mkIsTrue :: LExpr tag (Literal Bool) -> LProp tag
 mkIsTrue = mkOp Op_istrue
 
+-- | Build a less-than expression as a 'Prop'
+mkLt :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
+        LExpr tag Prop
+mkLt e1 e2 = mkIsTrue $ mkLtBool e1 e2
+
+-- | Build a less-than-or-equal expression as a 'Prop'
+mkLe :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
+        LExpr tag Prop
+mkLe e1 e2 = mkIsTrue $ mkLeBool e1 e2
+
 -- | Build a universal quantifier into an 'LProp'
 mkForall :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
 mkForall l1tp body =
@@ -1421,22 +1453,22 @@ mkNameEq proxy ftp n1 n2 =
 ----------------------------------------------------------------------
 
 -- | Build a return expression
-mkReturnP :: L1Typeable a => LExpr tag a -> LExpr tag (PM a)
-mkReturnP = mkOp (Op_returnP l1typeRep)
+mkReturnP :: LTypeable a => LExpr tag a -> LExpr tag (PM a)
+mkReturnP = mkOp (Op_returnP ltypeRep)
 
 -- | Build a return expression with an explicit 'L1Type'
 mkReturnP_tp :: L1Type a -> LExpr tag a -> LExpr tag (PM a)
-mkReturnP_tp l1tp = mkOp (Op_returnP l1tp)
+mkReturnP_tp l1tp = mkOp (Op_returnP $ LType_base l1tp)
 
 -- | Build a bind expression
-mkBindP :: (L1Typeable a, L1Typeable b) => LExpr tag (PM a) ->
+mkBindP :: (LTypeable a, LTypeable b) => LExpr tag (PM a) ->
            (LExpr tag a -> LExpr tag (PM b)) -> LExpr tag (PM b)
 mkBindP m f =
-  mkOp (Op_bindP l1typeRep l1typeRep) m $
-  mkLambdaTp (LType_base l1typeRep) f
+  mkOp (Op_bindP ltypeRep ltypeRep) m $
+  mkLambdaTp ltypeRep f
 
 -- | Sequence together two predicate monad expressions
-mkSeqP :: L1Typeable a => LExpr tag (PM (Literal ())) -> LExpr tag (PM a) ->
+mkSeqP :: LTypeable a => LExpr tag (PM (Literal ())) -> LExpr tag (PM a) ->
           LExpr tag (PM a)
 mkSeqP pm1 pm2 = mkBindP pm1 (\_ -> pm2)
 
@@ -1455,12 +1487,16 @@ mkFalseP :: LPM tag
 mkFalseP = mkOp Op_falseP
 
 -- | Build an existential transition relation
-mkExistsP :: L1Typeable a => LExpr tag (PM a)
-mkExistsP = mkOp (Op_existsP l1typeRep)
+mkExistsP :: L1FunTypeable a => LExpr tag (PM a)
+mkExistsP = mkOp (Op_existsP l1funTypeRep)
+
+-- | Build an existential transition relation with an explicit 'L1FunType'
+mkExistsP_ftp :: L1FunType a -> LExpr tag (PM a)
+mkExistsP_ftp ftp = mkOp (Op_existsP ftp)
 
 -- | Build an existential transition relation with an explicit 'L1Type'
 mkExistsP_tp :: L1Type a -> LExpr tag (PM a)
-mkExistsP_tp l1tp = mkOp (Op_existsP l1tp)
+mkExistsP_tp l1tp = mkExistsP_ftp $ L1FunType_base l1tp
 
 -- | Build a raise expression inside the predicate monad
 mkRaiseP :: (Eq (LException tag), Liftable (LException tag)) =>
@@ -2402,11 +2438,13 @@ orPM pm1 pm2 = canonicalizePM $ pm1 `mplus` pm2
 -- Interpreting the predicate monad inside the logic
 ----------------------------------------------------------------------
 
--- | FIXME: documentation
+-- | An interpretation of type @a@, where first-order types are interpreted as
+-- logical expressions, functional types as functions, and 'PM' types are
+-- interpreted as 'LogicPM' computations
 data InterpPM tag a where
   InterpPM_base :: L1Type a -> LExpr tag a -> InterpPM tag a
   InterpPM_fun :: (InterpPM tag a -> InterpPM tag b) -> InterpPM tag (a -> b)
-  InterpPM_pm :: LogicPM tag (LExpr tag a) -> InterpPM tag (PM a)
+  InterpPM_pm :: LogicPM tag (InterpPM tag a) -> InterpPM tag (PM a)
   InterpPM_unit_pm :: LogicPM tag () -> InterpPM tag (PM (Literal ()))
 
 -- | Extract an 'LExpr' from an 'InterpPM' of base type
@@ -2422,13 +2460,14 @@ apply_interpPM (InterpPM_fun f) = f
 apply_interpPM (InterpPM_base l1tp _) = no_functional_l1type l1tp
 
 -- | Extract a 'LogicPM' computation from an 'InterpPM'
-pm_of_interpPM :: InterpPM tag (PM a) -> LogicPM tag (LExpr tag a)
+pm_of_interpPM :: InterpPM tag (PM a) -> LogicPM tag (InterpPM tag a)
 pm_of_interpPM (InterpPM_base l1tp _) = no_pm_l1type l1tp
 pm_of_interpPM (InterpPM_pm m) = m
-pm_of_interpPM (InterpPM_unit_pm m) = m >> return (mkLiteral ())
+pm_of_interpPM (InterpPM_unit_pm m) =
+  m >> return (InterpPM_base l1typeRep $ mkLiteral ())
 
 -- | Extract a @'LogicPM' ()@ computation from an 'InterpPM'
-unit_pm_of_interpPM :: InterpPM tag (PM a) -> LogicPM tag ()
+unit_pm_of_interpPM :: InterpPM tag (PM (Literal ())) -> LogicPM tag ()
 unit_pm_of_interpPM (InterpPM_base l1tp _) = no_pm_l1type l1tp
 unit_pm_of_interpPM (InterpPM_pm m) = m >>= \_ -> return ()
 unit_pm_of_interpPM (InterpPM_unit_pm m) = m
@@ -2528,32 +2567,45 @@ instance LExprAlgebra tag (InterpPM tag) where
     mkLet l1tp (expr_of_interpPM l1tp rhs_ipm) $ \x ->
     expr_of_interpPM L1Type_prop $
     apply_interpPM body_ipm $ InterpPM_base l1tp x
-  interpOp (Op_returnP l1tp) =
+  interpOp (Op_returnP ltp) =
     InterpPM_fun $ \x ->
-    InterpPM_pm $ return $ expr_of_interpPM l1tp x
-  interpOp (Op_bindP l1tp_a _) =
+    InterpPM_pm $ return x
+  interpOp (Op_bindP _ _) =
     InterpPM_fun $ \m ->
     InterpPM_fun $ \f_ipm ->
     InterpPM_pm $
     do res <- pm_of_interpPM m
-       -- Bind a fresh name, to avoid duplication of the value
-       nm <- nuM (NameDecl_let l1tp_a res)
-       pm_of_interpPM (apply_interpPM f_ipm $
-                       InterpPM_base l1tp_a $
-                       mkVarExprTp (LType_base l1tp_a) nm)
-  interpOp (Op_readP rop@(ReadOp_array _)) =
+       case res of
+         InterpPM_base _ (LVar (LTypeArgs_base _) _ _) ->
+           -- If res is a variable of base type, just pass it to f_ipm
+           pm_of_interpPM $ apply_interpPM f_ipm res
+         InterpPM_base l1tp e ->
+           -- If res is an expression of base type, let-bind a fresh name to its
+           -- value, to avoid duplication
+           do nm <- nuM (NameDecl_let l1tp e)
+              pm_of_interpPM (apply_interpPM f_ipm $
+                              InterpPM_base l1tp $
+                              mkVarExprTp (LType_base l1tp) nm)
+         _ ->
+           -- Otherwise, just pass res to f_ipm, cause we cannot coerce it to an
+           -- expression in general...
+           pm_of_interpPM $ apply_interpPM f_ipm res
+  interpOp (Op_readP rop@(ReadOp_array elem_pf)) =
     InterpPM_fun $ \(InterpPM_base _ ptr) ->
     InterpPM_fun $ \(InterpPM_base _ ix) ->
-    InterpPM_pm $ readPM rop (Cons ptr (Cons ix Nil))
+    InterpPM_pm $
+    liftM (InterpPM_base $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf) $
+    readPM rop (Cons ptr (Cons ix Nil))
   interpOp (Op_readP rop@ReadOp_ptr_array) =
     InterpPM_fun $ \(InterpPM_base _ ptr) ->
     InterpPM_fun $ \(InterpPM_base _ ix) ->
-    InterpPM_pm $ readPM rop (Cons ptr (Cons ix Nil))
+    InterpPM_pm $ liftM (InterpPM_base l1typeRep) $
+    readPM rop (Cons ptr (Cons ix Nil))
   interpOp (Op_readP rop@ReadOp_length) =
     InterpPM_fun $ \(InterpPM_base _ ptr) ->
-    InterpPM_pm $ readPM rop (Cons ptr Nil)
+    InterpPM_pm $ liftM (InterpPM_base l1typeRep) $ readPM rop (Cons ptr Nil)
   interpOp (Op_readP rop@ReadOp_last_alloc) =
-    InterpPM_pm $ readPM rop Nil
+    InterpPM_pm $ liftM (InterpPM_base l1typeRep) $ readPM rop Nil
   interpOp (Op_updateP uop@(UpdateOp_array _)) =
     InterpPM_fun $ \(InterpPM_base _ ptr) ->
     InterpPM_fun $ \(InterpPM_base _ ix) ->
@@ -2579,9 +2631,9 @@ instance LExprAlgebra tag (InterpPM tag) where
     catchPM exn (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
   interpOp Op_assumeP =
     InterpPM_fun $ \(InterpPM_base _ p) -> InterpPM_unit_pm $ assumePM p
-  interpOp (Op_existsP l1tp) =
-    InterpPM_pm $ do n <- nuM $ NameDecl_exists (L1FunType_base l1tp)
-                     return $ mkVarExprTp (LType_base l1tp) n
+  interpOp (Op_existsP ftp) =
+    InterpPM_pm $ do n <- nuM $ NameDecl_exists ftp
+                     return $ mkVarInterpPM ftp n
   interpOp Op_falseP =
     InterpPM_unit_pm $ falsePM
   interpOp Op_orP =
