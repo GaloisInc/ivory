@@ -287,21 +287,48 @@ import Data.Monoid.Compat
 -- Top-level definitions
 
 defs :: { [GlobalSym] }
-defs : defs procDef       { GlobalProc     $2 : $1 }
-     | defs includeProc   { GlobalInclProc $2 : $1 }
-     | defs importExtern  { GlobalExtern   $2 : $1 }
-     | defs structDef     { GlobalStruct   $2 : $1 }
-     | defs bdDef         { GlobalBitData  $2 : $1 }
-     | defs typeDef       { GlobalTypeDef  $2 : $1 }
-     | defs constDef      { GlobalConstDef $2 : $1 }
-     | defs includeDef    { GlobalInclude  $2 : $1 }
+defs : defs procDef       { GlobalProc       $2 : $1 }
+     | defs includeProc   { GlobalInclProc   $2 : $1 }
+     | defs importExtern  { GlobalExtern     $2 : $1 }
+     | defs structDef     { GlobalStruct     $2 : $1 }
+     | defs bdDef         { GlobalBitData    $2 : $1 }
+     | defs typeDef       { GlobalTypeDef    $2 : $1 }
+     | defs constDef      { GlobalConstDef   $2 : $1 }
+     | defs includeDef    { GlobalInclude    $2 : $1 }
+     | defs areaDef       { GlobalArea       $2 : $1 }
+     | defs areaImportDef { GlobalAreaImport $2 : $1 }
      | {- empty -}        { [] }
+
+----------------------------------------
+-- Include areas
+
+areaDef :: { AreaDef }
+areaDef :
+    type allocRef
+      { AreaDef False $1 (unLoc $2) (getLoc $2)
+      }
+  | type const allocRef
+      { AreaDef True $1 (unLoc $3) (getLoc $3)
+      }
+
+areaImportDef :: { AreaImportDef }
+areaImportDef :
+    import ident '.' ident type allocIdent
+      { AreaImportDef (unLoc $6) False $5
+          (unLoc $2 ++ ('.':unLoc $4))
+          (getLoc $1 <> getLoc $6)
+      }
+  | import ident '.' ident type const allocIdent
+      { AreaImportDef (unLoc $7) True $5
+          (unLoc $2 ++ ('.':unLoc $4))
+          (getLoc $1 <> getLoc $7)
+      }
 
 ----------------------------------------
 -- Include other modules (Ivory's "depend")
 
 includeDef :: { IncludeDef }
-includeDef : include ident { IncludeDef (unLoc $2) ($1 <> getLoc $2)  }
+includeDef : include ident { IncludeDef (unLoc $2) ($1 <> getLoc $2) }
 
 ----------------------------------------
 -- Constant definitions
@@ -370,52 +397,70 @@ prePost :
     pre  '(' exp ')' { PreCond  $3 }
   | post '(' exp ')' { PostCond $3 }
 
+
+----------------------------------------
+-- Allocations
+
+ptrIdent :: { Located RefVar }
+ptrIdent : '*' ident { $2 }
+
+arrIdent :: { Located RefVar }
+arrIdent : ident '[' ']' { $1 }
+
+structIdent :: { Located RefVar }
+structIdent : ident '{' '}' { $1 }
+
+allocIdent :: { Located RefVar }
+allocIdent :
+    ptrIdent    { $1 }
+  | arrIdent    { $1 }
+  | structIdent {$1 }
+allocRef :: { Located AllocRef }
+allocRef :
+    alloc ptrIdent ';'               { atBin (AllocBase (unLoc $2) Nothing) $1 $3 }
+  | alloc ptrIdent '=' exp ';'       { atList (AllocBase (unLoc $2) (Just $4))
+                                              [$1, getLoc $2, getLoc $4]
+                                     }
+  | alloc arrIdent ';'               { atBin (AllocArr (unLoc $2) []) $1 $2 }
+  | alloc arrIdent '='
+      '{' exps '}' ';'               { atList (AllocArr (unLoc $2) (reverse $5))
+                                              [ $1, getLoc $2, getLoc $5]
+                                     }
+
+  | alloc structIdent ';'            { atBin (AllocStruct (unLoc $2) Empty) $1 $2 }
+  | alloc structIdent '='
+      structInit ';'                 { atBin (AllocStruct (unLoc $2) $4) $1 $2 }
+
 ----------------------------------------
 -- Statements
 
 simpleStmt :: { Stmt }
 simpleStmt :
-    assert exp                    { LocStmt (atBin (Assert $2) $1 $2) }
-  | assume exp                    { LocStmt (atBin (Assume $2) $1 $2) }
-  | assign      ident '=' exp     { LocStmt (atList (Assign (unLoc $2) $4 Nothing)
+    assert exp  ';'                   { LocStmt (atBin (Assert $2) $1 $2) }
+  | assume exp  ';'                   { LocStmt (atBin (Assume $2) $1 $2) }
+  | assign      ident '=' exp  ';'     { LocStmt (atList (Assign (unLoc $2) $4 Nothing)
                                       [ $1, getLoc $2, getLoc $4 ]) }
-  | assign type ident '=' exp     { LocStmt (atList (Assign (unLoc $3) $5 (Just $2))
+  | assign type ident '=' exp  ';'    { LocStmt (atList (Assign (unLoc $3) $5 (Just $2))
                                                     [ $1, getLoc $2, getLoc $3, getLoc $5]) }
 
-  | return                        { LocStmt (ReturnVoid `at` $1) }
-  | return exp                    { LocStmt (atBin (Return $2) $1 $2) }
+  | return  ';'                       { LocStmt (ReturnVoid `at` $1) }
+  | return exp  ';'                   { LocStmt (atBin (Return $2) $1 $2) }
 
-  -- Allocation
-  | alloc '*' ident               { LocStmt (atBin (AllocRef (AllocBase (unLoc $3) Nothing))
-                                               $1 $3) }
-  | alloc '*' ident '=' exp       { LocStmt (atList (AllocRef (AllocBase (unLoc $3) (Just $5)))
-                                               [$1, getLoc $3, getLoc $5]) }
-
-  | alloc ident '[' ']'           { LocStmt (atBin (AllocRef (AllocArr (unLoc $2) []))
-                                               $1 $2) }
-  | alloc ident '[' ']' '='
-      '{' exps '}'                { LocStmt (atList (AllocRef (AllocArr (unLoc $2) (reverse $7)))
-                                               [ $1, getLoc $2, getLoc $7]) }
-
-  | alloc ident '{' '}'           { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) Empty))
-                                               $1 $2) }
-  | alloc ident '{' '}' '='
-      structInit                  { LocStmt (atBin (AllocRef (AllocStruct (unLoc $2) $6))
-                                               $1 $2) }
-
-  | refCopy ident ident           { LocStmt (atList (RefCopy (ExpVar (unLoc $2)) (ExpVar (unLoc $3)))
+  | refCopy ident ident  ';'          { LocStmt (atList (RefCopy (ExpVar (unLoc $2)) (ExpVar (unLoc $3)))
                                                [$1, getLoc $2, getLoc $3]) }
 
+  | allocRef                      { LocStmt (AllocRef (unLoc $1) `at` (getLoc $1)) }
+
   -- Storing
-  | store exp as exp              { LocStmt (atList (Store $2 $4) [$1, getLoc $2, getLoc $4]) }
+  | store exp as exp  ';'              { LocStmt (atList (Store $2 $4) [$1, getLoc $2, getLoc $4]) }
 
   -- Function calls
-  | ident expArgs                 { LocStmt (atBin (NoBindCall (unLoc $1) $2) $1 $2) }
+  | ident expArgs  ';'                 { LocStmt (atBin (NoBindCall (unLoc $1) $2) $1 $2) }
 
-  | ivoryMacro                    { LocStmt ((IvoryMacroStmt Nothing (unLoc $1)) `at` getLoc $1) }
-  | ident '<-' ivoryMacro         { LocStmt (atBin (IvoryMacroStmt (Just (unLoc $1)) (unLoc $3))
+  | ivoryMacro  ';'                    { LocStmt ((IvoryMacroStmt Nothing (unLoc $1)) `at` getLoc $1) }
+  | ident '<-' ivoryMacro  ';'         { LocStmt (atBin (IvoryMacroStmt (Just (unLoc $1)) (unLoc $3))
                                                $1 $3) }
-  | break                         { LocStmt (Break `at` $1) }
+  | break  ';'                         { LocStmt (Break `at` $1) }
 
 ivoryMacro :: { Located (String, [Exp]) }
 ivoryMacro : iMacro ident          { atBin (unLoc $2, []) $1 (getLoc $2) }
@@ -427,12 +472,19 @@ blkStmt :
                                                         [$1, getLoc $2, getLoc $4]) }
   | upTo exp ident '{' stmts '}'           { LocStmt (atList (UpTo $2 (unLoc $3) (reverse $5))
                                                         [$1, getLoc $2, getLoc $3, getLoc $5]) }
-  | upFromTo exp exp ident '{' stmts '}'   { LocStmt (atList (UpFromTo $2 $3 (unLoc $4) (reverse $6))
-                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
   | downFrom exp ident '{' stmts '}'       { LocStmt (atList (DownFrom $2 (unLoc $3) (reverse $5))
                                                         [$1, getLoc $2, getLoc $3, getLoc $5]) }
-  | downFromTo exp exp ident '{' stmts '}' { LocStmt (atList (DownFromTo $2 $3 (unLoc $4) (reverse $6))
-                                                        [$1, getLoc $2, getLoc $3, getLoc $4, getLoc $6]) }
+
+  | upFromTo '(' exp ',' exp ')' ident '{' stmts '}'
+      { LocStmt (atList (UpFromTo $3 $5 (unLoc $7) (reverse $9))
+          [$1, getLoc $3, getLoc $5, getLoc $7, getLoc $9])
+      }
+
+  | downFromTo '(' exp ',' exp ')' ident '{' stmts '}'
+      { LocStmt (atList (DownFromTo $3 $5 (unLoc $7) (reverse $9))
+          [$1, getLoc $3, getLoc $5, getLoc $7, getLoc $9])
+      }
+
   | forever '{' stmts '}'                  { LocStmt (atBin (Forever (reverse $3)) $1 $2) }
 
   | if exp '{' stmts '}'
@@ -441,7 +493,7 @@ blkStmt :
 
 -- Zero or more statements.
 stmts :: { [Stmt] }
-stmts : stmts simpleStmt ';'   { $2 : $1 }
+stmts : stmts simpleStmt   { $2 : $1 }
       | stmts blkStmt          { $2 : $1 }
       | {- empty -}            { [] }
 
@@ -494,7 +546,7 @@ exp : integer            { let TokInteger i = unLoc $1 in
     | '*' exp              { LocExp (atBin (ExpDeref $2) $1 $2) }
     | exp '@' exp          { LocExp (atBin (ExpArray $1 $3) $1 $3) }
     | exp '[' exp ']'      { LocExp (atBin (ExpDeref (ExpArray $1 $3)) $1 $3) }
-     | exp '.' exp         { LocExp (atBin (ExpStruct $1 $3) $1 $3) }
+    | exp '.' exp          { LocExp (atBin (ExpStruct $1 $3) $1 $3) }
     | exp '->' exp         { LocExp (atBin (ExpDeref (ExpStruct $1 $3)) $1 $3) }
     | '&' ident            { LocExp (atBin (ExpAddrOf (unLoc $2)) $1 $2) }
 
@@ -508,7 +560,7 @@ exp : integer            { let TokInteger i = unLoc $1 in
 
     -- Unary operators
     | '!'       exp      { LocExp (atBin (ExpOp NotOp [$2]) $1 $2) }
-    | '-'       exp      { LocExp (atBin (ExpOp NegateOp [$2]) $1 $2) }
+    | '-'       exp      { LocExp (atBin (mkNegate $2) $1 $2) }
     | '~'       exp      { LocExp (atBin (ExpOp BitComplementOp [$2]) $1 $2) }
 
     -- Binary operators
@@ -820,3 +872,14 @@ tyident :
                                     atBin (t0 ++ '.':t1) $1 $3 }
 
 --------------------------------------------------------------------------------
+{
+mkNegate :: Exp -> Exp
+mkNegate e = go e
+  where
+  go (ExpLit l) = case l of
+    LitInteger i -> ExpLit (LitInteger (negate i))
+    LitFloat   f -> ExpLit (LitFloat   (negate f))
+    _            -> ExpOp NegateOp [e]
+  go (LocExp x) = go (locValue x)
+  go _          = ExpOp NegateOp [e]
+}

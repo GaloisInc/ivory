@@ -43,8 +43,7 @@ loop incr from to body = do
   ix        <- freshVar "ix"
   let ixVar = wrapExpr (AST.ExpVar ix)
   (_,block) <- collect (body ixVar)
-  -- XXX TODO: are these still needed??
-  let asst v = compilerAssert (v <? maxSz .&& (-1) <=? v)
+  let asst v = compilerAssert (v <? maxSz .&& 0 <=? v)
   asst from
   asst to
   emit (AST.Loop maxVal ix (unwrapExpr from) (incr $ unwrapExpr to) (blockStmts block))
@@ -67,6 +66,9 @@ downTo from to = loop AST.DecrTo (fromIx from) (fromIx to)
 --   n :: Ix m, 0 <= n <= m.
 -- @
 -- Indexes increment from 0 to n-1 inclusively.
+--
+-- Note: The definition of `for` may change so that no index value is
+-- provided. (Consider using `upto` if you need to use the index.)
 for :: forall eff n a. ANat n
     => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 for n f = loop AST.IncrTo 0 (fromIx n - 1) f
@@ -76,6 +78,9 @@ for n f = loop AST.IncrTo 0 (fromIx n - 1) f
 --   n :: Ix m, 0 <= n <= m.
 -- @
 -- Indexes decrement from n-1 to 0 inclusively.
+--
+-- Note: The definition of `times` may change so that no index value is
+-- provided. (Consider using `downTo` if you need to use the index.)
 times :: forall eff n a. ANat n
       => Ix n -> (Ix n -> Ivory (E.AllowBreak eff) a) -> Ivory eff ()
 times n = loop AST.DecrTo (fromIx n - 1) 0

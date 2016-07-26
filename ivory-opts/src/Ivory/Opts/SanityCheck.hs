@@ -226,6 +226,8 @@ check = mapM_ go
       -> varString v `hasType` t
     I.RefCopy _ e1 e2
       -> checkExpr e1 >> checkExpr e2
+    I.RefZero _ e1
+      -> checkExpr e1
     I.AllocRef t v _
       -> varString v `hasType` t
     I.Loop _ v _ _ stmts

@@ -135,6 +135,9 @@ toBody ens stmt =
     I.Break                -> err "toBody" (show stmt)
     I.Forever _            -> err "toBody" (show stmt)
 
+    -- TODO: Need to interpret the zero initializer here
+    I.RefZero t ptr        -> err "refZero" (show stmt)
+
 toReturn :: [I.Ensure] -> I.Type -> I.Expr -> ModelCheck ()
 toReturn ens t exp = do
   e <- toExpr t exp

@@ -22,7 +22,7 @@ module Ivory.Language (
   , IvoryRef()
   , ConstRef()
   , IvoryStore()
-  , Ref(), refToPtr, constRef, deref, store, refCopy
+  , Ref(), refToPtr, constRef, deref, store, refCopy, refZero
 
     -- ** Stack Allocation
   , IvoryInit(..), Init()

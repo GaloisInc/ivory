@@ -191,6 +191,10 @@ data Stmt
     -- ^ Ref copy.  Copy the second variable reference to the first (like
     -- memcopy).  The type is the dereferenced value of the variables.
 
+  | RefZero Type Expr
+    -- ^ Ref zero.  Zero out the memory associated with the reference. The type
+    -- parameter is not a reference, but the referenced type.
+
   | AllocRef Type Var Name
     -- ^ Reference allocation.  The type parameter is not a reference, but the
     -- referenced type.
@@ -374,7 +378,12 @@ instance Num Expr where
   l - r         = ExpOp ExpSub [l,r]
   abs e         = ExpOp ExpAbs [e]
   signum e      = ExpOp ExpSignum [e]
-  negate e      = ExpOp ExpNegate [e]
+
+  negate (ExpLit (LitInteger i)) = ExpLit (LitInteger (negate i))
+  negate (ExpLit (LitFloat   f)) = ExpLit (LitFloat   (negate f))
+  negate (ExpLit (LitDouble  d)) = ExpLit (LitDouble  (negate d))
+  negate e                       = ExpOp ExpNegate [e]
+
   fromInteger i = ExpLit (LitInteger i)
 
 instance Bounded Expr where

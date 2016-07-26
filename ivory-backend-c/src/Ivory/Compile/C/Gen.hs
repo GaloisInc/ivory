@@ -260,6 +260,10 @@ toBody ens stmt =
       toRef   = toExpr (I.TyRef t) vto
       fromRef = toExpr (I.TyRef t) vfrom
 
+    I.RefZero t ref ->
+      [C.BlockStm [cstm| memset( $exp:(toExpr (I.TyRef t) ref), 0x0,
+                                 sizeof($ty:(toType t)) ); |] ]
+
     -- Should only be a reference (not a pointer).
     I.AllocRef t l r       -> [C.BlockDecl
         [cdecl| $ty:(toType (I.TyRef rty)) $id:(toVar l) = $exp:rhs; |]]
