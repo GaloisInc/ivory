@@ -1,9 +1,9 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -23,20 +23,22 @@ module Ivory.Opts.SanityCheck
   , render
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat
 
-import           Control.Monad (unless)
+import           Control.Monad                           (unless)
 import qualified Data.Map                                as M
-import           MonadLib
-                     (WriterM(..),StateM(..),sets_,runId,runStateT,runWriterT
-                     ,Id,StateT,WriterT)
+import           MonadLib                                (Id, StateM (..),
+                                                          StateT, WriterM (..),
+                                                          WriterT, runId,
+                                                          runStateT, runWriterT,
+                                                          sets_)
 import           Text.PrettyPrint
 
-import           Ivory.Language.Syntax.Concrete.Location
-import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax.AST               as I
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Syntax.Names             as I
 import qualified Ivory.Language.Syntax.Type              as I
 

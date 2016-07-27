@@ -1,5 +1,5 @@
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 -- | A simple interpreter for a subset of Ivory.
@@ -24,23 +24,26 @@ module Ivory.Eval
   , evalStmt
   ) where
 
-import           Prelude ()
-import qualified Prelude.Compat as Prelude
-import           Prelude.Compat hiding (negate, div, mod, not, and, or)
+import           Prelude                                 ()
+import           Prelude.Compat                          hiding (and, div, mod,
+                                                          negate, not, or)
+import qualified Prelude.Compat                          as Prelude
 
 
-import           Control.Monad (unless,foldM,void)
+import           Control.Monad                           (foldM, unless, void)
 import           Data.Int
 import qualified Data.Map                                as Map
 import           Data.Maybe
 import qualified Data.Sequence                           as Seq
 import           Data.Word
-import           MonadLib
-                     (ExceptionM(..),runId,Id,ExceptionT,runExceptionT,sets_
-                     ,StateT,runStateT,StateM(..))
-import           Ivory.Language.Syntax.Concrete.Location
 import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax                   as I
+import           Ivory.Language.Syntax.Concrete.Location
+import           MonadLib                                (ExceptionM (..),
+                                                          ExceptionT, Id,
+                                                          StateM (..), StateT,
+                                                          runExceptionT, runId,
+                                                          runStateT, sets_)
 
 -- XXX: DEBUG
 -- import Debug.Trace

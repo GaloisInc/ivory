@@ -1,19 +1,19 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns    #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections   #-}
 
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
-import Prelude ()
-import Prelude.Compat hiding (exp)
+import           Prelude                ()
+import           Prelude.Compat         hiding (exp)
 
 
-import           Control.Monad (when,void,forM,forM_)
+import           Control.Monad          (forM, forM_, void, when)
 import           Data.List              (nub)
 import qualified Data.Map               as M
 import           Data.Maybe

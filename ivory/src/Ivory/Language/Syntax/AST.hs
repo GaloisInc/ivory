@@ -1,24 +1,25 @@
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Language.Syntax.AST where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Names
-import Ivory.Language.Syntax.Type
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Names
+import           Ivory.Language.Syntax.Type
 
-import Language.Haskell.TH.Lift (deriveLiftMany)
+import           Language.Haskell.TH.Lift                (deriveLiftMany)
 
 #if __GLASGOW_HASKELL__ < 709
-import Language.Haskell.TH.Syntax (Lift(..))
+import           Language.Haskell.TH.Syntax              (Lift (..))
 #endif
 
-import Data.Ratio (denominator, numerator)
-import qualified Data.Set as Set
+import           Data.Ratio                              (denominator,
+                                                          numerator)
+import qualified Data.Set                                as Set
 
 
 -- Modules ---------------------------------------------------------------------

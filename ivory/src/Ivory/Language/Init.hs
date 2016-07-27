@@ -1,37 +1,37 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Ivory.Language.Init where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                ()
+import           Prelude.Compat
 
-import Ivory.Language.Area
-import Ivory.Language.Array
-import Ivory.Language.Float
-import Ivory.Language.IBool
-import Ivory.Language.IChar
-import Ivory.Language.Monad
-import Ivory.Language.Proc
-import Ivory.Language.Proxy
-import Ivory.Language.Ptr
-import Ivory.Language.Ref
-import Ivory.Language.Scope
-import Ivory.Language.Struct
-import Ivory.Language.Sint
-import Ivory.Language.Type
-import Ivory.Language.Uint
-import qualified Ivory.Language.Syntax as I
+import           Ivory.Language.Area
+import           Ivory.Language.Array
 import qualified Ivory.Language.Effects as E
+import           Ivory.Language.Float
+import           Ivory.Language.IBool
+import           Ivory.Language.IChar
+import           Ivory.Language.Monad
+import           Ivory.Language.Proc
+import           Ivory.Language.Proxy
+import           Ivory.Language.Ptr
+import           Ivory.Language.Ref
+import           Ivory.Language.Scope
+import           Ivory.Language.Sint
+import           Ivory.Language.Struct
+import qualified Ivory.Language.Syntax  as I
+import           Ivory.Language.Type
+import           Ivory.Language.Uint
 
-import Control.Monad (forM_)
+import           Control.Monad          (forM_)
 
-import GHC.TypeLits(Symbol)
+import           GHC.TypeLits           (Symbol)
 
 -- Initializers ----------------------------------------------------------------
 

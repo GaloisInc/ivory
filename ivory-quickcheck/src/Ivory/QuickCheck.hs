@@ -1,15 +1,15 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE ImplicitParams  #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeOperators   #-}
 
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 -- | Check properties of Ivory programs using random inputs.
 --
 -- Example usage:
--- 
+--
 -- > [ivory|
 -- > struct foo
 -- >   { foo_a :: Stored IFloat
@@ -43,18 +43,19 @@
 
 module Ivory.QuickCheck (check, checkWith, contract) where
 
-import           Prelude ()
+import           Prelude                         ()
 import           Prelude.Compat
 
-import           Control.Monad (replicateM,forM)
-import           Data.IORef (IORef,newIORef,readIORef,writeIORef)
-import           Data.List (transpose,find)
+import           Control.Monad                   (forM, replicateM)
+import           Data.IORef                      (IORef, newIORef, readIORef,
+                                                  writeIORef)
+import           Data.List                       (find, transpose)
 import           Ivory.Compile.C.CmdlineFrontend
 import qualified Ivory.Eval                      as E
 import           Ivory.Language
 import           Ivory.Language.Proc
 import qualified Ivory.Language.Syntax           as I
-import           System.IO.Unsafe (unsafeInterleaveIO)
+import           System.IO.Unsafe                (unsafeInterleaveIO)
 
 import qualified Test.QuickCheck.Arbitrary       as A
 import qualified Test.QuickCheck.Gen             as G

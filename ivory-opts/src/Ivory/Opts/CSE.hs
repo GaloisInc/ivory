@@ -1,29 +1,31 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveFoldable       #-}
+{-# LANGUAGE DeriveFunctor        #-}
+{-# LANGUAGE DeriveTraversable    #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Ivory.Opts.CSE (cseFold) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude               ()
+import           Prelude.Compat
 
-import qualified Data.DList as D
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as IntMap
-import Data.IntSet (IntSet)
-import qualified Data.IntSet as IntSet
-import Data.List (sort)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
-import Data.Reify
-import Ivory.Language.Array (ixRep)
+import           Control.Applicative   (liftA2)
+import qualified Data.DList            as D
+import           Data.IntMap.Strict    (IntMap)
+import qualified Data.IntMap.Strict    as IntMap
+import           Data.IntSet           (IntSet)
+import qualified Data.IntSet           as IntSet
+import           Data.List             (sort)
+import           Data.Map.Strict       (Map)
+import qualified Data.Map.Strict       as Map
+import           Data.Reify
+import           Ivory.Language.Array  (ixRep)
 import qualified Ivory.Language.Syntax as AST
-import MonadLib (WriterT, StateT, Id, get, set, sets, sets_, put, collect, lift, runM)
-import System.IO.Unsafe (unsafePerformIO)
+import           MonadLib              (Id, StateT, WriterT, collect, get, lift,
+                                        put, runM, set, sets, sets_)
+import           System.IO.Unsafe      (unsafePerformIO)
 
 -- | Find each common sub-expression and extract it to a new variable,
 -- making any sharing explicit. However, this function should never move

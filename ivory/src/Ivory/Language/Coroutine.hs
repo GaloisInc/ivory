@@ -13,43 +13,43 @@ this is an incidental detail of the current implementation),
 coroutine name and Ivory module.
 
 -}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Ivory.Language.Coroutine (
   -- * Usage Notes
   -- $usageNotes
-  
+
   -- * Implementation Notes
   -- $implNotes
-  
+
   Coroutine(..), CoroutineBody(..), coroutine,
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                ()
+import           Prelude.Compat
 
-import Control.Monad (unless,when)
-import Control.Monad.Fix (mfix)
-import qualified Data.DList as D
-import qualified Data.IntMap as IntMap
-import qualified Data.Map as Map
-import Ivory.Language.Area
-import Ivory.Language.Array
-import Ivory.Language.Effects
-import Ivory.Language.IBool
-import Ivory.Language.Module
-import Ivory.Language.Monad
-import Ivory.Language.Proc
-import Ivory.Language.Proxy
-import Ivory.Language.Ref
-import qualified Ivory.Language.Syntax as AST
-import Ivory.Language.Type
+import           Control.Monad          (unless, when)
+import           Control.Monad.Fix      (mfix)
+import qualified Data.DList             as D
+import qualified Data.IntMap            as IntMap
+import qualified Data.Map               as Map
+import           Ivory.Language.Area
+import           Ivory.Language.Array
+import           Ivory.Language.Effects
+import           Ivory.Language.IBool
+import           Ivory.Language.Module
+import           Ivory.Language.Monad
+import           Ivory.Language.Proc
+import           Ivory.Language.Proxy
+import           Ivory.Language.Ref
+import qualified Ivory.Language.Syntax  as AST
+import           Ivory.Language.Type
 import qualified MonadLib
 
 -- Optimizations TODO:

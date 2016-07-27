@@ -10,32 +10,33 @@ module Ivory.Compile.C.CmdlineFrontend
   , outputCompiler
   ) where
 
-import           Data.List                  (nub, (\\), intercalate)
-import qualified Paths_ivory_backend_c      as P
-import qualified Ivory.Compile.C            as C
+import           Data.List                               (intercalate, nub,
+                                                          (\\))
+import qualified Ivory.Compile.C                         as C
+import qualified Paths_ivory_backend_c                   as P
 
 import           Ivory.Compile.C.CmdlineFrontend.Options
 
-import           Ivory.Language
 import           Ivory.Artifact
-import           Ivory.Language.Syntax.AST  as I
-import qualified Ivory.Opts.BitShift        as O
-import qualified Ivory.Opts.ConstFold       as O
-import qualified Ivory.Opts.CSE             as O
-import qualified Ivory.Opts.Overflow        as O
-import qualified Ivory.Opts.DivZero         as O
-import qualified Ivory.Opts.Index           as O
-import qualified Ivory.Opts.FP              as O
-import qualified Ivory.Opts.SanityCheck     as S
-import qualified Ivory.Opts.TypeCheck       as T
+import           Ivory.Language
+import           Ivory.Language.Syntax.AST               as I
+import qualified Ivory.Opts.BitShift                     as O
+import qualified Ivory.Opts.ConstFold                    as O
+import qualified Ivory.Opts.CSE                          as O
+import qualified Ivory.Opts.DivZero                      as O
+import qualified Ivory.Opts.FP                           as O
+import qualified Ivory.Opts.Index                        as O
+import qualified Ivory.Opts.Overflow                     as O
+import qualified Ivory.Opts.SanityCheck                  as S
+import qualified Ivory.Opts.TypeCheck                    as T
 
 
-import Data.Maybe (mapMaybe, catMaybes)
-import Control.Monad (when)
-import Data.List (foldl')
-import System.Directory (createDirectoryIfMissing)
-import System.Environment (getArgs)
-import System.FilePath (addExtension,(</>))
+import           Control.Monad                           (when)
+import           Data.List                               (foldl')
+import           Data.Maybe                              (catMaybes, mapMaybe)
+import           System.Directory                        (createDirectoryIfMissing)
+import           System.Environment                      (getArgs)
+import           System.FilePath                         (addExtension, (</>))
 
 -- Code Generation Front End ---------------------------------------------------
 

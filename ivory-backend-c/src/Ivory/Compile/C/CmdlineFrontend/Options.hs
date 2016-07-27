@@ -1,13 +1,13 @@
 module Ivory.Compile.C.CmdlineFrontend.Options where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude               ()
+import           Prelude.Compat
 
-import System.Console.GetOpt
-    (ArgOrder(Permute),OptDescr(..),ArgDescr(..),getOpt,usageInfo)
+import           System.Console.GetOpt (ArgDescr (..), ArgOrder (Permute),
+                                        OptDescr (..), getOpt, usageInfo)
 
-import System.Environment (getProgName)
-import System.Exit (exitFailure,exitSuccess)
+import           System.Environment    (getProgName)
+import           System.Exit           (exitFailure, exitSuccess)
 
 -- Option Parsing --------------------------------------------------------------
 

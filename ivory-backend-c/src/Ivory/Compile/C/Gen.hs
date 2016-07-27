@@ -1,26 +1,26 @@
+{-# LANGUAGE CPP            #-}
 {-# LANGUAGE PackageImports #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE QuasiQuotes    #-}
 
 -- | Ivory backend targeting language-c-quote.
 
 module Ivory.Compile.C.Gen where
 
-import qualified "language-c-quote" Language.C.Syntax as C
-import Language.C.Quote.GCC
+import           Language.C.Quote.GCC
+import qualified "language-c-quote" Language.C.Syntax                     as C
 
-import qualified Ivory.Language.Array  as I
-import qualified Ivory.Language.Syntax as I
-import Ivory.Language.Syntax.Concrete.Pretty
-import qualified Ivory.Language.Proc as P
+import qualified Ivory.Language.Array                  as I
+import qualified Ivory.Language.Proc                   as P
+import qualified Ivory.Language.Syntax                 as I
+import           Ivory.Language.Syntax.Concrete.Pretty
 
-import Ivory.Compile.C.Types
-import Ivory.Compile.C.Prop
+import           Ivory.Compile.C.Prop
+import           Ivory.Compile.C.Types
 
-import Prelude hiding (exp, abs, signum)
-import Data.List (foldl')
+import           Data.List                             (foldl')
+import           Prelude                               hiding (abs, exp, signum)
 
-import Data.Loc (noLoc)
+import           Data.Loc                              (noLoc)
 
 data Visibility = Public | Private deriving (Show, Eq)
 

@@ -1,12 +1,13 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 
 --
 -- Type check to ensure there are no empty blocks in procedures, for non-void
 -- procedures, a value is returned, there is no dead code (code after a return
--- statement), no field in a struct is initialized twice.
+-- statement), no field in a struct is initialized twice, and that arrays have
+-- the right number of elements initialized.
 --
 -- Copyright (C) 2014, Galois, Inc.
 -- All rights reserved.
@@ -20,18 +21,21 @@ module Ivory.Opts.TypeCheck
   , Results()
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat                          hiding (init)
 
-import Control.Monad (when,void)
-import MonadLib
-           (WriterM(..),StateM(..),runId,runStateT,runWriterT,Id,StateT,WriterT)
-import Data.List (nub)
+import           Control.Monad                           (unless, void, when)
+import           Data.List                               (nub)
+import           MonadLib                                (Id, StateM (..),
+                                                          StateT, WriterM (..),
+                                                          WriterT, runId,
+                                                          runStateT, runWriterT)
+import           Text.PrettyPrint
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Concrete.Pretty
-import qualified Ivory.Language.Syntax.AST  as I
-import qualified Ivory.Language.Syntax.Type as I
+import qualified Ivory.Language.Syntax.AST               as I
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.Pretty
+import qualified Ivory.Language.Syntax.Type              as I
 
 --------------------------------------------------------------------------------
 -- Errors types
