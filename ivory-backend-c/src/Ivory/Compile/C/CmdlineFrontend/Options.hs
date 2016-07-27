@@ -45,34 +45,34 @@ parseOptions opts args = case getOpt Permute opts args of
 -- Command Line Options --------------------------------------------------------
 
 data Opts = Opts
-  { outDir      :: Maybe FilePath
+  { outDir        :: Maybe FilePath
   -- ^ output directory for all files (or standard out).
-  , outHdrDir   :: Maybe FilePath
+  , outHdrDir     :: Maybe FilePath
   -- ^ if set, output directory for headers. Otherwise, use @outDir@.
-  , outArtDir   :: Maybe FilePath
+  , outArtDir     :: Maybe FilePath
   -- ^ if set, output directory for artifacts. Otherwise, use @outDir@.
 
   -- optimization passes
-  , constFold   :: Bool
-  , overflow    :: Bool
-  , divZero     :: Bool
-  , ixCheck     :: Bool
-  , fpCheck     :: Bool
-  , outProcSyms :: Bool
+  , constFold     :: Bool
+  , overflow      :: Bool
+  , divZero       :: Bool
+  , ixCheck       :: Bool
+  , fpCheck       :: Bool
+  , outProcSyms   :: Bool
   , bitShiftCheck :: Bool
   -- CFG stuff
-  , cfg         :: Bool
-  , cfgDotDir   :: FilePath
-  , cfgProc     :: [String]
+  , cfg           :: Bool
+  , cfgDotDir     :: FilePath
+  , cfgProc       :: [String]
   -- debugging
-  , verbose     :: Bool
-  , srcLocs     :: Bool
+  , verbose       :: Bool
+  , srcLocs       :: Bool
   -- Typechecking
-  , tcWarnings  :: Bool
-  , tcErrors    :: Bool
-  , scErrors    :: Bool
+  , tcWarnings    :: Bool
+  , tcErrors      :: Bool
+  , scErrors      :: Bool
 
-  , help        :: Bool
+  , help          :: Bool
   } deriving (Show)
 
 initialOpts :: Opts
@@ -97,7 +97,7 @@ initialOpts  = Opts
   -- debugging
   , verbose      = False
   , srcLocs      = False
-  , tcWarnings   = False
+  , tcWarnings   = True
   , tcErrors     = True
   , scErrors     = True
   , help         = False
