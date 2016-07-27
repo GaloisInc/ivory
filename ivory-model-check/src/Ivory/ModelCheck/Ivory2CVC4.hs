@@ -189,7 +189,7 @@ toInit ty init =
        I.TyBool    -> return false
        _           -> return $ intLit 0
     I.InitExpr t exp -> toExpr t exp
-    I.InitArray is   -> do
+    I.InitArray is _ -> do
       let (I.TyArr k t) = ty
       tv <- fmap var $ incReservedVar =<< toType ty
       forM_ (zip [0..] is) $ \ (ix,i) -> do

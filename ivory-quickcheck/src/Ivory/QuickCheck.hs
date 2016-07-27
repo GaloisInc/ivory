@@ -293,7 +293,7 @@ sampleArray :: (?counter :: IORef Integer)
 sampleArray m len ty = repeatIO $ do
   (vars, blcks) <- unzip <$> replicateM len (head <$> sampleType m ty)
   let init = [ I.InitExpr ty (I.ExpVar v) | v <- vars ]
-  (v, blck) <- mkLocal (I.TyArr len ty) (I.InitArray init)
+  (v, blck) <- mkLocal (I.TyArr len ty) (I.InitArray init True)
   return (v, concat blcks ++ blck)
 
 repeatIO :: IO a -> IO [a]

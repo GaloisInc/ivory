@@ -40,14 +40,14 @@ import           GHC.TypeLits           (Symbol)
 -- in a "FreshName" monad when the variable is allocated.
 data XInit
   = IVal      I.Type I.Init
-  | IArray    I.Type [XInit]
+  | IArray    I.Type [XInit] Bool -- True if no dropped initialization values.
   | IStruct   I.Type [(String, XInit)]
   | IFresh    I.Type XInit (I.Var -> I.Init)
 
 -- | Return the type of the initializer.
 initType :: XInit -> I.Type
 initType (IVal    ty _)   = ty
-initType (IArray  ty _)   = ty
+initType (IArray  ty _ _) = ty
 initType (IStruct ty _)   = ty
 initType (IFresh  ty _ _) = ty
 
@@ -94,11 +94,11 @@ runInit ini =
   case ini of
     IVal _ i ->
       return (i, [])
-    IArray _ is -> do
+    IArray _ is b -> do
       binds    <- mapM runInit is
       let inis  = map fst binds
       let aux   = concatMap snd binds
-      return (I.InitArray inis, aux)
+      return (I.InitArray inis b, aux)
     IStruct _ is -> do
       binds    <- mapM iniStruct is
       let inis  = map fst binds
@@ -180,11 +180,12 @@ instance (IvoryZero area, IvoryArea area, ANat len) =>
 
 iarray :: forall len area. (IvoryArea area, ANat len)
        => [Init area] -> Init ('Array len area)
-iarray is = Init (IArray ty (take len (map getInit is)))
-            -- truncate to known length
+iarray is =
+  Init (IArray ty (take len (map getInit is)) (null (drop len is)))
+  -- truncate to known length, Bool tells us if there were dropped values.
   where
   len = fromInteger (fromTypeNat (aNat :: NatType len))
-  ty = ivoryArea (Proxy :: Proxy ('Array len area))
+  ty  = ivoryArea (Proxy :: Proxy ('Array len area))
 
 -- Struct Initializers ---------------------------------------------------------
 

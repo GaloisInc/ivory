@@ -120,15 +120,21 @@ outputmodules opts cmodules user_artifacts = do
 -- | Compile, type-check, and optimize modules, but don't generate C files.
 compileUnits ::[Module] -> Opts -> IO [C.CompileUnits]
 compileUnits modules opts = do
-  let (bs, msgs) = concatRes (map tcMod modules)
-  putStrLn msgs
+
+--  let (bs, warnMsgs, errMsgs) = concatRes (map tcMod modules)
+  let (bs, warnMsgs, errMsgs) = unzip3 (map tcMod modules)
+  when (tcWarnings opts) (mapM_ putStrLn warnMsgs)
+  mapM_ putStrLn errMsgs
+  when (tcErrors opts && (or bs)) (error "There were type-checking errors.")
+
   when (scErrors opts) $ do
     let (bs', msgs') = concatRes (map scMod modules)
     when bs' $ do
       putStrLn msgs'
       error "Sanity-check failed!"
-  when (tcErrors opts && bs) (error "There were type-checking errors.")
+
   return (mkCUnits modules opts)
+
   where
   concatRes :: [(Bool, String)] -> (Bool, String)
   concatRes r = let (bs, strs) = unzip r in
@@ -140,26 +146,13 @@ compileUnits modules opts = do
     res = S.sanityCheck modules m
     msg = S.showErrors (I.modName m) res
 
-  tcMod :: I.Module -> (Bool, String)
-  tcMod m = concatRes reses
-
+  tcMod :: I.Module -> (Bool, String, String)
+  tcMod m = ( T.existErrors res
+            , unlines (map T.showWarnings res)
+            , unlines (map T.showErrors res)
+            )
     where
-    showWarnings = tcWarnings opts
-
-    allProcs vs = I.public vs ++ I.private vs
-
-    reses :: [(Bool, String)]
-    reses = map tcProc (allProcs (I.modProcs m))
-
-    tcProc :: I.Proc -> (Bool, String)
-    tcProc p = ( T.existErrors tc
-               , errs ++ if showWarnings then warnings else []
-               )
-      where
-      tc       = T.typeCheck p
-      res f    = unlines $ f (I.procSym p) tc
-      warnings = res T.showWarnings
-      errs     = res T.showErrors
+    res = T.typeCheck m
 
 mkCUnits :: [Module] -> Opts -> [C.CompileUnits]
 mkCUnits modules opts = cmodules

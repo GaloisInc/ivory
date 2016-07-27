@@ -159,7 +159,7 @@ stmtFold ef stmt = case stmt of
     I.InitZero          -> return ()
     I.InitExpr ty e     -> ef ty e
     I.InitStruct inits  -> mapM_ (efInit . snd) inits
-    I.InitArray inits   -> mapM_ efInit inits
+    I.InitArray inits _ -> mapM_ efInit inits
 
 --------------------------------------------------------------------------------
 

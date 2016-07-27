@@ -338,10 +338,10 @@ typedRet I.Typed { I.tType  = t
 
 toInit :: I.Init -> C.Initializer
 toInit i = case i of
-  I.InitZero      -> [cinit|{$inits:([])}|] -- {}
-  I.InitExpr ty e -> [cinit|$exp:(toExpr ty e)|]
-  I.InitArray is  -> [cinit|{$inits:([ toInit j | j <- is ])}|]
-  I.InitStruct fs ->
+  I.InitZero       -> [cinit|{$inits:([])}|] -- {}
+  I.InitExpr ty e  -> [cinit|$exp:(toExpr ty e)|]
+  I.InitArray is _ -> [cinit|{$inits:([ toInit j | j <- is ])}|]
+  I.InitStruct fs  ->
     C.CompoundInitializer [ (Just (fieldDes f), toInit j) | (f,j) <- fs ] noLoc
 
 fieldDes :: String -> C.Designation

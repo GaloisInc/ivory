@@ -440,7 +440,8 @@ data Init
   = InitZero                   -- ^ @ {} @
   | InitExpr Type Expr         -- ^ @ expr @
   | InitStruct [(String,Init)] -- ^ @ { .f1 = i1, ..., .fn = in } @
-  | InitArray [Init]           -- ^ @ { i1, ..., in } @
+  | InitArray [Init] Bool      -- ^ @ { i1, ..., in } @
+  -- Bool true if no unused initialization values.
     deriving (Show, Eq, Ord)
 
 

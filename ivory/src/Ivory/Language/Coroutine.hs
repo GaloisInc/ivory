@@ -521,9 +521,10 @@ updateInit (AST.InitStruct fields) =
   -- Every field of a @struct@ in an 'AST.InitStruct' contains an expression
   -- that must go through 'updateExpr':
   AST.InitStruct <$> mapM (\ (name, ex) -> (,) name <$> updateInit ex) fields
-updateInit (AST.InitArray elems) =
+updateInit (AST.InitArray elems b) = do
   -- An 'AST.InitArray' is a list of 'AST.Init' which we must recurse over:
-  AST.InitArray <$> mapM updateInit elems
+  ls <- mapM updateInit elems
+  return (AST.InitArray ls b)
 
 -- | Basically 'updateExpr', but on a typed expression.
 updateTypedExpr :: AST.Typed AST.Expr -> UpdateExpr (AST.Typed AST.Expr)

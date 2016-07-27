@@ -139,9 +139,12 @@ stmtFold cxt opt stmt =
 
 constFoldInits :: CopyMap -> I.Init -> I.Init
 constFoldInits _ I.InitZero = I.InitZero
-constFoldInits copies (I.InitExpr ty expr) = I.InitExpr ty $ cf copies ty expr
-constFoldInits copies (I.InitStruct i) = I.InitStruct $ map (second (constFoldInits copies)) i
-constFoldInits copies (I.InitArray i) = I.InitArray $ map (constFoldInits copies) i
+constFoldInits copies (I.InitExpr ty expr) =
+  I.InitExpr ty $ cf copies ty expr
+constFoldInits copies (I.InitStruct i)     =
+  I.InitStruct $ map (second (constFoldInits copies)) i
+constFoldInits copies (I.InitArray i b)    =
+  I.InitArray (map (constFoldInits copies) i) b
 
 --------------------------------------------------------------------------------
 -- Expressions

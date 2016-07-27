@@ -424,12 +424,12 @@ evalInit :: I.Type -> I.Init -> Eval Value
 evalInit ty init = case init of
   I.InitZero
     -> case ty of
-         I.TyArr _ _  -> evalInit ty (I.InitArray [])
+         I.TyArr _ _  -> evalInit ty (I.InitArray [] True)
          I.TyStruct _ -> evalInit ty (I.InitStruct [])
          _            -> return (mkVal ty 0)
   I.InitExpr ty expr
     -> evalExpr ty expr
-  I.InitArray inits
+  I.InitArray inits _
     -> case ty of
          I.TyArr len ty
            -> Array . Seq.fromList

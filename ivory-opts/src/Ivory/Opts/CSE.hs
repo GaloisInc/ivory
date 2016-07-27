@@ -158,7 +158,7 @@ data InitF t
   = InitZero
   | InitExpr AST.Type t
   | InitStruct [(String, InitF t)]
-  | InitArray [InitF t]
+  | InitArray [InitF t] Bool
   deriving (Show, Eq, Ord, Functor)
 
 instance MuRef AST.Stmt where
@@ -187,7 +187,7 @@ instance MuRef AST.Stmt where
     mapInit AST.InitZero = pure InitZero
     mapInit (AST.InitExpr ty ex) = InitExpr ty <$> child ex
     mapInit (AST.InitStruct fields) = InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> mapInit i) fields
-    mapInit (AST.InitArray elements) = InitArray <$> traverse mapInit elements
+    mapInit (AST.InitArray elements b) = liftA2 InitArray (traverse mapInit elements) (pure b)
     mapIncr (AST.IncrTo ex) = IncrTo <$> child ex
     mapIncr (AST.DecrTo ex) = DecrTo <$> child ex
 
@@ -223,7 +223,7 @@ toBlock expr block b = case b of
   toInit InitZero = pure AST.InitZero
   toInit (InitExpr ty ex) = AST.InitExpr ty <$> expr ex ty
   toInit (InitStruct fields) = AST.InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> toInit i) fields
-  toInit (InitArray elements) = AST.InitArray <$> traverse toInit elements
+  toInit (InitArray elements b') = liftA2 AST.InitArray (traverse toInit elements) (pure b')
   toIncr (IncrTo ex) = AST.IncrTo <$> expr ex ixRep
   toIncr (DecrTo ex) = AST.DecrTo <$> expr ex ixRep
 
@@ -387,6 +387,9 @@ reconstruct (Graph subexprs root) = D.toList rootBlock
   -- NOTE: `dedup` needs to merge the constants in first, which means
   -- that as long as this is a `foldr`, they need to be appended after
   -- `subexprs`. Don't try to optimize this by re-ordering the list.
-  (_, remap, (_, blockFacts)) = foldr (dedup usedOnce) mempty $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
+  (_, remap, (_, blockFacts)) =
+    foldr (dedup usedOnce) mempty
+      $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
   Just rootGen = IntMap.lookup (IntMap.findWithDefault root root remap) blockFacts
-  (((), Bindings { unusedBindings = usedOnce }), rootBlock) = runM rootGen $ Bindings Map.empty IntSet.empty 0
+  (((), Bindings { unusedBindings = usedOnce }), rootBlock) =
+    runM rootGen $ Bindings Map.empty IntSet.empty 0
