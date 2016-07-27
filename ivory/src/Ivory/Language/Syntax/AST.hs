@@ -29,7 +29,7 @@ import qualified Data.Set                                as Set
 type ModulePath = String
 
 data Visible a = Visible
-  { public :: [a]
+  { public  :: [a]
   , private :: [a]
   } deriving (Show, Eq, Ord)
 
@@ -262,9 +262,9 @@ newtype Ensure = Ensure
 
 -- | External Symbols.
 data Extern = Extern
-  { externSym     :: Sym
-  , externFile    :: ModulePath
-  , externType    :: Type
+  { externSym  :: Sym
+  , externFile :: ModulePath
+  , externType :: Type
   } deriving (Show, Eq, Ord)
 
 -- Expressions -----------------------------------------------------------------
