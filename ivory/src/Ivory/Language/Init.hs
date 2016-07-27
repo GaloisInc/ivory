@@ -74,9 +74,9 @@ instance FreshName (Ivory eff) where
 
 -- | A variable binding (on the stack or in a memory area).
 data Binding = Binding
-  { bindingVar    :: I.Var
-  , bindingType   :: I.Type
-  , bindingInit   :: I.Init
+  { bindingVar  :: I.Var
+  , bindingType :: I.Type
+  , bindingInit :: I.Init
   } deriving Show
 
 -- XXX do not export

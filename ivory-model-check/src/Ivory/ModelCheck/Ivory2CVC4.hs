@@ -258,7 +258,7 @@ toCallInline t retV (I.Proc {..}) args = do
      rv <- lookupVar (toVar I.retval)
      addInvariant (var r .== var rv)
 
-  
+
 toCallContract :: I.Type -> Maybe I.Var -> I.Proc -> [I.Typed I.Expr] -> ModelCheck ()
 toCallContract t retV pc args = do
   let su = [ (v, e) | (I.Typed _ v, I.Typed _ e) <- zip (I.procArgs pc) args]
@@ -274,7 +274,7 @@ toCallContract t retV pc args = do
   where
   checkRequires su reqs = forM_ reqs $ \ (I.Require c) ->
     addQuery =<< toAssertion (subst su) c
-    
+
   assumeEnsures su ens = forM_ ens $ \ (I.Ensure c) ->
     addInvariant =<< toAssertion (subst su) c
 
@@ -323,7 +323,7 @@ toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
   I.ExpSym s                 -> return (var s)
   I.ExpVar v                 -> var <$> lookupVar (toVar v)
-  I.ExpLit lit               -> 
+  I.ExpLit lit               ->
     case lit of
       I.LitInteger i -> return $ intLit i
       I.LitFloat  r  -> return $ realLit $ realToFrac r

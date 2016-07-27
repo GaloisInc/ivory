@@ -261,14 +261,14 @@ keepUsedBlocks root blocks = sweep $ snd $ MonadLib.runM (mark root >> ref root)
     foldr doInline blocks [ label | (label, 1) <- IntMap.assocs used ]
 
 data CoroutineParams = CoroutineParams
-  { getCont :: String -> AST.Expr
+  { getCont       :: String -> AST.Expr
   , getBreakLabel :: Terminator
   }
 
 data CoroutineState = CoroutineState
   { rewrites :: Map.Map AST.Var (CoroutineMonad AST.Expr)
-  , labels :: [BasicBlock]
-  , derefs :: !Integer
+  , labels   :: [BasicBlock]
+  , derefs   :: !Integer
   }
 
 type CoroutineResume = Map.Map Goto (AST.Expr -> AST.Block)

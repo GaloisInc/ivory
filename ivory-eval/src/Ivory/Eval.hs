@@ -65,7 +65,7 @@ data EvalState = EvalState
 
 initState :: Map.Map I.Sym Value -> EvalState
 initState st = EvalState st NoLoc Map.empty
-               
+
 -- | Run an action inside the scope of a given module.
 openModule :: I.Module -> Eval a -> Eval a
 openModule (I.Module {..}) doThis = do

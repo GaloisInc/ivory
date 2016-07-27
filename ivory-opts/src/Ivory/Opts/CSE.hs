@@ -39,8 +39,8 @@ cseFold def = def
 -- | Variable assignments emitted so far.
 data Bindings = Bindings
   { availableBindings :: (Map (Unique, AST.Type) Int)
-  , unusedBindings :: IntSet
-  , totalBindings :: Int
+  , unusedBindings    :: IntSet
+  , totalBindings     :: Int
   }
 
 -- | A monad for emitting both source-level statements as well as
