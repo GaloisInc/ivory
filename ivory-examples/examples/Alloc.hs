@@ -10,6 +10,7 @@ module Alloc where
 import           Ivory.Compile.C.CmdlineFrontend
 import           Ivory.Compile.C.Modules
 import           Ivory.Language
+import           Ivory.Language.Loop
 
 
 [ivory|
