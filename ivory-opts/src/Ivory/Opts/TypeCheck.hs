@@ -34,7 +34,6 @@ import           Text.PrettyPrint
 
 import qualified Ivory.Language.Syntax.AST               as I
 import           Ivory.Language.Syntax.Concrete.Location
-import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Syntax.Type              as I
 import           Ivory.Opts.Utils
 
