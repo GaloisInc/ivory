@@ -6,8 +6,12 @@ module Ivory.Opts.Utils
 
 where
 
-import qualified Ivory.Language.Syntax.AST as I
-import qualified Ivory.Language.Syntax.Type as I
+import           Text.PrettyPrint
+
+import qualified Ivory.Language.Syntax.AST               as I
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.Pretty   (pretty, prettyPrint)
+import qualified Ivory.Language.Syntax.Type              as I
 
 --------------------------------------------------------------------------------
 
@@ -23,5 +27,15 @@ expOpType t0 op = case op of
   _                 -> t0
 
 --------------------------------------------------------------------------------
+-- PrettyPrinting
 
+mkOut :: String -> String -> (a -> Doc) -> [a] -> String
+mkOut _   _    _  [] = ""
+mkOut sym kind sh ls = render (nm <+> vcat (map go ls))
+  where
+  go x = nest 3 (text kind <> colon <+> sh x)
+  nm   = text "***" <+> text "procedure/area" <+> text sym
 
+showWithLoc :: (a -> Doc) -> Located a -> Doc
+showWithLoc sh (Located loc a) =
+  text (prettyPrint (pretty loc)) <> colon <+> sh a

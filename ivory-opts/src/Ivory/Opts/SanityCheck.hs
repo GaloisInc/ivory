@@ -20,7 +20,6 @@ module Ivory.Opts.SanityCheck
   , showErrors
   , existErrors
   , Results()
-  , render
   ) where
 
 import           Prelude                                 ()
@@ -41,6 +40,7 @@ import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Syntax.Names             as I
 import qualified Ivory.Language.Syntax.Type              as I
+import           Ivory.Opts.Utils
 
 --------------------------------------------------------------------------------
 -- Errors types
@@ -71,19 +71,9 @@ showError err = case err of
       $$ text "but is used with type:"
       $$ nest 4 (quotes (pretty expected))
 
-showWithLoc :: (a -> Doc) -> Located a -> Doc
-showWithLoc sh (Located loc a) = pretty loc <> text ":" $$ nest 2 (sh a)
-
-showErrors :: String -> Results -> Doc
+showErrors :: String -> Results -> String
 showErrors procName res
   = mkOut procName "ERROR" (showWithLoc showError) (errors res)
-
-mkOut :: String -> String -> (a -> Doc) -> [a] -> Doc
-mkOut _   _    _  [] = empty
-mkOut sym kind sh ls = nm $$ nest 4 (vcat (map go ls)) $$ empty
-  where
-  go x = text kind <> text ":" <+> sh x
-  nm   = text "*** Procedure" <+> text sym
 
 --------------------------------------------------------------------------------
 -- Writer Monad

@@ -141,17 +141,18 @@ compileUnits modules opts = do
                 (or bs, concat strs)
 
   scMod :: I.Module -> (Bool, String)
-  scMod m = (S.existErrors res, S.render msg)
+  scMod m = (S.existErrors res, msg)
     where
     res = S.sanityCheck modules m
     msg = S.showErrors (I.modName m) res
 
   tcMod :: I.Module -> (Bool, String, String)
   tcMod m = ( T.existErrors res
-            , unlines (map T.showWarnings res)
-            , unlines (map T.showErrors res)
+            , skipEmpty T.showWarnings
+            , skipEmpty T.showErrors
             )
     where
+    skipEmpty f = unlines (filter (not . null) (map f res))
     res = T.typeCheck m
 
 mkCUnits :: [Module] -> Opts -> [C.CompileUnits]

@@ -36,6 +36,7 @@ import qualified Ivory.Language.Syntax.AST               as I
 import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Syntax.Type              as I
+import           Ivory.Opts.Utils
 
 --------------------------------------------------------------------------------
 -- Errors types
@@ -95,10 +96,6 @@ showWarning w = case w of
   ArrayInitUnusedWarning
     -> text "Array contains unused initializers."
 
-showWithLoc :: (a -> Doc) -> Located a -> Doc
-showWithLoc sh (Located loc a) =
-  text (prettyPrint (pretty loc)) <> colon <+> sh a
-
 -- | Show all the typechecking errors for a module item.
 showErrors :: ModuleResult -> String
 showErrors (ModuleResult nm res)
@@ -108,13 +105,6 @@ showErrors (ModuleResult nm res)
 showWarnings :: ModuleResult -> String
 showWarnings (ModuleResult nm res)
   = mkOut nm "WARNING" (showWithLoc showWarning) (warnings res)
-
-mkOut :: String -> String -> (a -> Doc) -> [a] -> String
-mkOut _   _    _  [] = render empty
-mkOut sym kind sh ls = render (nm <+> vcat (map go ls))
-  where
-  go x = nest 3 (text kind <> colon <+> sh x)
-  nm   = text "***" <+> text "procedure/area" <+> text sym
 
 --------------------------------------------------------------------------------
 -- Writer Monad
