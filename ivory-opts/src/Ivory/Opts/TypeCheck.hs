@@ -222,7 +222,9 @@ checkInit mty init =
       let mlen = getArrayLen <$> mty
       case mlen of
         Nothing  -> return ()
-        Just len -> when (length inits < len) (putWarn ArrayInitPartialWarning)
+        -- Assume default initialization if zero inits
+        Just len -> when (not (null inits) && length inits < len)
+                         (putWarn ArrayInitPartialWarning)
 
 getArrayLen :: I.Type -> Int
 getArrayLen ty = case ty of
