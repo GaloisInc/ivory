@@ -70,9 +70,8 @@ mkStructDef def = funD 'S.structDef
 
   mkField f =
     [| AST.Typed
-         { AST.tType  = $(mkTypeE (fieldType f))
-         , AST.tValue = $(stringE (fieldName f))
-         }
+         $(mkTypeE (fieldType f))
+         $(stringE (fieldName f))
     |]
 
 -- Field Labels ----------------------------------------------------------------
