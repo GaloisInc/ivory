@@ -330,10 +330,20 @@ fromBitData d = do
 
 -- | Generate a newtype definition for a bit data definition.
 mkDefNewtype :: THDef -> [DecQ]
-mkDefNewtype def = [newtypeD (cxt []) name []
-                    (normalC name [strictType notStrict (return ty)])
-                    [ ''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr , ''I.IvoryEq
-                    , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ]]
+mkDefNewtype def =
+#if __GLASGOW_HASKELL__ >= 800
+  [newtypeD (cxt []) name []
+   Nothing
+   (normalC name [strictType notStrict (return ty)])
+   (mapM conT
+    [ ''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr , ''I.IvoryEq
+    , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ])]
+#else
+  [newtypeD (cxt []) name []
+   (normalC name [strictType notStrict (return ty)])
+   [ ''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr , ''I.IvoryEq
+   , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ]]
+#endif
   where
     name = thDefName def
     ty   = thDefType def
