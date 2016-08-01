@@ -877,8 +877,8 @@ mkNegate :: Exp -> Exp
 mkNegate e = go e
   where
   go (ExpLit l) = case l of
-    LitInteger i -> ExpLit (LitInteger (negate i))
-    LitFloat   f -> ExpLit (LitFloat   (negate f))
+    LitInteger i -> ExpLit (LitInteger (-i))
+    LitFloat   f -> ExpLit (LitFloat   (-f))
     _            -> ExpOp NegateOp [e]
   go (LocExp x) = go (locValue x)
   go _          = ExpOp NegateOp [e]

@@ -1,19 +1,19 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns    #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-unused-binds   #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections   #-}
 
 module Ivory.ModelCheck.Ivory2CVC4
 --  ( modelCheckMod )
  where
 
-import Prelude ()
-import Prelude.Compat hiding (exp)
+import           Prelude                ()
+import           Prelude.Compat         hiding (exp)
 
 
-import           Control.Monad (when,void,forM,forM_)
+import           Control.Monad          (forM, forM_, void, when)
 import           Data.List              (nub)
 import qualified Data.Map               as M
 import           Data.Maybe
@@ -189,7 +189,7 @@ toInit ty init =
        I.TyBool    -> return false
        _           -> return $ intLit 0
     I.InitExpr t exp -> toExpr t exp
-    I.InitArray is   -> do
+    I.InitArray is _ -> do
       let (I.TyArr k t) = ty
       tv <- fmap var $ incReservedVar =<< toType ty
       forM_ (zip [0..] is) $ \ (ix,i) -> do
@@ -258,7 +258,7 @@ toCallInline t retV (I.Proc {..}) args = do
      rv <- lookupVar (toVar I.retval)
      addInvariant (var r .== var rv)
 
-  
+
 toCallContract :: I.Type -> Maybe I.Var -> I.Proc -> [I.Typed I.Expr] -> ModelCheck ()
 toCallContract t retV pc args = do
   let su = [ (v, e) | (I.Typed _ v, I.Typed _ e) <- zip (I.procArgs pc) args]
@@ -274,7 +274,7 @@ toCallContract t retV pc args = do
   where
   checkRequires su reqs = forM_ reqs $ \ (I.Require c) ->
     addQuery =<< toAssertion (subst su) c
-    
+
   assumeEnsures su ens = forM_ ens $ \ (I.Ensure c) ->
     addInvariant =<< toAssertion (subst su) c
 
@@ -323,7 +323,7 @@ toExpr :: I.Type -> I.Expr -> ModelCheck Expr
 toExpr t exp = case exp of
   I.ExpSym s                 -> return (var s)
   I.ExpVar v                 -> var <$> lookupVar (toVar v)
-  I.ExpLit lit               -> 
+  I.ExpLit lit               ->
     case lit of
       I.LitInteger i -> return $ intLit i
       I.LitFloat  r  -> return $ realLit $ realToFrac r

@@ -1,15 +1,15 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE ImplicitParams  #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeOperators   #-}
 
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 -- | Check properties of Ivory programs using random inputs.
 --
 -- Example usage:
--- 
+--
 -- > [ivory|
 -- > struct foo
 -- >   { foo_a :: Stored IFloat
@@ -43,18 +43,19 @@
 
 module Ivory.QuickCheck (check, checkWith, contract) where
 
-import           Prelude ()
+import           Prelude                         ()
 import           Prelude.Compat
 
-import           Control.Monad (replicateM,forM)
-import           Data.IORef (IORef,newIORef,readIORef,writeIORef)
-import           Data.List (transpose,find)
+import           Control.Monad                   (forM, replicateM)
+import           Data.IORef                      (IORef, newIORef, readIORef,
+                                                  writeIORef)
+import           Data.List                       (find, transpose)
 import           Ivory.Compile.C.CmdlineFrontend
 import qualified Ivory.Eval                      as E
 import           Ivory.Language
 import           Ivory.Language.Proc
 import qualified Ivory.Language.Syntax           as I
-import           System.IO.Unsafe (unsafeInterleaveIO)
+import           System.IO.Unsafe                (unsafeInterleaveIO)
 
 import qualified Test.QuickCheck.Arbitrary       as A
 import qualified Test.QuickCheck.Gen             as G
@@ -192,10 +193,10 @@ sampleType m t = case t of
     -> sampleArray m len ty
   I.TyStruct ty
     -> sampleStruct m ty
-  I.TyProc _ _ -> err 
-  I.TyVoid     -> err 
-  I.TyPtr _    -> err 
-  I.TyCArray _ -> err 
+  I.TyProc _ _ -> err
+  I.TyVoid     -> err
+  I.TyPtr _    -> err
+  I.TyCArray _ -> err
   I.TyOpaque   -> err
   where
   err = error $ "I don't know how to make values of type '" ++ show t ++ "'!"
@@ -292,7 +293,7 @@ sampleArray :: (?counter :: IORef Integer)
 sampleArray m len ty = repeatIO $ do
   (vars, blcks) <- unzip <$> replicateM len (head <$> sampleType m ty)
   let init = [ I.InitExpr ty (I.ExpVar v) | v <- vars ]
-  (v, blck) <- mkLocal (I.TyArr len ty) (I.InitArray init)
+  (v, blck) <- mkLocal (I.TyArr len ty) (I.InitArray init True)
   return (v, concat blcks ++ blck)
 
 repeatIO :: IO a -> IO [a]

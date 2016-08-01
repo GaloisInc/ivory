@@ -1,7 +1,7 @@
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 
 -- | Fold over expressions that collect up assertions about the expressions.
 
@@ -13,15 +13,16 @@ module Ivory.Opts.AssertFold
   , freshVar
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                    ()
+import           Prelude.Compat
 
-import           MonadLib (StateM(..),StateT,Id,runStateT,runId)
-import qualified Data.DList as D
+import qualified Data.DList                 as D
+import qualified Ivory.Language.Array       as I
+import qualified Ivory.Language.Syntax.AST  as I
+import qualified Ivory.Language.Syntax.Type as I
 import           Ivory.Opts.Utils
-import qualified Ivory.Language.Array        as I
-import qualified Ivory.Language.Syntax.AST   as I
-import qualified Ivory.Language.Syntax.Type  as I
+import           MonadLib                   (Id, StateM (..), StateT, runId,
+                                             runStateT)
 
 --------------------------------------------------------------------------------
 -- Monad and types.
@@ -158,7 +159,7 @@ stmtFold ef stmt = case stmt of
     I.InitZero          -> return ()
     I.InitExpr ty e     -> ef ty e
     I.InitStruct inits  -> mapM_ (efInit . snd) inits
-    I.InitArray inits   -> mapM_ efInit inits
+    I.InitArray inits _ -> mapM_ efInit inits
 
 --------------------------------------------------------------------------------
 

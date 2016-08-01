@@ -1,9 +1,9 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -20,25 +20,27 @@ module Ivory.Opts.SanityCheck
   , showErrors
   , existErrors
   , Results()
-  , render
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat
 
-import           Control.Monad (unless)
+import           Control.Monad                           (unless)
 import qualified Data.Map                                as M
-import           MonadLib
-                     (WriterM(..),StateM(..),sets_,runId,runStateT,runWriterT
-                     ,Id,StateT,WriterT)
+import           MonadLib                                (Id, StateM (..),
+                                                          StateT, WriterM (..),
+                                                          WriterT, runId,
+                                                          runStateT, runWriterT,
+                                                          sets_)
 import           Text.PrettyPrint
 
-import           Ivory.Language.Syntax.Concrete.Location
-import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax.AST               as I
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Syntax.Names             as I
 import qualified Ivory.Language.Syntax.Type              as I
+import           Ivory.Opts.Utils
 
 --------------------------------------------------------------------------------
 -- Errors types
@@ -47,17 +49,13 @@ data Error = UnboundValue String
            | TypeError String I.Type I.Type
   deriving (Show, Eq)
 
-data Warning = TypeWarning String I.Type I.Type
-  deriving (Show, Eq)
-
 data Results = Results
-  { errors    :: [Located Error]
-  , _warnings :: [Located Warning]
+  { errors :: [Located Error]
   } deriving (Show, Eq)
 
 instance Monoid Results where
-  mempty = Results [] []
-  Results a0 b0 `mappend` Results a1 b1 = Results (a0 ++ a1) (b0 ++ b1)
+  mempty = Results []
+  Results a0 `mappend` Results a1 = Results (a0 ++ a1)
 
 -- | Are there any errors from typechecking?
 existErrors :: Results -> Bool
@@ -68,29 +66,14 @@ showError err = case err of
   UnboundValue x
     -> text "Unbound value:" <+> quotes (text x)
   TypeError x actual expected
-    -> typeMsg x actual expected
+    ->   quotes (text x) <+> text "has type:"
+      $$ nest 4 (quotes (pretty actual))
+      $$ text "but is used with type:"
+      $$ nest 4 (quotes (pretty expected))
 
-typeMsg :: String -> I.Type -> I.Type -> Doc
-typeMsg x actual expected =
-     quotes (text x) <+> text "has type:"
-  $$ nest 4 (quotes (pretty actual))
-  $$ text "but is used with type:"
-  $$ nest 4 (quotes (pretty expected))
-
-showWithLoc :: (a -> Doc) -> Located a -> Doc
-showWithLoc sh (Located loc a) = pretty loc <> text ":" $$ nest 2 (sh a)
-
--- | Given a procedure name, show all the typechecking results for that procedure.
-showErrors :: String -> Results -> Doc
+showErrors :: String -> Results -> String
 showErrors procName res
   = mkOut procName "ERROR" (showWithLoc showError) (errors res)
-
-mkOut :: String -> String -> (a -> Doc) -> [a] -> Doc
-mkOut _   _    _  [] = empty
-mkOut sym kind sh ls = nm $$ nest 4 (vcat (map go ls)) $$ empty
-  where
-  go x = text kind <> text ":" <+> sh x
-  nm   = text "*** Procedure" <+> text sym
 
 --------------------------------------------------------------------------------
 -- Writer Monad
@@ -144,7 +127,7 @@ hasType name ty = sets_ (\s -> s { env = M.insert name (Defined ty) (env s) })
 putError :: Error -> SCResults ()
 putError err = do
   loc <- getStLoc
-  put (Results [err `at` loc] [])
+  put (Results [err `at` loc])
 
 runSCResults :: SCResults a -> (a, Results)
 runSCResults tc = fst $ runId $ runStateT (St NoLoc M.empty) $ runWriterT (unTC tc)
@@ -222,7 +205,7 @@ check = mapM_ go
             case mv of
               Nothing -> return ()
               Just v  -> varString v `hasType` t
-    I.Local t v _
+    I.Local t v _init
       -> varString v `hasType` t
     I.RefCopy _ e1 e2
       -> checkExpr e1 >> checkExpr e2
@@ -312,22 +295,4 @@ instance Pretty I.Type where
       -> text "CArray" <+> pretty t
     I.TyOpaque
       -> text "Opaque"
-
---------------------------------------------------------------------------------
--- Unused for now.
-
--- showWarning :: Warning -> Doc
--- showWarning w = case w of
---   TypeWarning x actual expected
---     -> typeMsg x actual expected
-
--- -- | Given a procedure name, show all the typechecking results for that procedure.
--- showWarnings :: String -> Results -> Doc
--- showWarnings procName res
---   = mkOut procName "WARNING" (showWithLoc showWarning) (warnings res)
-
--- putWarn :: Warning -> SCResults ()
--- putWarn warn = do
---   loc <- getStLoc
---   put (Results [] [warn `at` loc])
 

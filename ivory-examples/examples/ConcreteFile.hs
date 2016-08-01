@@ -1,10 +1,10 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-unused-binds -fno-warn-unused-matches #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-missing-signatures #-}
@@ -18,9 +18,9 @@
 
 module ConcreteFile where
 
-import Ivory.Language
-import Ivory.Stdlib
-import Ivory.Compile.C.CmdlineFrontend
+import           Ivory.Compile.C.CmdlineFrontend
+import           Ivory.Language
+import           Ivory.Stdlib
 
 e :: IBool
 e = (4::Sint32) >? 3

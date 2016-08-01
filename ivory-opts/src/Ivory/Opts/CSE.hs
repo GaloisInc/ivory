@@ -1,29 +1,31 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveFoldable       #-}
+{-# LANGUAGE DeriveFunctor        #-}
+{-# LANGUAGE DeriveTraversable    #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Ivory.Opts.CSE (cseFold) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude               ()
+import           Prelude.Compat
 
-import qualified Data.DList as D
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as IntMap
-import Data.IntSet (IntSet)
-import qualified Data.IntSet as IntSet
-import Data.List (sort)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
-import Data.Reify
-import Ivory.Language.Array (ixRep)
+import           Control.Applicative   (liftA2)
+import qualified Data.DList            as D
+import           Data.IntMap.Strict    (IntMap)
+import qualified Data.IntMap.Strict    as IntMap
+import           Data.IntSet           (IntSet)
+import qualified Data.IntSet           as IntSet
+import           Data.List             (sort)
+import           Data.Map.Strict       (Map)
+import qualified Data.Map.Strict       as Map
+import           Data.Reify
+import           Ivory.Language.Array  (ixRep)
 import qualified Ivory.Language.Syntax as AST
-import MonadLib (WriterT, StateT, Id, get, set, sets, sets_, put, collect, lift, runM)
-import System.IO.Unsafe (unsafePerformIO)
+import           MonadLib              (Id, StateT, WriterT, collect, get, lift,
+                                        put, runM, set, sets, sets_)
+import           System.IO.Unsafe      (unsafePerformIO)
 
 -- | Find each common sub-expression and extract it to a new variable,
 -- making any sharing explicit. However, this function should never move
@@ -37,8 +39,8 @@ cseFold def = def
 -- | Variable assignments emitted so far.
 data Bindings = Bindings
   { availableBindings :: (Map (Unique, AST.Type) Int)
-  , unusedBindings :: IntSet
-  , totalBindings :: Int
+  , unusedBindings    :: IntSet
+  , totalBindings     :: Int
   }
 
 -- | A monad for emitting both source-level statements as well as
@@ -156,7 +158,7 @@ data InitF t
   = InitZero
   | InitExpr AST.Type t
   | InitStruct [(String, InitF t)]
-  | InitArray [InitF t]
+  | InitArray [InitF t] Bool
   deriving (Show, Eq, Ord, Functor)
 
 instance MuRef AST.Stmt where
@@ -185,7 +187,7 @@ instance MuRef AST.Stmt where
     mapInit AST.InitZero = pure InitZero
     mapInit (AST.InitExpr ty ex) = InitExpr ty <$> child ex
     mapInit (AST.InitStruct fields) = InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> mapInit i) fields
-    mapInit (AST.InitArray elements) = InitArray <$> traverse mapInit elements
+    mapInit (AST.InitArray elements b) = liftA2 InitArray (traverse mapInit elements) (pure b)
     mapIncr (AST.IncrTo ex) = IncrTo <$> child ex
     mapIncr (AST.DecrTo ex) = DecrTo <$> child ex
 
@@ -221,7 +223,7 @@ toBlock expr block b = case b of
   toInit InitZero = pure AST.InitZero
   toInit (InitExpr ty ex) = AST.InitExpr ty <$> expr ex ty
   toInit (InitStruct fields) = AST.InitStruct <$> traverse (\ (nm, i) -> (,) nm <$> toInit i) fields
-  toInit (InitArray elements) = AST.InitArray <$> traverse toInit elements
+  toInit (InitArray elements b') = liftA2 AST.InitArray (traverse toInit elements) (pure b')
   toIncr (IncrTo ex) = AST.IncrTo <$> expr ex ixRep
   toIncr (DecrTo ex) = AST.DecrTo <$> expr ex ixRep
 
@@ -385,6 +387,9 @@ reconstruct (Graph subexprs root) = D.toList rootBlock
   -- NOTE: `dedup` needs to merge the constants in first, which means
   -- that as long as this is a `foldr`, they need to be appended after
   -- `subexprs`. Don't try to optimize this by re-ordering the list.
-  (_, remap, (_, blockFacts)) = foldr (dedup usedOnce) mempty $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
+  (_, remap, (_, blockFacts)) =
+    foldr (dedup usedOnce) mempty
+      $ subexprs ++ [ (constUnique c, constExpr c) | c <- [minBound..maxBound] ]
   Just rootGen = IntMap.lookup (IntMap.findWithDefault root root remap) blockFacts
-  (((), Bindings { unusedBindings = usedOnce }), rootBlock) = runM rootGen $ Bindings Map.empty IntSet.empty 0
+  (((), Bindings { unusedBindings = usedOnce }), rootBlock) =
+    runM rootGen $ Bindings Map.empty IntSet.empty 0

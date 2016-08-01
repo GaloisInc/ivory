@@ -1,15 +1,15 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Alloc where
 
-import Ivory.Language
-import Ivory.Compile.C.CmdlineFrontend
-import Ivory.Compile.C.Modules
+import           Ivory.Compile.C.CmdlineFrontend
+import           Ivory.Compile.C.Modules
+import           Ivory.Language
 
 
 [ivory|

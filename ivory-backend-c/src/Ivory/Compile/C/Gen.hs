@@ -1,26 +1,26 @@
+{-# LANGUAGE CPP            #-}
 {-# LANGUAGE PackageImports #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE QuasiQuotes    #-}
 
 -- | Ivory backend targeting language-c-quote.
 
 module Ivory.Compile.C.Gen where
 
-import qualified "language-c-quote" Language.C.Syntax as C
-import Language.C.Quote.GCC
+import           Language.C.Quote.GCC
+import qualified "language-c-quote" Language.C.Syntax                     as C
 
-import qualified Ivory.Language.Array  as I
-import qualified Ivory.Language.Syntax as I
-import Ivory.Language.Syntax.Concrete.Pretty
-import qualified Ivory.Language.Proc as P
+import qualified Ivory.Language.Array                  as I
+import qualified Ivory.Language.Proc                   as P
+import qualified Ivory.Language.Syntax                 as I
+import           Ivory.Language.Syntax.Concrete.Pretty
 
-import Ivory.Compile.C.Types
-import Ivory.Compile.C.Prop
+import           Ivory.Compile.C.Prop
+import           Ivory.Compile.C.Types
 
-import Prelude hiding (exp, abs, signum)
-import Data.List (foldl')
+import           Data.List                             (foldl')
+import           Prelude                               hiding (abs, exp, signum)
 
-import Data.Loc (noLoc)
+import           Data.Loc                              (noLoc)
 
 data Visibility = Public | Private deriving (Show, Eq)
 
@@ -338,10 +338,10 @@ typedRet I.Typed { I.tType  = t
 
 toInit :: I.Init -> C.Initializer
 toInit i = case i of
-  I.InitZero      -> [cinit|{$inits:([])}|] -- {}
-  I.InitExpr ty e -> [cinit|$exp:(toExpr ty e)|]
-  I.InitArray is  -> [cinit|{$inits:([ toInit j | j <- is ])}|]
-  I.InitStruct fs ->
+  I.InitZero       -> [cinit|{$inits:([])}|] -- {}
+  I.InitExpr ty e  -> [cinit|$exp:(toExpr ty e)|]
+  I.InitArray is _ -> [cinit|{$inits:([ toInit j | j <- is ])}|]
+  I.InitStruct fs  ->
     C.CompoundInitializer [ (Just (fieldDes f), toInit j) | (f,j) <- fs ] noLoc
 
 fieldDes :: String -> C.Designation

@@ -1,24 +1,25 @@
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Language.Syntax.AST where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Names
-import Ivory.Language.Syntax.Type
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Names
+import           Ivory.Language.Syntax.Type
 
-import Language.Haskell.TH.Lift (deriveLiftMany)
+import           Language.Haskell.TH.Lift                (deriveLiftMany)
 
 #if __GLASGOW_HASKELL__ < 709
-import Language.Haskell.TH.Syntax (Lift(..))
+import           Language.Haskell.TH.Syntax              (Lift (..))
 #endif
 
-import Data.Ratio (denominator, numerator)
-import qualified Data.Set as Set
+import           Data.Ratio                              (denominator,
+                                                          numerator)
+import qualified Data.Set                                as Set
 
 
 -- Modules ---------------------------------------------------------------------
@@ -28,7 +29,7 @@ import qualified Data.Set as Set
 type ModulePath = String
 
 data Visible a = Visible
-  { public :: [a]
+  { public  :: [a]
   , private :: [a]
   } deriving (Show, Eq, Ord)
 
@@ -261,9 +262,9 @@ newtype Ensure = Ensure
 
 -- | External Symbols.
 data Extern = Extern
-  { externSym     :: Sym
-  , externFile    :: ModulePath
-  , externType    :: Type
+  { externSym  :: Sym
+  , externFile :: ModulePath
+  , externType :: Type
   } deriving (Show, Eq, Ord)
 
 -- Expressions -----------------------------------------------------------------
@@ -439,7 +440,8 @@ data Init
   = InitZero                   -- ^ @ {} @
   | InitExpr Type Expr         -- ^ @ expr @
   | InitStruct [(String,Init)] -- ^ @ { .f1 = i1, ..., .fn = in } @
-  | InitArray [Init]           -- ^ @ { i1, ..., in } @
+  | InitArray [Init] Bool      -- ^ @ { i1, ..., in } @
+  -- Bool true if no unused initialization values.
     deriving (Show, Eq, Ord)
 
 
