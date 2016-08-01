@@ -334,7 +334,8 @@ mkDefNewtype def =
 #if __GLASGOW_HASKELL__ >= 800
   [newtypeD (cxt []) name []
    Nothing
-   (normalC name [strictType notStrict (return ty)])
+   (normalC name
+    [bangType (bang noSourceUnpackedness noSourceStrictness) (return ty)])
    (mapM conT
     [ ''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr , ''I.IvoryEq
     , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ])]
