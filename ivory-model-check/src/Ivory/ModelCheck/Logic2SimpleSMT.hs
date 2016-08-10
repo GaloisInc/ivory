@@ -16,6 +16,7 @@ import Text.PrettyPrint
 import Data.Ratio((%), numerator, denominator)
 import Text.Read (readMaybe)
 import Data.List
+import System.IO
 
 import MonadLib
 
@@ -568,7 +569,7 @@ smtIfDebug level m =
 -- solver is at least the indicated level
 smtDebug :: Int -> String -> SMTm ctx ()
 smtDebug level str =
-  smtIfDebug level $ inBase (putStrLn str)
+  smtIfDebug level $ inBase (putStrLn str >> hFlush stdout)
 
 instance RunM (SMTm ctx) a (SMT.Solver -> Int ->
                             MapRList L1FunType ctx -> IO a) where
