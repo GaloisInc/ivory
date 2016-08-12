@@ -64,6 +64,11 @@ instance (ANat n) => Num (Ix n) where
   signum        = ixUnary signum
   fromInteger   = mkIx . fromInteger
 
+instance ANat n => Bounded (Ix n) where
+  minBound = 0
+  maxBound = fromInteger (n - 1)
+    where n = fromTypeNat (aNat :: NatType n)
+
 instance (ANat n) => IvoryEq  (Ix n)
 instance (ANat n) => IvoryOrd (Ix n)
 
