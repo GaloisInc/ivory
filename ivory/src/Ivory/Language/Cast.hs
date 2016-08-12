@@ -271,7 +271,7 @@ boundPred _ from = (from <=? ivoryCast (maxBound :: to))
 
 -- XXX Don't export.
 -- Type is what we're casting from.
-ivoryCast :: forall a b. (IvoryExpr a, IvoryExpr b) => a -> b
+ivoryCast :: forall a b. (IvoryVar a, IvoryExpr b) => a -> b
 ivoryCast x = wrapExpr (AST.ExpSafeCast ty (unwrapExpr x))
   where ty = ivoryType (Proxy :: Proxy a)
 
