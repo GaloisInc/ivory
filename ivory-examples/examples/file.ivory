@@ -1,5 +1,6 @@
 -- # -*- mode: haskell -*-
 
+-- For any imported header files, you can also provide paths, e.g., "foo/stdio.h".
 import (stdio.h, printf) int32_t printf(string x)
 import (stdio.h, printf) int32_t printf2(string x, int32_t y)
 

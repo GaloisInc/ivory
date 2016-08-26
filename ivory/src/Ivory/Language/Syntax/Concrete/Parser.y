@@ -313,16 +313,27 @@ areaDef :
 
 areaImportDef :: { AreaImportDef }
 areaImportDef :
-    import ident '.' ident type allocIdent
-      { AreaImportDef (unLoc $6) False $5
-          (unLoc $2 ++ ('.':unLoc $4))
-          (getLoc $1 <> getLoc $6)
+    import header type allocIdent
+      { AreaImportDef (unLoc $4) False $3 $2
+          (getLoc $1 <> getLoc $4)
       }
-  | import ident '.' ident type const allocIdent
-      { AreaImportDef (unLoc $7) True $5
-          (unLoc $2 ++ ('.':unLoc $4))
-          (getLoc $1 <> getLoc $7)
+  | import header type const allocIdent
+      { AreaImportDef (unLoc $5) True $3 $2
+          (getLoc $1 <> getLoc $5)
       }
+
+----------------------------------------
+-- header paths
+
+filepath :: { [String] }
+filepath :
+    filepath ident '/' { (unLoc $2 ++ "/") : $1 }
+  | {- empty -}        { [] }
+
+header :: { String }
+header :
+  filepath ident '.' ident
+    { concat (reverse $1) ++ unLoc $2 ++ ('.' : unLoc $4) }
 
 ----------------------------------------
 -- Include other modules (Ivory's "depend")
@@ -356,19 +367,19 @@ procDef :
 -- Externally-defined procedure
 includeProc :: { IncludeProc }
 includeProc :
-  import '(' ident '.' ident ',' ident ')' type ident '(' args ')'
-    { IncludeProc $9 (unLoc $10) (reverse $12) (unLoc $3 ++ ('.':unLoc $5), unLoc $7)
-        (mconcat [ getLoc $3
-                 , getLoc $7
-                 , getLoc $10
+  import '(' header ',' ident ')' type ident '(' args ')'
+    { IncludeProc $7 (unLoc $8) (reverse $10) ($3, unLoc $5)
+        (mconcat [ getLoc $1
+                 , getLoc $5
+                 , getLoc $8
                  ]) }
 
 -- Externally-defined symbols
 importExtern :: { Extern }
 importExtern :
-  extern ident '.' ident type ident
-    { Extern (unLoc $6) (unLoc $2 ++ ('.' : unLoc $4)) $5
-             (mconcat [ getLoc $2, getLoc $4, getLoc $6])
+  extern header type ident
+    { Extern (unLoc $4) $2 $3
+             (mconcat [ getLoc $1, getLoc $4])
     }
 
 tyArg :: { (Type, Var) }
