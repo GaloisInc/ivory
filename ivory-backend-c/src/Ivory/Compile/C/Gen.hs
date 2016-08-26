@@ -315,8 +315,8 @@ toBody ens stmt =
           foreverDecl = C.BlockDecl
             [cdecl| int forever_loop __attribute__((unused)); |]
           loop = C.BlockStm [cstm| for( forever_loop = 0
-                                      ; FOREVER
-                                      ; FOREVER_INC ) { $items:foreverBd } |]
+                                      ; IFOREVER
+                                      ; IFOREVER_INC ) { $items:foreverBd } |]
           decAndLoop = [ foreverDecl, loop ]
       in  [ C.BlockStm [cstm| { $items:decAndLoop } |] ]
 

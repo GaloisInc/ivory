@@ -9,8 +9,8 @@
 #include "ivory_asserts.h"
 #include "ivory_templates.h"
 
-#define FOREVER true
-#define FOREVER_INC
+#define IFOREVER true
+#define IFOREVER_INC
 
 // ----------------------------------------
 
