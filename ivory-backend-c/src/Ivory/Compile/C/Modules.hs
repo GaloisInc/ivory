@@ -58,7 +58,7 @@ renderHdr s unitname = displayS (render maxWidth guardedHeader) ""
                         ]
   topGuard        = text "#ifndef" <+> guardName </> text "#define"
                       <+> guardName
-  botGuard        = text "#endif" <+> text "/*" <+> guardName <+> text "*/"
+  botGuard        = text "#endif" <+> text "/*" <+> guardName <+> text "*/\n"
   unitname'       = map (\c -> if c == '-' then '_' else c) unitname
   guardName       = text "__" <> text (toUpper <$> unitname') <> text "_H__"
   topExternC      = stack $ text <$> [ "#ifdef __cplusplus"
@@ -72,7 +72,7 @@ renderHdr s unitname = displayS (render maxWidth guardedHeader) ""
 renderSrc :: (Includes, Sources) -> String
 renderSrc s = displayS (render maxWidth srcdoc) ""
   where
-  srcdoc = topComments </> out
+  srcdoc = topComments </> out </> text ""
   defs (incls,us) = map includeDef (S.toList incls) ++ us
   out = stack $ punctuate line $ map ppr $ defs s
 
