@@ -19,8 +19,6 @@ import           Language.Haskell.TH.Syntax              (Lift (..))
 
 import           Data.Ratio                              (denominator,
                                                           numerator)
-import qualified Data.Set                                as Set
-
 
 -- Modules ---------------------------------------------------------------------
 
@@ -43,9 +41,9 @@ type ModuleName = String
 data Module = Module
   { modName        :: ModuleName
     -- ^ The name of this module
-  , modHeaders     :: Set.Set FilePath
+  , modHeaders     :: [FilePath]
     -- ^ Included headers
-  , modDepends     :: Set.Set ModuleName
+  , modDepends     :: [ModuleName]
     -- ^ Named module dependencies
   , modExterns     :: [Extern]
   , modImports     :: [Import]
@@ -58,8 +56,8 @@ data Module = Module
 instance Monoid Module where
   mempty = Module
     { modName        = ""
-    , modHeaders     = Set.empty
-    , modDepends     = Set.empty
+    , modHeaders     = []
+    , modDepends     = []
     , modExterns     = []
     , modImports     = []
     , modProcs       = mempty
@@ -452,7 +450,6 @@ deriveLiftMany
   , ''Import
   , ''Extern
   , ''Proc, ''Ensure, ''Require, ''Cond
-  , ''Set.Set
 
   , ''Name
   , ''Stmt, ''LoopIncr, ''Comment, ''SrcLoc, ''Range, ''Position
