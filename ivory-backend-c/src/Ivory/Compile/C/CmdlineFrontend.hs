@@ -1,4 +1,3 @@
-
 module Ivory.Compile.C.CmdlineFrontend
   ( compile
   , compileWith
@@ -52,9 +51,8 @@ compileWith ms as = do
 runCompiler :: [Module] -> [Located Artifact] -> Opts -> IO ()
 runCompiler ms as os = runCompilerWith ms as os
 
--- | Main compile function plus domain-specific type-checking that can't be
--- embedded in the Haskell type-system.  Type-checker also emits warnings.
-runCompilerWith ::[Module] -> [Located Artifact] -> Opts -> IO ()
+-- | Main compile function.
+runCompilerWith :: [Module] -> [Located Artifact] -> Opts -> IO ()
 runCompilerWith modules artifacts opts = do
   cmodules <- compileUnits modules opts
   if outProcSyms opts
@@ -81,7 +79,9 @@ outputmodules opts cmodules user_artifacts = do
   createDirectoryIfMissing True rootdir
   createDirectoryIfMissing True srcdir
   createDirectoryIfMissing True incldir
-  let artifacts = runtimeHeaders ++ user_artifacts
+  let oh h = Incl (artifactFile h (return h)) : user_artifacts
+  let user_artifacts' = maybe user_artifacts oh (otherHdr opts)
+  let artifacts = runtimeHeaders ++ user_artifacts'
   warnCollisions cmodules artifacts rootdir srcdir incldir
   mapM_ (output srcdir ".c" renderSource) cmodules
   mapM_ (output incldir  ".h" renderHeader) cmodules
