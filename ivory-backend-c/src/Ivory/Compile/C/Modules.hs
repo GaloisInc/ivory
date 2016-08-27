@@ -1,26 +1,27 @@
+{-# LANGUAGE CPP         #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE CPP #-}
 
 module Ivory.Compile.C.Modules where
 
-import Paths_ivory_backend_c (version)
+import           Paths_ivory_backend_c     (version)
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                   ()
+import           Prelude.Compat
 
-import Text.PrettyPrint.Mainland
+import           Text.PrettyPrint.Mainland
 
 import qualified Ivory.Language.Syntax.AST as I
 
-import Ivory.Compile.C.Gen
-import Ivory.Compile.C.Types
+import           Ivory.Compile.C.Gen
+import           Ivory.Compile.C.Types
 
-import Data.Char (toUpper)
-import Data.Version (showVersion)
-import qualified Data.Set as S
-import Control.Monad (unless)
-import System.FilePath.Posix ((<.>)) -- Always use posix convention in C code
-import MonadLib (put,runM)
+import           Control.Monad             (unless)
+import           Data.Char                 (toUpper)
+import           Data.List                 (nub)
+import qualified Data.Set                  as S
+import           Data.Version              (showVersion)
+import           MonadLib                  (put, runM)
+import           System.FilePath.Posix     ((<.>))
 
 --------------------------------------------------------------------------------
 
@@ -120,8 +121,8 @@ compileModule I.Module { I.modName        = nm
   comp0 = do
     putHdrInc (LocalInclude "ivory.h")
     -- module names don't have a .h on the end
-    mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) (S.toList deps)
-    mapM_ (putHdrInc . LocalInclude) (S.toList hdrs)
+    mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) (nub deps)
+    mapM_ (putHdrInc . LocalInclude) (nub hdrs)
     mapM_ (compileStruct Public) (I.public structs)
     mapM_ (compileStruct Private) (I.private structs)
     mapM_ fromImport imports

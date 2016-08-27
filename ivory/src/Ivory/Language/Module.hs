@@ -1,27 +1,27 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 module Ivory.Language.Module where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                ()
+import           Prelude.Compat
 
-import Ivory.Language.Area (IvoryArea)
-import Ivory.Language.MemArea (MemArea(..),ConstMemArea(..))
-import Ivory.Language.Proc (Def(..))
-import Ivory.Language.Proxy (Proxy(..), ASymbol)
-import Ivory.Language.String (IvoryString(..))
-import Ivory.Language.Struct (IvoryStruct(..),StructDef(..),StructName)
-import Ivory.Language.Type (IvoryExpr, unwrapExpr)
-import qualified Ivory.Language.Syntax as I
+import           Ivory.Language.Area    (IvoryArea)
+import           Ivory.Language.MemArea (ConstMemArea (..), MemArea (..))
+import           Ivory.Language.Proc    (Def (..))
+import           Ivory.Language.Proxy   (ASymbol, Proxy (..))
+import           Ivory.Language.String  (IvoryString (..))
+import           Ivory.Language.Struct  (IvoryStruct (..), StructDef (..),
+                                         StructName)
+import qualified Ivory.Language.Syntax  as I
+import           Ivory.Language.Type    (IvoryExpr, unwrapExpr)
 
-import Control.Monad (forM_)
-import MonadLib (ReaderT,WriterT,ReaderM,WriterM,Id,runM,put,ask,local)
-import MonadLib.Derive (Iso (..),derive_ask,derive_put)
-import qualified Data.Set as Set
-
+import           Control.Monad          (forM_)
+import           MonadLib               (Id, ReaderM, ReaderT, WriterM, WriterT,
+                                         ask, local, put, runM)
+import           MonadLib.Derive        (Iso (..), derive_ask, derive_put)
 
 -- Modules ---------------------------------------------------------------------
 
@@ -80,7 +80,7 @@ depend m = dependByName (I.modName m)
 -- dependent module structures.
 dependByName :: String -> ModuleDef
 dependByName nm =
-  put (mempty { I.modDepends = Set.singleton nm })
+  put (mempty { I.modDepends = [nm] })
 
 -- | Include the definition of a structure in the module.
 defStruct :: forall sym. (IvoryStruct sym, ASymbol sym) =>
