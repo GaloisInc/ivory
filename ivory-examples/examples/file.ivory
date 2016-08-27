@@ -24,6 +24,8 @@ import foo.h &int32_t[4] const anArea3[]
 &int32_t const alloc *myArea2 = 3;
 struct Bar00 alloc myArea3{} = { aBar00 = 3 };
 &int32_t[3] alloc myArea4[] = {1,2,3};
+struct Bar00 alloc myArea5{};
+struct Bar00 const alloc myArea6{};
 
 extern foo.h G* uint8_t myptr
 
