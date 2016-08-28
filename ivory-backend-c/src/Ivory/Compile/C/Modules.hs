@@ -15,9 +15,10 @@ import qualified Ivory.Language.Syntax.AST as I
 import           Ivory.Compile.C.Gen
 import           Ivory.Compile.C.Types
 
-import           Control.Monad             (unless)
+import           Control.Monad             (unless, when)
 import           Data.Char                 (toUpper)
 import           Data.List                 (nub)
+import           Data.Maybe                (fromJust, isJust)
 import qualified Data.Set                  as S
 import           Data.Version              (showVersion)
 import           MonadLib                  (put, runM)
@@ -90,17 +91,17 @@ runOpt opt m =
 --------------------------------------------------------------------------------
 
 -- | Compile a module.
-compileModule :: I.Module -> CompileUnits
-compileModule I.Module { I.modName        = nm
-                       , I.modDepends     = deps
-                       , I.modHeaders     = hdrs
-                       , I.modImports     = imports
-                       , I.modExterns     = externs
-                       , I.modProcs       = procs
-                       , I.modStructs     = structs
-                       , I.modAreas       = areas
-                       , I.modAreaImports = ais
-                       }
+compileModule :: Maybe String -> I.Module -> CompileUnits
+compileModule hdr I.Module { I.modName        = nm
+                           , I.modDepends     = deps
+                           , I.modHeaders     = hdrs
+                           , I.modImports     = imports
+                           , I.modExterns     = externs
+                           , I.modProcs       = procs
+                           , I.modStructs     = structs
+                           , I.modAreas       = areas
+                           , I.modAreaImports = ais
+                           }
   = CompileUnits
   { unitName = nm
   , sources  = sources res
@@ -120,6 +121,8 @@ compileModule I.Module { I.modName        = nm
   comp0 :: Compile
   comp0 = do
     putHdrInc (LocalInclude "ivory.h")
+    when (isJust hdr)
+      (putHdrInc (LocalInclude (fromJust hdr)))
     -- module names don't have a .h on the end
     mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) (nub deps)
     mapM_ (putHdrInc . LocalInclude) (nub hdrs)

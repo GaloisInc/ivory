@@ -160,7 +160,7 @@ compileUnits modules opts = do
 mkCUnits :: [Module] -> Opts -> [C.CompileUnits]
 mkCUnits modules opts = cmodules
   where
-  cmodules            = map C.compileModule optModules
+  cmodules            = map (C.compileModule (otherHdr opts)) optModules
   optModules          = map (C.runOpt passes) modules
 
   cfPass              = mkPass constFold O.constFold
