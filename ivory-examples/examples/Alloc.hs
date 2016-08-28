@@ -192,4 +192,4 @@ runAlloc :: IO ()
 runAlloc = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
 test2 :: String
-test2 = showModule (compileModule cmodule)
+test2 = showModule (compileModule Nothing cmodule)
