@@ -254,6 +254,26 @@ i1TypeEq ITyOpaque _ = Nothing
 i1TypeEqAuto :: I1Type a -> I1Type b -> Maybe (a :~: b)
 i1TypeEqAuto (ITyIndex i) i1tp@ITyBits =
   i1TypeEq (ITyBits :: I1Type (Literal Int32)) i1tp
+i1TypeEqAuto (ITyPtr _ i1tp) (ITyPtr _ i1tp') =
+  case i1TypeEqAuto i1tp i1tp' of
+    Just Refl -> Just Refl
+    Nothing -> Nothing
+i1TypeEqAuto (ITyArray _ i1tp) (ITyCArray i1tp') =
+  case i1TypeEqAuto i1tp i1tp' of
+    Just Refl -> Just Refl
+    Nothing -> Nothing
+i1TypeEqAuto (ITyCArray i1tp) (ITyArray _ i1tp') =
+  case i1TypeEqAuto i1tp i1tp' of
+    Just Refl -> Just Refl
+    Nothing -> Nothing
+i1TypeEqAuto (ITyArray _ i1tp) (ITyArray _ i1tp') =
+  case i1TypeEqAuto i1tp i1tp' of
+    Just Refl -> Just Refl
+    Nothing -> Nothing
+i1TypeEqAuto (ITyCArray i1tp) (ITyCArray i1tp') =
+  case i1TypeEqAuto i1tp i1tp' of
+    Just Refl -> Just Refl
+    Nothing -> Nothing
 i1TypeEqAuto i1tp i1tp' = i1TypeEq i1tp i1tp'
 
 
@@ -669,9 +689,12 @@ ivoryCoerce (convertI1Type -> I1ConvLitType lit_tp_f)
   (convertI1Type -> I1ConvLitType lit_tp_t) (IExpr _ e) =
   -- Default: use the underlying coercion in the reachability logic
   return $ IExpr lit_tp_t $ mkCoerce lit_tp_f lit_tp_t e
-ivoryCoerce i1tp_from i1tp_to _ =
-  error ("ivoryCoerce: Could not coerce from type " ++ show i1tp_from
-         ++ " to type " ++ show i1tp_to)
+ivoryCoerce i1tp_from i1tp_to e =
+  case i1TypeEqAuto i1tp_from i1tp_to of
+    Just Refl -> return e
+    Nothing ->
+      error ("ivoryCoerce: Could not coerce from type " ++ show i1tp_from
+             ++ " to type " ++ show i1tp_to)
 
 -- | Coerce an expression of unknown type to a given type
 ivoryCoerceSome :: I1Type a -> SomeIConvExpr -> I2LConvM (IConvExpr a)
