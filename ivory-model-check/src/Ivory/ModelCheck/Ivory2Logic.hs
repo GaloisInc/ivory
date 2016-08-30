@@ -479,7 +479,9 @@ instance RunM I2LConvM a (ILOpts -> [I.Module] -> (a -> ILPM) -> ILPM) where
     runM m (I2LInfo { i2l_opts = opts,
                       i2l_modules = mods,
                       i2l_vars = Map.empty,
-                      i2l_syms = syms_map })
+                      i2l_syms = syms_map,
+                      i2l_single_err = Nothing,
+                      i2l_double_err = Nothing })
     (return . k . fst)
 
 
