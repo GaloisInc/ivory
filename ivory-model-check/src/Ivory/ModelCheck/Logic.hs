@@ -1113,6 +1113,10 @@ mkVarTp (_ :: Proxy tag) (tp :: LType a) n =
   curryLExprsFun tp (LVar (mkLTypeArgs tp) n
                      :: LExprs tag (ArgTypes a) -> LExpr tag (RetType a))
 
+-- | Build an expression from a variable of a 'Literal' type
+mkLitVar :: LitType a -> Name (Literal a) -> LExpr tag (Literal a)
+mkLitVar lit_tp n = LVar (LTypeArgs_base $ L1Type_lit lit_tp) n LExprs_nil
+
 -- | Make a variable into an expression, rather than a function
 mkVarExprTp :: LType a -> Name a -> LExpr tag a
 mkVarExprTp tp n = etaExpandLExprsFun tp (LVar (mkLTypeArgs tp) n)
