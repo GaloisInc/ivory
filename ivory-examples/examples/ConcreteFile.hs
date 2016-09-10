@@ -25,6 +25,7 @@ import           Ivory.Stdlib
 e :: IBool
 e = (4::Sint32) >? 3
 
+-- Currently, type synonyms can *only* be for base (non=stored) typed.
 type SomeInt = Uint32
 
 macroStmts ::

@@ -1,6 +1,6 @@
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE CPP #-}
 
 --
 -- Ivory types QuasiQuoter.
@@ -11,31 +11,32 @@
 
 module Ivory.Language.Syntax.Concrete.QQ.TypeQQ where
 
-import           Prelude hiding (exp, init)
+import           Prelude                                  hiding (exp, init)
 
-import Data.List (nub)
-import Control.Monad
+import           Control.Monad
+import           Data.List                                (nub)
 
-import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
-import qualified Language.Haskell.TH as T
-import           Language.Haskell.TH.Quote()
+import           Language.Haskell.TH                      hiding (Exp, Stmt,
+                                                           Type)
+import qualified Language.Haskell.TH                      as T
+import           Language.Haskell.TH.Quote                ()
 
-import qualified Ivory.Language.Float     as I
-import qualified Ivory.Language.IBool     as I
-import qualified Ivory.Language.IChar     as I
-import qualified Ivory.Language.IString   as I
-import qualified Ivory.Language.Sint      as I
-import qualified Ivory.Language.Uint      as I
-import qualified Ivory.Language.Scope     as I
-import qualified Ivory.Language.Area      as I
-import qualified Ivory.Language.Ref       as I
-import qualified Ivory.Language.Proc      as I
-import qualified Ivory.Language.Proxy     as I
-import qualified Ivory.Language.Array     as I
+import qualified Ivory.Language.Area                      as I
+import qualified Ivory.Language.Array                     as I
+import qualified Ivory.Language.Float                     as I
+import qualified Ivory.Language.IBool                     as I
+import qualified Ivory.Language.IChar                     as I
+import qualified Ivory.Language.IString                   as I
+import qualified Ivory.Language.Proc                      as I
+import qualified Ivory.Language.Proxy                     as I
+import qualified Ivory.Language.Ref                       as I
+import qualified Ivory.Language.Scope                     as I
+import qualified Ivory.Language.Sint                      as I
+import qualified Ivory.Language.Uint                      as I
 
-import Ivory.Language.Syntax.Concrete.ParseAST
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Concrete.QQ.Common
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.ParseAST
+import           Ivory.Language.Syntax.Concrete.QQ.Common
 
 --------------------------------------------------------------------------------
 -- Haskell type synonyms
@@ -120,25 +121,25 @@ mkTyVar v classes = do
 -- Syntactic check for base types
 isBaseType :: Type -> Bool
 isBaseType ty = case ty of
-  TyVoid       -> True
-  TyInt{}      -> True
-  TyWord{}     -> True
-  TyBool       -> True
-  TyChar       -> True
-  TyFloat      -> True
-  TyDouble     -> True
-  TyIx{}       -> True
-  TyString     -> False
-  TyStored{}   -> False
-  TyStruct{}   -> False
-  TyArray{}    -> False
-  TyRef{}      -> False
-  TyConstRef{} -> False
-  TySynonym{}  -> False
-  LocTy ty'    -> isBaseType (unLoc ty')
+  TyVoid         -> True
+  TyInt{}        -> True
+  TyWord{}       -> True
+  TyBool         -> True
+  TyChar         -> True
+  TyFloat        -> True
+  TyDouble       -> True
+  TyIx{}         -> True
+  TyString       -> False
+  TyStored{}     -> False
+  TyStruct{}     -> False
+  TyArray{}      -> False
+  TyRef{}        -> False
+  TyConstRef{}   -> False
+  TySynonym{}    -> True
+  LocTy ty'      -> isBaseType (unLoc ty')
 
-maybeAddStored :: Type -> Type
-maybeAddStored ty =
+maybeLiftStored :: Type -> Type
+maybeLiftStored ty =
   if isBaseType ty
     then TyStored ty
     else ty
@@ -151,7 +152,7 @@ fromStoredTy ty = do
 
 fromRef :: Name -> Scope -> Type -> TTyVar T.Type
 fromRef constr mem area = do
-  a      <- fromType (maybeAddStored area)
+  a      <- fromType (maybeLiftStored area)
   ma     <- fromScope mem
   return $ AppT (AppT (ConT constr) ma) a
 
@@ -160,7 +161,7 @@ fromArrayTy area sz' = do
   let sz = case sz' of
              Left str -> ConT (mkName str)
              Right i  -> szTy i
-  a      <- fromType (maybeAddStored area)
+  a      <- fromType (maybeLiftStored area)
   arr    <- liftPromote 'I.Array
   return $ AppT (AppT arr sz) a
 

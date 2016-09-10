@@ -7,6 +7,7 @@
 
 module Ivory.Language.Syntax.Concrete.ParseAST where
 
+import           Data.List                               (foldl')
 import           Prelude                                 ()
 import           Prelude.Compat                          hiding (init)
 
@@ -125,6 +126,8 @@ data PrePost = PreCond  Exp
 --------------------------------------------------------------------------------
 -- Types
 
+type SzType = Either String Integer
+
 data Type
   = TyVoid                               -- ^ Unit type
   | TyInt IntSize                        -- ^ Signed ints
@@ -139,12 +142,19 @@ data Type
   | TyString                             -- ^ Static strings
   | TyStored Type                        -- ^ References
   | TyStruct String                      -- ^ Structures
-  | TyArray Type (Either String Integer) -- ^ Arrays of fixed length (can be a macro or integer)
+  | TyArray Type SzType                  -- ^ Arrays of fixed length (can be a macro or integer)
   | TyRef      Scope Type                -- ^ References
   | TyConstRef Scope Type                -- ^ Constant References
   | TySynonym String                     -- ^ Type synonym
   | LocTy (Located Type)
   deriving (Show, Read, Eq, Ord)
+
+-- Helper to put array type indexes in the right order.
+tyArray :: Type -> SzType -> [SzType] -> Type
+tyArray ty idx idxs =
+  let idxs' = idxs ++ [idx] in
+  let i = head idxs' in
+  foldl' TyArray (TyArray ty i) (tail idxs')
 
 data Scope =
     Stack (Maybe TypeVar)

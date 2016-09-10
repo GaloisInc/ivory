@@ -252,7 +252,7 @@ import Data.Monoid.Compat
 %left '*' '/' '%'
 %right '*' '~' '!' '-'
 -- '[' assumed to be followed by ']'
-%left '.' '@' '->' '['
+%left '.' '@' '->' '[' ']'
 %right ADDR
 -- Tighter than normal binding
 %right
@@ -654,10 +654,14 @@ typeDef :
 
 type :: { Type }
 type :
-    simpleCType      { $1 }
+    baseType         { $1 }
   | cType            { $1 }
-  | tyident          { LocTy (TySynonym (unLoc $1) `at` $1) }
   | '(' type ')'     { $2 }
+
+baseType :: { Type }
+baseType :
+    simpleCType      { $1 }
+  | tyident          { LocTy (TySynonym (unLoc $1) `at` $1) }
 
 -- C-style types
 
@@ -683,7 +687,11 @@ simpleCType :
   | ix_t integer              { let TokInteger i = unLoc $2 in
                                 LocTy (atBin (TyIx i) $1 $2) }
 
-szType :: { Located (Either String Integer) }
+idxs :: { [SzType] }
+idxs : idxs '[' szType ']' { unLoc $3 : $1 }
+     | {- empty -}         { [] }
+
+szType :: { Located SzType }
 szType : iMacro tyidentifier
            { let TokTyIdent i = unLoc $2 in
              Left i `at` $2
@@ -698,7 +706,9 @@ cType :
           scopeC '*' type        { LocTy (atBin (TyRef (unLoc $1) $3) $1 $3)  }
   | const scopeC '*' type        { LocTy (atList (TyConstRef (unLoc $2) $4)
                                                  [$1, getLoc $2, getLoc $4]) }
-  | type '[' szType ']'          { LocTy (atBin (TyArray $1 (unLoc $3)) $1 $3) }
+  | baseType '[' szType ']' idxs { LocTy (atBin (tyArray $1 (unLoc $3) $5)
+                                                $1 $3)
+                                 }
   | struct structName            { LocTy (atBin (TyStruct (unLoc $2)) $1 $2) }
   | '&' type %prec ADDR          { LocTy (atBin (TyStored $2) $1 $2) }
 
