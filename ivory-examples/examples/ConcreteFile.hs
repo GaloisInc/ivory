@@ -59,5 +59,3 @@ concreteIvory = package "concreteIvory" $ do
 main :: IO ()
 main = runCompiler [concreteIvory, examplesfile, stdlibStringModule] stdlibStringArtifacts
   initialOpts {outDir = Just "concrete-ivory", constFold = True}
-
-
