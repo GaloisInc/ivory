@@ -39,8 +39,10 @@ instance Monoid CompileUnits where
   mempty = CompileUnits mempty mempty mempty
   (CompileUnits n0 s0 h0) `mappend` (CompileUnits n1 s1 h1) =
     CompileUnits (n0 `mappend` n1)
-                 (s0 `mappend` s1)
-                 (h0 `mappend` h1)
+                 (go (s0 `mappend` s1))
+                 (go (h0 `mappend` h1))
+    where
+    go (i,s) = (nub i, nub s)
 
 --------------------------------------------------------------------------------
 
