@@ -42,9 +42,11 @@ data Module = Module
   { modName        :: ModuleName
     -- ^ The name of this module
   , modHeaders     :: [FilePath]
-    -- ^ Included headers
+    -- ^ Included headers: lists instead of Sets because some systems depend on
+    -- a particular header order.
   , modDepends     :: [ModuleName]
-    -- ^ Named module dependencies
+    -- ^ Named module dependencies: lists instead of Sets because some systems
+    -- depend on a particular header order.
   , modExterns     :: [Extern]
   , modImports     :: [Import]
   , modProcs       :: Visible Proc

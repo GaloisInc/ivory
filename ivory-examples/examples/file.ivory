@@ -41,9 +41,8 @@ struct Foo
  { -- When context makes apparent and we can syntactically check the type, a
    -- base type is promoted to a memory area (i.e., bool is rewritten to &bool).
    bool aFoo
-   -- '&' at the type level binds most tightly and is right-associative. When
-   -- we use a type alias, the '&' must be added explicitly.
- ; SomeInt[4] aBar
+   -- To use synonyms (`SomeInt`), you have to use Haskell syntax.
+ ; aBar :: Array 4 (Stored SomeInt)
  }
 
 -- Safe string structs: strings of max length 16 bytes Generates two field

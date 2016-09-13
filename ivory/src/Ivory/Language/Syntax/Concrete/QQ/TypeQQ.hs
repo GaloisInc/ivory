@@ -135,7 +135,7 @@ isBaseType ty = case ty of
   TyArray{}      -> False
   TyRef{}        -> False
   TyConstRef{}   -> False
-  TySynonym{}    -> True
+  TySynonym{}    -> False
   LocTy ty'      -> isBaseType (unLoc ty')
 
 maybeLiftStored :: Type -> Type
