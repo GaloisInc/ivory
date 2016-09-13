@@ -8,6 +8,8 @@ module Ivory.Language.Module where
 import           Prelude                ()
 import           Prelude.Compat
 
+import           Data.List              (nub)
+
 import           Ivory.Language.Area    (IvoryArea)
 import           Ivory.Language.MemArea (ConstMemArea (..), MemArea (..))
 import           Ivory.Language.Proc    (Def (..))

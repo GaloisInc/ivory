@@ -17,9 +17,7 @@ import           Ivory.Compile.C.Types
 
 import           Control.Monad             (unless, when)
 import           Data.Char                 (toUpper)
-import           Data.List                 (nub)
 import           Data.Maybe                (fromJust, isJust)
-import qualified Data.Set                  as S
 import           Data.Version              (showVersion)
 import           MonadLib                  (put, runM)
 import           System.FilePath.Posix     ((<.>))
@@ -34,7 +32,7 @@ showModule m = unlines $ map unlines $
   where
   lbl l = "// module " ++ unitName m ++ " " ++ l ++ ":\n"
   mk _   (_,[])         = []
-  mk str (incls,units)  = str : pp (map includeDef (S.toList incls) ++ units)
+  mk str (incls,units)  = str : pp (mkDefs (incls, units))
   pp = map (pretty maxWidth . ppr)
 
 --------------------------------------------------------------------------------
@@ -54,7 +52,7 @@ renderHdr s unitname = displayS (render maxWidth guardedHeader) ""
   guardedHeader = stack [ topComments
                         , topGuard
                         , topExternC
-                        , ppr (defs s)
+                        , ppr (mkDefs s)
                         , botExternC
                         , botGuard
                         ]
@@ -69,14 +67,12 @@ renderHdr s unitname = displayS (render maxWidth guardedHeader) ""
   botExternC      = stack $ text <$> [ "#ifdef __cplusplus"
                                      , "}"
                                      , "#endif"]
-  defs (incls,us) = map includeDef (S.toList incls) ++ us
 
 renderSrc :: (Includes, Sources) -> String
 renderSrc s = displayS (render maxWidth srcdoc) ""
   where
   srcdoc = topComments </> out </> text ""
-  defs (incls,us) = map includeDef (S.toList incls) ++ us
-  out = stack $ punctuate line $ map ppr $ defs s
+  out = stack $ punctuate line $ map ppr $ mkDefs s
 
 --------------------------------------------------------------------------------
 
@@ -166,3 +162,6 @@ outputProcSyms mods = putStrLn $ unwords $ concatMap go mods
 -- generated C more readable.
 maxWidth :: Int
 maxWidth = 400
+
+mkDefs :: ([Include], Sources) -> Sources
+mkDefs (incls, defs) = map includeDef incls ++ defs
