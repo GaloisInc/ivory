@@ -116,7 +116,11 @@ defConstMemArea (ConstMemArea m) = defMemArea m
 
 -- | Package the module up. Default visibility is public.
 package :: String -> ModuleDef -> I.Module
-package name build = (snd (runM (unModule build) Public)) { I.modName = name }
+package name build =
+  let m = (snd (runM (unModule build) Public)) { I.modName = name } in
+  m { I.modHeaders = nub (I.modHeaders m)
+    , I.modDepends = nub (I.modDepends m)
+    }
 
 -- | Start a block of definitions that should not be put in the header.
 private :: ModuleDef -> ModuleDef
