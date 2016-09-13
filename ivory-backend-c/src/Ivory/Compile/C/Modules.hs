@@ -120,8 +120,8 @@ compileModule hdr I.Module { I.modName        = nm
     when (isJust hdr)
       (putHdrInc (LocalInclude (fromJust hdr)))
     -- module names don't have a .h on the end
-    mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) deps
-    mapM_ (putHdrInc . LocalInclude) hdrs
+    mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) (nub deps)
+    mapM_ (putHdrInc . LocalInclude) (nub hdrs)
     mapM_ (compileStruct Public) (I.public structs)
     mapM_ (compileStruct Private) (I.private structs)
     mapM_ fromImport imports
