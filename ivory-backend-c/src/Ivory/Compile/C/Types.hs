@@ -1,17 +1,18 @@
-{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE PackageImports             #-}
+{-# LANGUAGE QuasiQuotes                #-}
 
 module Ivory.Compile.C.Types where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude              ()
+import           Prelude.Compat
 
-import Language.C.Quote.GCC
-import qualified "language-c-quote" Language.C.Syntax as C
+import           Data.List            (nub)
 
-import MonadLib (WriterT,Id,put)
-import qualified Data.Set as S
+import           Language.C.Quote.GCC
+import qualified "language-c-quote" Language.C.Syntax    as C
+
+import           MonadLib             (Id, WriterT, put, runM)
 
 --------------------------------------------------------------------------------
 
@@ -25,7 +26,7 @@ includeDef incl = case incl of
   SysInclude file   -> [cedecl| $esc:("#include <"  ++ file ++ ">")           |]
   LocalInclude file -> [cedecl| $esc:("#include \"" ++ file ++ "\"")          |]
 
-type Includes = S.Set Include
+type Includes = [Include]
 type Sources  = [C.Definition]
 
 data CompileUnits = CompileUnits
@@ -49,18 +50,31 @@ newtype CompileM a = Compile
 
 type Compile = CompileM ()
 
+-- | Run the monad and nub the lists. (We have lists here rather than sets since
+-- we do not want to reorder headers. Sometimes a user wants headers to be
+-- included in exactly the correct order, since in some (bad!) build
+-- environments, includes depend on previous includes and aren't
+-- self-sufficient.
+runResult :: CompileM a -> CompileUnits
+runResult c =
+  let cu = snd (runM (unCompile c)) in
+  let go (i,s) = (nub i, s) in
+  cu { sources = go (sources cu)
+     , headers = go (headers cu)
+     }
+
 --------------------------------------------------------------------------------
 
 putSrc :: C.Definition -> Compile
-putSrc def = Compile (put mempty { sources = (S.empty,[def]) })
+putSrc def = Compile (put mempty { sources = ([],[def]) })
 
 putSrcInc :: Include -> Compile
-putSrcInc inc = Compile (put mempty { sources = (S.fromList [inc],[]) })
+putSrcInc inc = Compile (put mempty { sources = ([inc],[]) })
 
 putHdrSrc :: C.Definition -> Compile
-putHdrSrc hdr = Compile (put mempty { headers = (S.empty,[hdr]) })
+putHdrSrc hdr = Compile (put mempty { headers = ([],[hdr]) })
 
 putHdrInc :: Include -> Compile
-putHdrInc inc = Compile (put mempty { headers = (S.fromList [inc],[]) })
+putHdrInc inc = Compile (put mempty { headers = ([inc],[]) })
 
 --------------------------------------------------------------------------------
