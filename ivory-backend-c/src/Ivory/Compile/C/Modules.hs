@@ -17,7 +17,6 @@ import           Ivory.Compile.C.Types
 
 import           Control.Monad             (unless, when)
 import           Data.Char                 (toUpper)
-import           Data.List                 (nub)
 import           Data.Maybe                (fromJust, isJust)
 import           Data.Version              (showVersion)
 import           MonadLib                  (put, runM)
