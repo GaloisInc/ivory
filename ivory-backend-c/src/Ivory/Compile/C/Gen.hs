@@ -243,9 +243,13 @@ toBody ens stmt =
     I.Deref t var exp      -> [C.BlockDecl
       [cdecl| $ty:(toType t) $id:(toVar var) = $exp:(derefExp (toExpr (I.TyRef t) exp)); |]]
 
-    I.Local t var inits    -> [C.BlockDecl
-      [cdecl| $ty:(toType t) $id:(toVar var)
-                = $init:(toInit inits); |]]
+    I.Local t var inits    -> [C.BlockDecl $
+      case inits of
+        I.InitStruct []
+          -> [cdecl| $ty:(toType t) $id:(toVar var); |]
+        _ -> [cdecl| $ty:(toType t) $id:(toVar var)
+                = $init:(toInit inits); |]
+      ]
     -- Can't do a static check since we have local let bindings.
     I.RefCopy t vto vfrom  ->
       [C.BlockStm $ case t of
