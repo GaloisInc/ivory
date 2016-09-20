@@ -175,6 +175,8 @@ options  =
     "print to stdout only"
   , Option "" ["src-dir"] (ReqArg setOutDir "PATH")
     "output directory for source files"
+  , Option "" ["hdr-dir"] (ReqArg setHdrDir "PATH")
+    "output directory for header files"
   , Option "" ["other-hdr"] (ReqArg setOtherHdr "HEADER")
     "Additional headers to include in generated files"
   , Option "" ["const-fold"] (NoArg setConstFold)
