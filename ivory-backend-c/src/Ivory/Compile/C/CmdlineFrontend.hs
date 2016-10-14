@@ -36,6 +36,8 @@ import           Data.Maybe                              (catMaybes, mapMaybe)
 import           System.Directory                        (createDirectoryIfMissing)
 import           System.Environment                      (getArgs)
 import           System.FilePath                         (addExtension, (</>))
+import           System.IO                               (Handle, hPutStrLn,
+                                                          stderr, stdout)
 
 -- Code Generation Front End ---------------------------------------------------
 
@@ -122,25 +124,25 @@ compileUnits ::[Module] -> Opts -> IO [C.CompileUnits]
 compileUnits modules opts = do
 
   let (bs, warnMsgs, errMsgs) = unzip3 (map tcMod modules)
-  when (tcWarnings opts) (putStrNoEmpty id (concat warnMsgs))
-  putStrNoEmpty id (concat errMsgs)
+  when (tcWarnings opts) (putStrNoEmpty stderr id (concat warnMsgs))
+  putStrNoEmpty stdout id (concat errMsgs)
   when (tcErrors opts && or bs) (error "There were type-checking errors.")
 
   when (scErrors opts) $ do
     let scRes = unzip (map scMod modules)
     let (bs', msgs') = (or (fst scRes), snd scRes)
     when bs' $ do
-      putStrNoEmpty id msgs'
+      putStrNoEmpty stdout id msgs'
       error "Sanity-check failed!"
 
   return (mkCUnits modules opts)
 
   where
-  putStrNoEmpty :: (a -> String) -> [a] -> IO ()
-  putStrNoEmpty f r = do
+  putStrNoEmpty :: Handle -> (a -> String) -> [a] -> IO ()
+  putStrNoEmpty h f r = do
     let ls = map f r
     let go "" = return ()
-        go l  = putStrLn l
+        go l  = hPutStrLn h l
     mapM_ go ls
 
   scMod :: I.Module -> (Bool, String)
