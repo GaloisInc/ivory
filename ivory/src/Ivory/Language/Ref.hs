@@ -107,3 +107,6 @@ instance IvoryStore Sint8
 instance IvoryStore Sint16
 instance IvoryStore Sint32
 instance IvoryStore Sint64
+
+-- Only allow global references to be stored in structures.
+instance IvoryArea a => IvoryStore (Ref 'Global a)
