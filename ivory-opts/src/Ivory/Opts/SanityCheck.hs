@@ -26,6 +26,7 @@ import           Prelude                                 ()
 import           Prelude.Compat
 
 import           Control.Monad                           (unless)
+import qualified Data.List                               as L
 import qualified Data.Map                                as M
 import           MonadLib                                (Id, StateM (..),
                                                           StateT, WriterM (..),
@@ -47,6 +48,7 @@ import           Ivory.Opts.Utils
 
 data Error = UnboundValue String
            | TypeError String I.Type I.Type
+           | MultiBoundValue String
   deriving (Show, Eq)
 
 data Results = Results
@@ -70,6 +72,8 @@ showError err = case err of
       $$ nest 4 (quotes (pretty actual))
       $$ text "but is used with type:"
       $$ nest 4 (quotes (pretty expected))
+  MultiBoundValue x
+    ->   quotes (text x) <+> text "has multiple definitions."
 
 showErrors :: String -> Results -> String
 showErrors procName res
@@ -150,13 +154,26 @@ getType (I.Typed t _) = t
 
 sanityCheck :: [I.Module] -> I.Module -> Results
 sanityCheck deps this@(I.Module {..})
-  = mconcat $ map (sanityCheckProc topLevel) $ getVisible modProcs
+  = dupErrs `mappend` errs
   where
+  dupErrs :: Results
+  dupErrs = Results $ map (noLoc . MultiBoundValue . fst) dups
+
+  errs :: Results
+  errs = mconcat
+       $ map (sanityCheckProc topLevelMap)
+       $ getVisible modProcs
+
   getVisible v = I.public v ++ I.private v
 
-  topLevel :: M.Map String MaybeType
-  topLevel = M.fromList
-           $ concat [ procs m
+  topLevelMap :: M.Map String MaybeType
+  topLevelMap = M.fromList topLevel
+
+  dups :: [(String, MaybeType)]
+  dups = topLevel L.\\ (L.nub topLevel)
+
+  topLevel :: [(String, MaybeType)]
+  topLevel = concat [ procs m
                    ++ imports m
                    ++ externs m
                    ++ areas m
