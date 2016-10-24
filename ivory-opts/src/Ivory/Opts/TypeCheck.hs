@@ -77,7 +77,7 @@ existErrors ls = or (map go ls)
 showError :: Error -> Doc
 showError err = case err of
   EmptyBody  -> text "Procedure contains no statements!"
-  NoRet      -> text "No return statment and procedure has a non-void type."
+  NoRet      -> text "No return statement and procedure has a non-void type."
   DeadCode   -> text "Unreachable statements after a return."
   DoubleInit -> text "Repeated initialization of a struct field."
 
