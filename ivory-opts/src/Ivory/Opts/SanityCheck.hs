@@ -176,7 +176,7 @@ showDupDefs dups =
   if null dups then return ()
     else putStrLn $ render (vcat (map docDups dups) $$ empty)
   where
-  docDups x = text "*** ERROR"
+  docDups x = text "*** WARNING"
            <> colon
           <+> quotes (text x)
           <+> text "has multiple definitions."

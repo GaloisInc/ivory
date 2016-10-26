@@ -105,7 +105,7 @@ showWarning w =
               VoidEmptyBody
                 -> "Procedure with void return type has no statements."
               ArrayInitPartialWarning
-                -> "Array patially initialized."
+                -> "Array partially initialized."
               ArrayInitUnusedWarning
                 -> "Array contains unused initializers."
            )
