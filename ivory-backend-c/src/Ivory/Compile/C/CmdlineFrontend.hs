@@ -130,12 +130,11 @@ compileUnits modules opts = do
 
   when (scErrors opts) $ do
     let ds = S.dupDefs modules
-    let anyDs = not (null ds)
     S.showDupDefs ds
     let ss = S.sanityCheck modules
-    let anySs = or (map S.existErrors ss)
     mapM_ S.showSanityChkModule ss
-    when (anySs) (error "Sanity-check failed!")
+    let anySs = or (map S.existErrors ss)
+    when anySs (error "Sanity-check failed!")
 
   return (mkCUnits modules opts)
 
