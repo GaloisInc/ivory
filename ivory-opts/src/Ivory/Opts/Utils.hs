@@ -6,8 +6,6 @@ module Ivory.Opts.Utils
 
 where
 
-import           Debug.Trace
-
 import           Text.PrettyPrint
 
 import qualified Ivory.Language.Syntax.AST               as I
@@ -41,7 +39,7 @@ data ModResult a = ModResult String [SymResult a]
 
 -- Show the errors for a module.
 showModErrs :: Show a => (a -> Doc) -> ModResult a -> IO ()
-showModErrs doc (ModResult m errs) = --trace (show errs) $
+showModErrs doc (ModResult m errs) =
   case errs of
     [] -> return ()
     _  ->
