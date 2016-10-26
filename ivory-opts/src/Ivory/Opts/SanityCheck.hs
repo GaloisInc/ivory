@@ -17,9 +17,10 @@
 
 module Ivory.Opts.SanityCheck
   ( sanityCheck
-  , showErrors
+  , showSanityChkModule
   , existErrors
-  , Results()
+  , dupDefs
+  , showDupDefs
   ) where
 
 import           Prelude                                 ()
@@ -48,20 +49,17 @@ import           Ivory.Opts.Utils
 
 data Error = UnboundValue String
            | TypeError String I.Type I.Type
-           | MultiBoundValue String
   deriving (Show, Eq)
 
-data Results = Results
-  { errors :: [Located Error]
-  } deriving (Show, Eq)
+type Result = Located Error
 
-instance Monoid Results where
-  mempty = Results []
-  Results a0 `mappend` Results a1 = Results (a0 ++ a1)
+type Results = [Located Error]
 
 -- | Are there any errors from typechecking?
-existErrors :: Results -> Bool
-existErrors = not . null . errors
+existErrors :: ModResult Result -> Bool
+existErrors (ModResult _ ls) = or (map go ls)
+  where
+  go (SymResult _ res) = not (null res)
 
 showError :: Error -> Doc
 showError err = case err of
@@ -72,12 +70,12 @@ showError err = case err of
       $$ nest 4 (quotes (pretty actual))
       $$ text "but is used with type:"
       $$ nest 4 (quotes (pretty expected))
-  MultiBoundValue x
-    ->   quotes (text x) <+> text "has multiple definitions."
 
-showErrors :: String -> Results -> String
-showErrors procName res
-  = mkOut procName "ERROR" (showWithLoc showError) (errors res)
+showSanityChkModule :: ModResult Result -> IO ()
+showSanityChkModule res = showModErrs go res
+  where
+  go :: Result -> Doc
+  go = showWithLoc showError
 
 --------------------------------------------------------------------------------
 -- Writer Monad
@@ -131,7 +129,7 @@ hasType name ty = sets_ (\s -> s { env = M.insert name (Defined ty) (env s) })
 putError :: Error -> SCResults ()
 putError err = do
   loc <- getStLoc
-  put (Results [err `at` loc])
+  put [err `at` loc]
 
 runSCResults :: SCResults a -> (a, Results)
 runSCResults tc = fst $ runId $ runStateT (St NoLoc M.empty) $ runWriterT (unTC tc)
@@ -152,45 +150,67 @@ nameString n = case n of
 getType :: I.Typed a -> I.Type
 getType (I.Typed t _) = t
 
-sanityCheck :: [I.Module] -> I.Module -> Results
-sanityCheck deps this@(I.Module {..})
-  = dupErrs `mappend` errs
+sanityCheck :: [I.Module] -> [ModResult Result]
+sanityCheck ms = map goMod ms
   where
-  dupErrs :: Results
-  dupErrs = Results $ map (noLoc . MultiBoundValue . fst) dups
+  goMod m =
+    ModResult (I.modName m)
+              (concatMap goProc (getVisible I.modProcs m))
 
-  errs :: Results
-  errs = mconcat
-       $ map (sanityCheckProc topLevelMap)
-       $ getVisible modProcs
+  goProc p =
+    let scp = sanityCheckProc topLevel p in
+    if null scp then [] else [SymResult (I.procSym p) scp]
 
-  getVisible v = I.public v ++ I.private v
-
-  topLevelMap :: M.Map String MaybeType
-  topLevelMap = M.fromList topLevel
-
-  dups :: [(String, MaybeType)]
-  dups = topLevel L.\\ (L.nub topLevel)
-
-  topLevel :: [(String, MaybeType)]
-  topLevel = concat [ procs m
+  topLevel :: M.Map String MaybeType
+  topLevel = M.fromList $
+             concat [ procs m
                    ++ imports m
                    ++ externs m
                    ++ areas m
                    ++ importAreas m
-                    | m <- this:deps
+                    | m <- ms
                     ]
 
-  procs m       = [ (procSym, Defined $ I.TyProc procRetTy (map getType procArgs) )
-                  | I.Proc {..} <- getVisible $ I.modProcs m ]
-  imports m     = [ (importSym, Imported)
-                  | I.Import {..} <- I.modImports m ]
-  externs m     = [ (externSym, Defined externType)
-                  | I.Extern {..} <- I.modExterns m ]
-  areas m       = [ (areaSym, Defined areaType)
-                  | I.Area {..} <- getVisible $ I.modAreas m ]
-  importAreas m = [ (aiSym, Imported)
-                  | I.AreaImport {..} <- I.modAreaImports m ]
+showDupDefs :: [String] -> IO ()
+showDupDefs dups =
+  if null dups then return ()
+    else putStrLn $ render (vcat (map docDups dups) $$ empty)
+  where
+  docDups x = text "*** ERROR"
+           <> colon
+          <+> quotes (text x)
+          <+> text "has multiple definitions."
+
+-- Are there any duplicated definitions?
+dupDefs :: [I.Module] -> [String]
+dupDefs ms = map fst dups
+  where
+  dups :: [(String, MaybeType)]
+  -- XXX doesn't guarantee that there are multiply defined defs, but at
+  -- least sanity checks it.
+  dups = defs L.\\ (L.nubBy (\a b -> (fst a == fst b) && (snd a /= snd b))) defs
+    where
+    defs = concat [ procs m ++ areas m ++ structs m | m <- ms ]
+
+getVisible :: (t -> I.Visible a) -> t -> [a]
+getVisible acc m =
+  let ps = acc m in
+  I.public ps ++ I.private ps
+
+procs, areas, imports, externs, importAreas, structs :: I.Module -> [(I.Sym, MaybeType)]
+procs m       = [ (procSym, Defined $ I.TyProc procRetTy (map getType procArgs) )
+                | I.Proc {..} <- getVisible I.modProcs m ]
+areas m       = [ (areaSym, Defined areaType)
+                | I.Area {..} <- getVisible I.modAreas m ]
+imports m     = [ (importSym, Imported)
+                | I.Import {..} <- I.modImports m ]
+externs m     = [ (externSym, Defined externType)
+                | I.Extern {..} <- I.modExterns m ]
+importAreas m = [ (aiSym, Imported)
+                | I.AreaImport {..} <- I.modAreaImports m ]
+-- Not an imported type, but we don't need hte type here.
+structs m     = [ (nm, Imported)
+                | (I.Struct nm _) <- getVisible I.modStructs m ]
 
 -- | Sanity Check a procedure. Check for unbound and ill-typed values
 sanityCheckProc :: M.Map String MaybeType -> I.Proc -> Results

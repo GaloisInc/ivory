@@ -15,10 +15,9 @@
 
 module Ivory.Opts.TypeCheck
   ( typeCheck
-  , showErrors
-  , showWarnings
+  , showTyChkModule
+  , existWarnOrErrors
   , existErrors
-  , Results()
   ) where
 
 import           Prelude                                 ()
@@ -43,67 +42,81 @@ import           Ivory.Opts.Utils
 data RetError = RetError String [Error]
   deriving (Show, Read, Eq)
 
-data Warning = IfTEWarn
+data Warning =
+    IfTEWarn
   | LoopWarn
   | VoidEmptyBody
   | ArrayInitUnusedWarning
   | ArrayInitPartialWarning
   deriving (Show, Read, Eq)
 
-data Error = EmptyBody
+data Error =
+    EmptyBody
   | NoRet
   | DeadCode
   | DoubleInit
   deriving (Show, Read, Eq)
 
-data Results = Results
-  { errs     :: [Located Error]
-  , warnings :: [Located Warning]
-  } deriving (Show, Read, Eq)
-
-instance Monoid Results where
-  mempty = Results [] []
-  Results a0 b0 `mappend` Results a1 b1 = Results (a0 ++ a1) (b0 ++ b1)
-
-data ModuleResult = ModuleResult String Results
+data Result =
+    LocError (Located Error)
+  | LocWarn  (Located Warning)
   deriving (Show, Read, Eq)
 
--- | Are there any errors from typechecking?
-existErrors :: [ModuleResult] -> Bool
-existErrors ls = or (map go ls)
+type Results = [Result]
+
+allResults :: ModResult Result -> [Result]
+allResults (ModResult _ ls) = concatMap go ls
   where
-  go (ModuleResult _ res) = not (null (errs res))
+  go (SymResult _ res) = res
+
+-- | Are there any errors from typechecking the module?
+existErrors :: ModResult Result -> Bool
+existErrors m =
+  not (null (f (allResults m)))
+  where
+  f = filter (\a -> case a of LocError{} -> True; LocWarn{} -> False)
+
+-- | Are there any errors or warnings from typechecking the module?
+existWarnOrErrors :: ModResult Result -> Bool
+existWarnOrErrors m = not (null (allResults m))
 
 showError :: Error -> Doc
-showError err = case err of
-  EmptyBody  -> text "Procedure contains no statements!"
-  NoRet      -> text "No return statement and procedure has a non-void type."
-  DeadCode   -> text "Unreachable statements after a return."
-  DoubleInit -> text "Repeated initialization of a struct field."
+showError err =
+      text "ERROR"
+  <+> text (case err of
+              EmptyBody
+                -> "Procedure contains no statements!"
+              NoRet
+                -> "No return statement and procedure has a non-void type."
+              DeadCode
+                 -> "Unreachable statements after a return."
+              DoubleInit
+                 -> "Repeated initialization of a struct field."
+           )
 
 showWarning :: Warning -> Doc
-showWarning w = case w of
-  IfTEWarn
-    ->     text "One branch of an if-then-else statement contains a return statement."
-       <+> text "Statements after the if-the-else block are not reachable on all control paths."
-  LoopWarn
-    -> text "Statements after the loop may be unreachable due to a return statement within the loop."
-  VoidEmptyBody
-    -> text "Procedure with void return type has no statements."
-  ArrayInitPartialWarning
-    -> text "Array patially initialized."
-  ArrayInitUnusedWarning
-    -> text "Array contains unused initializers."
+showWarning w =
+      text "WARNING"
+  <+> text (case w of
+              IfTEWarn
+                -> "One branch of an if-then-else statement contains a return statement. Statements after the if-the-else block are not reachable on all control paths."
+              LoopWarn
+                -> "Statements after the loop may be unreachable due to a return statement within the loop."
+              VoidEmptyBody
+                -> "Procedure with void return type has no statements."
+              ArrayInitPartialWarning
+                -> "Array patially initialized."
+              ArrayInitUnusedWarning
+                -> "Array contains unused initializers."
+           )
 
--- | Show all the typechecking errors for a module item.
-showErrors :: ModuleResult -> String
-showErrors (ModuleResult nm res)
-  = mkOut nm "ERROR" (showWithLoc showError) (errs res)
-
--- | Show all the typechecking warnings for a module item.
-showWarnings :: ModuleResult -> String
-showWarnings (ModuleResult nm res)
-  = mkOut nm "WARNING" (showWithLoc showWarning) (warnings res)
+-- Boolean says whether to show warnings (True) or not.
+showTyChkModule :: Bool -> ModResult Result -> IO ()
+showTyChkModule b res = showModErrs go res
+  where
+  go :: Result -> Doc
+  go (LocError e) = showWithLoc showError e
+  go (LocWarn  w) = if b then showWithLoc showWarning w else empty
 
 --------------------------------------------------------------------------------
 -- Writer Monad
@@ -121,12 +134,12 @@ instance StateM TCResults SrcLoc where
 putError :: Error -> TCResults ()
 putError err = do
   loc <- get
-  put (Results [err `at` loc] [])
+  put [LocError (err `at` loc)]
 
 putWarn :: Warning -> TCResults ()
 putWarn warn = do
   loc <- get
-  put (Results [] [warn `at` loc])
+  put [LocWarn (warn `at` loc)]
 
 runTCResults :: TCResults a -> (a, Results)
 runTCResults tc = fst $ runId $ runStateT NoLoc $ runWriterT (unTC tc)
@@ -134,16 +147,21 @@ runTCResults tc = fst $ runId $ runStateT NoLoc $ runWriterT (unTC tc)
 --------------------------------------------------------------------------------
 
 -- | Type Check a module.
-typeCheck :: I.Module -> [ModuleResult]
-typeCheck m = map procTC allProcs ++ map areaTC allAreas
+typeCheck :: I.Module -> ModResult Result
+typeCheck m =
+  ModResult (I.modName m)
+            (concatMap procTC allProcs ++ concatMap areaTC allAreas)
+
   where
   allProcs = let ps = I.modProcs m in I.public ps ++ I.private ps
-  procTC p = ModuleResult (I.procSym p) res
+  procTC p =
+    if null res then [] else [SymResult (I.procSym p) res]
     where
     res = snd $ runTCResults $ tyChk (I.procRetTy p) (I.procBody p)
 
   allAreas = let as = I.modAreas m in I.public as ++ I.private as
-  areaTC a = ModuleResult (I.areaSym a) res
+  areaTC a =
+    if null res then [] else [SymResult (I.areaSym a) res]
     where
     res = snd $ runTCResults $ checkInit (Just (I.areaType a)) (I.areaInit a)
 

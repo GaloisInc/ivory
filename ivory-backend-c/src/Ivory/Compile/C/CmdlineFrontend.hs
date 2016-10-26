@@ -121,41 +121,23 @@ outputmodules opts cmodules user_artifacts = do
 compileUnits ::[Module] -> Opts -> IO [C.CompileUnits]
 compileUnits modules opts = do
 
-  let (bs, warnMsgs, errMsgs) = unzip3 (map tcMod modules)
-  when (tcWarnings opts) (putStrNoEmpty id (concat warnMsgs))
-  putStrNoEmpty id (concat errMsgs)
-  when (tcErrors opts && or bs) (error "There were type-checking errors.")
+  when (tcErrors opts) $ do
+    let ts = map T.typeCheck modules
+    let anyTs = or (map T.existErrors ts)
+    let b = tcWarnings opts
+    mapM_ (T.showTyChkModule b) ts
+    when anyTs (error "Type-checking failed!")
 
   when (scErrors opts) $ do
-    let scRes = unzip (map scMod modules)
-    let (bs', msgs') = (or (fst scRes), snd scRes)
-    when bs' $ do
-      putStrNoEmpty id msgs'
-      error "Sanity-check failed!"
+    let ds = S.dupDefs modules
+    let anyDs = not (null ds)
+    S.showDupDefs ds
+    let ss = S.sanityCheck modules
+    let anySs = or (map S.existErrors ss)
+    mapM_ S.showSanityChkModule ss
+    when (anyDs || anySs) (error "Sanity-check failed!")
 
   return (mkCUnits modules opts)
-
-  where
-  putStrNoEmpty :: (a -> String) -> [a] -> IO ()
-  putStrNoEmpty f r = do
-    let ls = map f r
-    let go "" = return ()
-        go l  = putStrLn l
-    mapM_ go ls
-
-  scMod :: I.Module -> (Bool, String)
-  scMod m = (S.existErrors res, msg)
-    where
-    res = S.sanityCheck modules m
-    msg = S.showErrors (I.modName m) res
-
-  tcMod :: I.Module -> (Bool, [String], [String])
-  tcMod m = ( T.existErrors res
-            , map T.showWarnings res
-            , map T.showErrors res
-            )
-    where
-    res = T.typeCheck m
 
 mkCUnits :: [Module] -> Opts -> [C.CompileUnits]
 mkCUnits modules opts = cmodules
