@@ -26,6 +26,8 @@ module Ivory.Opts.SanityCheck
 import           Prelude                                 ()
 import           Prelude.Compat
 
+import           System.IO                               (hPutStrLn, stderr)
+
 import           Control.Monad                           (unless)
 import qualified Data.List                               as L
 import qualified Data.Map                                as M
@@ -174,7 +176,7 @@ sanityCheck ms = map goMod ms
 showDupDefs :: [String] -> IO ()
 showDupDefs dups =
   if null dups then return ()
-    else putStrLn $ render (vcat (map docDups dups) $$ empty)
+    else hPutStrLn stderr $ render (vcat (map docDups dups) $$ empty)
   where
   docDups x = text "*** WARNING"
            <> colon

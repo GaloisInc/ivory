@@ -13,6 +13,8 @@ import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.Language.Syntax.Concrete.Pretty   (pretty, prettyPrint)
 import qualified Ivory.Language.Syntax.Type              as I
 
+import           System.IO                               (hPutStrLn, stderr)
+
 --------------------------------------------------------------------------------
 
 -- | Type of the expression's arguments.
@@ -43,7 +45,7 @@ showModErrs doc (ModResult m errs) =
   case errs of
     [] -> return ()
     _  ->
-         putStrLn
+         hPutStrLn stderr
        $ render
        $ text "***" <+> text "Module" <+> text m <> colon
       $$ nest 2 (vcat (map (showSymErrs doc) errs))
