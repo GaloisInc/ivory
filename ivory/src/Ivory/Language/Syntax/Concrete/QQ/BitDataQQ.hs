@@ -12,8 +12,6 @@
 
 module Ivory.Language.Syntax.Concrete.QQ.BitDataQQ (fromBitData) where
 
-import           Debug.Trace
-
 import           Control.Monad                            (MonadPlus, join,
                                                            msum, mzero, unless,
                                                            when)
