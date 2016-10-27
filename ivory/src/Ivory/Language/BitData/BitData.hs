@@ -70,8 +70,8 @@ instance (ANat n, IvoryRep (BitRep n)) => BitData (Bits n) where
 -- Each field defined in the record syntax will generate a top-level
 -- definition of "BitDataField".
 --
--- This constructor must remain unexported so that only fields checked
--- by the quasiquoter are created.
+-- XXX do not export. This constructor must remain unexported so that only
+-- fields checked by the quasiquoter are created.
 data BitDataField a b = BitDataField
   { bitDataFieldPos  :: Int
   , bitDataFieldLen  :: Int

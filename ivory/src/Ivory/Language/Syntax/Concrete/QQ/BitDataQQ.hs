@@ -1,7 +1,7 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE PatternGuards              #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 --
 -- Quote.hs --- Bit data quasiquoter.
@@ -12,32 +12,38 @@
 
 module Ivory.Language.Syntax.Concrete.QQ.BitDataQQ (fromBitData) where
 
-import Control.Monad (MonadPlus, msum, when, unless, mzero, join)
-import Data.Foldable (find, foldl')
-import Data.List (sort)
-import Data.Maybe (mapMaybe, catMaybes, isJust)
-import Data.Traversable (mapAccumL)
-import MonadLib (ChoiceT, findOne, lift)
+import           Debug.Trace
 
-import           Language.Haskell.TH hiding (Exp, Type)
-import qualified Language.Haskell.TH as TH
+import           Control.Monad                            (MonadPlus, join,
+                                                           msum, mzero, unless,
+                                                           when)
+import           Data.Foldable                            (find, foldl')
+import           Data.List                                (sort)
+import           Data.Maybe                               (catMaybes, isJust,
+                                                           mapMaybe)
+import           Data.Traversable                         (mapAccumL)
+import           MonadLib                                 (ChoiceT, findOne,
+                                                           lift)
 
-import qualified Ivory.Language.Bits  as I
-import qualified Ivory.Language.Type  as I
-import qualified Ivory.Language.Cast  as I
-import qualified Ivory.Language.IBool as I
-import qualified Ivory.Language.Init  as I
-import qualified Ivory.Language.Ref   as I
-import Ivory.Language.Syntax.Concrete.ParseAST hiding (tyDef)
+import           Language.Haskell.TH                      hiding (Exp, Type)
+import qualified Language.Haskell.TH                      as TH
 
-import qualified Ivory.Language.BitData.Bits    as B
-import qualified Ivory.Language.BitData.BitData as B
-import qualified Ivory.Language.BitData.Array   as B
+import qualified Ivory.Language.Bits                      as I
+import qualified Ivory.Language.Cast                      as I
+import qualified Ivory.Language.IBool                     as I
+import qualified Ivory.Language.Init                      as I
+import qualified Ivory.Language.Ref                       as I
+import           Ivory.Language.Syntax.Concrete.ParseAST  hiding (tyDef)
+import qualified Ivory.Language.Type                      as I
+
+import qualified Ivory.Language.BitData.Array             as B
+import qualified Ivory.Language.BitData.BitData           as B
+import qualified Ivory.Language.BitData.Bits              as B
 #if __GLASGOW_HASKELL__ >= 709
 import           Ivory.Language.Syntax.Concrete.QQ.Common
 #endif
-import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 ----------------------------------------------------------------------
 
