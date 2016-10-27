@@ -412,7 +412,7 @@ constrFieldTypes c = map thFieldType fields
 -- | Create a Template Haskell function type for a bit data
 -- constructor.
 mkConstrType :: THDef -> THConstr -> TH.Type
-mkConstrType d c = foldr (AppT . AppT ArrowT) (ConT (thDefName d)) fields
+mkConstrType d c = foldl (flip (AppT . AppT ArrowT)) (ConT (thDefName d)) fields
   where fields = constrFieldTypes c
 
 -- | Return the Template Haskell name for the "n"th argument to a bit
