@@ -144,11 +144,11 @@ type Block = [Stmt]
 
 data Stmt
   = IfTE Expr Block Block
-    -- ^ If-then-else statement.  The @Expr@ argument will be typed as an
+    -- ^ If-then-else statement. The @Expr@ argument will be typed as an
     -- @IBool@.
 
   | Assert Expr
-    -- ^ Boolean-valued assertions.  The @Expr@ argument will be typed as an
+    -- ^ Boolean-valued assertions. The @Expr@ argument will be typed as an
     -- @IBool@.
 
   | CompilerAssert Expr
@@ -156,7 +156,7 @@ data Stmt
     -- These are expected to be correct (e.g., no overflow, etc).  Not exported.
 
   | Assume Expr
-    -- ^ Boolean-valued assumptions.  The @Expr@ argument will be typed as an
+    -- ^ Boolean-valued assumptions. The @Expr@ argument will be typed as an
     -- @IBool@.
 
   | Return (Typed Expr)
@@ -166,12 +166,12 @@ data Stmt
     -- ^ Returning void.
 
   | Deref Type Var Expr
-    -- ^ Reference dereferencing.  The type parameter refers to the type of the
+    -- ^ Reference dereferencing. The type parameter refers to the type of the
     -- referenced value, not the reference itself; the expression to be
     -- dereferenced is assumed to always be a reference.
 
   | Store Type Expr Expr
-    -- ^ Storing to a reference.  The type parameter refers to the type of the
+    -- ^ Storing to a reference. The type parameter refers to the type of the
     -- referenced value, not the reference itself; the expression to be
     -- dereferenced is assumed to always be a reference.
 
@@ -179,25 +179,25 @@ data Stmt
     -- ^ Simple assignment.
 
   | Call Type (Maybe Var) Name [Typed Expr]
-    -- ^ Function call.  The optional variable is where to store the result.  It
+    -- ^ Function call. The optional variable is where to store the result. It
     -- is expected that the @Expr@ passed for the function symbol will have the
     -- same type as the combination of the types for the arguments, and the
     -- return type.
 
   | Local Type Var Init
-    -- ^ Stack allocation.  The type parameter is not a reference at this point;
+    -- ^ Stack allocation. The type parameter is not a reference at this point;
     -- references are allocated separately to the stack-allocated data.
 
   | RefCopy Type Expr Expr
-    -- ^ Ref copy.  Copy the second variable reference to the first (like
-    -- memcopy).  The type is the dereferenced value of the variables.
+    -- ^ Ref copy. Copy the second variable reference to the first (like
+    -- memcopy). The type is the dereferenced value of the variables.
 
   | RefZero Type Expr
-    -- ^ Ref zero.  Zero out the memory associated with the reference. The type
+    -- ^ Ref zero. Zero out the memory associated with the reference. The type
     -- parameter is not a reference, but the referenced type.
 
   | AllocRef Type Var Name
-    -- ^ Reference allocation.  The type parameter is not a reference, but the
+    -- ^ Reference allocation. The type parameter is not a reference, but the
     -- referenced type.
 
   | Loop Integer Var Expr LoopIncr Block
