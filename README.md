@@ -14,8 +14,8 @@ The following paper describes the Ivory language:
 
 * Trevor Elliott, Lee Pike, Simon Winwood, Pat Hickey, James Bielman, Jamey
   Sharp, Eric Seidel, John
-  Launchbury. [https://github.com/GaloisInc/ivory/blob/master/ivory-paper/ivory.pdf](Guilt-free
-  Ivory). Haskell Symposium, 2015.
+  Launchbury. [Guilt-free Ivory](https://github.com/GaloisInc/ivory/blob/master/ivory-paper/ivory.pdf). Haskell
+  Symposium, 2015.
 
 Please cite this paper for when citing the language.
 
