@@ -135,55 +135,44 @@ toParam ty = case ty of
 --------------------------------------------------------------------------------
 -- Types
 
--- | Type conversion outside of an casting context. This converts arrays to
--- arrays, and carrays to pointers.
-toType :: I.Type -> C.Type
-toType = toTypeCxt arrIxTy
-  where
-  -- Invariant: ty is wrapped in a Ref, ConstRef, or Ptr.
-  arrIxTy t = case t of
-    I.TyArr    len t'
-      -> [cty| $ty:(toTypeCxt arrIxTy t')[$uint:len] |]
-    I.TyCArray t'
-      -> [cty| $ty:(toTypeCxt arrIxTy t') *          |]
-    _ -> [cty| $ty:(toTypeCxt arrIxTy t ) *          |]
+-- | Make C type, and decay array types into pointers (e.g., `x[2][3]` decays
+-- into `(*x)[3]`).
+toTypeDecay :: I.Type -> C.Type
+toTypeDecay = toType' True
 
--- | Type conversion in the context of a cast, converting all arrays/carrays to
--- pointers.
-toTypeCast :: I.Type -> C.Type
-toTypeCast = toTypeCxt arrIxTy
-  where
-  -- Invariant: ty is wrapped in a Ref, ConstRef, or Ptr.
-  arrIxTy t = case t of
-   I.TyArr    _len t'
-     -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
-   I.TyCArray t'
-     -> [cty| $ty:(toTypeCxt arrIxTy t') * |]
-   _ -> [cty| $ty:(toTypeCxt arrIxTy t ) * |]
+-- | Make C type, but don't decay array types (default).
+toType :: I.Type -> C.Type
+toType = toType' False
 
 -- | C type conversion, with a special case for references and pointers.
-toTypeCxt :: (I.Type -> C.Type) -> I.Type -> C.Type
-toTypeCxt arrCase = convert
+toType' :: Bool -> I.Type -> C.Type
+toType' b ty = case ty of
+  I.TyVoid              -> [cty| void |]
+  I.TyChar              -> [cty| char |]
+  I.TyInt i             -> intSize i
+  I.TyWord w            -> wordSize w
+  I.TyIndex _           -> toType I.ixRep
+  I.TyBool              -> [cty| typename bool |]
+  I.TyFloat             -> [cty| float |]
+  I.TyDouble            -> [cty| double |]
+  I.TyStruct nm         -> [cty| struct $id:nm |]
+  I.TyConstRef t        -> [cty| const $ty:(arrCase t) |]
+  I.TyCArray t          -> [cty| $ty:(toType t) * |]
+  I.TyArr len t         -> [cty| $ty:(toType t)[$uint:len] |]
+  I.TyProc retTy argTys ->
+    [cty| $ty:(toType retTy) (*)
+          ($params:(map (toParam . toType) argTys)) |]
+  I.TyOpaque            -> error "Opaque type is not implementable."
+  I.TyRef t             -> arrCase t
+  I.TyPtr t             -> arrCase t
   where
-  convert ty = case ty of
-    I.TyVoid              -> [cty| void |]
-    I.TyChar              -> [cty| char |]
-    I.TyInt i             -> intSize i
-    I.TyWord w            -> wordSize w
-    I.TyIndex _           -> convert I.ixRep
-    I.TyBool              -> [cty| typename bool |]
-    I.TyFloat             -> [cty| float |]
-    I.TyDouble            -> [cty| double |]
-    I.TyStruct nm         -> [cty| struct $id:nm |]
-    I.TyConstRef t        -> [cty| const $ty:(arrCase t) |]
-    I.TyRef t             -> arrCase t
-    I.TyPtr t             -> arrCase t
-    I.TyCArray t          -> [cty| $ty:(convert t) * |]
-    I.TyArr len t         -> [cty| $ty:(convert t)[$uint:len] |]
-    I.TyProc retTy argTys ->
-      [cty| $ty:(convert retTy) (*)
-            ($params:(map (toParam . convert) argTys)) |]
-    I.TyOpaque            -> error "Opaque type is not implementable."
+  arrCase t = case t of
+    I.TyArr len t'
+      -> if b then [cty| $ty:(toType t') * |]
+              else [cty| $ty:(toType t')[$uint:len] |]
+    I.TyCArray t'
+      -> [cty| $ty:(toType t') * |]
+    _ -> [cty| $ty:(toType t)  * |]
 
 intSize :: I.IntSize -> C.Type
 intSize I.Int8  = [cty| typename int8_t  |]
@@ -219,10 +208,12 @@ toBody ens stmt =
   let toBody' = toBody ens in
   case stmt of
     -- t is the ref type.
-    I.Assign t v exp       ->
-      [C.BlockDecl [cdecl| $ty:(toTypeCast t) $id:(toVar v)
+    I.Assign t v exp
+      ->
+      [C.BlockDecl [cdecl| $ty:(toTypeDecay t) $id:(toVar v)
                          = $exp:(toExpr t exp); |]]
-    I.IfTE exp blk0 blk1   ->
+    I.IfTE exp blk0 blk1
+      ->
       let ifBd   = concatMap toBody' blk0 in
       let elseBd = concatMap toBody' blk1 in
       if null elseBd
@@ -231,19 +222,24 @@ toBody ens stmt =
         else [C.BlockStm [cstm| if($exp:(toExpr I.TyBool exp)) {
                                   $items:ifBd }
                                 else { $items:elseBd } |]]
-    I.Return exp           ->
+    I.Return exp
+      ->
            map (toEnsure $ I.tValue exp) ens
         ++ [C.BlockStm [cstm| return $exp:(typedRet exp); |]]
-    I.ReturnVoid           -> [C.BlockStm [cstm| return; |]]
+    I.ReturnVoid
+      -> [C.BlockStm [cstm| return; |]]
 
     -- t is the referenced type.  Should only be able to deref a stored value.
     -- We replicate some of the type deconstruction in parsing expressions to
     -- optimize away *& constructions on dereferncing structs and indexes into
     -- arrays.
-    I.Deref t var exp      -> [C.BlockDecl
-      [cdecl| $ty:(toType t) $id:(toVar var) = $exp:(derefExp (toExpr (I.TyRef t) exp)); |]]
+    I.Deref t var exp
+      ->
+      [C.BlockDecl [cdecl| $ty:(toType t) $id:(toVar var) =
+                             $exp:(derefExp (toExpr (I.TyRef t) exp)); |]]
 
-    I.Local t var inits    -> [C.BlockDecl $
+    I.Local t var inits
+      -> [C.BlockDecl $
       case inits of
         I.InitStruct []
           -> [cdecl| $ty:(toType t) $id:(toVar var); |]
@@ -251,7 +247,8 @@ toBody ens stmt =
                 = $init:(toInit inits); |]
       ]
     -- Can't do a static check since we have local let bindings.
-    I.RefCopy t vto vfrom  ->
+    I.RefCopy t vto vfrom
+      ->
       [C.BlockStm $ case t of
         I.TyArr{} ->
           [cstm| if( $exp:toRef != $exp:fromRef) {
@@ -264,26 +261,32 @@ toBody ens stmt =
       toRef   = toExpr (I.TyRef t) vto
       fromRef = toExpr (I.TyRef t) vfrom
 
-    I.RefZero t ref ->
+    I.RefZero t ref
+      ->
       [C.BlockStm [cstm| memset( $exp:(toExpr (I.TyRef t) ref), 0x0,
                                  sizeof($ty:(toType t)) ); |] ]
 
     -- Should only be a reference (not a pointer).
-    I.AllocRef t l r       -> [C.BlockDecl
-        [cdecl| $ty:(toType (I.TyRef rty)) $id:(toVar l) = $exp:rhs; |]]
+    I.AllocRef t l r
+        -> [C.BlockDecl
+        [cdecl| $ty:(toTypeDecay (I.TyRef t)) $id:(toVar l) = $exp:rhs; |]]
       where
       name      = toName r
-      (rhs,rty) = case t of
-        I.TyArr _ t'  -> ([cexp| $id:name    |], t')
-        I.TyCArray t' -> ([cexp| $id:name    |], t')
-        _             -> ([cexp| &($id:name) |], t)
-    I.Assert exp           -> [C.BlockStm
+      rhs = case t of
+        I.TyArr _ _  -> [cexp| $id:name    |]
+        I.TyCArray _ -> [cexp| $id:name    |]
+        _            -> [cexp| &($id:name) |]
+    I.Assert exp
+      -> [C.BlockStm
       [cstm| ASSERTS($exp:(toExpr I.TyBool exp)); |]]
-    I.CompilerAssert exp   -> [C.BlockStm
+    I.CompilerAssert exp
+      -> [C.BlockStm
       [cstm| COMPILER_ASSERTS($exp:(toExpr I.TyBool exp)); |]]
-    I.Assume exp           -> [C.BlockStm
+    I.Assume exp
+      -> [C.BlockStm
       [cstm| ASSUMES($exp:(toExpr I.TyBool exp)); |]]
-    I.Call t mVar sym args ->
+    I.Call t mVar sym args
+      ->
       case mVar of
         Nothing  -> -- Just call the fuction.
           [C.BlockStm [cstm| $id:(toName sym)($args:(map go args)); |]]
@@ -296,7 +299,8 @@ toBody ens stmt =
                    , I.tValue = v }
           = toExpr t' v
     -- Assume that ty is a signed and sufficiently big (int).
-    I.Loop _ var start incr blk ->
+    I.Loop _ var start incr blk
+      ->
       let loopBd =  concatMap toBody' blk in
       [C.BlockStm [cstm| for( $ty:(toType ty) $id:(toVar var)
                                 = $exp:(toExpr ty start);
@@ -314,7 +318,8 @@ toBody ens stmt =
         ( [cexp| $id:ix >= $exp:(toExpr ty to) |]
         , [cexp| $id:ix-- |] )
 
-    I.Forever blk ->
+    I.Forever blk
+      ->
       let foreverBd =  concatMap toBody' blk
           foreverDecl = C.BlockDecl
             [cdecl| int forever_loop __attribute__((unused)); |]
@@ -324,13 +329,16 @@ toBody ens stmt =
           decAndLoop = [ foreverDecl, loop ]
       in  [ C.BlockStm [cstm| { $items:decAndLoop } |] ]
 
-    I.Break                       -> [C.BlockStm [cstm| break; |]]
-    I.Store t ptr exp             -> [C.BlockStm
+    I.Break
+      -> [C.BlockStm [cstm| break; |]]
+    I.Store t ptr exp
+      -> [C.BlockStm
       [cstm| $exp:(derefExp (toExpr (I.TyRef t) ptr)) = $exp:(toExpr t exp); |]]
-
-    I.Comment (I.UserComment c)   -> [C.BlockStm
+    I.Comment (I.UserComment c)
+      -> [C.BlockStm
       [cstm| $comment:("/* " ++ c ++ " */"); |]]
-    I.Comment (I.SourcePos src)   -> [C.BlockStm
+    I.Comment (I.SourcePos src)
+      -> [C.BlockStm
       [cstm| $comment:("/* " ++ prettyPrint (pretty src) ++ " */"); |]]
 -- | Return statement.
 typedRet :: I.Typed I.Expr -> C.Exp
@@ -369,7 +377,7 @@ toExpr _ (I.ExpVar var)  = [cexp| $id:(toVar var) |]
 toExpr t (I.ExpLit lit)  =
   case lit of
     -- XXX hack: should make type-correct literals.
-    I.LitInteger i -> [cexp| ($ty:(toTypeCast t))$id:fromInt |]
+    I.LitInteger i -> [cexp| ($ty:(toType t))$id:fromInt |]
       where fromInt = case t of
                         I.TyWord _  -> show i ++ "U"
                         I.TyInt  _  -> show i
@@ -386,7 +394,7 @@ toExpr t (I.ExpLit lit)  =
     I.LitDouble d  -> [cexp| $id:(show d) |]
 ----------------------------------------
 toExpr t (I.ExpOp op args) =
-  [cexp| ($ty:(toTypeCast t)) $exp:(toExpOp t op args) |]
+  [cexp| ($ty:(toTypeDecay t)) $exp:(toExpOp t op args) |]
 ----------------------------------------
 toExpr _ (I.ExpSym sym) = [cexp| $id:sym |]
 ----------------------------------------
@@ -413,7 +421,7 @@ toExpr t (I.ExpIndex at a ti i) = case t of
     [cexp| ($exp:(toExpr (constr at) a) [$exp:(toExpr ti i)]) |]
 ----------------------------------------
 toExpr tTo (I.ExpSafeCast tFrom e) =
-  [cexp| ($ty:(toTypeCast tTo))$exp:(toExpr tFrom e) |]
+  [cexp| ($ty:(toTypeDecay tTo))$exp:(toExpr tFrom e) |]
 ----------------------------------------
 toExpr _ (I.ExpToIx e maxSz) =
   [cexp| $exp:(toExpr I.ixRep e ) % $exp:maxSz |]
@@ -456,7 +464,7 @@ toExpr ty (I.ExpMaxMin b) = [cexp| $id:macro |]
       _           -> err
   err = error $ "unexpected type " ++ show ty ++ " in ExpMaxMin."
 ----------------------------------------
-toExpr ty (I.ExpSizeOf ty') = [cexp| ($ty:(toTypeCast ty)) sizeof($ty:(toType ty')) |]
+toExpr ty (I.ExpSizeOf ty') = [cexp| ($ty:(toTypeDecay ty)) sizeof($ty:(toType ty')) |]
 ----------------------------------------
 
 exp0 :: [C.Exp] -> C.Exp
@@ -544,10 +552,10 @@ toExpOp ty op args = case op of
   -- float operations
   -- XXX this needs to add a dependency on <math.h>
   I.ExpIsNan ety -> let xs = mkArgs ety args in
-                    [cexp| ($ty:(toTypeCast I.TyBool)) (isnan($exp:(exp0 xs))) |]
+                    [cexp| ($ty:(toTypeDecay I.TyBool)) (isnan($exp:(exp0 xs))) |]
   -- isinf returns -1 for negative infinity and 1 for positive infinity.
   I.ExpIsInf ety -> let xs = mkArgs ety args in
-                    [cexp| ($ty:(toTypeCast I.TyBool)) (isinf($exp:(exp0 xs))) |]
+                    [cexp| ($ty:(toTypeDecay I.TyBool)) (isinf($exp:(exp0 xs))) |]
   I.ExpRoundF    -> floatingUnary ty "round" args
   I.ExpCeilF     -> floatingUnary ty "ceil"  args
   I.ExpFloorF    -> floatingUnary ty "floor" args

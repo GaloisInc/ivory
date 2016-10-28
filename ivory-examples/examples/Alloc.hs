@@ -53,16 +53,16 @@ memcpy3 = proc "memcpy3" $ \a -> body $ do
   arrayMap (\ix -> store (a ! (ix :: Ix 10)) 1)
   retVoid
 
--- Can't do this! (Which is good.)
--- memcpy4 :: Def ('[ Ref Global (Array 1 (Stored (Ref (Stack s) (Stored Uint32))))] :-> ())
--- memcpy4 = proc "memcpy3" $ \a -> body $ do
---   val  <- local (ival 2)
---   larr <- local (iarray [ival val])
---   refCopy a larr
---   arrayMap (\ix -> store (a ! (ix :: Ix 1)) 1)
---   retVoid
-
 {-
+-- Can't do this! (Which is good.)
+memcpy4 :: Def ('[ Ref Global (Array 1 (Stored (Ref (Stack s) (Stored Uint32))))] :-> ())
+memcpy4 = proc "memcpy3" $ \a -> body $ do
+  val  <- local (ival 2)
+  larr <- local (iarray [ival val])
+  refCopy a larr
+  arrayMap (\ix -> store (a ! (ix :: Ix 1)) 1)
+  retVoid
+
 -- The type system prevents this.
 bad_alloc :: Def ('[] :-> Ref s (Stored Uint32))
 bad_alloc = proc "bad_alloc" $ body $ do
@@ -129,30 +129,10 @@ arrayTest  = area "arrayTest" $ Just $ iarray
   [ istruct [ i .= ival 10 ]
   ]
 
--- DefProc (Proc {procSym = "foo", procRetTy = TyWord Word32, procArgs = [Typed
--- {tType = TyRef (TyStruct "Foo"), tValue = VarName "var0"}], procBody = [
-
---   Deref (TyWord Word32) (VarName "deref0") (ExpLabel (TyStruct "Foo") (ExpVar
---     (VarName "var0")) "i")
--- , Return (Typed {tType = TyWord Word32, tValue = ExpVar
---     (VarName "deref0")})
--- ], procRequires = [], procEnsures = Nothing})
-
 -- uint32_t n_deref0 = *&n_var0->i;
 foo :: Def ('[Ref s ('Struct "Foo")] ':-> Uint32)
 foo = proc "foo" $ \str -> body $ do
   ret =<< deref (str ~> i)
-
--- DefProc (Proc {procSym = "foo2", procRetTy = TyWord Word32, procArgs = [Typed
--- {tType = TyRef (TyStruct "Foo"), tValue = VarName "var0"}], procBody = [
-
--- Deref (TyWord Word32) (VarName "deref0") (ExpIndex (TyArr 10 (TyWord Word32))
--- (ExpLabel (TyStruct "Foo") (ExpVar (VarName "var0")) "p") (TyInt Int32)
--- (ExpOp ExpMod [ExpLit (LitInteger 0),ExpLit (LitInteger 10)]))
-
--- ,Return (Typed
--- {tType = TyWord Word32, tValue = ExpVar (VarName "deref0")})], procRequires =
--- [], procEnsures = Nothing})
 
 -- uint32_t n_deref0 = *&n_var0->p[0 % 10];
 foo2 :: Def ('[Ref s ('Struct "Foo")] ':-> Uint32)
@@ -161,12 +141,23 @@ foo2 = proc "foo2" $ \str -> body $ do
   let x = arr ! (0 :: Ix 10)
   ret =<< deref x --deref (arr ! 0)
 
--- foo3 :: Def ('[Ref s (Struct "Bar")] :-> Uint32)
--- foo3 = proc "foo3" $ \str -> body $ do
---   v <- deref (str ~> aa)
---   ret =<< deref v
-
 ---------------------------------------------
+
+-- Testing matrices
+mat1 :: Def ('[ConstRef s ('Array 1 ('Array 2 ('Stored Uint32)))] ':-> Uint32)
+mat1 = proc "mat1" $ \arr -> body $ do
+  v <- deref (arr ! 1 ! 0)
+  ret v
+
+mat2 :: Def ('[] ':-> Uint32)
+mat2 = proc "mat2" $ body $ do
+  arr <- local ((iarray [iarray [ival 0, ival 1]]) :: Init ('Array 1 ('Array 2 ('Stored Uint32))))
+  arr2 <- local ((iarray [iarray [ival 3, ival 3]]) :: Init ('Array 1 ('Array 2 ('Stored Uint32))))
+  v' <- assign arr
+  refCopy arr2 v'
+  refZero arr2
+  v  <- call mat1 (constRef arr)
+  ret v
 
 cmodule :: Module
 cmodule = package "Alloc" $ do
@@ -187,6 +178,8 @@ cmodule = package "Alloc" $ do
   incl testToIx
   incl memcpy3
   defMemArea arrayTest
+  incl mat1
+  incl mat2
 
 runAlloc :: IO ()
 runAlloc = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
