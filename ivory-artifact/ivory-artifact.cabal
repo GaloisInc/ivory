@@ -1,7 +1,7 @@
 name:                ivory-artifact
 synopsis:            Manage additional data files during Ivory compilation.
 description:         Mostly used by other Ivory libraries and backends and typically shouldn't have to be used directly by the user.
-version:             0.1.0.3
+version:             0.1.0.4
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language
