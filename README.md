@@ -10,6 +10,14 @@ This repository includes a [user guide][userguide] and some
 [examples][examples] Ivory programs. More information and tutorials are
 available on [ivorylang.org](http://ivorylang.org).
 
+The following paper describes the Ivory language:
+
+* Trevor Elliott, Lee Pike, Simon Winwood, Pat Hickey, James Bielman, Jamey
+  Sharp, Eric Seidel, John
+  Launchbury. [https://github.com/GaloisInc/ivory/blob/master/ivory-paper/ivory.pdf](Guilt-free
+  Ivory). Haskell Symposium, 2015.
+
+Please cite this paper for when citing the language.
 
 ## Contents
 
@@ -27,9 +35,9 @@ available on [ivorylang.org](http://ivorylang.org).
 ## Installing
 
 Ivory is written in Haskell and uses several recent GHC extensions.  It is known
-to work with with GHC 7.8.* and 7.10.*.
+to work with with GHC 7.8.* and above.
 
-We recommend using the [Stack][stack] build tool for Ivory language
+We currently recommend using the [Stack][stack] build tool for Ivory language
 packages and any programs which use them.
 
 ## Copyright and license
