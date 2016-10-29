@@ -6,7 +6,7 @@ copyright:           2013 Galois, Inc.
 category:            Language
 synopsis:            Ivory standard library.
 description:         A standard library for Ivory.
-homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+homepage:            http://ivorylang.org
 build-type:          Simple
 cabal-version:       >= 1.10
 license:             BSD3
@@ -16,7 +16,7 @@ data-files: support/ivory_stdlib_string_prim.h,
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-stdlib-0103
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.Stdlib,
@@ -29,7 +29,7 @@ library
 
   other-modules:        Paths_ivory_stdlib
 
-  build-depends:        base >= 4.6 && < 5,
+  build-depends:        base >= 4.7 && < 5,
                         filepath,
                         ivory,
                         ivory-artifact

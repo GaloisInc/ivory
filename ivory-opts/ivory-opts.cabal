@@ -16,7 +16,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-opts-0103
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.Opts.AssertFold,
@@ -34,7 +34,7 @@ library
 
   other-modules:        Ivory.Opts.Utils
 
-  build-depends:        base >= 4.6 && < 5,
+  build-depends:        base >= 4.7 && < 5,
                         base-compat,
                         containers,
                         data-reify >=0.6,

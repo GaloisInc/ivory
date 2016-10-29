@@ -20,7 +20,7 @@ data-files: support/ivory_hw_prim.h
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-hw-0103
+  tag:      hackage-0.1.0.4
 
 
 library
@@ -33,7 +33,7 @@ library
                        Paths_ivory_hw,
                        ExampleTypes
   hs-source-dirs:      src, examples
-  build-depends:       base >= 4.6 && < 5,
+  build-depends:       base >= 4.7 && < 5,
                        filepath,
                        ivory,
                        ivory-artifact

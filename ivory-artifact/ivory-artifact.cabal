@@ -13,14 +13,14 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-0103
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.Artifact,
                         Ivory.Artifact.Template,
                         Ivory.Artifact.Location,
                         Ivory.Artifact.Transformer
-  build-depends:        base >= 4.6 && < 5,
+  build-depends:        base >= 4.7 && < 5,
                         filepath,
                         directory,
                         text,

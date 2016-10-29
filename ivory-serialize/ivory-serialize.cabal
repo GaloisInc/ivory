@@ -13,7 +13,7 @@ data-files: support/ivory_serialize_prim.h
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-0103
+  tag:      hackage-0.1.0.4
 
 
 
@@ -27,7 +27,7 @@ library
                         Ivory.Serialize.Struct,
                         Paths_ivory_serialize
 
-  build-depends:        base >= 4.6 && < 5,
+  build-depends:        base >= 4.7 && < 5,
                         base-compat,
                         filepath,
                         monadLib,

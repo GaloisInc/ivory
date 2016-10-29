@@ -4,11 +4,11 @@
 name:                ivory
 version:             0.1.0.4
 author:              Galois, Inc.
-maintainer:          trevor@galois.com
+maintainer:          trevor@galois.com, leepike@galois.com
 category:            Language
 synopsis:            Safe embedded C programming.
 description:         Using GHC type-system extensions, enforces safe low-level programming, while maintaining expressiveness.
-homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+homepage:            http://ivorylang.org
 build-type:          Simple
 cabal-version:       >= 1.10
 license:             BSD3
@@ -16,7 +16,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-0103
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.Language,
@@ -81,12 +81,12 @@ library
                         Ivory.Language.Type,
                         Ivory.Language.Uint
   build-tools:          alex, happy
-  build-depends:        base >= 4.6 && < 5,
+  build-depends:        base >= 4.7 && < 5,
                         base-compat,
                         pretty >= 1.1,
                         containers >= 0.5,
                         monadLib >= 3.7,
-                        template-haskell >= 2.8,
+                        template-haskell >= 2.8 && <2.11,
                         filepath,
                         text,
                         dlist >= 0.5,

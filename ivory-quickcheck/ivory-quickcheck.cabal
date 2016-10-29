@@ -14,11 +14,11 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-qc-0103
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.QuickCheck
-  build-depends:        base >= 4.6 && < 5,
+  build-depends:        base >= 4.7 && < 5,
                         base-compat,
                         monadLib,
                         random,
