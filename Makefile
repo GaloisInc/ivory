@@ -6,19 +6,15 @@ IVORY_EX_TEST_DIR=test-dir-c-files
 
 PACKAGE= \
   ivory \
-  ivory-artifact \
-  ivory-backend-acl2 \
-  ivory-backend-c \
-  ivory-eval \
   ivory-examples \
-  ivory-hw \
-  ivory-model-check \
   ivory-opts \
+  ivory-hw \
   ivory-quickcheck \
+  ivory-stdlib \
   ivory-serialize \
-  ivory-stdlib
-
-PACKAGEDIR=$(foreach p, $(PACKAGE), $(p)/)
+  ivory-artifact \
+  ivory-backend-c \
+  ivory-eval
 
 TEST_TARGETS=ivory-model-check ivory-eval ivory-quickcheck
 
@@ -27,8 +23,11 @@ test: default
 	stack exec -- ivory-c-clang-test $(IVORY_EX_TEST_DIR)
 	cp ivory-examples/data/foo.h $(IVORY_EX_TEST_DIR)/
 	cd $(IVORY_EX_TEST_DIR) && gcc -Wall -Wextra -I. -std=c99 -c *.c *.h -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-variable -DIVORY_DEPLOY
-
 	stack test $(TEST_TARGETS)
+
+.PHONY: sdist
+sdist:
+	$(foreach p, $(PACKAGE), stack sdist $(p)/;)
 
 .PHONY: veryclean
 veryclean:
