@@ -115,7 +115,7 @@ and x        y        = error $ "invalid operands to `and`: " ++ show (x,y)
 
 or :: Value -> Value -> Value
 or (Bool x) (Bool y) = Bool (x || y)
-or x        y        = error $ "invalid operors to `or`: " ++ show (x,y)
+or x        y        = error $ "invalid operands to `or`: " ++ show (x,y)
 
 ordOp :: (forall a. Ord a => a -> a -> Bool) -> Value -> Value -> Value
 ordOp op (Sint8  x) (Sint8  y) = Bool (op x y)
