@@ -81,7 +81,7 @@ import Ivory.Language.BitData.BitData (BitType)
 |]
 
 test1 :: Def ('[Uint16] ':-> Uint16)
-test1 = proc "test1" $ \x -> body $ do
+test1 = proc "test1" $ \x -> body $
   ret $ withBits x $ do
         clearBit spi_cr1_cpha
         setBit   spi_cr1_cpol
@@ -105,7 +105,7 @@ forBitArray_ ::
   , ANat (ArraySize n a)
   ) => BitArray n a -> (a -> Ivory eff ()) -> Ivory eff ()
 forBitArray_ arr f =
-  forM_ [0..bitLength arr] $ \i ->
+  forM_ [0 .. bitLength arr - 1] $ \i ->
     f (arr #! i)
 
 -- | Test looping over the elements of a bit array:
@@ -134,7 +134,7 @@ get_baud = proc "get_baud" $ \x -> body $ do
 |]
 
 cmodule :: Module
-cmodule = package "hw" $ do
+cmodule = package "BitData" $ do
   incl get_baud
   incl test1
   incl test2
