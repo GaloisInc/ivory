@@ -481,6 +481,7 @@ toType t = case t of
   I.TyRef t'       -> toType t'
   I.TyConstRef t'  -> toType t'
   I.TyPtr t'       -> toType t'
+  I.TyConstPtr t'  -> toType t'
   I.TyArr i t'     -> Array <$> toType t'
   I.TyCArray t'    -> Array <$> toType t'
   I.TyOpaque       -> return Opaque
@@ -655,4 +656,3 @@ err f msg = error $ "in ivory-model-check. Unexpected: " ++ msg
          ++ " in function " ++ f
 
 --------------------------------------------------------------------------------
-

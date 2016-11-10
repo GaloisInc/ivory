@@ -55,3 +55,23 @@ withRef :: IvoryArea area
         -> Ivory eff f
         -> Ivory eff ()
 withRef ptr t = ifte_ (nullPtr /=? ptr) (t (ptrToRef ptr))
+
+-- Constant Pointers -----------------------------------------------------------
+
+-- | Turn a pointer into a constant pointer.
+constPtr :: IvoryArea area => Ptr s area -> ConstPtr s area
+constPtr = wrapExpr . unwrapExpr
+
+newtype ConstPtr (s :: RefScope) (a :: Area *) = ConstPtr
+  { getConstPtr :: I.Expr
+  }
+
+instance IvoryArea area => IvoryType (ConstPtr s area) where
+  ivoryType _ = I.TyConstPtr (ivoryArea (Proxy :: Proxy area))
+
+instance IvoryArea area => IvoryVar (ConstPtr s area) where
+  wrapVar    = wrapVarExpr
+  unwrapExpr = getConstPtr
+
+instance IvoryArea area => IvoryExpr (ConstPtr s area) where
+  wrapExpr = ConstPtr

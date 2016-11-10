@@ -156,7 +156,6 @@ toType' b ty = case ty of
   I.TyFloat             -> [cty| float |]
   I.TyDouble            -> [cty| double |]
   I.TyStruct nm         -> [cty| struct $id:nm |]
-  I.TyConstRef t        -> [cty| const $ty:(arrCase t) |]
   I.TyCArray t          -> [cty| $ty:(toType t) * |]
   I.TyArr len t         -> [cty| $ty:(toType t)[$uint:len] |]
   I.TyProc retTy argTys ->
@@ -165,6 +164,8 @@ toType' b ty = case ty of
   I.TyOpaque            -> error "Opaque type is not implementable."
   I.TyRef t             -> arrCase t
   I.TyPtr t             -> arrCase t
+  I.TyConstRef t        -> [cty| const $ty:(arrCase t) |]
+  I.TyConstPtr t        -> [cty| const $ty:(arrCase t) |]
   where
   arrCase t = case t of
     I.TyArr len t'

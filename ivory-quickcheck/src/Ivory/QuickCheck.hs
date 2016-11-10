@@ -193,11 +193,12 @@ sampleType m t = case t of
     -> sampleArray m len ty
   I.TyStruct ty
     -> sampleStruct m ty
-  I.TyProc _ _ -> err
-  I.TyVoid     -> err
-  I.TyPtr _    -> err
-  I.TyCArray _ -> err
-  I.TyOpaque   -> err
+  I.TyProc _ _    -> err
+  I.TyVoid        -> err
+  I.TyPtr _       -> err
+  I.TyConstPtr _  -> err
+  I.TyCArray _    -> err
+  I.TyOpaque      -> err
   where
   err = error $ "I don't know how to make values of type '" ++ show t ++ "'!"
 
