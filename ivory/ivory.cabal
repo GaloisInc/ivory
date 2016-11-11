@@ -47,6 +47,7 @@ library
                         Ivory.Language.Loop,
                         Ivory.Language.MemArea,
                         Ivory.Language.Module,
+                        Ivory.Language.Pointer,
                         Ivory.Language.Proc,
                         Ivory.Language.Proxy,
                         Ivory.Language.Ptr,
