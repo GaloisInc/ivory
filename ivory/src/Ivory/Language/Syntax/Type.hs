@@ -21,6 +21,7 @@ data Type
   | TyRef Type         -- ^ References
   | TyConstRef Type    -- ^ Constant References
   | TyPtr Type         -- ^ Pointers
+  | TyConstPtr Type    -- ^ Constant Pointers
   | TyArr Int Type     -- ^ Arrays
   | TyStruct String    -- ^ Structures
   | TyCArray Type      -- ^ C Arrays

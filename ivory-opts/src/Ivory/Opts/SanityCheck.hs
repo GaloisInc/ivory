@@ -326,6 +326,8 @@ instance Pretty I.Type where
       -> text "ConstRef" <+> pretty ref
     I.TyPtr ptr
       -> text "Ptr" <+> pretty ptr
+    I.TyConstPtr ptr
+      -> text "ConstPtr" <+> pretty ptr
     I.TyArr n t
       -> text "Array" <+> pretty n <+> pretty t
     I.TyStruct s
@@ -334,4 +336,3 @@ instance Pretty I.Type where
       -> text "CArray" <+> pretty t
     I.TyOpaque
       -> text "Opaque"
-
