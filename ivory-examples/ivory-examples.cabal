@@ -19,27 +19,31 @@ source-repository    this
 
 executable ivory-c-clang-test
   main-is:              TestExamples.hs
-  other-modules:        PID,
-                        FibLoop,
-                        Factorial,
-                        String,
-                        FunPtr,
-                        Overflow,
-                        Float,
-                        Alloc,
-                        Area,
-                        Cond,
-                        Forever,
-                        PublicPrivate,
-                        Bits,
-                        SizeOf,
-                        AddrOfRegression,
-                        Array,
-                        BitData,
-                        BitDataTypes,
-                        ConcreteFile,
-                        Coroutine,
-                        Loop
+  other-modules:        AddrOfRegression
+                      , Alloc
+                      , Area
+                      , Array
+                      , BitData
+                      , BitDataTypes
+                      , Bits
+                      , ClassHierarchy
+                      , ConcreteFile
+                      , Cond
+                      , ConstRef
+                      , Coroutine
+                      , Extern
+                      , Factorial
+                      , FibLoop
+                      , FibTutorial
+                      , Float
+                      , Forever
+                      , FunPtr
+                      , Loop
+                      , Overflow
+                      , PID
+                      , PublicPrivate
+                      , SizeOf
+                      , String
   hs-source-dirs:       examples
   build-depends:        base >= 4.7 && < 5,
                         base-compat,
