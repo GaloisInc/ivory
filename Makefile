@@ -16,7 +16,7 @@ PACKAGE= \
   ivory-backend-c \
   ivory-eval
 
-TEST_TARGETS=ivory-model-check ivory-eval ivory-quickcheck
+TEST_TARGETS=ivory-eval ivory-quickcheck
 
 .PHONY: test
 test: default

@@ -8,7 +8,6 @@ git:
 cache:
   directories:
     - $HOME/.stack
-    - $HOME/.cvc4
 
 matrix:
   include:
@@ -27,14 +26,6 @@ before_install:
  - mkdir -p ~/.local/bin
  - export PATH=$HOME/.local/bin:$PATH
  - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-# Setup/cache CVC4
- - export PATH="$HOME/.cvc4/:$PATH"
- - CVC4=cvc4-2014-11-22-i386-linux-opt
- - if [ ! -f "$HOME/.cvc4/cvc4" ];
-   then
-     wget http://www.galois.com/~leepike/$CVC4 -O $HOME/.cvc4/cvc4;
-     chmod a+x $HOME/.cvc4/cvc4;
-   fi
 # - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
  - git submodule update --init --recursive
  - unset CC
@@ -44,7 +35,6 @@ before_install:
 install:
  - stack --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - cvc4 --version
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
