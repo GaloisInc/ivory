@@ -70,5 +70,4 @@ modules = [ AddrOfRegression.cmodule
           , SizeOf.cmodule
           , String.cmodule
           ]
-          ++ [stdlibStringModule]
           ++ stdlibModules
