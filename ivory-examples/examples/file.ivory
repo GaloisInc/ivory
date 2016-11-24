@@ -59,7 +59,7 @@ struct Foo2
 r* struct ivory_string_FooStr foostr(uint8_t i, r* struct ivory_string_FooStr s) {
   -- Allocate a new string dynamic string. Fails if the string is too large.
   alloc s0{} = $stringInit("foo");
-  if (0>i) { foostr(i-1, s0); } else {}
+  if (0 < i) { foostr(i-1, s0); } else {}
   -- Store a new string into the dynamic string data structure.
   $string_lit_store("foos", s);
   return s;

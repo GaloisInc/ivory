@@ -2,6 +2,8 @@ include stack.mk
 
 all: test
 
+STACK_CMD ?= stack
+
 IVORY_EX_TEST_DIR=test-dir-c-files
 
 PACKAGE= \
@@ -18,12 +20,22 @@ PACKAGE= \
 
 TEST_TARGETS=ivory-eval ivory-quickcheck
 
-.PHONY: test
-test: default
-	stack exec -- ivory-c-clang-test $(IVORY_EX_TEST_DIR)
+.PHONY: generic-test
+generic-test: default
+	$(STACK_CMD) build --test --no-run-tests --haddock --no-haddock-deps --pedantic
+	$(STACK_CMD) test $(TEST_TARGETS)
+	$(STACK_CMD) exec -- ivory-c-clang-test $(IVORY_EX_TEST_DIR)
 	cp ivory-examples/data/*.h $(IVORY_EX_TEST_DIR)/
-	cd $(IVORY_EX_TEST_DIR) && gcc -Wall -Wextra -I. -std=c99 -c *.c *.h -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-variable -DIVORY_DEPLOY
-	stack test $(TEST_TARGETS)
+	cd $(IVORY_EX_TEST_DIR) &&			\
+		gcc	-Wall -Wextra -Werror		\
+			-Wno-missing-field-initializers	\
+			-Wno-unused-parameter		\
+			-Wno-unused-variable		\
+			-DIVORY_DEPLOY -I. -std=c99 -c	\
+			*.c *.h
+
+.PHONY: test
+test: generic-test
 
 .PHONY: sdist
 sdist:
@@ -34,14 +46,5 @@ veryclean:
 	stack clean
 	-rm -rf $(IVORY_EX_TEST_DIR)
 
-# Travis-ci specfic ############################################################
-
-TRAVIS_STACK ?= stack --no-terminal --system-ghc --skip-ghc-check
-
-travis-test:
-#	$(TRAVIS_STACK) build --test --no-run-tests --haddock --no-haddock-deps --pedantic
-	$(TRAVIS_STACK) build --test --no-run-tests --haddock --no-haddock-deps --ghc-options='-Werror'
-	$(TRAVIS_STACK) exec -- ivory-c-clang-test $(IVORY_EX_TEST_DIR)
-	cp ivory-examples/data/*.h $(IVORY_EX_TEST_DIR)/
-	cd $(IVORY_EX_TEST_DIR) && gcc -Wall -Wextra -I. -std=c99 -c *.c *.h -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-variable -DIVORY_DEPLOY
-	$(TRAVIS_STACK) test $(TEST_TARGETS)
+travis-test: generic-test
+travis-test: STACK_CMD = stack --no-terminal --system-ghc --skip-ghc-check
