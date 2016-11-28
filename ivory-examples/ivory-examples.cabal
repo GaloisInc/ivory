@@ -29,6 +29,7 @@ executable ivory-c-clang-test
                       , ClassHierarchy
                       , ConcreteFile
                       , Cond
+                      , ConstPtrRef
                       , ConstRef
                       , Coroutine
                       , Extern

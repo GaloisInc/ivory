@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP            #-}
-{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE QuasiQuotes    #-}
 
 -- | Ivory backend targeting language-c-quote.
@@ -7,13 +6,14 @@
 module Ivory.Compile.C.Gen where
 
 import           Language.C.Quote.GCC
-import qualified "language-c-quote" Language.C.Syntax                     as C
+import qualified Language.C.Syntax                     as C
 
 import qualified Ivory.Language.Array                  as I
 import qualified Ivory.Language.Proc                   as P
 import qualified Ivory.Language.Syntax                 as I
 import           Ivory.Language.Syntax.Concrete.Pretty
 
+import           Ivory.Compile.C.Gen.Const (makeTargetConstIf)
 import           Ivory.Compile.C.Prop
 import           Ivory.Compile.C.Types
 
@@ -146,7 +146,7 @@ toType = toType' False
 
 -- | C type conversion, with a special case for references and pointers.
 toType' :: Bool -> I.Type -> C.Type
-toType' b ty = case ty of
+toType' decay ty = case ty of
   I.TyVoid              -> [cty| void |]
   I.TyChar              -> [cty| char |]
   I.TyInt i             -> intSize i
@@ -162,18 +162,20 @@ toType' b ty = case ty of
     [cty| $ty:(toType retTy) (*)
           ($params:(map (toParam . toType) argTys)) |]
   I.TyOpaque            -> error "Opaque type is not implementable."
-  I.TyRef t             -> arrCase t
-  I.TyPtr t             -> arrCase t
-  I.TyConstRef t        -> [cty| const $ty:(arrCase t) |]
-  I.TyConstPtr t        -> [cty| const $ty:(arrCase t) |]
+  I.TyRef t             -> arrCase False  t
+  I.TyPtr t             -> arrCase False  t
+  I.TyConstRef t        -> arrCase True   t
+  I.TyConstPtr t        -> arrCase True   t
   where
-  arrCase t = case t of
-    I.TyArr len t'
-      -> if b then [cty| $ty:(toType t') * |]
-              else [cty| $ty:(toType t')[$uint:len] |]
-    I.TyCArray t'
-      -> [cty| $ty:(toType t') * |]
-    _ -> [cty| $ty:(toType t)  * |]
+  arrCase isTargetConst t =
+    makeTargetConstIf isTargetConst $
+    case t of
+      I.TyArr len t'
+        -> if decay then [cty| $ty:(toType t') * |]
+                    else [cty| $ty:(toType t')[$uint:len] |]
+      I.TyCArray t'
+        -> [cty| $ty:(toType t') * |]
+      _ -> [cty| $ty:(toType t)  * |]
 
 intSize :: I.IntSize -> C.Type
 intSize I.Int8  = [cty| typename int8_t  |]

@@ -9,6 +9,7 @@ import qualified Bits
 import qualified ClassHierarchy
 import qualified ConcreteFile
 import qualified Cond
+import qualified ConstPtrRef
 import qualified ConstRef
 import qualified Coroutine
 import qualified Extern
@@ -54,6 +55,7 @@ modules = [ AddrOfRegression.cmodule
           , ConcreteFile.concreteIvory
           , ConcreteFile.examplesfile
           , Cond.cmodule
+          , ConstPtrRef.cmodule
           , ConstRef.cmodule
           , Coroutine.cmodule
           , Extern.cmodule
