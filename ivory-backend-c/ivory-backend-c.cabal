@@ -24,6 +24,7 @@ source-repository    this
 library
   exposed-modules:      Ivory.Compile.C,
                         Ivory.Compile.C.Gen,
+                        Ivory.Compile.C.Gen.Const,
                         Ivory.Compile.C.Modules,
                         Ivory.Compile.C.Prop,
                         Ivory.Compile.C.Types,

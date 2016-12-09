@@ -54,11 +54,11 @@ extern void ivory_user_verbose_assert_hook(const char *asserttype,
 
 #else /* IVORY_TEST */
 
-#define REQUIRES(arg)
-#define ENSURES(arg)
-#define ASSUMES(arg)
-#define ASSERTS(arg)
-#define COMPILER_ASSERTS(arg)
+#define REQUIRES(arg)           (void)(arg)
+#define ENSURES(arg)            (void)(arg)
+#define ASSUMES(arg)            (void)(arg)
+#define ASSERTS(arg)            (void)(arg)
+#define COMPILER_ASSERTS(arg)   (void)(arg)
 
 #endif /* IVORY_TEST */
 

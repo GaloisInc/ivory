@@ -1,1 +1,1 @@
-#define SOME_CONST
+#define SOME_CONST 42
