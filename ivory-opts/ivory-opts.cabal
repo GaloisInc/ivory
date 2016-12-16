@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory-opts
-version:             0.1.0.4
+version:             0.1.0.5
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language

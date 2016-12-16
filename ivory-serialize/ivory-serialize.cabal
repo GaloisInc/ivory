@@ -1,5 +1,5 @@
 name:                ivory-serialize
-version:             0.1.0.4
+version:             0.1.0.5
 synopsis:            Serialization library for Ivory.
 description:         Used to automatically pack and unpack Ivory structures in big or little endian.
 author:              Galois, Inc.
