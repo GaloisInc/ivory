@@ -38,7 +38,7 @@ library
                         srcloc,
                         mainland-pretty >= 0.2.5,
                         monadLib >= 3.7,
-                        template-haskell >= 2.8 && <2.11,
+                        template-haskell >= 2.8,
                         bytestring >= 0.10,
                         directory,
                         filepath,

@@ -50,7 +50,7 @@ executable ivory-c-clang-test
                         base-compat,
                         pretty >= 1.1,
                         monadLib >= 3.7,
-                        template-haskell >= 2.8 && <2.11,
+                        template-haskell >= 2.8,
                         ivory,
                         ivory-opts,
                         ivory-backend-c,
