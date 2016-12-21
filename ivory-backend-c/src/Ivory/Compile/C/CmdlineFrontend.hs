@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Ivory.Compile.C.CmdlineFrontend
   ( compile
   , compileWith
@@ -9,11 +11,9 @@ module Ivory.Compile.C.CmdlineFrontend
   , outputCompiler
   ) where
 
-import           Data.List                               (intercalate, nub,
-                                                          (\\))
-import qualified Ivory.Compile.C                         as C
 import qualified Paths_ivory_backend_c                   as P
 
+import qualified Ivory.Compile.C                         as C
 import           Ivory.Compile.C.CmdlineFrontend.Options
 
 import           Ivory.Artifact
@@ -31,11 +31,16 @@ import qualified Ivory.Opts.TypeCheck                    as T
 
 
 import           Control.Monad                           (when)
-import           Data.List                               (foldl')
+import           Data.List                               (foldl', intercalate,
+                                                          nub, (\\))
 import           Data.Maybe                              (catMaybes, mapMaybe)
+import           MonadLib                                (WriterM, put,
+                                                          runWriterT)
 import           System.Directory                        (createDirectoryIfMissing)
 import           System.Environment                      (getArgs)
 import           System.FilePath                         (addExtension, (</>))
+import           System.IO                               (hPutStrLn, stderr)
+import           Text.PrettyPrint                        (Doc, render, vcat)
 
 -- Code Generation Front End ---------------------------------------------------
 
@@ -54,7 +59,8 @@ runCompiler ms as os = runCompilerWith ms as os
 -- | Main compile function.
 runCompilerWith :: [Module] -> [Located Artifact] -> Opts -> IO ()
 runCompilerWith modules artifacts opts = do
-  cmodules <- compileUnits modules opts
+  (cmodules, errors) <- runWriterT $ compileUnits modules opts
+  hPutStrLn stderr $ render $ vcat errors
   if outProcSyms opts
     then C.outputProcSyms modules
     else outputCompiler cmodules artifacts opts
@@ -101,7 +107,7 @@ outputmodules opts cmodules user_artifacts = do
   output :: FilePath -> FilePath -> (C.CompileUnits -> String)
          -> C.CompileUnits
          -> IO ()
-  output dir ext render m = outputHelper fout (render m)
+  output dir ext renderUnits m = outputHelper fout (renderUnits m)
     where fout = addExtension (dir </> (C.unitName m)) ext
 
   renderHeader cu = C.renderHdr (C.headers cu) (C.unitName cu)
@@ -118,21 +124,21 @@ outputmodules opts cmodules user_artifacts = do
     out = writeFile fname contents
 
 -- | Compile, type-check, and optimize modules, but don't generate C files.
-compileUnits ::[Module] -> Opts -> IO [C.CompileUnits]
+compileUnits :: WriterM m [Doc] => [Module] -> Opts -> m [C.CompileUnits]
 compileUnits modules opts = do
 
   when (tcErrors opts) $ do
     let ts = map T.typeCheck modules
     let anyTs = or (map T.existErrors ts)
     let b = tcWarnings opts
-    mapM_ (T.showTyChkModule b) ts
+    mapM_ (\t -> put [T.showTyChkModule b t]) ts
     when anyTs (error "Type-checking failed!")
 
   when (scErrors opts) $ do
     let ds = S.dupDefs modules
-    S.showDupDefs ds
+    put [S.showDupDefs ds]
     let ss = S.sanityCheck modules
-    mapM_ S.showSanityChkModule ss
+    mapM_ (\s -> put [S.showSanityChkModule s]) ss
     let anySs = or (map S.existErrors ss)
     when anySs (error "Sanity-check failed!")
 

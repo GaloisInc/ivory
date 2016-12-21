@@ -34,19 +34,21 @@ library
 
   build-depends:        base >= 4.7 && < 5,
                         base-compat,
-                        language-c-quote >= 0.11.0.0,
-                        srcloc,
-                        mainland-pretty >= 0.2.5,
-                        monadLib >= 3.7,
-                        template-haskell >= 2.8,
                         bytestring >= 0.10,
+                        containers,
                         directory,
                         filepath,
+                        language-c-quote >= 0.11.0.0,
+                        mainland-pretty >= 0.2.5,
+                        monadLib >= 3.7,
+                        pretty,
                         process,
-                        containers,
+                        srcloc,
+                        template-haskell >= 2.8,
+                        -- project
                         ivory,
-                        ivory-opts,
-                        ivory-artifact
+                        ivory-artifact,
+                        ivory-opts
   hs-source-dirs:       src
   default-language:     Haskell2010
 
