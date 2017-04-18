@@ -1,5 +1,5 @@
 default:
-	stack build .
+	stack build . --install-ghc
 
 clean:
 

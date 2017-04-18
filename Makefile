@@ -47,4 +47,4 @@ veryclean:
 	-rm -rf $(IVORY_EX_TEST_DIR)
 
 travis-test: generic-test
-travis-test: STACK_CMD = stack --no-terminal --system-ghc --skip-ghc-check
+travis-test: STACK_CMD = stack --no-terminal
