@@ -1,19 +1,32 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 
-module Ivory.Language.Proxy where
+module Ivory.Language.Proxy
+  (
+  -- * Proxy
+    Proxy(..)
+  , SProxy
+  -- * Nat
+  , ANat
+  , NatType
+  , aNat
+  , fromTypeNat
+  -- * Symbol
+  , ASymbol
+  , SymbolType
+  , aSymbol
+  , fromTypeSym
+  ) where
 
-import GHC.TypeLits (natVal, symbolVal, Symbol, Nat, KnownNat, KnownSymbol)
-
-data Proxy (a :: k) = Proxy
+import Data.Proxy   (Proxy (..))
+import GHC.TypeLits (KnownNat, KnownSymbol, Nat, Symbol, natVal, symbolVal)
 
 -- | Type proxies for * types.
 type SProxy a = Proxy (a :: *)
 
-type ANat    n = (KnownNat n)
+type ANat    n = KnownNat n
 type NatType n = Proxy n
 aNat :: KnownNat n => Proxy n
 aNat = Proxy
