@@ -8,7 +8,6 @@ Goals:
 - Checkout the Ivory repository
 - Use stack to configure an Ivory build environment
 - Build documentation (optional)
-- Install CVC4 (optional)
 
 ### Installing stack
 
@@ -68,16 +67,6 @@ The location printed will look something like this, with `$ivory_repo`, and
 $ivory_repo/.stack-work/install/$arch/lts-5.3/7.10.3/doc/index.html
 ```
 
-### Install CVC4 (optional)
-
-To use the symbolic simulator for Ivory, you will need to install
-CVC4. If you don't plan on using this tool, you can skip this
-section. Follow the installation instructions at
-[the CVC4 download page][cvc4-download].
-
-[cvc4-download]: http://cvc4.cs.nyu.edu/downloads
-
-
 ## The example program skeleton
 
 Open the `ivory-tutorial/Example.hs` file in your text-editor of choice. It has
@@ -136,15 +125,6 @@ argument, and as there are no additional artifacts that we would like
 bundled, we give an empty list as the second. You can learn more about
 other ways to invoke the C code generator in the documentation for the
 `ivory-backend-c` package.
-
-### The `main` function in `ivory-tutorial/simulate.hs`
-
-The main function in `simulate.hs` invokes the symbolic simulator on
-the `ivoryMain` function from the `ivoryExample` module, defined in
-`Example.hs`. If you run it with `stack simulate.hs`, it prints out
-the Ivory program from `Example.hs` in CVC4's input language followed
-by `Safe`. This procedure is trivially safe, as all it does is return
-the value 0, making no assertions along the way.
 
 ## Game character example
 
@@ -480,75 +460,6 @@ Character health: 72
 Character health: 134
 ```
 
-## Symbolic Simulator
-
-Ivory has a symbolic simulator that can prove the validity of
-assertions in a function. To aid the symbolic simulator, the Ivory
-language can express contracts on individual functions, making it
-easier to do verification in small, composable pieces.
-
-In this section, we will see how we can add verification to our game
-example.
-
-### Adding contracts
-
-For many of the functions in our example, we have assumptions in our
-minds about what properties their arguments must satisfy, but there is
-currently no formal specification that expresses those
-assumptions. For example, the `heal_char` function assumes that the
-character's health is not already above the `max_hp` value stored in
-the `Character` struct.  Additionally, we have many assumptions about
-the values these procedures return, and the effects they perform. For
-example, the `heal_char` procedure won't put the character's health
-above it's `max_hp` value.
-
-We can augment `heal_char` procedure with the contract that we expect
-it to obey by adding `requires` and `ensures` clauses to its
-definition:
-
-```haskell
-valid_health ref amount =
-  checkStored (ref ~> hp)     $ \ hp_val ->
-  checkStored (ref ~> max_hp) $ \ max_hp_val ->
-    hp_val <=? max_hp_val .&& (maxBound - max_hp_val) >=? amount
-
-heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
-heal_char  =
-  proc "heal_char" $ \ amount ref ->
-  requires (valid_health ref amount) $
-  ensures_ (valid_health ref amount) $
-  body $
-    add_var amount (ref ~> hp) (ref ~> max_hp)
-```
-
-The new predicate that we defined, `valid_health`, states that the
-`hp` value of the `Character` struct given will never be above the
-`max_hp` value.  Additionally it specifies that the amount that will
-be added to the `hp` value shouldn't cause an overflow when the check
-is performed in the `add_var` macro.  The `valid_health` predicate is
-asserted both as a precondition and a postcondition, since the
-`heal_char` procedure both requires it to be true initially, and
-preserves it as an invariant.
-
-To verify that this procedure respects its contract, modify the `main`
-function in `simulate.hs` to check `heal_char` instead of `ivoryMain`,
-and then run `stack simulate.hs`. You should see the CVC4 embedding of
-the program, and the last line of output should be `Safe`. This
-indicates that there were no overflow problems, and that the procedure
-was shown to respect its contract.
-
-As an experiment, try removing the `.&& (maxBound - max_hp_val) >=?
-amt` portion of the predicate in `valid_health`, and re-running `stack
-simulate.hs`. Instead of seeing `Safe` at the end, you should see
-`Unsafe` and some context about what caused the problem, `QUERY
-ovf0`. If you look back through the encoding, `ovf0` is an assertion
-about the `hp` value not overflowing when the healing amount is added
-to it. Without specifying that adding the amount to `hp` shouldn't
-overflow, the simulator is unable to prove that it won't. Note that
-adding this as a precondition isn't the end of the problem, as now all
-call sites for `heal_char` must prove that the arguments to the
-procedure won't cause overflow.
-
 ## Concrete syntax
 
 As the simulation stands, there's currently no way for a character to
@@ -606,15 +517,6 @@ void use_potion(*struct Character c) {
 
 Make sure to add `use_potion` to the `exampleModule` definition, and then run
 `stack codegen.hs --std-out` to see the C definition of the function.
-
-## Exercises
-
-  1. Add a new predicate `potions_available` that checks that the character
-     has at least one potion.
-
-  1. Using the new predicate, write a `check_potion_use` function to check that
-     `use_potion` requires the character to have at least one potion. Note: You
-     will need to update simulate.hs to check `check_potion_use`.
 
 ## Diving deeper
 - There are more examples in the directory `ivory/ivory-examples/examples/` demonstrating many aspects of the language we have not touched on here. For more details of using the concrete syntax, see `ivory/ivory-examples/examples/ConcreteFile.hs` and `ivory/ivory-examples/examples/file.ivory`.
