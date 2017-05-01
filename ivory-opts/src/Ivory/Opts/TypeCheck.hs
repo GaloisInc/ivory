@@ -1,12 +1,13 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 
 --
 -- Type check to ensure there are no empty blocks in procedures, for non-void
 -- procedures, a value is returned, there is no dead code (code after a return
--- statement), no field in a struct is initialized twice.
+-- statement), no field in a struct is initialized twice, and that arrays have
+-- the right number of elements initialized.
 --
 -- Copyright (C) 2014, Galois, Inc.
 -- All rights reserved.
@@ -14,24 +15,26 @@
 
 module Ivory.Opts.TypeCheck
   ( typeCheck
-  , showErrors
-  , showWarnings
+  , showTyChkModule
+  , existWarnOrErrors
   , existErrors
-  , Results()
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat                          hiding (init)
 
-import Control.Monad (when,void)
-import MonadLib
-           (WriterM(..),StateM(..),runId,runStateT,runWriterT,Id,StateT,WriterT)
-import Data.List (nub)
+import           Control.Monad                           (unless, void, when)
+import           Data.List                               (nub)
+import           MonadLib                                (Id, StateM (..),
+                                                          StateT, WriterM (..),
+                                                          WriterT, runId,
+                                                          runStateT, runWriterT)
+import           Text.PrettyPrint
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Concrete.Pretty
-import qualified Ivory.Language.Syntax.AST  as I
-import qualified Ivory.Language.Syntax.Type as I
+import qualified Ivory.Language.Syntax.AST               as I
+import           Ivory.Language.Syntax.Concrete.Location
+import qualified Ivory.Language.Syntax.Type              as I
+import           Ivory.Opts.Utils
 
 --------------------------------------------------------------------------------
 -- Errors types
@@ -39,65 +42,81 @@ import qualified Ivory.Language.Syntax.Type as I
 data RetError = RetError String [Error]
   deriving (Show, Read, Eq)
 
-data Warning = IfTEWarn
-             | LoopWarn
-             | VoidEmptyBody
+data Warning =
+    IfTEWarn
+  | LoopWarn
+  | VoidEmptyBody
+  | ArrayInitUnusedWarning
+  | ArrayInitPartialWarning
   deriving (Show, Read, Eq)
 
-data Error = EmptyBody
-           | NoRet
-           | DeadCode
-           | DoubleInit
+data Error =
+    EmptyBody
+  | NoRet
+  | DeadCode
+  | DoubleInit
   deriving (Show, Read, Eq)
 
-data Results = Results
-  { errs     :: [Located Error]
-  , warnings :: [Located Warning]
-  } deriving (Show, Read, Eq)
+data Result =
+    LocError (Located Error)
+  | LocWarn  (Located Warning)
+  deriving (Show, Read, Eq)
 
-instance Monoid Results where
-  mempty = Results [] []
-  Results a0 b0 `mappend` Results a1 b1 = Results (a0 ++ a1) (b0 ++ b1)
+type Results = [Result]
 
--- | Are there any errors from typechecking?
-existErrors :: Results -> Bool
-existErrors = not . null . errs
-
-showError :: Error -> String
-showError err = case err of
-  EmptyBody  -> "Procedure contains no statements!"
-  NoRet      -> "No return statment and procedure has a non-void type."
-  DeadCode   -> "Unreachable statements after a return."
-  DoubleInit -> "Repeated initialization of a struct field."
-
-showWarning :: Warning -> String
-showWarning w = case w of
-  IfTEWarn
-    -> "One branch of an if-then-else statement contains a return statement.\nStatements after the if-the-else block are not reachable on all control paths."
-  LoopWarn
-    -> "Statements after the loop may be unreachable due to a return statement within the loop."
-  VoidEmptyBody
-    -> "Procedure with void return type has no statements."
-
-showWithLoc :: (a -> String) -> Located a -> String
-showWithLoc sh (Located loc a) = prettyPrint (pretty loc) ++ ": " ++ sh a
-
--- | Given a procedure name, show all the typechecking results for that procedure.
-showErrors :: String -> Results -> [String]
-showErrors procName res
-  = mkOut procName "ERROR" (showWithLoc showError) (errs res)
-
--- | Given a procedure name, show all the typechecking results for that procedure.
-showWarnings :: String -> Results -> [String]
-showWarnings procName res
-  = mkOut procName "WARNING" (showWithLoc showWarning) (warnings res)
-
-mkOut :: String -> String -> (a -> String) -> [a] -> [String]
-mkOut _   _    _  [] = []
-mkOut sym kind sh ls = nm : map go ls
+allResults :: ModResult Result -> [Result]
+allResults (ModResult _ ls) = concatMap go ls
   where
-  go x = "   " ++ kind ++ ": " ++ sh x
-  nm   = "*** Procedure " ++ sym
+  go (SymResult _ res) = res
+
+-- | Are there any errors from typechecking the module?
+existErrors :: ModResult Result -> Bool
+existErrors m =
+  not (null (f (allResults m)))
+  where
+  f = filter (\a -> case a of LocError{} -> True; LocWarn{} -> False)
+
+-- | Are there any errors or warnings from typechecking the module?
+existWarnOrErrors :: ModResult Result -> Bool
+existWarnOrErrors m = not (null (allResults m))
+
+showError :: Error -> Doc
+showError err =
+      text "ERROR"
+  <+> text (case err of
+              EmptyBody
+                -> "Procedure contains no statements!"
+              NoRet
+                -> "No return statement and procedure has a non-void type."
+              DeadCode
+                 -> "Unreachable statements after a return."
+              DoubleInit
+                 -> "Repeated initialization of a struct field."
+           )
+
+showWarning :: Warning -> Doc
+showWarning w =
+      text "WARNING"
+  <+> text (case w of
+              IfTEWarn
+                -> "One branch of an if-then-else statement contains a return statement. Statements after the if-the-else block are not reachable on all control paths."
+              LoopWarn
+                -> "Statements after the loop may be unreachable due to a return statement within the loop."
+              VoidEmptyBody
+                -> "Procedure with void return type has no statements."
+              ArrayInitPartialWarning
+                -> "Array partially initialized."
+              ArrayInitUnusedWarning
+                -> "Array contains unused initializers."
+           )
+
+-- Boolean says whether to show warnings (True) or not.
+showTyChkModule :: Bool -> ModResult Result -> IO ()
+showTyChkModule b res = showModErrs go res
+  where
+  go :: Result -> Doc
+  go (LocError e) = showWithLoc showError e
+  go (LocWarn  w) = if b then showWithLoc showWarning w else empty
 
 --------------------------------------------------------------------------------
 -- Writer Monad
@@ -115,21 +134,36 @@ instance StateM TCResults SrcLoc where
 putError :: Error -> TCResults ()
 putError err = do
   loc <- get
-  put (Results [err `at` loc] [])
+  put [LocError (err `at` loc)]
 
 putWarn :: Warning -> TCResults ()
 putWarn warn = do
   loc <- get
-  put (Results [] [warn `at` loc])
+  put [LocWarn (warn `at` loc)]
 
 runTCResults :: TCResults a -> (a, Results)
 runTCResults tc = fst $ runId $ runStateT NoLoc $ runWriterT (unTC tc)
 
 --------------------------------------------------------------------------------
 
--- | Type Check a procedure.
-typeCheck :: I.Proc -> Results
-typeCheck p = snd $ runTCResults $ tyChk (I.procRetTy p) (I.procBody p)
+-- | Type Check a module.
+typeCheck :: I.Module -> ModResult Result
+typeCheck m =
+  ModResult (I.modName m)
+            (concatMap procTC allProcs ++ concatMap areaTC allAreas)
+
+  where
+  allProcs = let ps = I.modProcs m in I.public ps ++ I.private ps
+  procTC p =
+    if null res then [] else [SymResult (I.procSym p) res]
+    where
+    res = snd $ runTCResults $ tyChk (I.procRetTy p) (I.procBody p)
+
+  allAreas = let as = I.modAreas m in I.public as ++ I.private as
+  areaTC a =
+    if null res then [] else [SymResult (I.areaSym a) res]
+    where
+    res = snd $ runTCResults $ checkInit (Just (I.areaType a)) (I.areaInit a)
 
 -- Sub-block of the prcedure
 type SubBlk = Bool
@@ -171,8 +205,8 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
     = do b <- tyChk' (True, False) ss0
          when b (putWarn LoopWarn)
          tyChk' (sb, False) ss
-  tyChk' b (I.Local _t _v init' : ss)
-    = do checkInit init'
+  tyChk' b (I.Local t _v init' : ss)
+    = do checkInit (Just t) init'
          tyChk' b ss
   tyChk' b (I.Comment (I.SourcePos src):ss)
     = do set src
@@ -183,16 +217,38 @@ tyChk ty        stmts = void (tyChk' (False, False) stmts)
   isComment (I.Comment _) = True
   isComment _             = False
 
-  checkInit (I.InitStruct fis)
-    = do mapM_ (checkInit . snd) fis
-         let fs = map fst fis
-         when (fs /= nub fs) $
-           putError DoubleInit
-         return ()
-  checkInit (I.InitArray is)
-    = mapM_ checkInit is
-  checkInit _
-    = return ()
+-- XXX We don't check array lengths for substructural arrays (e.g., arrays that
+-- are a field of a struct) because we don't have the typing information with
+-- the array length in the AST; it's not part of the initializer. We could add it, though.
+checkInit :: Maybe I.Type -> I.Init -> TCResults ()
+checkInit mty init =
+  case init of
+    I.InitZero
+      -> return ()
+    I.InitExpr{}
+      -> return ()
+    I.InitStruct ls
+      -> do
+      mapM_ (checkInit Nothing . snd) ls
+      let fs = map fst ls
+      when (fs /= nub fs) (putError DoubleInit)
+    I.InitArray inits b
+      -> do
+      mapM_ (checkInit Nothing) inits
+      unless b (putWarn ArrayInitUnusedWarning)
+      let mlen = getArrayLen <$> mty
+      case mlen of
+        Nothing  -> return ()
+        -- Assume default initialization if zero inits
+        Just len -> when (not (null inits) && length inits < len)
+                         (putWarn ArrayInitPartialWarning)
+
+getArrayLen :: I.Type -> Int
+getArrayLen ty = case ty of
+  I.TyArr i _
+    -> i
+  _ -> error $ "Error in TypeChecking: the impossible happened. "
+         ++ "Expected an array type but saw " ++ show ty ++ "."
 
 xor :: Bool -> Bool -> Bool
 xor a b = (not a && b) || (a && not b)

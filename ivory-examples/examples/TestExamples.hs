@@ -1,24 +1,30 @@
 import System.Environment
 
-import qualified PID
-import qualified FibLoop
-import qualified Factorial
-import qualified String
-import qualified FunPtr
-import qualified Overflow
-import qualified Float
+import qualified AddrOfRegression
 import qualified Alloc
 import qualified Area
-import qualified Cond
-import qualified Forever
-import qualified PublicPrivate
-import qualified Bits
-import qualified SizeOf
-import qualified AddrOfRegression
 import qualified Array
+import qualified BitData
+import qualified Bits
+import qualified ClassHierarchy
 import qualified ConcreteFile
+import qualified Cond
+import qualified ConstPtrRef
+import qualified ConstRef
 import qualified Coroutine
+import qualified Extern
+import qualified Factorial
+import qualified FibLoop
+import qualified FibTutorial
+import qualified Float
+import qualified Forever
+import qualified FunPtr
 import qualified Loop
+import qualified Overflow
+import qualified PID
+import qualified PublicPrivate
+import qualified SizeOf
+import qualified String
 
 import Control.Monad (when)
 import Ivory.Compile.C.CmdlineFrontend
@@ -39,26 +45,31 @@ compileExample :: Opts -> [Module] -> IO ()
 compileExample opts ms = runCompiler ms stdlibStringArtifacts opts
 
 modules :: [Module]
-modules = [ PID.cmodule
-          , FibLoop.cmodule
-          , Factorial.cmodule
-          , String.cmodule
-          , FunPtr.cmodule
-          , Overflow.cmodule
-          , Float.cmodule
+modules = [ AddrOfRegression.cmodule
           , Alloc.cmodule
           , Area.cmodule
-          , Cond.cmodule
-          , Forever.cmodule
-          , PublicPrivate.cmodule
-          , Bits.cmodule
-          , SizeOf.cmodule
-          , AddrOfRegression.cmodule
           , Array.cmodule
-          , Overflow.cmodule
-          , Coroutine.cmodule
+          , BitData.cmodule
+          , Bits.cmodule
+          , ClassHierarchy.cmodule
           , ConcreteFile.concreteIvory
           , ConcreteFile.examplesfile
+          , Cond.cmodule
+          , ConstPtrRef.cmodule
+          , ConstRef.cmodule
+          , Coroutine.cmodule
+          , Extern.cmodule
+          , Factorial.cmodule
+          , FibLoop.cmodule
+          , FibTutorial.fib_tutorial_module
+          , Float.cmodule
+          , Forever.cmodule
+          , FunPtr.cmodule
           , Loop.cmodule
-          , stdlibStringModule
-          ] ++ stdlibModules
+          , Overflow.cmodule
+          , PID.cmodule
+          , PublicPrivate.cmodule
+          , SizeOf.cmodule
+          , String.cmodule
+          ]
+          ++ stdlibModules

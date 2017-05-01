@@ -3,7 +3,7 @@ module Examples where
 import qualified Ivory.Language.Syntax as I
 
 import qualified AddrOfRegression
-import qualified Alloc
+--import qualified Alloc
 import qualified Area
 import qualified Array
 -- import qualified BitData
@@ -29,7 +29,7 @@ import qualified String
 
 modules :: [I.Module]
 modules = [ AddrOfRegression.cmodule
-          , Alloc.cmodule
+          -- , Alloc.cmodule
           , Area.cmodule
           , Array.cmodule
           -- , BitData.cmodule

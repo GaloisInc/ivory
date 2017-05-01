@@ -51,7 +51,8 @@ instance (ANat n) => IvoryVar (Ix n) where
   unwrapExpr = getIx
 
 instance (ANat n) => IvoryExpr (Ix n) where
-  wrapExpr = Ix
+  wrapExpr e | 0 /= fromTypeNat (aNat :: NatType n) = Ix e
+             | otherwise = error "cannot have an index with width 0"
 
 instance (ANat n) => IvoryStore (Ix n)
 
@@ -62,6 +63,11 @@ instance (ANat n) => Num (Ix n) where
   abs           = ixUnary abs
   signum        = ixUnary signum
   fromInteger   = mkIx . fromInteger
+
+instance ANat n => Bounded (Ix n) where
+  minBound = 0
+  maxBound = fromInteger (n - 1)
+    where n = fromTypeNat (aNat :: NatType n)
 
 instance (ANat n) => IvoryEq  (Ix n)
 instance (ANat n) => IvoryOrd (Ix n)

@@ -13,43 +13,43 @@ this is an incidental detail of the current implementation),
 coroutine name and Ivory module.
 
 -}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Ivory.Language.Coroutine (
   -- * Usage Notes
   -- $usageNotes
-  
+
   -- * Implementation Notes
   -- $implNotes
-  
+
   Coroutine(..), CoroutineBody(..), coroutine,
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                ()
+import           Prelude.Compat
 
-import Control.Monad (unless,when)
-import Control.Monad.Fix (mfix)
-import qualified Data.DList as D
-import qualified Data.IntMap as IntMap
-import qualified Data.Map as Map
-import Ivory.Language.Area
-import Ivory.Language.Array
-import Ivory.Language.Effects
-import Ivory.Language.IBool
-import Ivory.Language.Module
-import Ivory.Language.Monad
-import Ivory.Language.Proc
-import Ivory.Language.Proxy
-import Ivory.Language.Ref
-import qualified Ivory.Language.Syntax as AST
-import Ivory.Language.Type
+import           Control.Monad          (unless, when)
+import           Control.Monad.Fix      (mfix)
+import qualified Data.DList             as D
+import qualified Data.IntMap            as IntMap
+import qualified Data.Map               as Map
+import           Ivory.Language.Area
+import           Ivory.Language.Array
+import           Ivory.Language.Effects
+import           Ivory.Language.IBool
+import           Ivory.Language.Module
+import           Ivory.Language.Monad
+import           Ivory.Language.Proc
+import           Ivory.Language.Proxy
+import           Ivory.Language.Ref
+import qualified Ivory.Language.Syntax  as AST
+import           Ivory.Language.Type
 import qualified MonadLib
 
 -- Optimizations TODO:
@@ -261,14 +261,14 @@ keepUsedBlocks root blocks = sweep $ snd $ MonadLib.runM (mark root >> ref root)
     foldr doInline blocks [ label | (label, 1) <- IntMap.assocs used ]
 
 data CoroutineParams = CoroutineParams
-  { getCont :: String -> AST.Expr
+  { getCont       :: String -> AST.Expr
   , getBreakLabel :: Terminator
   }
 
 data CoroutineState = CoroutineState
   { rewrites :: Map.Map AST.Var (CoroutineMonad AST.Expr)
-  , labels :: [BasicBlock]
-  , derefs :: !Integer
+  , labels   :: [BasicBlock]
+  , derefs   :: !Integer
   }
 
 type CoroutineResume = Map.Map Goto (AST.Expr -> AST.Block)
@@ -344,6 +344,9 @@ extractLocals (AST.Local ty var initex) rest = do
   rest
 extractLocals (AST.RefCopy ty lhs rhs) rest =
   (runUpdateExpr $ AST.RefCopy ty <$> updateExpr lhs <*> updateExpr rhs) >>=
+  stmt >> rest
+extractLocals (AST.RefZero ty ref) rest =
+  (runUpdateExpr $ AST.RefZero ty <$> updateExpr ref) >>=
   stmt >> rest
 extractLocals (AST.AllocRef _ty refvar name) rest = do
   let AST.NameVar var = name -- XXX: AFAICT, AllocRef can't have a NameSym argument.
@@ -518,9 +521,10 @@ updateInit (AST.InitStruct fields) =
   -- Every field of a @struct@ in an 'AST.InitStruct' contains an expression
   -- that must go through 'updateExpr':
   AST.InitStruct <$> mapM (\ (name, ex) -> (,) name <$> updateInit ex) fields
-updateInit (AST.InitArray elems) =
+updateInit (AST.InitArray elems b) = do
   -- An 'AST.InitArray' is a list of 'AST.Init' which we must recurse over:
-  AST.InitArray <$> mapM updateInit elems
+  ls <- mapM updateInit elems
+  return (AST.InitArray ls b)
 
 -- | Basically 'updateExpr', but on a typed expression.
 updateTypedExpr :: AST.Typed AST.Expr -> UpdateExpr (AST.Typed AST.Expr)

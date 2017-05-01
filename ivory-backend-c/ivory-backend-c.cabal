@@ -2,13 +2,13 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory-backend-c
-version:             0.1.0.2
+version:             0.1.0.5
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language
 synopsis:            Ivory C backend.
 description:         Ivory compiler, to a subset of C99.
-homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+homepage:            http://ivorylang.org
 build-type:          Simple
 cabal-version:       >= 1.10
 data-files:             runtime/ivory.h,
@@ -19,11 +19,12 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-backend-0101
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.Compile.C,
                         Ivory.Compile.C.Gen,
+                        Ivory.Compile.C.Gen.Const,
                         Ivory.Compile.C.Modules,
                         Ivory.Compile.C.Prop,
                         Ivory.Compile.C.Types,
@@ -31,9 +32,9 @@ library
                         Ivory.Compile.C.CmdlineFrontend.Options
   other-modules:        Paths_ivory_backend_c
 
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.7 && < 5,
                         base-compat,
-                        language-c-quote >= 0.10.0,
+                        language-c-quote >= 0.11.0.0,
                         srcloc,
                         mainland-pretty >= 0.2.5,
                         monadLib >= 3.7,

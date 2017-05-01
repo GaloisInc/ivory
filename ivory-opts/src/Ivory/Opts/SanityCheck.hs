@@ -1,9 +1,9 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -17,28 +17,34 @@
 
 module Ivory.Opts.SanityCheck
   ( sanityCheck
-  , showErrors
+  , showSanityChkModule
   , existErrors
-  , Results()
-  , render
+  , dupDefs
+  , showDupDefs
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat
 
-import           Control.Monad (unless)
+import           System.IO                               (hPutStrLn, stderr)
+
+import           Control.Monad                           (unless)
+import qualified Data.List                               as L
 import qualified Data.Map                                as M
-import           MonadLib
-                     (WriterM(..),StateM(..),sets_,runId,runStateT,runWriterT
-                     ,Id,StateT,WriterT)
+import           MonadLib                                (Id, StateM (..),
+                                                          StateT, WriterM (..),
+                                                          WriterT, runId,
+                                                          runStateT, runWriterT,
+                                                          sets_)
 import           Text.PrettyPrint
 
-import           Ivory.Language.Syntax.Concrete.Location
-import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax.AST               as I
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.Pretty
 import qualified Ivory.Language.Syntax.Names             as I
 import qualified Ivory.Language.Syntax.Type              as I
+import           Ivory.Opts.Utils
 
 --------------------------------------------------------------------------------
 -- Errors types
@@ -47,50 +53,31 @@ data Error = UnboundValue String
            | TypeError String I.Type I.Type
   deriving (Show, Eq)
 
-data Warning = TypeWarning String I.Type I.Type
-  deriving (Show, Eq)
+type Result = Located Error
 
-data Results = Results
-  { errors    :: [Located Error]
-  , _warnings :: [Located Warning]
-  } deriving (Show, Eq)
-
-instance Monoid Results where
-  mempty = Results [] []
-  Results a0 b0 `mappend` Results a1 b1 = Results (a0 ++ a1) (b0 ++ b1)
+type Results = [Located Error]
 
 -- | Are there any errors from typechecking?
-existErrors :: Results -> Bool
-existErrors = not . null . errors
+existErrors :: ModResult Result -> Bool
+existErrors (ModResult _ ls) = or (map go ls)
+  where
+  go (SymResult _ res) = not (null res)
 
 showError :: Error -> Doc
 showError err = case err of
   UnboundValue x
     -> text "Unbound value:" <+> quotes (text x)
   TypeError x actual expected
-    -> typeMsg x actual expected
+    ->   quotes (text x) <+> text "has type:"
+      $$ nest 4 (quotes (pretty actual))
+      $$ text "but is used with type:"
+      $$ nest 4 (quotes (pretty expected))
 
-typeMsg :: String -> I.Type -> I.Type -> Doc
-typeMsg x actual expected =
-     quotes (text x) <+> text "has type:"
-  $$ nest 4 (quotes (pretty actual))
-  $$ text "but is used with type:"
-  $$ nest 4 (quotes (pretty expected))
-
-showWithLoc :: (a -> Doc) -> Located a -> Doc
-showWithLoc sh (Located loc a) = pretty loc <> text ":" $$ nest 2 (sh a)
-
--- | Given a procedure name, show all the typechecking results for that procedure.
-showErrors :: String -> Results -> Doc
-showErrors procName res
-  = mkOut procName "ERROR" (showWithLoc showError) (errors res)
-
-mkOut :: String -> String -> (a -> Doc) -> [a] -> Doc
-mkOut _   _    _  [] = empty
-mkOut sym kind sh ls = nm $$ nest 4 (vcat (map go ls)) $$ empty
+showSanityChkModule :: ModResult Result -> IO ()
+showSanityChkModule res = showModErrs go res
   where
-  go x = text kind <> text ":" <+> sh x
-  nm   = text "*** Procedure" <+> text sym
+  go :: Result -> Doc
+  go = showWithLoc showError
 
 --------------------------------------------------------------------------------
 -- Writer Monad
@@ -144,7 +131,7 @@ hasType name ty = sets_ (\s -> s { env = M.insert name (Defined ty) (env s) })
 putError :: Error -> SCResults ()
 putError err = do
   loc <- getStLoc
-  put (Results [err `at` loc] [])
+  put [err `at` loc]
 
 runSCResults :: SCResults a -> (a, Results)
 runSCResults tc = fst $ runId $ runStateT (St NoLoc M.empty) $ runWriterT (unTC tc)
@@ -165,29 +152,67 @@ nameString n = case n of
 getType :: I.Typed a -> I.Type
 getType (I.Typed t _) = t
 
-sanityCheck :: [I.Module] -> I.Module -> Results
-sanityCheck deps this@(I.Module {..})
-  = mconcat $ map (sanityCheckProc topLevel) $ getVisible modProcs
+sanityCheck :: [I.Module] -> [ModResult Result]
+sanityCheck ms = map goMod ms
   where
-  getVisible v = I.public v ++ I.private v
+  goMod m =
+    ModResult (I.modName m)
+              (concatMap goProc (getVisible I.modProcs m))
+
+  goProc p =
+    let scp = sanityCheckProc topLevel p in
+    if null scp then [] else [SymResult (I.procSym p) scp]
 
   topLevel :: M.Map String MaybeType
-  topLevel = M.fromList
-           $ concat [ procs m
+  topLevel = M.fromList $
+             concat [ procs m
                    ++ imports m
                    ++ externs m
                    ++ areas m
-                    | m <- this:deps
+                   ++ importAreas m
+                    | m <- ms
                     ]
 
-  procs m   = [ (procSym, Defined $ I.TyProc procRetTy (map getType procArgs) )
-              | I.Proc {..} <- getVisible $ I.modProcs m ]
-  imports m = [ ( importSym, Imported )
-              | I.Import {..} <- I.modImports m ]
-  externs m = [ (externSym, Defined externType)
-              | I.Extern {..} <- I.modExterns m ]
-  areas m   = [ (areaSym, Defined areaType )
-              | I.Area {..} <- getVisible $ I.modAreas m ]
+showDupDefs :: [String] -> IO ()
+showDupDefs dups =
+  if null dups then return ()
+    else hPutStrLn stderr $ render (vcat (map docDups dups) $$ empty)
+  where
+  docDups x = text "*** WARNING"
+           <> colon
+          <+> quotes (text x)
+          <+> text "has multiple definitions."
+
+-- Are there any duplicated definitions?
+dupDefs :: [I.Module] -> [String]
+dupDefs ms = map fst dups
+  where
+  dups :: [(String, MaybeType)]
+  -- XXX doesn't guarantee that there are multiply defined defs, but at
+  -- least sanity checks it.
+  dups = defs L.\\ (L.nubBy (\a b -> (fst a == fst b) && (snd a /= snd b))) defs
+    where
+    defs = concat [ procs m ++ areas m ++ structs m | m <- ms ]
+
+getVisible :: (t -> I.Visible a) -> t -> [a]
+getVisible acc m =
+  let ps = acc m in
+  I.public ps ++ I.private ps
+
+procs, areas, imports, externs, importAreas, structs :: I.Module -> [(I.Sym, MaybeType)]
+procs m       = [ (procSym, Defined $ I.TyProc procRetTy (map getType procArgs) )
+                | I.Proc {..} <- getVisible I.modProcs m ]
+areas m       = [ (areaSym, Defined areaType)
+                | I.Area {..} <- getVisible I.modAreas m ]
+imports m     = [ (importSym, Imported)
+                | I.Import {..} <- I.modImports m ]
+externs m     = [ (externSym, Defined externType)
+                | I.Extern {..} <- I.modExterns m ]
+importAreas m = [ (aiSym, Imported)
+                | I.AreaImport {..} <- I.modAreaImports m ]
+-- Not an imported type, but we don't need hte type here.
+structs m     = [ (nm, Imported)
+                | (I.Struct nm _) <- getVisible I.modStructs m ]
 
 -- | Sanity Check a procedure. Check for unbound and ill-typed values
 sanityCheckProc :: M.Map String MaybeType -> I.Proc -> Results
@@ -219,10 +244,12 @@ check = mapM_ go
             case mv of
               Nothing -> return ()
               Just v  -> varString v `hasType` t
-    I.Local t v _
+    I.Local t v _init
       -> varString v `hasType` t
     I.RefCopy _ e1 e2
       -> checkExpr e1 >> checkExpr e2
+    I.RefZero _ e1
+      -> checkExpr e1
     I.AllocRef t v _
       -> varString v `hasType` t
     I.Loop _ v _ _ stmts
@@ -299,6 +326,8 @@ instance Pretty I.Type where
       -> text "ConstRef" <+> pretty ref
     I.TyPtr ptr
       -> text "Ptr" <+> pretty ptr
+    I.TyConstPtr ptr
+      -> text "ConstPtr" <+> pretty ptr
     I.TyArr n t
       -> text "Array" <+> pretty n <+> pretty t
     I.TyStruct s
@@ -307,22 +336,3 @@ instance Pretty I.Type where
       -> text "CArray" <+> pretty t
     I.TyOpaque
       -> text "Opaque"
-
---------------------------------------------------------------------------------
--- Unused for now.
-
--- showWarning :: Warning -> Doc
--- showWarning w = case w of
---   TypeWarning x actual expected
---     -> typeMsg x actual expected
-
--- -- | Given a procedure name, show all the typechecking results for that procedure.
--- showWarnings :: String -> Results -> Doc
--- showWarnings procName res
---   = mkOut procName "WARNING" (showWithLoc showWarning) (warnings res)
-
--- putWarn :: Warning -> SCResults ()
--- putWarn warn = do
---   loc <- getStLoc
---   put (Results [] [warn `at` loc])
-

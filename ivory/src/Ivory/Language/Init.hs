@@ -1,37 +1,37 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Ivory.Language.Init where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                ()
+import           Prelude.Compat
 
-import Ivory.Language.Area
-import Ivory.Language.Array
-import Ivory.Language.Float
-import Ivory.Language.IBool
-import Ivory.Language.IChar
-import Ivory.Language.Monad
-import Ivory.Language.Proc
-import Ivory.Language.Proxy
-import Ivory.Language.Ptr
-import Ivory.Language.Ref
-import Ivory.Language.Scope
-import Ivory.Language.Struct
-import Ivory.Language.Sint
-import Ivory.Language.Type
-import Ivory.Language.Uint
-import qualified Ivory.Language.Syntax as I
+import           Ivory.Language.Area
+import           Ivory.Language.Array
 import qualified Ivory.Language.Effects as E
+import           Ivory.Language.Float
+import           Ivory.Language.IBool
+import           Ivory.Language.IChar
+import           Ivory.Language.Monad
+import           Ivory.Language.Proc
+import           Ivory.Language.Proxy
+import           Ivory.Language.Ptr
+import           Ivory.Language.Ref
+import           Ivory.Language.Scope
+import           Ivory.Language.Sint
+import           Ivory.Language.Struct
+import qualified Ivory.Language.Syntax  as I
+import           Ivory.Language.Type
+import           Ivory.Language.Uint
 
-import Control.Monad (forM_)
+import           Control.Monad          (forM_)
 
-import GHC.TypeLits(Symbol)
+import           GHC.TypeLits           (Symbol)
 
 -- Initializers ----------------------------------------------------------------
 
@@ -40,14 +40,14 @@ import GHC.TypeLits(Symbol)
 -- in a "FreshName" monad when the variable is allocated.
 data XInit
   = IVal      I.Type I.Init
-  | IArray    I.Type [XInit]
+  | IArray    I.Type [XInit] Bool -- True if no dropped initialization values.
   | IStruct   I.Type [(String, XInit)]
   | IFresh    I.Type XInit (I.Var -> I.Init)
 
 -- | Return the type of the initializer.
 initType :: XInit -> I.Type
 initType (IVal    ty _)   = ty
-initType (IArray  ty _)   = ty
+initType (IArray  ty _ _) = ty
 initType (IStruct ty _)   = ty
 initType (IFresh  ty _ _) = ty
 
@@ -57,6 +57,12 @@ newtype Init (area :: Area *) = Init { getInit :: XInit }
 -- compatible with C semantics of initializing to 0 for globals in .bss.
 class IvoryZero (area :: Area *) where
   izero :: Init area
+
+-- | Zero the memory pointed to by this reference, as long as it could have been
+-- created with a zero initializer.
+refZero :: forall eff s a. (IvoryZero a, IvoryArea a) => Ref s a -> Ivory eff ()
+refZero ref = emit (I.RefZero (ivoryArea (Proxy :: Proxy a)) (unwrapExpr ref))
+
 
 -- Running Initializers --------------------------------------------------------
 
@@ -68,9 +74,9 @@ instance FreshName (Ivory eff) where
 
 -- | A variable binding (on the stack or in a memory area).
 data Binding = Binding
-  { bindingVar    :: I.Var
-  , bindingType   :: I.Type
-  , bindingInit   :: I.Init
+  { bindingVar  :: I.Var
+  , bindingType :: I.Type
+  , bindingInit :: I.Init
   } deriving Show
 
 -- XXX do not export
@@ -88,11 +94,11 @@ runInit ini =
   case ini of
     IVal _ i ->
       return (i, [])
-    IArray _ is -> do
+    IArray _ is b -> do
       binds    <- mapM runInit is
       let inis  = map fst binds
       let aux   = concatMap snd binds
-      return (I.InitArray inis, aux)
+      return (I.InitArray inis b, aux)
     IStruct _ is -> do
       binds    <- mapM iniStruct is
       let inis  = map fst binds
@@ -174,11 +180,12 @@ instance (IvoryZero area, IvoryArea area, ANat len) =>
 
 iarray :: forall len area. (IvoryArea area, ANat len)
        => [Init area] -> Init ('Array len area)
-iarray is = Init (IArray ty (take len (map getInit is)))
-            -- truncate to known length
+iarray is =
+  Init (IArray ty (take len (map getInit is)) (null (drop len is)))
+  -- truncate to known length, Bool tells us if there were dropped values.
   where
   len = fromInteger (fromTypeNat (aNat :: NatType len))
-  ty = ivoryArea (Proxy :: Proxy ('Array len area))
+  ty  = ivoryArea (Proxy :: Proxy ('Array len area))
 
 -- Struct Initializers ---------------------------------------------------------
 

@@ -1,5 +1,5 @@
+{-# LANGUAGE QuasiQuotes     #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 --
 -- QuasiQuoter for Ivory statements.
@@ -12,26 +12,27 @@ module Ivory.Language.Syntax.Concrete.QQ.StmtQQ
  ( fromProgram
  ) where
 
-import           Prelude hiding (exp, init)
+import           Prelude                                   hiding (exp, init)
 
-import           Language.Haskell.TH        hiding (Stmt, Exp, Type)
-import qualified Language.Haskell.TH   as T
+import           Language.Haskell.TH                       hiding (Exp, Stmt,
+                                                            Type)
+import qualified Language.Haskell.TH                       as T
 
-import qualified Ivory.Language.Init   as I
-import qualified Ivory.Language.Ref    as I
-import qualified Ivory.Language.Proc   as I
-import qualified Ivory.Language.Assert as I
-import qualified Ivory.Language.IBool  as I
-import qualified Ivory.Language.Loop   as I
-import qualified Ivory.Language.Monad  as I
+import qualified Ivory.Language.Assert                     as I
+import qualified Ivory.Language.IBool                      as I
+import qualified Ivory.Language.Init                       as I
+import qualified Ivory.Language.Loop                       as I
+import qualified Ivory.Language.Monad                      as I
+import qualified Ivory.Language.Proc                       as I
+import qualified Ivory.Language.Ref                        as I
 
-import           Control.Monad (forM_)
+import           Control.Monad                             (forM_)
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Concrete.ParseAST
-import Ivory.Language.Syntax.Concrete.QQ.BindExp
-import Ivory.Language.Syntax.Concrete.QQ.Common
-import Ivory.Language.Syntax.Concrete.QQ.TypeQQ
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Concrete.ParseAST
+import           Ivory.Language.Syntax.Concrete.QQ.BindExp
+import           Ivory.Language.Syntax.Concrete.QQ.Common
+import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 --------------------------------------------------------------------------------
 
@@ -106,7 +107,24 @@ fromStmt stmt = case stmt of
     -> do
     e <- fromExpStmt exp
     b <- fromBlock blk
-    insert $ NoBindS (AppE (AppE (VarE 'I.for) e) (LamE [VarP (mkName ixVar)] b))
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.upTo) (LitE (integerL 0))) e) (LamE [VarP (mkName ixVar)] b))
+  UpFromTo exp0 exp1 ixVar blk
+    -> do
+    e0 <- fromExpStmt exp0
+    e1 <- fromExpStmt exp1
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.upTo) e0) e1) (LamE [VarP (mkName ixVar)] b))
+  DownFrom exp ixVar blk
+    -> do
+    e <- fromExpStmt exp
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.downTo) e) (LitE (integerL 0))) (LamE [VarP (mkName ixVar)] b))
+  DownFromTo exp0 exp1 ixVar blk
+    -> do
+    e0 <- fromExpStmt exp0
+    e1 <- fromExpStmt exp1
+    b <- fromBlock blk
+    insert $ NoBindS (AppE (AppE (AppE (VarE 'I.downTo) e0) e1) (LamE [VarP (mkName ixVar)] b))
   -- Either a single variable or a function call.
   IvoryMacroStmt mv (nm,args)
     -> do es <- fromArgs args
@@ -129,19 +147,19 @@ fromAlloc alloc = case alloc of
           let p = mkName ref
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.ival) e))
-  AllocArr arr exps
+  AllocArr ref exps
     -> do es <- mapM fromExpStmt exps
           let mkIval = AppE (VarE 'I.ival)
           let init = ListE (map mkIval es)
-          let p = mkName arr
+          let p = mkName ref
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) (AppE (VarE 'I.iarray) init))
-  AllocStruct s init
+  AllocStruct ref init
     -> do i <- fromInit
           insert $ BindS (VarP p)
                          (AppE (VarE 'I.local) i)
     where
-    p = mkName s
+    p = mkName ref
     fromInit = case init of
       Empty
         -> liftQ $ appE (varE 'I.istruct) [|[]|]

@@ -8,12 +8,12 @@ import Ivory.Compile.C.CmdlineFrontend
 
 cmodule :: Module
 cmodule = package "Loop" $ do
-  incl loopTest
+  incl loopTest0
 
 runLoopExample :: IO ()
 runLoopExample = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
-loopTest :: Def ('[] ':-> ())
-loopTest  = proc "loopTest" $ body $
-  do (0 :: Ix 0) `times` \ _ -> return ()
+loopTest0 :: Def ('[] ':-> ())
+loopTest0  = proc "loopTest" $ body $
+  do (0 :: Ix 1) `times` \ _ -> return ()
      retVoid

@@ -1,31 +1,31 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Ivory.Language.Syntax.Concrete.QQ.StructQQ
   ( fromStruct
   ) where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                  ()
+import           Prelude.Compat
 
-import qualified Ivory.Language.Area  as A
+import qualified Ivory.Language.Area                      as A
 import           Ivory.Language.Proxy
-import qualified Ivory.Language.Struct as S
-import qualified Ivory.Language.String as S
+import qualified Ivory.Language.String                    as S
+import qualified Ivory.Language.Struct                    as S
 
-import qualified Ivory.Language.Syntax.AST  as AST
-import qualified Ivory.Language.Syntax.Type as AST
+import qualified Ivory.Language.Syntax.AST                as AST
 import           Ivory.Language.Syntax.Concrete.ParseAST
+import qualified Ivory.Language.Syntax.Type               as AST
 
 import           Ivory.Language.Syntax.Concrete.QQ.Common
 import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
-import           Language.Haskell.TH hiding (Type)
-import           Language.Haskell.TH.Quote()
+import           Language.Haskell.TH                      hiding (Type)
+import           Language.Haskell.TH.Quote                ()
 
 --------------------------------------------------------------------------------
 
@@ -70,9 +70,8 @@ mkStructDef def = funD 'S.structDef
 
   mkField f =
     [| AST.Typed
-         { AST.tType  = $(mkTypeE (fieldType f))
-         , AST.tValue = $(stringE (fieldName f))
-         }
+         $(mkTypeE (fieldType f))
+         $(stringE (fieldName f))
     |]
 
 -- Field Labels ----------------------------------------------------------------
@@ -90,7 +89,7 @@ mkLabel sym f =
 
 mkType :: Type -> TypeQ
 mkType area = do
-  ty <- runToQ $ fromType $ maybeAddStored area
+  ty <- runToQ $ fromType $ maybeLiftStored area
   return (fst ty)
 
 -- | Turn a parsed type into its AST representation.
@@ -119,7 +118,7 @@ mkStringDef ty_s len = do
   let data_n     = mkName data_s
   let len_s      = struct_s ++ "_len"
   let len_n      = mkName len_s
-  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) len) mempty
+  let data_f     = Field data_s (TyArray (TyStored (TyWord Word8)) (Right len)) mempty
   let len_f      = Field len_s (TyStored (TyInt Int32)) mempty
   let struct_def = StructDef struct_s [data_f, len_f] mempty
 

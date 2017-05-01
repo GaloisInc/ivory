@@ -1,15 +1,15 @@
 module Ivory.Language.IString where
 
-import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as AST
+import           Ivory.Language.Type
 
-import Data.String (IsString(..))
+import           Data.String           (IsString (..))
 
 
 newtype IString = IString { getIString :: AST.Expr }
 
 instance IvoryType IString where
-  ivoryType _ = AST.TyPtr AST.TyChar
+  ivoryType _ = AST.TyConstRef AST.TyChar
 
 instance IvoryVar IString where
   wrapVar    = wrapVarExpr

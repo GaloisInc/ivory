@@ -1,25 +1,24 @@
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.Language.Syntax.AST where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                                 ()
+import           Prelude.Compat
 
-import Ivory.Language.Syntax.Concrete.Location
-import Ivory.Language.Syntax.Names
-import Ivory.Language.Syntax.Type
+import           Ivory.Language.Syntax.Concrete.Location
+import           Ivory.Language.Syntax.Names
+import           Ivory.Language.Syntax.Type
 
-import Language.Haskell.TH.Lift (deriveLiftMany)
+import           Language.Haskell.TH.Lift                (deriveLiftMany)
 
 #if __GLASGOW_HASKELL__ < 709
-import Language.Haskell.TH.Syntax (Lift(..))
+import           Language.Haskell.TH.Syntax              (Lift (..))
 #endif
 
-import Data.Ratio (denominator, numerator)
-import qualified Data.Set as Set
-
+import           Data.Ratio                              (denominator,
+                                                          numerator)
 
 -- Modules ---------------------------------------------------------------------
 
@@ -28,7 +27,7 @@ import qualified Data.Set as Set
 type ModulePath = String
 
 data Visible a = Visible
-  { public :: [a]
+  { public  :: [a]
   , private :: [a]
   } deriving (Show, Eq, Ord)
 
@@ -42,10 +41,12 @@ type ModuleName = String
 data Module = Module
   { modName        :: ModuleName
     -- ^ The name of this module
-  , modHeaders     :: Set.Set FilePath
-    -- ^ Included headers
-  , modDepends     :: Set.Set ModuleName
-    -- ^ Named module dependencies
+  , modHeaders     :: [FilePath]
+    -- ^ Included headers: lists instead of Sets because some systems depend on
+    -- a particular header order.
+  , modDepends     :: [ModuleName]
+    -- ^ Named module dependencies: lists instead of Sets because some systems
+    -- depend on a particular header order.
   , modExterns     :: [Extern]
   , modImports     :: [Import]
   , modProcs       :: Visible Proc
@@ -57,8 +58,8 @@ data Module = Module
 instance Monoid Module where
   mempty = Module
     { modName        = ""
-    , modHeaders     = Set.empty
-    , modDepends     = Set.empty
+    , modHeaders     = []
+    , modDepends     = []
     , modExterns     = []
     , modImports     = []
     , modProcs       = mempty
@@ -143,11 +144,11 @@ type Block = [Stmt]
 
 data Stmt
   = IfTE Expr Block Block
-    -- ^ If-then-else statement.  The @Expr@ argument will be typed as an
+    -- ^ If-then-else statement. The @Expr@ argument will be typed as an
     -- @IBool@.
 
   | Assert Expr
-    -- ^ Boolean-valued assertions.  The @Expr@ argument will be typed as an
+    -- ^ Boolean-valued assertions. The @Expr@ argument will be typed as an
     -- @IBool@.
 
   | CompilerAssert Expr
@@ -155,7 +156,7 @@ data Stmt
     -- These are expected to be correct (e.g., no overflow, etc).  Not exported.
 
   | Assume Expr
-    -- ^ Boolean-valued assumptions.  The @Expr@ argument will be typed as an
+    -- ^ Boolean-valued assumptions. The @Expr@ argument will be typed as an
     -- @IBool@.
 
   | Return (Typed Expr)
@@ -165,12 +166,12 @@ data Stmt
     -- ^ Returning void.
 
   | Deref Type Var Expr
-    -- ^ Reference dereferencing.  The type parameter refers to the type of the
+    -- ^ Reference dereferencing. The type parameter refers to the type of the
     -- referenced value, not the reference itself; the expression to be
     -- dereferenced is assumed to always be a reference.
 
   | Store Type Expr Expr
-    -- ^ Storing to a reference.  The type parameter refers to the type of the
+    -- ^ Storing to a reference. The type parameter refers to the type of the
     -- referenced value, not the reference itself; the expression to be
     -- dereferenced is assumed to always be a reference.
 
@@ -178,21 +179,25 @@ data Stmt
     -- ^ Simple assignment.
 
   | Call Type (Maybe Var) Name [Typed Expr]
-    -- ^ Function call.  The optional variable is where to store the result.  It
+    -- ^ Function call. The optional variable is where to store the result. It
     -- is expected that the @Expr@ passed for the function symbol will have the
     -- same type as the combination of the types for the arguments, and the
     -- return type.
 
   | Local Type Var Init
-    -- ^ Stack allocation.  The type parameter is not a reference at this point;
+    -- ^ Stack allocation. The type parameter is not a reference at this point;
     -- references are allocated separately to the stack-allocated data.
 
   | RefCopy Type Expr Expr
-    -- ^ Ref copy.  Copy the second variable reference to the first (like
-    -- memcopy).  The type is the dereferenced value of the variables.
+    -- ^ Ref copy. Copy the second variable reference to the first (like
+    -- memcopy). The type is the dereferenced value of the variables.
+
+  | RefZero Type Expr
+    -- ^ Ref zero. Zero out the memory associated with the reference. The type
+    -- parameter is not a reference, but the referenced type.
 
   | AllocRef Type Var Name
-    -- ^ Reference allocation.  The type parameter is not a reference, but the
+    -- ^ Reference allocation. The type parameter is not a reference, but the
     -- referenced type.
 
   | Loop Integer Var Expr LoopIncr Block
@@ -257,9 +262,9 @@ newtype Ensure = Ensure
 
 -- | External Symbols.
 data Extern = Extern
-  { externSym     :: Sym
-  , externFile    :: ModulePath
-  , externType    :: Type
+  { externSym  :: Sym
+  , externFile :: ModulePath
+  , externType :: Type
   } deriving (Show, Eq, Ord)
 
 -- Expressions -----------------------------------------------------------------
@@ -374,7 +379,12 @@ instance Num Expr where
   l - r         = ExpOp ExpSub [l,r]
   abs e         = ExpOp ExpAbs [e]
   signum e      = ExpOp ExpSignum [e]
-  negate e      = ExpOp ExpNegate [e]
+
+  negate (ExpLit (LitInteger i)) = ExpLit (LitInteger (negate i))
+  negate (ExpLit (LitFloat   f)) = ExpLit (LitFloat   (negate f))
+  negate (ExpLit (LitDouble  d)) = ExpLit (LitDouble  (negate d))
+  negate e                       = ExpOp ExpNegate [e]
+
   fromInteger i = ExpLit (LitInteger i)
 
 instance Bounded Expr where
@@ -430,7 +440,8 @@ data Init
   = InitZero                   -- ^ @ {} @
   | InitExpr Type Expr         -- ^ @ expr @
   | InitStruct [(String,Init)] -- ^ @ { .f1 = i1, ..., .fn = in } @
-  | InitArray [Init]           -- ^ @ { i1, ..., in } @
+  | InitArray [Init] Bool      -- ^ @ { i1, ..., in } @
+  -- Bool true if no unused initialization values.
     deriving (Show, Eq, Ord)
 
 
@@ -441,7 +452,6 @@ deriveLiftMany
   , ''Import
   , ''Extern
   , ''Proc, ''Ensure, ''Require, ''Cond
-  , ''Set.Set
 
   , ''Name
   , ''Stmt, ''LoopIncr, ''Comment, ''SrcLoc, ''Range, ''Position

@@ -22,7 +22,7 @@ module Ivory.Language (
   , IvoryRef()
   , ConstRef()
   , IvoryStore()
-  , Ref(), refToPtr, constRef, deref, store, refCopy
+  , Ref(), refToPtr, constRef, deref, store, refCopy, refZero
 
     -- ** Stack Allocation
   , IvoryInit(..), Init()
@@ -166,6 +166,8 @@ module Ivory.Language (
   , breakOut
   , arrayMap
   , forever
+  , upTo
+  , downTo
 
     -- ** Call
   , call, indirect
@@ -184,7 +186,8 @@ module Ivory.Language (
 
     -- ** Module Definitions
   , AST.Module(), moduleName, package
-  , ModuleDef, incl, depend, defStruct
+  , ModuleDef, incl, depend, dependByName
+  , defStruct
   , defStringType
   , defMemArea, defConstMemArea
   , private, public

@@ -2,13 +2,13 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory
-version:             0.1.0.2
+version:             0.1.0.5
 author:              Galois, Inc.
-maintainer:          trevor@galois.com
+maintainer:          trevor@galois.com, leepike@galois.com
 category:            Language
 synopsis:            Safe embedded C programming.
 description:         Using GHC type-system extensions, enforces safe low-level programming, while maintaining expressiveness.
-homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+homepage:            http://ivorylang.org
 build-type:          Simple
 cabal-version:       >= 1.10
 license:             BSD3
@@ -16,7 +16,7 @@ license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-0100
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.Language,
@@ -47,6 +47,7 @@ library
                         Ivory.Language.Loop,
                         Ivory.Language.MemArea,
                         Ivory.Language.Module,
+                        Ivory.Language.Pointer,
                         Ivory.Language.Proc,
                         Ivory.Language.Proxy,
                         Ivory.Language.Ptr,
@@ -64,6 +65,7 @@ library
                         Ivory.Language.Syntax.Concrete.ParseCore,
                         Ivory.Language.Syntax.Concrete.Pretty,
                         Ivory.Language.Syntax.Concrete.QQ,
+                        Ivory.Language.Syntax.Concrete.QQ.AreaQQ,
                         Ivory.Language.Syntax.Concrete.QQ.BindExp,
                         Ivory.Language.Syntax.Concrete.QQ.BitDataQQ,
                         Ivory.Language.Syntax.Concrete.QQ.Common,
@@ -80,7 +82,7 @@ library
                         Ivory.Language.Type,
                         Ivory.Language.Uint
   build-tools:          alex, happy
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.7 && < 5,
                         base-compat,
                         pretty >= 1.1,
                         containers >= 0.5,
@@ -89,14 +91,11 @@ library
                         filepath,
                         text,
                         dlist >= 0.5,
-                        -- QuickCheck >= 2.5.1,
                         th-lift >= 0.5.5,
                         array
   hs-source-dirs:       src
   default-language:     Haskell2010
 
   ghc-options:          -Wall
-
-  if impl(ghc >= 7.8)
-    build-depends:      ghc, hpc, ghc-srcspan-plugin >= 0.2
-    exposed-modules:    Ivory.Language.Plugin
+  if impl(ghc == 8.0.1)
+    ghc-options:        -Wno-redundant-constraints

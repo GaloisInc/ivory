@@ -59,22 +59,35 @@ tokens :-
   @bitlit      { emitS readBitLit }
   @float       { emitS readFloat }
 
+
+-- Reserved words
+  struct   { keyword }
+  abstract { keyword }
+  string   { keyword }
+  type     { keyword }
+  include  { keyword }
+  import   { keyword }
+  extern   { keyword }
+
 -- Reserved words: statements
-  if       { keyword }
-  else     { keyword }
-  assert   { keyword }
-  assume   { keyword }
-  pre      { keyword }
-  post     { keyword }
-  let      { keyword }
-  return   { keyword }
-  alloc    { keyword }
-  store    { keyword }
-  as       { keyword }
-  map      { keyword }
-  upTo     { keyword }
-  forever  { keyword }
-  break    { keyword }
+  if         { keyword }
+  else       { keyword }
+  assert     { keyword }
+  assume     { keyword }
+  pre        { keyword }
+  post       { keyword }
+  let        { keyword }
+  return     { keyword }
+  alloc      { keyword }
+  store      { keyword }
+  as         { keyword }
+  map        { keyword }
+  upTo       { keyword }
+  upFromTo   { keyword }
+  downFrom   { keyword }
+  downFromTo { keyword }
+  forever    { keyword }
+  break      { keyword }
 
 -- Reserved words: expressions
   abs              { keyword }
@@ -126,14 +139,6 @@ tokens :-
   sizeOf           { keyword }
   nullPtr          { keyword }
   refToPtr         { keyword }
-
--- Reserved words
-  struct   { keyword }
-  abstract { keyword }
-  string   { keyword }
-  type     { keyword }
-  include  { keyword }
-  import   { keyword }
 
   -- C style
   bool     { keyword }
@@ -358,4 +363,3 @@ begin :: Int -> AlexAction (Lexer (Maybe Lexeme))
 begin code _ _ = alexSetStartCode code >> return Nothing
 
 }
-

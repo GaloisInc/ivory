@@ -11,6 +11,7 @@ import Data.Word (Word8,Word16,Word32,Word64)
 
 -- | 8-bit words.
 newtype Uint8 = Uint8 { getUint8 :: I.Expr }
+  deriving Show
 
 instance IvoryType Uint8 where
   ivoryType _ = I.TyWord I.Word8
@@ -38,6 +39,7 @@ instance Bounded Uint8 where
 
 -- | 16-bit words.
 newtype Uint16 = Uint16 { getUint16 :: I.Expr }
+  deriving Show
 
 instance IvoryType Uint16 where
   ivoryType _ = I.TyWord I.Word16
@@ -65,6 +67,7 @@ instance Bounded Uint16 where
 
 -- | 32-bit words.
 newtype Uint32 = Uint32 { getUint32 :: I.Expr }
+  deriving Show
 
 instance IvoryType Uint32 where
   ivoryType _ = I.TyWord I.Word32
@@ -92,6 +95,7 @@ instance Bounded Uint32 where
 
 -- | 64-bit words.
 newtype Uint64 = Uint64 { getUint64 :: I.Expr }
+  deriving Show
 
 instance IvoryType Uint64 where
   ivoryType _ = I.TyWord I.Word64

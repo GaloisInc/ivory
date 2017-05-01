@@ -273,55 +273,30 @@ static inline uint8_t ivory_serialize_unpack_prim_1_be(const uint8_t *src){
 }
 
 static inline uint16_t ivory_serialize_unpack_prim_2_le(const uint8_t *src){
-#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint16_t) src[0] << 0) |
 			((uint16_t) src[1] << 8));
-#else
-	return (((uint16_t) src[1] << 0) |
-			((uint16_t) src[0] << 8));
-#endif
 }
 
 static inline uint16_t ivory_serialize_unpack_prim_2_be(const uint8_t *src){
-#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint16_t) src[1] << 0) |
 			((uint16_t) src[0] << 8));
-#else
-	return (((uint16_t) src[0] << 0) |
-			((uint16_t) src[1] << 8));
-#endif
 }
 
 static inline uint32_t ivory_serialize_unpack_prim_4_le(const uint8_t *src){
-#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint32_t) src[0] << 0)  |
 			((uint32_t) src[1] << 8)  |
 			((uint32_t) src[2] << 16) |
 			((uint32_t) src[3] << 24));
-#else
-	return (((uint32_t) src[3] << 0)  |
-			((uint32_t) src[2] << 8)  |
-			((uint32_t) src[1] << 16) |
-			((uint32_t) src[0] << 24));
-#endif
 }
 
 static inline uint32_t ivory_serialize_unpack_prim_4_be(const uint8_t *src){
-#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint32_t) src[3] << 0)  |
 			((uint32_t) src[2] << 8)  |
 			((uint32_t) src[1] << 16) |
 			((uint32_t) src[0] << 24));
-#else
-	return (((uint32_t) src[0] << 0)  |
-			((uint32_t) src[1] << 8)  |
-			((uint32_t) src[2] << 16) |
-			((uint32_t) src[3] << 24));
-#endif
 }
 
 static inline uint64_t ivory_serialize_unpack_prim_8_le(const uint8_t *src){
-#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint64_t) src[0] << 0)  |
 			((uint64_t) src[1] << 8)  |
 			((uint64_t) src[2] << 16) |
@@ -330,20 +305,9 @@ static inline uint64_t ivory_serialize_unpack_prim_8_le(const uint8_t *src){
 			((uint64_t) src[5] << 40) |
 			((uint64_t) src[6] << 48) |
 			((uint64_t) src[7] << 56));
-#else
-	return (((uint64_t) src[7] << 0)  |
-			((uint64_t) src[6] << 8)  |
-			((uint64_t) src[5] << 16) |
-			((uint64_t) src[4] << 24) |
-			((uint64_t) src[3] << 32) |
-			((uint64_t) src[2] << 40) |
-			((uint64_t) src[1] << 48) |
-			((uint64_t) src[0] << 56));
-#endif
 }
 
 static inline uint64_t ivory_serialize_unpack_prim_8_be(const uint8_t *src){
-#ifndef CONFIG_IVORY_SERIALIZE_BIG_ENDIAN
 	return (((uint64_t) src[7] << 0)  |
 			((uint64_t) src[6] << 8)  |
 			((uint64_t) src[5] << 16) |
@@ -352,16 +316,6 @@ static inline uint64_t ivory_serialize_unpack_prim_8_be(const uint8_t *src){
 			((uint64_t) src[2] << 40) |
 			((uint64_t) src[1] << 48) |
 			((uint64_t) src[0] << 56));
-#else
-	return (((uint64_t) src[0] << 0)  |
-			((uint64_t) src[1] << 8)  |
-			((uint64_t) src[2] << 16) |
-			((uint64_t) src[3] << 24) |
-			((uint64_t) src[4] << 32) |
-			((uint64_t) src[5] << 40) |
-			((uint64_t) src[6] << 48) |
-			((uint64_t) src[7] << 56));
-#endif
 }
 
 // Functions to cast unpacked result to specific destination types:

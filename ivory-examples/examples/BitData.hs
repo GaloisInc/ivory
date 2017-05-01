@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
@@ -16,6 +17,9 @@ import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
 import BitDataTypes
+import Ivory.Language.BitData.Array   (ArraySize)
+import Ivory.Language.BitData.Bits    (BitSize)
+import Ivory.Language.BitData.BitData (BitType)
 
 [ivory|
 
@@ -76,25 +80,36 @@ import BitDataTypes
    }
 |]
 
-test1 :: Def ('[Uint16] :-> Uint16)
-test1 = proc "test1" $ \x -> body $ do
+test1 :: Def ('[Uint16] ':-> Uint16)
+test1 = proc "test1" $ \x -> body $
   ret $ withBits x $ do
         clearBit spi_cr1_cpha
         setBit   spi_cr1_cpol
         setField spi_cr1_br spi_baud_div_8
 
-test2 :: Def ('[Uint32] :-> Uint8)
+test2 :: Def ('[Uint32] ':-> Uint8)
 test2 = proc "test2" $ \x -> body $ do
   let d = fromRep x :: NVIC_ISER
   ret $ toRep (d #. nvic_iser_setena #! 0)
 
 -- | Iterate over the elements of a bit array.
+forBitArray_ ::
+  ( ANat n
+  , BitCast (BitRep (ArraySize n a)) (BitRep (BitSize (BitType a)))
+  , IvoryStore (BitRep (ArraySize n a))
+  , IvoryOrd (BitRep (ArraySize n a))
+  , IvoryZeroVal (BitRep (ArraySize n a))
+  , IvoryInit (BitRep (ArraySize n a))
+  , BitData a
+  , ANat (BitSize a)
+  , ANat (ArraySize n a)
+  ) => BitArray n a -> (a -> Ivory eff ()) -> Ivory eff ()
 forBitArray_ arr f =
-  forM_ [0..bitLength arr] $ \i ->
+  forM_ [0 .. bitLength arr - 1] $ \i ->
     f (arr #! i)
 
 -- | Test looping over the elements of a bit array:
-test3 :: Def ('[Uint32] :-> Uint32)
+test3 :: Def ('[Uint32] ':-> Uint32)
 test3 = proc "test3" $ \x -> body $ do
   let d = fromRep x
   total <- local (ival 0)
@@ -104,7 +119,7 @@ test3 = proc "test3" $ \x -> body $ do
     store total (x' + y)
   ret =<< deref total
 
-get_baud :: Def ('[Uint16] :-> Uint8)
+get_baud :: Def ('[Uint16] ':-> Uint8)
 get_baud = proc "get_baud" $ \x -> body $ do
   let d = fromRep x
   ret (toRep (d #. spi_cr1_br))
@@ -119,7 +134,7 @@ get_baud = proc "get_baud" $ \x -> body $ do
 |]
 
 cmodule :: Module
-cmodule = package "hw" $ do
+cmodule = package "BitData" $ do
   incl get_baud
   incl test1
   incl test2

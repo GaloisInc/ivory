@@ -1,10 +1,10 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-unused-binds -fno-warn-unused-matches #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-missing-signatures #-}
@@ -18,13 +18,14 @@
 
 module ConcreteFile where
 
-import Ivory.Language
-import Ivory.Stdlib
-import Ivory.Compile.C.CmdlineFrontend
+import           Ivory.Compile.C.CmdlineFrontend
+import           Ivory.Language
+import           Ivory.Stdlib
 
 e :: IBool
 e = (4::Sint32) >? 3
 
+-- Currently, type synonyms can *only* be for base (non=stored) typed.
 type SomeInt = Uint32
 
 macroStmts ::
@@ -40,11 +41,10 @@ macroStmtsRet ::
 macroStmtsRet x y = do
   a <- local (ival 0)
   store a (x + y)
-  return =<< deref a
+  deref a
 
 macroExp :: IvoryOrd a => a -> a -> IBool
-macroExp x y = do
-  x <? y
+macroExp x y = x <? y
 
 toIx' :: ANat n => Uint32 -> Ix n
 toIx' ix = toIx (twosComplementCast ix)
@@ -59,5 +59,3 @@ concreteIvory = package "concreteIvory" $ do
 main :: IO ()
 main = runCompiler [concreteIvory, examplesfile, stdlibStringModule] stdlibStringArtifacts
   initialOpts {outDir = Just "concrete-ivory", constFold = True}
-
-

@@ -318,7 +318,7 @@ index = Index
 ----------------------------------------
 -- Bounded int types
 
-boundedFunc :: forall a . (Show a, Integral a, Bounded a)
+boundedFunc :: forall a . (Integral a, Bounded a)
                 => Func -> a -> Statement
 boundedFunc f _sz = Statement $ B.unwords
   [ B.pack f, ":", "INT", "->", "BOOLEAN"

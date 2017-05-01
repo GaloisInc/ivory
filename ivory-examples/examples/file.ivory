@@ -1,10 +1,33 @@
 -- # -*- mode: haskell -*-
 
+-- For any imported header files, you can also provide paths, e.g., "foo/stdio.h".
 import (stdio.h, printf) int32_t printf(string x)
 import (stdio.h, printf) int32_t printf2(string x, int32_t y)
 
 include concreteIvory --for printf definitions in ConcreteFile.hs
 include stdlibStringModule
+
+-- Define a struct. A base type is turned into a memory area by adding a
+-- '&'. Note this is a type-level operator. Arrays and structs are always memory
+-- areas.
+struct Bar00 {
+  &int32_t aBar00;
+}
+
+-- Import global memory areas from `foo.h`.
+import foo.h &int32_t *anArea1
+import foo.h &int32_t const *anArea2
+import foo.h int32_t[4] const anArea3[]
+
+-- Declare some global memory areas. They may be initizlied (otherwise, are initialized to zero).
+&int32_t alloc *myArea1;
+&int32_t const alloc *myArea2 = 3;
+struct Bar00 alloc myArea3{} = { aBar00 = 3 };
+int32_t[3] alloc myArea4[] = {1,2,3};
+struct Bar00 alloc myArea5{};
+struct Bar00 const alloc myArea6{};
+
+extern foo.h G* uint8_t myptr
 
 -- A top level definition.
 bar = 3 + 2;
@@ -14,20 +37,12 @@ type Boo = int8_t;
 
 -- (Both of the above can be done on Haskell and you can use antiquotation.)
 
--- Define a struct. A base type is turned into a memory area by adding a
--- '&'. Note this is a type-level operator. Arrays and structs are always memory
--- areas.
-struct Bar00 {
-  &int32_t aBar00;
-}
-
 struct Foo
  { -- When context makes apparent and we can syntactically check the type, a
    -- base type is promoted to a memory area (i.e., bool is rewritten to &bool).
    bool aFoo
-   -- '&' at the type level binds most tightly and is right-associative. When
-   -- we use a type alias, the '&' must be added explicitly.
- ; &SomeInt[4] aBar
+   -- To use synonyms (`SomeInt`), you have to use Haskell syntax.
+ ; aBar :: Array 4 (Stored SomeInt)
  }
 
 -- Safe string structs: strings of max length 16 bytes Generates two field
@@ -41,10 +56,10 @@ struct Foo2
   { struct Foo foo2f
   }
 
-r* struct ivory_string_FooStr foostr(r* struct ivory_string_FooStr s) {
+r* struct ivory_string_FooStr foostr(uint8_t i, r* struct ivory_string_FooStr s) {
   -- Allocate a new string dynamic string. Fails if the string is too large.
   alloc s0{} = $stringInit("foo");
-  foostr(s0);
+  if (0 < i) { foostr(i-1, s0); } else {}
   -- Store a new string into the dynamic string data structure.
   $string_lit_store("foos", s);
   return s;
@@ -89,13 +104,17 @@ void foo30(Boo x) {
   return;
 }
 
+-- Using an external symbol. Don't run this, unless the header is in-scope.
+-- uint8_t foo31() {
+--   return (3 + *myptr);
+-- }
+
 -- Allocation on the stack (dereference is an expression)
 int32_t foo0() {
   alloc *x = 3;
   store x as 4;
   return *x + 4;
 }
-
 
 -- Global allocation (G), stack allocation (S), and undetermined scope (var c)
 uint8_t foo12(* uint8_t a, G*uint8_t b, * uint8_t c, S* uint8_t d) {
@@ -233,8 +252,66 @@ int32_t bar82() {
   return foo100(foo100(y));
 }
 
-void fizzbuzz() {
+-- Fizzbuzz four ways
+void fizzbuzzUp() {
   upTo 100 ix {
+    -- for typechecking
+    let (ix_t 101) ix' = ix;
+    let i = fromIx(ix);
+    if (i % 15 == 0) {
+      printf("Fizzbuzz");
+    } else {
+      if (i % 5 == 0) {
+        printf("Fizz");
+      } else {
+        if (i % 3 == 0) {
+          printf("Buzz");
+        } else { printf2("%i\n",i); }
+      }
+    }
+  }
+}
+
+void fizzbuzzUpFrom() {
+  upFromTo (50, 100) ix {
+    -- for typechecking
+    let (ix_t 101) ix' = ix;
+    let i = fromIx(ix);
+    if (i % 15 == 0) {
+      printf("Fizzbuzz");
+    } else {
+      if (i % 5 == 0) {
+        printf("Fizz");
+      } else {
+        if (i % 3 == 0) {
+          printf("Buzz");
+        } else { printf2("%i\n",i); }
+      }
+    }
+  }
+}
+
+void fizzbuzzDown() {
+  downFrom 100 ix {
+    -- for typechecking
+    let (ix_t 101) ix' = ix;
+    let i = fromIx(ix);
+    if (i % 15 == 0) {
+      printf("Fizzbuzz");
+    } else {
+      if (i % 5 == 0) {
+        printf("Fizz");
+      } else {
+        if (i % 3 == 0) {
+          printf("Buzz");
+        } else { printf2("%i\n",i); }
+      }
+    }
+  }
+}
+
+void fizzbuzzDownFromTo() {
+  downFromTo (100, 50) ix {
     -- for typechecking
     let (ix_t 101) ix' = ix;
     let i = fromIx(ix);
@@ -323,4 +400,30 @@ void str_to_arr(* uint8_t[5] arr
                , const * struct ivory_string_Astr s
                ) {
   $sz_from_istr(arr, s);
+}
+
+int16_t return_negative() { return -32767; }
+int16_t return_negative2() { return -32768; }
+
+struct x {
+    int32_t a;
+    int32_t b;
+}
+
+void test() {
+    alloc myref{};
+    $refZero (myref);
+    store myref.a as 1;
+}
+
+-- A 3 dimensional matrix declaration
+struct X
+{
+  float[3][4][5] matrix;
+}
+
+void myfunc(* struct X myx)
+{
+  let m = myx.matrix;
+  store m@2@3@4 as 0.0;
 }

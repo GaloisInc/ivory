@@ -1,5 +1,5 @@
 name:                ivory-quickcheck
-version:             0.2.0.0
+version:             0.2.0.5
 author:              Galois, Inc.
 copyright:           2013 Galois, Inc.
 maintainer:          leepike@galois.com
@@ -8,17 +8,17 @@ build-type:          Simple
 cabal-version:       >= 1.10
 synopsis:            QuickCheck driver for Ivory.
 description:         Warning!  This module is experimental and its implementation may change dramatically.
-homepage:            http://smaccmpilot.org/languages/ivory-introduction.html
+homepage:            http://ivorylang.org
 license:             BSD3
 license-file:        LICENSE
 source-repository    this
   type:     git
   location: https://github.com/GaloisInc/ivory
-  tag:      hackage-qc-0100
+  tag:      hackage-0.1.0.4
 
 library
   exposed-modules:      Ivory.QuickCheck
-  build-depends:        base >= 4.6,
+  build-depends:        base >= 4.7 && < 5,
                         base-compat,
                         monadLib,
                         random,
@@ -35,7 +35,7 @@ test-suite test
   type:           exitcode-stdio-1.0
   main-is:        Test.hs
   ghc-options:    -Wall
-  build-depends:  base
+  build-depends:  base >= 4.6 && < 5
                ,  base-compat
                ,  filepath
                ,  directory

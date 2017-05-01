@@ -75,6 +75,7 @@ areaInit s ini = runAreaInitM s (runInit (getInit ini))
 data MemArea (area :: Area *)
   = MemImport I.AreaImport
   | MemArea I.Area [I.Area]
+  deriving (Eq, Show)
 
 -- XXX do not export
 memSym :: MemArea area -> I.Sym
@@ -161,4 +162,3 @@ instance IvoryAddrOf MemArea Ref where
 
 instance IvoryAddrOf ConstMemArea ConstRef where
   addrOf (ConstMemArea mem) = wrapExpr (primAddrOf mem)
-

@@ -1,5 +1,5 @@
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 -- | A simple interpreter for a subset of Ivory.
@@ -24,23 +24,26 @@ module Ivory.Eval
   , evalStmt
   ) where
 
-import           Prelude ()
-import qualified Prelude.Compat as Prelude
-import           Prelude.Compat hiding (negate, div, mod, not, and, or)
+import           Prelude                                 ()
+import           Prelude.Compat                          hiding (and, div, mod,
+                                                          negate, not, or)
+import qualified Prelude.Compat                          as Prelude
 
 
-import           Control.Monad (unless,foldM,void)
+import           Control.Monad                           (foldM, unless, void)
 import           Data.Int
 import qualified Data.Map                                as Map
 import           Data.Maybe
 import qualified Data.Sequence                           as Seq
 import           Data.Word
-import           MonadLib
-                     (ExceptionM(..),runId,Id,ExceptionT,runExceptionT,sets_
-                     ,StateT,runStateT,StateM(..))
-import           Ivory.Language.Syntax.Concrete.Location
 import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax                   as I
+import           Ivory.Language.Syntax.Concrete.Location
+import           MonadLib                                (ExceptionM (..),
+                                                          ExceptionT, Id,
+                                                          StateM (..), StateT,
+                                                          runExceptionT, runId,
+                                                          runStateT, sets_)
 
 -- XXX: DEBUG
 -- import Debug.Trace
@@ -62,7 +65,7 @@ data EvalState = EvalState
 
 initState :: Map.Map I.Sym Value -> EvalState
 initState st = EvalState st NoLoc Map.empty
-               
+
 -- | Run an action inside the scope of a given module.
 openModule :: I.Module -> Eval a -> Eval a
 openModule (I.Module {..}) doThis = do
@@ -112,7 +115,7 @@ and x        y        = error $ "invalid operands to `and`: " ++ show (x,y)
 
 or :: Value -> Value -> Value
 or (Bool x) (Bool y) = Bool (x || y)
-or x        y        = error $ "invalid operors to `or`: " ++ show (x,y)
+or x        y        = error $ "invalid operands to `or`: " ++ show (x,y)
 
 ordOp :: (forall a. Ord a => a -> a -> Bool) -> Value -> Value -> Value
 ordOp op (Sint8  x) (Sint8  y) = Bool (op x y)
@@ -421,12 +424,12 @@ evalInit :: I.Type -> I.Init -> Eval Value
 evalInit ty init = case init of
   I.InitZero
     -> case ty of
-         I.TyArr _ _  -> evalInit ty (I.InitArray [])
+         I.TyArr _ _  -> evalInit ty (I.InitArray [] True)
          I.TyStruct _ -> evalInit ty (I.InitStruct [])
          _            -> return (mkVal ty 0)
   I.InitExpr ty expr
     -> evalExpr ty expr
-  I.InitArray inits
+  I.InitArray inits _
     -> case ty of
          I.TyArr len ty
            -> Array . Seq.fromList

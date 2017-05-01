@@ -62,4 +62,3 @@ arrayCopy to from toOffset end = do
   frLen = arrayLen from
 
   mkIx ix = toIx (toOffset + fromIx ix)
-

@@ -1,26 +1,26 @@
+{-# LANGUAGE CPP         #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE CPP #-}
 
 module Ivory.Compile.C.Modules where
 
-import Paths_ivory_backend_c (version)
+import           Paths_ivory_backend_c     (version)
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude                   ()
+import           Prelude.Compat
 
-import Text.PrettyPrint.Mainland
+import           Text.PrettyPrint.Mainland
 
 import qualified Ivory.Language.Syntax.AST as I
 
-import Ivory.Compile.C.Gen
-import Ivory.Compile.C.Types
+import           Ivory.Compile.C.Gen
+import           Ivory.Compile.C.Types
 
-import Data.Char (toUpper)
-import Data.Version (showVersion)
-import qualified Data.Set as S
-import Control.Monad (unless)
-import System.FilePath.Posix ((<.>)) -- Always use posix convention in C code
-import MonadLib (put,runM)
+import           Control.Monad             (unless, when)
+import           Data.Char                 (toUpper)
+import           Data.Maybe                (fromJust, isJust)
+import           Data.Version              (showVersion)
+import           MonadLib                  (put, runM)
+import           System.FilePath.Posix     ((<.>))
 
 --------------------------------------------------------------------------------
 
@@ -32,7 +32,7 @@ showModule m = unlines $ map unlines $
   where
   lbl l = "// module " ++ unitName m ++ " " ++ l ++ ":\n"
   mk _   (_,[])         = []
-  mk str (incls,units)  = str : pp (map includeDef (S.toList incls) ++ units)
+  mk str (incls,units)  = str : pp (mkDefs (incls, units))
   pp = map (pretty maxWidth . ppr)
 
 --------------------------------------------------------------------------------
@@ -52,13 +52,13 @@ renderHdr s unitname = displayS (render maxWidth guardedHeader) ""
   guardedHeader = stack [ topComments
                         , topGuard
                         , topExternC
-                        , ppr (defs s)
+                        , ppr (mkDefs s)
                         , botExternC
                         , botGuard
                         ]
   topGuard        = text "#ifndef" <+> guardName </> text "#define"
                       <+> guardName
-  botGuard        = text "#endif" <+> text "/*" <+> guardName <+> text "*/"
+  botGuard        = text "#endif" <+> text "/*" <+> guardName <+> text "*/\n"
   unitname'       = map (\c -> if c == '-' then '_' else c) unitname
   guardName       = text "__" <> text (toUpper <$> unitname') <> text "_H__"
   topExternC      = stack $ text <$> [ "#ifdef __cplusplus"
@@ -67,14 +67,12 @@ renderHdr s unitname = displayS (render maxWidth guardedHeader) ""
   botExternC      = stack $ text <$> [ "#ifdef __cplusplus"
                                      , "}"
                                      , "#endif"]
-  defs (incls,us) = map includeDef (S.toList incls) ++ us
 
 renderSrc :: (Includes, Sources) -> String
 renderSrc s = displayS (render maxWidth srcdoc) ""
   where
-  srcdoc = topComments </> out
-  defs (incls,us) = map includeDef (S.toList incls) ++ us
-  out = stack $ punctuate line $ map ppr $ defs s
+  srcdoc = topComments </> out </> text ""
+  out = stack $ punctuate line $ map ppr $ mkDefs s
 
 --------------------------------------------------------------------------------
 
@@ -89,17 +87,17 @@ runOpt opt m =
 --------------------------------------------------------------------------------
 
 -- | Compile a module.
-compileModule :: I.Module -> CompileUnits
-compileModule I.Module { I.modName        = nm
-                       , I.modDepends     = deps
-                       , I.modHeaders     = hdrs
-                       , I.modImports     = imports
-                       , I.modExterns     = externs
-                       , I.modProcs       = procs
-                       , I.modStructs     = structs
-                       , I.modAreas       = areas
-                       , I.modAreaImports = ais
-                       }
+compileModule :: Maybe String -> I.Module -> CompileUnits
+compileModule hdr I.Module { I.modName        = nm
+                           , I.modDepends     = deps
+                           , I.modHeaders     = hdrs
+                           , I.modImports     = imports
+                           , I.modExterns     = externs
+                           , I.modProcs       = procs
+                           , I.modStructs     = structs
+                           , I.modAreas       = areas
+                           , I.modAreaImports = ais
+                           }
   = CompileUnits
   { unitName = nm
   , sources  = sources res
@@ -119,9 +117,11 @@ compileModule I.Module { I.modName        = nm
   comp0 :: Compile
   comp0 = do
     putHdrInc (LocalInclude "ivory.h")
+    when (isJust hdr)
+      (putHdrInc (LocalInclude (fromJust hdr)))
     -- module names don't have a .h on the end
-    mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) (S.toList deps)
-    mapM_ (putHdrInc . LocalInclude) (S.toList hdrs)
+    mapM_ (putHdrInc . LocalInclude . ((<.> "h"))) deps
+    mapM_ (putHdrInc . LocalInclude) hdrs
     mapM_ (compileStruct Public) (I.public structs)
     mapM_ (compileStruct Private) (I.private structs)
     mapM_ fromImport imports
@@ -162,3 +162,6 @@ outputProcSyms mods = putStrLn $ unwords $ concatMap go mods
 -- generated C more readable.
 maxWidth :: Int
 maxWidth = 400
+
+mkDefs :: ([Include], Sources) -> Sources
+mkDefs (incls, defs) = map includeDef incls ++ defs

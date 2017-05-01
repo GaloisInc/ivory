@@ -1,13 +1,13 @@
 module Ivory.Compile.C.CmdlineFrontend.Options where
 
-import Prelude ()
-import Prelude.Compat
+import           Prelude               ()
+import           Prelude.Compat
 
-import System.Console.GetOpt
-    (ArgOrder(Permute),OptDescr(..),ArgDescr(..),getOpt,usageInfo)
+import           System.Console.GetOpt (ArgDescr (..), ArgOrder (Permute),
+                                        OptDescr (..), getOpt, usageInfo)
 
-import System.Environment (getProgName)
-import System.Exit (exitFailure,exitSuccess)
+import           System.Environment    (getProgName)
+import           System.Exit           (exitFailure, exitSuccess)
 
 -- Option Parsing --------------------------------------------------------------
 
@@ -45,42 +45,44 @@ parseOptions opts args = case getOpt Permute opts args of
 -- Command Line Options --------------------------------------------------------
 
 data Opts = Opts
-  { outDir      :: Maybe FilePath
+  { outDir        :: Maybe FilePath
   -- ^ output directory for all files (or standard out).
-  , outHdrDir   :: Maybe FilePath
+  , outHdrDir     :: Maybe FilePath
   -- ^ if set, output directory for headers. Otherwise, use @outDir@.
-  -- optimization passes
-  , outArtDir   :: Maybe FilePath
+  , outArtDir     :: Maybe FilePath
   -- ^ if set, output directory for artifacts. Otherwise, use @outDir@.
+  , otherHdr      :: Maybe String
+  -- ^ In special circumstances, an implementation may not fully implement libc (e.g., if `math.h` does not include `isnan`). In these cases, another header can be added to every Ivory-generated source using the flag.
 
   -- optimization passes
-  , constFold   :: Bool
-  , overflow    :: Bool
-  , divZero     :: Bool
-  , ixCheck     :: Bool
-  , fpCheck     :: Bool
-  , outProcSyms :: Bool
+  , constFold     :: Bool
+  , overflow      :: Bool
+  , divZero       :: Bool
+  , ixCheck       :: Bool
+  , fpCheck       :: Bool
+  , outProcSyms   :: Bool
   , bitShiftCheck :: Bool
   -- CFG stuff
-  , cfg         :: Bool
-  , cfgDotDir   :: FilePath
-  , cfgProc     :: [String]
+  , cfg           :: Bool
+  , cfgDotDir     :: FilePath
+  , cfgProc       :: [String]
   -- debugging
-  , verbose     :: Bool
-  , srcLocs     :: Bool
+  , verbose       :: Bool
+  , srcLocs       :: Bool
   -- Typechecking
-  , tcWarnings  :: Bool
-  , tcErrors    :: Bool
-  , scErrors    :: Bool
+  , tcWarnings    :: Bool
+  , tcErrors      :: Bool
+  , scErrors      :: Bool
 
-  , help        :: Bool
+  , help          :: Bool
   } deriving (Show)
 
 initialOpts :: Opts
 initialOpts  = Opts
-  { outDir       = Just ""
+  { outDir       = Nothing
   , outHdrDir    = Nothing
   , outArtDir    = Nothing
+  , otherHdr     = Nothing
 
   -- optimization/safety passes
   , constFold    = False
@@ -98,7 +100,7 @@ initialOpts  = Opts
   -- debugging
   , verbose      = False
   , srcLocs      = False
-  , tcWarnings   = False
+  , tcWarnings   = True
   , tcErrors     = True
   , scErrors     = True
   , help         = False
@@ -115,6 +117,9 @@ setHdrDir str = success (\opts -> opts { outHdrDir = Just str })
 
 setArtDir :: String -> OptParser Opts
 setArtDir str = success (\opts -> opts { outArtDir = Just str })
+
+setOtherHdr :: String -> OptParser Opts
+setOtherHdr h = success (\opts -> opts { otherHdr = Just h })
 
 setConstFold :: OptParser Opts
 setConstFold  = success (\opts -> opts { constFold = True })
@@ -168,10 +173,12 @@ options :: [OptDescr (OptParser Opts)]
 options  =
   [ Option "" ["std-out"] (NoArg setStdOut)
     "print to stdout only"
-
   , Option "" ["src-dir"] (ReqArg setOutDir "PATH")
     "output directory for source files"
-
+  , Option "" ["hdr-dir"] (ReqArg setHdrDir "PATH")
+    "output directory for header files"
+  , Option "" ["other-hdr"] (ReqArg setOtherHdr "HEADER")
+    "Additional headers to include in generated files"
   , Option "" ["const-fold"] (NoArg setConstFold)
     "enable the constant folding pass"
   , Option "" ["overflow"] (NoArg setOverflow)
@@ -184,39 +191,28 @@ options  =
     "generate assertions checking for NaN and Infinitiy."
   , Option "" ["bitshift-check"] (NoArg setBitShiftCheck)
     "generate assertions checking for bit-shift overflow."
-
   , Option "" ["out-proc-syms"] (NoArg setProcSyms)
     "dump out the modules' function symbols"
-
   , Option "" ["cfg"] (NoArg setCfg)
     "Output control-flow graph and max stack usage."
-
   , Option "" ["cfg-dot-dir"] (ReqArg setCfgDotDir "PATH")
     "output directory for CFG Graphviz file"
   , Option "" ["cfg-proc"] (ReqArg addCfgProc "NAME")
     "entry function(s) for CFG computation."
-
   , Option "" ["verbose"] (NoArg setVerbose)
     "verbose debugging output"
-
   , Option "" ["srclocs"] (NoArg setSrcLocs)
     "output source locations from the Ivory code"
-
   , Option "" ["tc-warnings"] (NoArg setWarnings)
     "show type-check warnings"
-
   , Option "" ["tc-errors"] (NoArg $ setErrors True)
     "Abort on type-check errors (default)"
-
   , Option "" ["no-tc-errors"] (NoArg $ setErrors False)
     "Treat type-check errors as warnings"
-
   , Option "" ["sanity-check"] (NoArg $ setSanityCheck True)
     "Enable sanity-check"
-
   , Option "" ["no-sanity-check"] (NoArg $ setSanityCheck False)
     "Disable sanity-check"
-
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"
   ]

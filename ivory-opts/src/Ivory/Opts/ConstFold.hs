@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types    #-}
 
 --
 -- Constant folder.
@@ -12,18 +12,19 @@ module Ivory.Opts.ConstFold
   ( constFold
   ) where
 
-import Ivory.Opts.ConstFoldComp
+import           Ivory.Opts.ConstFoldComp
 
-import qualified Ivory.Language.Array  as I
-import qualified Ivory.Language.Syntax as I
-import Ivory.Language.Cast (toMaxSize, toMinSize)
+import qualified Ivory.Language.Array     as I
+import           Ivory.Language.Cast      (toMaxSize, toMinSize)
+import qualified Ivory.Language.Syntax    as I
 
-import Control.Arrow (second)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Maybe
-import qualified Data.DList as D
-import MonadLib (StateM(..),Id,StateT,runId,runStateT)
+import           Control.Arrow            (second)
+import qualified Data.DList               as D
+import           Data.Map                 (Map)
+import qualified Data.Map                 as Map
+import           Data.Maybe
+import           MonadLib                 (Id, StateM (..), StateT, runId,
+                                           runStateT)
 
 --------------------------------------------------------------------------------
 -- Constant folding
@@ -112,6 +113,9 @@ stmtFold cxt opt stmt =
     I.RefCopy t e0 e1    -> do
       copies <- get
       return $ D.singleton $ I.RefCopy t (opt copies t e0) (opt copies t e1)
+    I.RefZero t e0       -> do
+      copies <- get
+      return $ D.singleton $ I.RefZero t (opt copies t e0)
     I.AllocRef{}         -> return $ D.singleton stmt
     I.Loop m v e incr blk' -> do
       copies <- get
@@ -135,9 +139,12 @@ stmtFold cxt opt stmt =
 
 constFoldInits :: CopyMap -> I.Init -> I.Init
 constFoldInits _ I.InitZero = I.InitZero
-constFoldInits copies (I.InitExpr ty expr) = I.InitExpr ty $ cf copies ty expr
-constFoldInits copies (I.InitStruct i) = I.InitStruct $ map (second (constFoldInits copies)) i
-constFoldInits copies (I.InitArray i) = I.InitArray $ map (constFoldInits copies) i
+constFoldInits copies (I.InitExpr ty expr) =
+  I.InitExpr ty $ cf copies ty expr
+constFoldInits copies (I.InitStruct i)     =
+  I.InitStruct $ map (second (constFoldInits copies)) i
+constFoldInits copies (I.InitArray i b)    =
+  I.InitArray (map (constFoldInits copies) i) b
 
 --------------------------------------------------------------------------------
 -- Expressions
