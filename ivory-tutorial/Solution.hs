@@ -7,6 +7,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
+-- | This module represents a complete solution through Advanced Exercise 2.
 module Example where
 
 import Prelude hiding (when,unless)
@@ -27,7 +29,7 @@ exampleModule =
        incl printf_void
        incl apply_damage
        incl heal_spell
-       incl use_potion
+       incl use_potion_embedded
        incl start_blocking
        incl stop_blocking
 
@@ -43,6 +45,10 @@ ivoryMain  =
   proc "main" $
   body $
     do init_rng
+
+       -- introduce a local variable for the exit code. If all goes
+       -- well, it will stay at 0. If we lose all of our health
+       -- points, it'll change before we return
        exit_code <- local (ival 0)
 
        char <- local $ istruct [ hp       .= ival 100
@@ -59,34 +65,45 @@ ivoryMain  =
 
        for (20 :: Ix 21) $ \i -> do
          call_ printf_u16 "Start of turn %d\n" (safeCast i + 1)
-         m <- deref (char ~> mp)
+         m  <- deref (char ~> mp)
          ps <- deref (char ~> potions)
          ss <- deref (char ~> statuses)
 
+         -- drink a potion if necessary: either our magic points are
+         -- low enough to use an entire potion, or we are silenced and
+         -- need to remove that status effect
          maximum_mp <- deref (char ~> max_mp)
-         mp_thresh <- assign (maximum_mp - 25)
+         mp_thresh  <- assign (maximum_mp - 25)
          when (ps >? 0 .&&
                (m <? mp_thresh .|| bitToBool (fromRep ss #. stat_silenced))
               ) $ do
            ifte_ (bitToBool (fromRep ss #. stat_blocking))
              (do call_ stop_blocking char
-                 call_ use_potion char
+                 call_ use_potion_embedded char
                  call_ start_blocking char)
-             (do call_ use_potion char)
+             (do call_ use_potion_embedded char)
 
          call_ apply_damage 20 20 char
          show_status char
 
          h <- deref (char ~> hp)
 
+         -- if we've died, game over! Note: we could just return in
+         -- this case, but Ivory will warn us about
+         -- potentially-unreachable statements following
          when (h ==? 0) $ do
            store exit_code 1
            breakOut
 
-         maximum_hp   <- deref (char ~> max_hp)
-         hp_thresh <- assign (maximum_hp - maximum_hp `iDiv` 4)
+         -- cast a healing spell if necessary: wait until we're below
+         -- 75% of our maximum health points, so the spell doesn't go
+         -- to waste
+         maximum_hp <- deref (char ~> max_hp)
+         hp_thresh  <- assign (maximum_hp - maximum_hp `iDiv` 4)
          when (h <? hp_thresh) $ do
            call_ heal_spell char
+
+       -- indentation shift marks the end of the `for` loop
 
        ec <- deref exit_code
        ret ec
@@ -159,6 +176,10 @@ apply_damage  =
        when (damage ==? base + max_additional) $ do
          call_ printf_void "Character bleeding\n"
          withBitsRef (ref ~> statuses) $ setBit stat_bleeding
+       d10 <- gen_rand 10
+       when (d10 <? 1) $ do
+         call_ printf_void "Character silenced\n"
+         withBitsRef (ref ~> statuses) $ setBit stat_silenced
 
 heal_spell :: Def ('[Ref s ('Struct "Character")] ':-> ())
 heal_spell  =
@@ -172,11 +193,13 @@ heal_spell  =
             call_ heal_char val ref
             withBitsRef (ref ~> statuses) $ clearBit stat_bleeding
 
+
+-- concrete syntax doesn't support manipulating bit data yet, so we
+-- have to rewrite this one in the embedded syntax for exercise 3
 [ivory|
 
 void use_potion(*struct Character c) {
   let ps = *c.potions;
-
   if (ps > 0) {
     -- decrement the number of available potions
     store c.potions as (ps - 1);
@@ -193,6 +216,21 @@ void use_potion(*struct Character c) {
 }
 
 |]
+
+use_potion_embedded :: Def ('[Ref s ('Struct "Character")] ':-> ())
+use_potion_embedded  =
+  proc "use_potion_2" $ \ ref ->
+  body $
+    do ps <- deref (ref ~> potions)
+       ss <- deref (ref ~> statuses)
+       blocking <- assign (bitToBool (fromRep ss #. stat_blocking))
+       when (ps >? 0 .&& iNot blocking) $ do
+         store (ref ~> potions) (ps - 1)
+         mp_val <- deref (ref ~> mp)
+         mp_max <- deref (ref ~> max_mp)
+         ifte_ (mp_val + 25 <? mp_max)
+           (store (ref ~> mp) (mp_val + 25))
+           (store (ref ~> mp) mp_max)
 
 [ivory|
 bitdata Statuses :: Bits 8 = statuses_data

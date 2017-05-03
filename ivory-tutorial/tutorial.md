@@ -874,4 +874,19 @@ ivoryMain  =
    potions. Make it so that the character does all three when
    appropriate.
 
+3. When using all of their abilities, the character should never
+   die. This is in large part because the character can use any of
+   their abilities at any time, as long as they have enough points to
+   do so.
+
+   Make it so that the game is more synchronous: every turn, the
+   character takes damage from `apply_damage`, but they may only do
+   one action in response: block, drink a potion, or cast a healing
+   spell. The goal is still to reach the end of 20 turns without
+   reaching 0 health points.
+
+   *Hint:* It may help to model this as a state machine, keeping a
+   `local` variable with the current state, and using `cond_` to
+   separate the logic for each state.
+
 [tower]: https://github.com/GaloisInc/tower
