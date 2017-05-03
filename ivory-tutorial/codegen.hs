@@ -1,6 +1,6 @@
 -- stack runghc
 
-import Example
-import Ivory.Compile.C.CmdlineFrontend
+import Example (exampleModule)
+import Ivory.Compile.C.CmdlineFrontend (compile)
 
 main = compile [exampleModule] []

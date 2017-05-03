@@ -1,39 +1,46 @@
-# Ivory Tutorial
+# Ivory Tutorial at TARDEC
 
 ## Environmental Setup
 
-Goals:
+Goal: confirm that VM is properly configured, and that all necessary
+tools and code are available.
 
-- Install stack
-- Checkout the Ivory repository
+- Verify stack installation
+- Check out the Ivory repository
 - Use stack to configure an Ivory build environment
-- Build documentation (optional)
 
 ### Installing stack
 
-Stack is a tool for managing a repository of Haskell source. We're going to use
-it to build all of the libraries in the Ivory repository, and then our own
-example application. Stack can also build and maintain a documentation index,
-which can ease development.
+Stack is a tool for managing Haskell packages. We're going to use it
+to build all of the libraries in the Ivory repository, and then our
+own example applications. To make sure stack is installed, run:
 
-To install stack, follow the directions for your OS at
-the [stack README][stack-install].
+```sh
+$ stack --version
+Version 1.2.0 x86_64 hpack-0.14.0
+```
+
+If this does not work, install stack by following the directions for
+your OS at the [stack README][stack-install].
 
 [stack-install]: http://docs.haskellstack.org/en/stable/README/#how-to-install
 
-### Checkout the Ivory repository
+### Check out the Ivory repository
 
-If you have git installed, you can check out the repository directly:
+Your VM should have the directory `smaccmpilot-build` which contains
+the `ivory` repository along with the other packages we use to build
+SMACCMPilot. If you cannot find this directory, you can check out the
+Ivory repository directly:
 
 ```sh
 $ git clone https://github.com/galoisinc/ivory
-$ git checkout wip/tutorial
+$ git checkout tardec-tutorial
 ```
 
 If you do not have git, click the `download zip` button on the
 [Ivory github page][ivory-github], and unzip the archive.
 
-[ivory-github]: https://github.com/galoisinc/ivory/tree/wip/tutorial
+[ivory-github]: https://github.com/galoisinc/ivory/tree/tardec-tutorial
 
 ### Build with documentation
 
@@ -54,7 +61,7 @@ $ stack build --haddock
 
 ### Browse the documentation
 
-Once the stack build finishes, and it will take a while, it will print the
+Once the stack build finishes, and it may take a while, it will print the
 location of three documentation indexes: one for local packages, one for local
 packages and dependencies, and one for just dependencies. The index for local
 packages will contain documentation for the Ivory packages only, and will be the
@@ -64,7 +71,7 @@ The location printed will look something like this, with `$ivory_repo`, and
 `$arch` being something specific to your system:
 
 ```
-$ivory_repo/.stack-work/install/$arch/lts-5.3/7.10.3/doc/index.html
+$ivory_repo/.stack-work/install/$arch/lts-6.10/7.10.3/doc/index.html
 ```
 
 ## The example program skeleton
@@ -98,14 +105,14 @@ some portions of the signature have a leading single-quote. This is
 due to the `DataKinds` language extension that allows Ivory to have
 more precise types. For the most part you won't need to worry about
 this feature, other than needing to include the pragma in your Ivory
-modules.  The Haskell compiler, when compiling with `-Wall`, will
-remind you when you've forgotten to use the leading single-quote.
+modules.  The Haskell compiler will remind you when you've forgotten
+to use the leading single-quote.
 
 The `$` operator is a common sight in many Haskell programs, including
-Ivory. While it may look strange `$` is a name for function
-application. Because of its associativity, Haskell programs often use
-`$` in place of pairs of parentheses. For example, without `$`,
-`ivoryMain` would look like:
+Ivory. While it may look strange, `$` is just syntactic sugar for
+function application. Because of its associativity, Haskell programs
+often use `$` in place of pairs of parentheses. For example, without
+`$`, `ivoryMain` would look like:
 
 ```haskell
 ivoryMain  =
@@ -126,12 +133,53 @@ bundled, we give an empty list as the second. You can learn more about
 other ways to invoke the C code generator in the documentation for the
 `ivory-backend-c` package.
 
+## Building the C module
+
+At this point, even though our `main` doesn't do anything interesting
+yet, let's generate and compile the module. This will let us get the
+feel for the tools and make sure that everything is working. Run the
+`codegen.hs` module, giving it an output directory, and it will output
+a few C headers and a single C source file to the output directory.
+
+```sh
+$ stack codegen.hs --src-dir=out
+$ ls -F out
+example.c
+example.h
+ivory.h
+ivory_asserts.h
+ivory_templates.h
+```
+
+You can also try `stack codegen.hs --help` to see all of the Ivory
+compiler options.
+
+Now, we can build the example module by using gcc (or your preferred C
+compiler). Make has a built-in rule that can do everything for us and
+saves a bit of typing:
+
+```sh
+$ make -C out example
+cc     example.c   -o example
+$ ./out/example
+$ echo $?
+0
+```
+
+Running `example` doesn't do anything interesting yet, but it does
+give us the correct exit code, `0`.
+
+
 ## Game character example
 
 Let's make a character manager for a simple role-playing game. To
-begin, we'll need some basic stats about our character, so we'll
-define a `struct` to store the stats. Add this definition to
-`Example.hs`:
+begin, we'll add the basic stats about our character, number of health
+points and number of magic points.
+
+### Defining a structure
+
+We'll start by defining a `struct` to store the stats. Add this
+definition to `Example.hs`:
 
 ```haskell
 [ivory|
@@ -152,18 +200,21 @@ points and magic points our character has. To make sure that it will
 be included in the generated module, add the following line after the
 `incl ivoryMain` line in the definition of `exampleModule`:
 
-```haskell
+```haskel
        defStruct (Proxy :: Proxy "Character")
 ```
 
-Haskell is indentation sensitive, so make sure that the `d` lines up just under the `i` of `incl` on the previous line.
+Haskell is indentation sensitive, so make sure that the `d` lines up
+just under the `i` of `incl` on the previous line.
 
-Just to confirm that it works, run `stack codegen.hs --std-out`, and see that
-the `struct` declaration has made it into the output.  That command tells Stack to run the Ivory compiler, specialized for this program.  (You might also try `stack codegen.hs --help` to see all of the compiler options.)
+Just to confirm that it works, run `stack codegen.hs --std-out`, and
+see that the `struct` declaration has made it into the output.
 
-Next, we'll need
-functions to interact with `Character` values.  Let's start by adding a few
-utility functions for manipulating health and magic.
+### Defining a new function
+
+Next, we'll need functions to interact with `Character` values. Let's
+start by adding a few utility functions for manipulating health and
+magic points:
 
 ```haskell
 heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
@@ -174,7 +225,111 @@ heal_char  =
        total_hp   <- deref (ref ~> max_hp)
        new        <- assign (current_hp + amount)
        store (ref ~> hp) ((new >? total_hp) ? (total_hp,new))
+```
 
+There is quite a bit new here, so let's take this definition a line at
+a time:
+
+#### Type signatures
+
+```haskell
+heal_char :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
+```
+
+This is the type signature of the `heal_char` definition, indicated by
+the `Def` type constructor. Compare this signature to that of
+`ivoryMain`:
+
+```haskell
+ivoryMain :: Def ('[] ':-> Sint32)
+```
+
+The `ivoryMain` type can be read as a function that takes no arguments
+(`'[]`) and returns a signed 32-bit integer (`Sint32`). This
+corresponds to a familiar declaration in C:
+
+```c
+int32_t main(void)
+```
+
+In fact, this is exactly the signature that Ivory has generated in
+`out/example.h`.
+
+For `heal_char`, we instead have a function that takes two arguments,
+an unsigned 16-bit integer (`Uint16`) and a reference to a `Character`
+struct (`Ref s ('Struct "Character")`), and returns nothing
+(`()`). This corresponds to the following C declaration:
+
+```c
+void heal_char(uint16_t amount, struct Character *ref);
+```
+
+#### Procedure declarations
+
+```haskell
+heal_char  =
+  proc "heal_char" $ \ amount ref ->
+  body $
+```
+
+Here we define what the procedure will be called in C (`proc
+"heal_char"`), and give names to its arguments so that we can use them
+in the body of the procedure (`\ amount ref`). Then, we tell Ivory
+that we are ready to define the body of the procedure (`body`).
+
+#### Procedure bodies
+
+The bodies of most Ivory procedures begin with a `do`, which is the
+Haskell keyword that introduces a block of sequential code.
+
+```haskell
+    do current_hp <- deref (ref ~> hp)
+       total_hp   <- deref (ref ~> max_hp)
+```
+
+Here we dereference the `hp` and `max_hp` fields from the `Character`
+struct reference (`ref`), and then assign those value to `current_hp`
+and `total_hp`. In C, this might look like:
+
+```c
+    uint16_t current_hp = ref->hp;
+    uint16_t total_hp = ref->max_hp;	
+```
+
+In addition to dereferencing fields, we can also introduce local
+variables with `assign`:
+
+```haskell
+       new        <- assign (current_hp + amount)
+```
+
+Finally, we store the new health points value back in the `Character`
+struct, first checking to make sure we don't exceed the maximum health
+points value:
+
+```haskell
+       store (ref ~> hp) ((new >? total_hp) ? (total_hp,new))
+```
+
+The `?` operator in Ivory works much like the ternary operator in C,
+so this line might look like:
+
+```c
+    ref->hp = (new > total_hp) ? total_hp : new;
+```
+
+Finally, notice that we don't use `ret` in this procedure, as we did
+in `ivoryMain`. In Haskell and Ivory, the value of the last line of a
+`do` block is used as the final value of the whole block. Since this
+procedure is meant to return nothing (`()`), and `store` returns
+nothing, this works out.
+
+### Abstracting similar procedures
+
+Let's add a procedure to increase the character's magic points, much
+like we did with health points:
+
+```haskell
 recover_mp :: Def ('[Uint16, Ref s ('Struct "Character")] ':-> ())
 recover_mp  =
   proc "recover_mp" $ \ amount ref ->
@@ -185,6 +340,7 @@ recover_mp  =
        store (ref ~> mp) ((new >? total_mp) ? (total_mp,new))
 ```
 
+
 Make sure to add `incl heal_char` and `incl recover_mp` to the
 definition of `exampleModule`. Now, running `stack codegen.hs
 --std-out` should show the two procedures. Examining the output next
@@ -193,13 +349,19 @@ to the original source program, you'll see that the code for
 abstract the operation of adding a value to a field, which would save
 us typing but also reduce the possibility that bugs will creep in.
 
-In Ivory, we have two options for doing this: we could just make
-another procedure to be generated in C, and call it from the C code in
-both functions. Since we have Haskell as the host language of Ivory,
-we can also use Haskell as a macro language for Ivory, defining the
-behavior once and inlining it into the definition of both
-functions. Let's have a look at the first approach, which is more
-similar to how this abstraction would look in C:
+In Ivory, we have two options for doing this: we could just make a
+helper procedure to be generated in C, and call it from the C code in
+both `heal_char` and `recover_mp`.
+
+Alternately, since Ivory is hosted in Haskell, a fully general-purpose
+programming language, we can use Haskell as a macro language for
+Ivory, defining the behavior once and inlining it into the definition
+of both procedures.
+
+#### A helper procedure in C
+
+Let's have a look at the first approach, which is how this abstraction
+would look in typical C code:
 
 ```haskell
 add_var :: Def ('[Uint16, Ref s ('Stored Uint16), Ref s' ('Stored Uint16)] ':-> ())
@@ -228,7 +390,15 @@ Make sure to add `incl add_var` to the definition of `exampleModule`
 so that the new function will be included in the generated module.  In
 this version, the implementations of `heal_char` and `recover_mp`
 become calls to `add_var`, passing along the relevant references to
-`hp` or `mp`. Let's contrast that with the macro version:
+`hp` or `mp`.
+
+If you again run `stack codegen.hs --std-out`, you will see that
+`heal_char` and `recover_mp` have become one-line wrapper functions,
+and `add_var` is doing the real work.
+
+#### A macro for building procedures
+
+Let's contrast the helper procedure approach with the macro version:
 
 ```haskell
 add_var :: Uint16 -> Ref s ('Stored Uint16) -> Ref s ('Stored Uint16) -> Ivory eff ()
@@ -251,15 +421,18 @@ recover_mp  =
     add_var amount (ref ~> mp) (ref ~> max_mp)
 ```
 
-Be sure to remove the `incl add_var` from the `exampleModule`
+Be sure to *remove* the `incl add_var` from the `exampleModule`
 definition. In this version, `add_var` has been turned into a normal
 Haskell function that produces results in the `Ivory` monad, rather
-than directly producing an Ivory `Def`. Note that we no longer need to
-use the `call_` function when using `add_var`. When you generate code,
-you should see that the implementation of `heal_char` and `recover_mp`
-look exactly the same as they did in our original version, but we've
-factored out the implementation into one place so that we don't expose
-ourselves to the same sorts of copy-paste bugs that existed before.
+than directly producing an Ivory `Def`. Note that we also no longer
+need to use `call_` when using `add_var`. When you generate the code
+again, you will see that the implementation of `heal_char` and
+`recover_mp` look exactly the same as when we defined them fully on
+their own, but we've factored out the implementation into one place so
+that we don't expose ourselves to the same sorts of copy-paste bugs
+that existed before.
+
+### Using C functions
 
 Let's continue using the macro version, and write a simple
 game scenario in the `ivoryMain` procedure. To test the `heal_char`
@@ -271,8 +444,7 @@ some functions from the C standard library: `srand`, `clock`, `rand`
 and `printf`.
 
 We'll begin by importing the functions we'll need from the C `time.h`,
-`stdio.h` and `stdlib.h` headers. Make sure to include these in the
-definition of `exampleModule`.
+`stdio.h` and `stdlib.h` headers.
 
 ```haskell
 [ivory|
@@ -284,6 +456,9 @@ import (stdio.h, printf) void printf_u16(string x, uint16_t y)
 
 |]
 ```
+
+Make sure to include these in the definition of `exampleModule`, e.g.,
+`incl printf_u16`.
 
 Note that when `printf` is imported, it's imported at a specific type
 (`Uint16 :-> ()`). This is because Ivory doesn't support
@@ -338,33 +513,21 @@ ivoryMain  =
 > often want to use `call`, while functions that return nothing, or the `()`
 > value should always be called with `call_`.
 
-### Building the C module
-
-At this point, let's take a break from writing code, and compile the generated
-module. This will let us play around with the design, and make sure that
-everything is working. Run the `codegen.hs` module with no arguments, and it
-will output a few C headers and a single C source file to the current
-directory.
+Now that `ivoryMain` is actually doing more than just returning an
+exit code, let's generate, compile, and run the program:
 
 ```sh
-$ stack codegen.hs
-$ ls -F
-codegen.hs         example.c          Example.hs         ivory_asserts.h    simulate.hs
-example*           example.h          ivory.h            ivory_templates.h  tutorial.md
+$ stack codegen.hs --src-dir=out
+$ make -C out example
+$ ./out/example
+val: 2
 ```
 
-Now, we can build the example module by using gcc (or your preferred C
-compiler). Make has a built-in rule that can do everything for us and saves a
-bit of typing:
-
-```sh
-$ make example
-cc     example.c   -o example
-$ ./example
-val: 3
-$ ./example
-val: 8
-```
+Note that in addition to your random value likely being different, you
+may see some compiler warnings when running the `make` step. This is
+because C compilers by default expect the return type of `main` to be
+a machine-dependent `int`, but all types in Ivory are
+machine-independent.
 
 ### Simulating a battle
 
@@ -372,7 +535,7 @@ Let's modify the `ivoryMain` function to include a simple battle
 simulation. We'll make a single instance of a `Character` struct, do
 some damage to it, and then have them cast a healing spell. To do
 this, we'll need to implement some more logic: a way to damage the
-character, and the healing spell.
+character, and a way to cast the healing spell.
 
 Let's start with the damage application. We would like to apply a
 minimal amount of damage, plus some variable amount of damage that we
@@ -389,11 +552,11 @@ apply_damage  =
   body $
     do additional <- gen_rand max_additional
        health     <- deref (ref ~> hp)
-       let damage = base + additional
+       damage     <- assign (base + additional)
        store (ref ~> hp) ((damage >? health) ? (0,health - damage))
 ```
 
-Now we need to be able to invoke the heal spell. Let's implement that
+Now we need to be able to cast the heal spell. Let's implement that
 as a procedure again, called `heal_spell`. Given a character struct,
 this function adds `25%` of that character's maximum health back, but
 only if they have at least 10 mp available. We can reuse the
@@ -409,7 +572,7 @@ heal_spell  =
        when (avail_mp >? 10) $
          do store (ref ~> mp) (avail_mp - 10)
             maximum_hp <- deref (ref ~> max_hp)
-            let val = maximum_hp `iDiv` 4
+            val        <- assign (maximum_hp `iDiv` 4)
             call_ heal_char val ref
 ```
 
@@ -451,10 +614,10 @@ When running the simulation, we can see the characters health drop by a value
 between 20 and 40, then recover by 62 points.
 
 ```sh
-$ stack codegen.hs
-$ make example
+$ stack codegen.hs --src-dir=out
+$ make -C out example
 cc     example.c   -o example
-$ ./example
+$ ./out/example
 Character health: 100
 Character health: 72
 Character health: 134
@@ -518,10 +681,197 @@ void use_potion(*struct Character c) {
 Make sure to add `use_potion` to the `exampleModule` definition, and then run
 `stack codegen.hs --std-out` to see the C definition of the function.
 
-## Diving deeper
-- There are more examples in the directory `ivory/ivory-examples/examples/` demonstrating many aspects of the language we have not touched on here. For more details of using the concrete syntax, see `ivory/ivory-examples/examples/ConcreteFile.hs` and `ivory/ivory-examples/examples/file.ivory`.
-- Explore the Ivory standard library for useful functions: `ivory/ivory-stdlib/`.
-- The core Ivory language is defined in `ivory/ivory/src/Ivory/Language.hs`.
-- We have not described [Tower][tower], our concurrency/architecture DSL. Tower can be layered on Ivory to build concurrent systems.
+## Bit data
+
+When writing programs for memory-constrained systems, or when
+interacting with hardware directly, we often interpret unsigned
+integers as arrays of bits, rather than as numbers. Ivory lets us
+define these bit data structures with friendly names and specific
+types, making it them less error-prone to manipulate.
+
+Let's extend our simulation to add statuses to our character, and
+rather than adding each status as a boolean flag on the `Character`
+struct, let's use bit data to hold all of those statuses together in
+one compact value.
+
+```haskell
+[ivory|
+bitdata Statuses :: Bits 8 = statuses_data
+  { stat_bleeding :: Bit
+  , stat_blocking :: Bit
+  , stat_silenced :: Bit
+  , _             :: Bits 5
+  }
+|]
+```
+
+The members of this declaration all go together, like a struct, but
+rather than a collection of pointers, they are all values within a
+single scalar byte. We are not yet using all of the bits available to
+us, but we must be explicit about those unused bits with `_`.
+
+Let's add a `Statuses` field to the `Character` struct, and use one of
+these statuses by reducing the damage a character takes if that
+character is blocking:
+
+```haskell
+[ivory|
+
+struct Character
+  { uint16_t hp
+  ; uint16_t max_hp
+  ; uint16_t mp
+  ; uint16_t max_mp
+  ; uint16_t potions
+  ; uint8_t  statuses
+  }
+
+|]
+```
+
+```haskell
+apply_damage :: Def ('[Uint16, Uint16, Ref s ('Struct "Character")] ':-> ())
+apply_damage  =
+  proc "apply_damage" $ \ base max_additional ref ->
+  body $
+    do additional <- gen_rand max_additional
+       health     <- deref (ref ~> hp)
+       ss         <- deref (ref ~> statuses)
+       blocking   <- assign (bitToBool (fromRep ss #. stat_blocking))
+       damage     <- assign (base + (blocking ? (0,additional)))
+       store (ref ~> hp) ((damage >? health) ? (0,health - damage))
+```
+
+On the line that defines `blocking`, we first go from an unsigned
+8-bit integer to a `Statuses` value (`fromRep ss`), project out the
+blocking bit (`#. stat_blocking`), and then convert the bit into an
+Ivory boolean (`bitToBool`). When the character is blocking, they then
+only take the base damage, and none of the additional random damage.
+
+Now blocking affects the damage taken by a character, but we have no
+way yet to start or stop blocking. Let's add procedures to do exactly
+that:
+
+```haskell
+start_blocking :: Def ('[Ref s ('Struct "Character")] ':-> ())
+start_blocking  =
+  proc "start_blocking" $ \ ref ->
+  body $
+    do printf_u16 "Character starting to block\n" 0
+       withBitsRef (ref ~> statuses) $
+         do setBit stat_blocking
+
+stop_blocking :: Def ('[Ref s ('Struct "Character")] ':-> ())
+stop_blocking  =
+  proc "stop_blocking" $ \ ref ->
+  body $
+    do printf_u16 "Character no longer blocking\n" 0
+       withBitsRef (ref ~> statuses) $
+         do clearBit stat_blocking
+```
+
+These procedures use `withBitsRef` to introduce another `do` block
+where multiple operations can be performed simultaneously on bit
+data. In this case, though, we're just setting or clearing a single
+bit.
+
+### Extending the simulation
+
+Let's see all this in action by adding a couple more moves to our
+simulation, remembering to `incl start_blocking` and
+`incl_stop_blocking`:
+
+```haskell
+ivoryMain :: Def ('[] ':-> Sint32)
+ivoryMain  =
+  proc "main" $
+  body $
+    do init_rng
+
+       char <- local $ istruct [ hp       .= ival 100
+                               , max_hp   .= ival 250
+                               , mp       .= ival 20
+                               , max_mp   .= ival 100
+                               , potions  .= ival 3
+                               , statuses .= ival 0
+                               ]
+
+       show_health char
+
+       call_ apply_damage 20 20 char
+       show_health char
+
+       call_ heal_spell char
+       show_health char
+
+       call_ start_blocking char
+       call_ apply_damage 20 20 char
+       show_health char
+
+       ret 0
+```
+
+## Exercises
+
+1. Rename `show_health` to `show_status`, and make it print an
+   additional message with the character's number of magic points.
+
+2. In `start_blocking` and `stop_blocking`, we print a message using
+   `printf_u16`, but the format string does not use the value we pass
+   to it. This isn't a major problem, but can cause some annoying
+   warnings on newer compilers. Add a new import, `printf_void`, that
+   doesn't take any arguments, and convert `start_blocking` and
+   `stop_blocking` to use it.
+
+3. Our `stat_bleeding` and `stat_silenced` statuses don't yet do
+   anything, and blocking isn't very well-balanced (why wouldn't you
+   always block?). Make it so that:
+   - When `apply_damage` deals the maximum possible damage (`base +
+     max_additional`), the bleeding status is added to the character.
+   - When the character is bleeding, `apply_damage` does extra damage.
+   - If `heal_spell` is cast successfully, make it remove the bleeding
+     status from the character.
+   - Whenver the character takes damage, there is a 10% chance the
+     character is silenced.
+   - `heal_spell` does not work when the character is silenced.
+   - Drinking a potion removes silencing, in addition to its usual
+     magic point restoring effect.
+   - The character cannot drink potions while blocking.
+
+## Digging Deeper
+
+- There are more examples in the directory
+  `ivory/ivory-examples/examples/` demonstrating many aspects of the
+  language we have not touched on here. For more details of using the
+  concrete syntax, see `ivory/ivory-examples/examples/ConcreteFile.hs`
+  and `ivory/ivory-examples/examples/file.ivory`.
+- Explore the Ivory standard library for useful functions:
+  `ivory/ivory-stdlib/`.
+- The core Ivory language is defined in
+  `ivory/ivory/src/Ivory/Language.hs`.
+- We have not described [Tower][tower], our concurrency/architecture
+  DSL. Tower can be layered on Ivory to build concurrent systems.
+
+### Advanced Exercises
+
+1. Our game simulation is rather tedious to extend with new
+   moves. Instead of writing each move manually, use a loop to run the
+   following step 20 times:
+
+```haskell
+       call_ apply_damage 20 20 char
+       show_health char
+```
+
+   If the character's health points ever reach `0`, break out of the
+   loop and end the program with a non-zero exit code.
+
+   *Hints:* you will likely want to look up `for`, `breakOut`, and
+   `local` in the documentation and examples.
+
+2. Even the luckiest character will not make it through 20 turns of
+   damage without blocking, casting their healing spells, and drinking
+   potions. Make it so that the character does all three when
+   appropriate.
 
 [tower]: https://github.com/GaloisInc/tower
