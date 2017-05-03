@@ -121,6 +121,13 @@ ivoryMain  =
     (do ret 0))
 ```
 
+```haskell
+int32_t ivoryMain()
+{
+  return 0;
+}
+```
+
 ### The `main` function in `ivory-tutorial/codegen.hs`
 
 The `main` function in `codegen.hs` is the entry-point to the Ivory
@@ -200,7 +207,7 @@ points and magic points our character has. To make sure that it will
 be included in the generated module, add the following line after the
 `incl ivoryMain` line in the definition of `exampleModule`:
 
-```haskel
+```haskell
        defStruct (Proxy :: Proxy "Character")
 ```
 
@@ -225,6 +232,16 @@ heal_char  =
        total_hp   <- deref (ref ~> max_hp)
        new        <- assign (current_hp + amount)
        store (ref ~> hp) ((new >? total_hp) ? (total_hp,new))
+```
+
+```haskell
+void heal_char(uint16_t amount, * struct Character ref)
+{
+  let current_hp = * (ref.hp);
+  let total_hp   = * (ref.max_hp);
+  let new        = current_hp + amount;
+  store (ref.hp) as ((new > total_hp) ? total_hp : new);
+}
 ```
 
 There is quite a bit new here, so let's take this definition a line at
@@ -293,7 +310,7 @@ and `total_hp`. In C, this might look like:
 
 ```c
     uint16_t current_hp = ref->hp;
-    uint16_t total_hp = ref->max_hp;	
+    uint16_t total_hp = ref->max_hp;
 ```
 
 In addition to dereferencing fields, we can also introduce local
@@ -338,6 +355,16 @@ recover_mp  =
        total_mp   <- deref (ref ~> max_mp)
        new        <- assign (current_mp + amount)
        store (ref ~> mp) ((new >? total_mp) ? (total_mp,new))
+```
+
+```haskell
+void recover_mp(uint16_t amount, * struct Character ref)
+{
+  let current_mp = * (ref.mp);
+  let total_mp   = * (ref.max_mp);
+  let new        = current_mp + amount;
+  store (ref.mp) as ((new > total_mp) ? total_mp : new);
+}
 ```
 
 
@@ -386,6 +413,26 @@ recover_mp  =
     call_ add_var amount (ref ~> mp) (ref ~> max_mp)
 ```
 
+```haskell
+void add_var(uint16_t amount, * uint16_t var, * uint16_t max_var)
+{
+  let current = * var;
+  let total   = * max_var;
+  let new     = current + amount;
+  store var as ((new > total) ? total : new);
+}
+
+void heal_char(uint16_t amount, * struct Character ref)
+{
+  add_var(amount, ref.hp, ref.max_hp);
+}
+
+void recover_mp(uint16_t amount, * struct Character ref)
+{
+  add_var(amount, ref.mp, ref.max_mp);
+}
+```
+
 Make sure to add `incl add_var` to the definition of `exampleModule`
 so that the new function will be included in the generated module.  In
 this version, the implementations of `heal_char` and `recover_mp`
@@ -419,6 +466,20 @@ recover_mp  =
   proc "recover_mp" $ \ amount ref ->
   body $
     add_var amount (ref ~> mp) (ref ~> max_mp)
+```
+
+NOTE: the concrete version relies on the same `add_var` macro
+
+```haskell
+void heal_char(uint16_t amount, * struct Character ref)
+{
+  $add_var(amount, ref.hp, ref.max_hp);
+}
+
+void recover_mp(uint16_t amount, * struct Character ref)
+{
+  $add_var(amount, ref.mp, ref.max_mp);
+}
 ```
 
 Be sure to *remove* the `incl add_var` from the `exampleModule`
@@ -504,6 +565,16 @@ ivoryMain  =
        ret 0
 ```
 
+```haskell
+int64_t ivoryMain()
+{
+  $init_rng();
+  val <- $gen_rand(10);
+  printf_u16("val: %d\n", val);
+  return 0;
+}
+```
+
 > NOTE: `call` vs `call_`
 >
 > In Ivory, there are two ways to call a procedure: `call` and `call_`. The
@@ -556,6 +627,16 @@ apply_damage  =
        store (ref ~> hp) ((damage >? health) ? (0,health - damage))
 ```
 
+```haskell
+void apply_damage(uint16_t base, uint16_t max_additional, * struct Character ref)
+{
+  additional <- $gen_rand(max_additional);
+  let health = *(ref.hp);
+  let damage = base + additional;
+  store (ref.hp) as ((damage > health) ? 0 (health - damage));
+}
+```
+
 Now we need to be able to cast the heal spell. Let's implement that
 as a procedure again, called `heal_spell`. Given a character struct,
 this function adds `25%` of that character's maximum health back, but
@@ -574,6 +655,19 @@ heal_spell  =
             maximum_hp <- deref (ref ~> max_hp)
             val        <- assign (maximum_hp `iDiv` 4)
             call_ heal_char val ref
+```
+
+```haskell
+void heal_spell(*struct Character ref)
+{
+  let avail_mp = *(ref.mp);
+  if(avail_mp > 10) {
+    store (ref.mp) as (avail_mp - 10);
+    let maximum_hp = *(ref.max_hp);
+    let val        = div maximum_hp 4;
+    heal_char(val, ref)
+  } else {}
+}
 ```
 
 At this point, we can modify `ivoryMain` to simulate the
@@ -608,6 +702,25 @@ ivoryMain  =
        show_health char
 
        ret 0
+```
+
+```haskell
+int64_t ivoryMain()
+{
+  $init_rng();
+
+  alloc char{} = { hp = 100, max_hp = 250, mp = 20, max_mp = 100 };
+
+  $show_health(char);
+
+  apply_damage(20, 20, char);
+  $show_health(char);
+
+  heal_spell(char);
+  $show_health(char);
+
+  return 0;
+}
 ```
 
 When running the simulation, we can see the characters health drop by a value
