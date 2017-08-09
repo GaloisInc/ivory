@@ -87,7 +87,7 @@ library
                         pretty >= 1.1,
                         containers >= 0.5,
                         monadLib >= 3.7,
-                        template-haskell >= 2.8,
+                        template-haskell >= 2.8 && <2.12,
                         filepath,
                         text,
                         dlist >= 0.5,
