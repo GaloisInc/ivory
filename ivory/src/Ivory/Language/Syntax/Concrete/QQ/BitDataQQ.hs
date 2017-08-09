@@ -25,6 +25,7 @@ import           MonadLib                                 (ChoiceT, findOne,
 
 import           Language.Haskell.TH                      hiding (Exp, Type)
 import qualified Language.Haskell.TH                      as TH
+import           Language.Haskell.TH.Datatype
 
 import qualified Ivory.Language.Bits                      as I
 import qualified Ivory.Language.Cast                      as I
@@ -37,9 +38,7 @@ import qualified Ivory.Language.Type                      as I
 import qualified Ivory.Language.BitData.Array             as B
 import qualified Ivory.Language.BitData.BitData           as B
 import qualified Ivory.Language.BitData.Bits              as B
-#if __GLASGOW_HASKELL__ >= 709
 import           Ivory.Language.Syntax.Concrete.QQ.Common
-#endif
 import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
@@ -325,33 +324,23 @@ fromBitData d = do
     , concatMap (mkConstr def) (thDefConstrs def)
     , mkArraySizeTypeInsts def
     ]
-#if __GLASGOW_HASKELL__ >= 709
   ln <- lnPragma (bdLoc d)
   return (ln ++ defs)
-#else
-  return defs
-#endif
 
 -- | Generate a newtype definition for a bit data definition.
 mkDefNewtype :: THDef -> [DecQ]
 mkDefNewtype def =
-#if __GLASGOW_HASKELL__ >= 800
-  [newtypeD (cxt []) name []
-   Nothing
-   (normalC name
-    [bangType (bang noSourceUnpackedness noSourceStrictness) (return ty)])
-   (mapM conT
+  [newtypeDCompat (cxt []) name [] (normalC name [field])
     [ ''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr , ''I.IvoryEq
-    , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ])]
-#else
-  [newtypeD (cxt []) name []
-   (normalC name [strictType notStrict (return ty)])
-   [ ''I.IvoryType, ''I.IvoryVar, ''I.IvoryExpr , ''I.IvoryEq
-   , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ]]
-#endif
+    , ''I.IvoryInit, ''I.IvoryStore, ''I.IvoryZeroVal ]]
   where
     name = thDefName def
     ty   = thDefType def
+#if __GLASGOW_HASKELL__ >= 800
+    field = bangType (bang noSourceUnpackedness noSourceStrictness) (return ty)
+#else
+    field = strictType notStrict (return ty)
+#endif
 
 -- | Generate an instance of the "BitData" type class for a bit data
 -- definition.
@@ -362,11 +351,7 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     baseTy  = thDefType def
     instTy  = [t| B.BitData $(conT (thDefName def)) |]
     body    = [tyDef, toFun, fromFun]
-#if __GLASGOW_HASKELL__ >= 708
-    tyDef   = return (TySynInstD ''B.BitType (TySynEqn [ConT name] baseTy))
-#else
-    tyDef   = return (TySynInstD ''B.BitType [ConT name] baseTy)
-#endif
+    tyDef   = tySynInstDCompat ''B.BitType [conT name] (return baseTy)
     x       = mkName "x"
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]
@@ -393,11 +378,7 @@ mkArraySizeTypeInsts def =
 -- result type is the same.
 mkArraySizeTypeInst :: Integer -> TH.Type -> [DecQ]
 mkArraySizeTypeInst n ty =
-#if __GLASGOW_HASKELL__ >= 708
-  [tySynInstD ''B.ArraySize (tySynEqn args size)]
-#else
-  [tySynInstD ''B.ArraySize args size]
-#endif
+  [tySynInstDCompat ''B.ArraySize args size]
   where
     size = tyBits ty >>= litT . numTyLit . fromIntegral . (* n)
     args = [litT (numTyLit (fromIntegral n)), return ty]

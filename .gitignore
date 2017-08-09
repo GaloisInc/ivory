@@ -1,6 +1,8 @@
 cabal.sandbox.config*
 .cabal-sandbox*
 dist
+dist-newstyle
+.ghc.environment.*
 /ivory-examples/test_dir/
 TAGS
 ghc-switch.sh

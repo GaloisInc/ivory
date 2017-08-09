@@ -41,6 +41,7 @@ import Prelude ()
 import Prelude.Compat hiding (exp)
 
 import           Language.Haskell.TH       hiding (Stmt, Exp, Type)
+import           Language.Haskell.TH.Datatype (pragLineDCompat)
 import qualified Language.Haskell.TH as T
 
 import           Data.List  (nub)
@@ -193,13 +194,11 @@ type Insert a = Key -> Name -> T.Exp -> QStM a ()
 
 --------------------------------------------------------------------------------
 
-#if __GLASGOW_HASKELL__ >= 709
 lnPragma :: SrcLoc -> Q [Dec]
 lnPragma srcloc =
   case srcLoclinePragma srcloc of
     Nothing         -> return []
-    Just (ln, file) -> (:[]) `fmap` pragLineD ln file
-#else
-lnPragma :: SrcLoc -> Q [Dec]
-lnPragma _srcloc = return []
-#endif
+    Just (ln, file) ->
+      case pragLineDCompat ln file of
+        Nothing -> return []
+        Just p  -> (:[]) `fmap` p

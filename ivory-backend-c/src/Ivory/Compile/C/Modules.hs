@@ -9,6 +9,9 @@ import           Prelude                   ()
 import           Prelude.Compat
 
 import           Text.PrettyPrint.Mainland
+#if MIN_VERSION_mainland_pretty(0,6,0)
+import           Text.PrettyPrint.Mainland.Class
+#endif
 
 import qualified Ivory.Language.Syntax.AST as I
 
