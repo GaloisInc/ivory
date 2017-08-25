@@ -16,6 +16,11 @@ packages:
   - ivory-quickcheck/
   - ivory-serialize/
   - ivory-stdlib/
+  - location:
+      git: git@github.com:eddywestbrook/hobbits.git
+      commit: 63af9aa910b6907b93348224ba03b2f655bba6db
+    subdirs:
+    - hackage
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
@@ -24,8 +29,9 @@ extra-deps:
   - language-c-quote-0.11.4
   - mainland-pretty-0.4.1.2
   - symbol-0.2.4
-  - hobbits-1.2.4
   - z3-4.1.0
+  # - hobbits-1.2.4
+  # Need a specific commit of the Hobbits library, so it is in packages, above
 
 # Override default flag values for local packages and extra-deps
 flags: {}
