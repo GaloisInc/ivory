@@ -3,7 +3,8 @@
 {-# LANGUAGE TypeFamilies, FunctionalDependencies, UndecidableInstances #-}
 {-# LANGUAGE RankNTypes, TemplateHaskell, QuasiQuotes, ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables, DataKinds, PartialTypeSignatures #-}
-{-# LANGUAGE NamedFieldPuns, DeriveFunctor #-}
+{-# LANGUAGE NamedFieldPuns, DeriveFunctor, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE BangPatterns, RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Ivory.ModelCheck.Logic where
@@ -23,6 +24,7 @@ import Data.Functor.Identity
 import Data.Type.Equality
 import Numeric.Natural
 
+import Control.Applicative
 import MonadLib
 
 import Data.Binding.Hobbits
@@ -32,7 +34,7 @@ doSimplifications = True
 
 
 ----------------------------------------------------------------------
--- Helper definitions
+-- * Helper definitions
 ----------------------------------------------------------------------
 
 groupAList :: Eq key => [(key, val)] -> [(key, [val])]
@@ -40,6 +42,10 @@ groupAList = foldr insertHelper [] where
   insertHelper (k,v) ((k',vs):ksvs) =
     if k == k' then ((k',v:vs):ksvs) else (k',vs):(insertHelper (k,v) ksvs)
   insertHelper (k,v) [] = [(k,[v])]
+
+-- | FIXME: documentation, move this
+mbLower1 :: Mb ctx b -> Mb (ctx ':> a) b
+mbLower1 mb_expr = mbCombine $ fmap (\e -> nu $ \_ -> e) mb_expr
 
 -- | FIXME: documentation, move this
 clMbList :: NuMatching a => Closed (Mb ctx [a]) -> [Closed (Mb ctx a)]
@@ -59,12 +65,6 @@ clMbCombine = clApply $(mkClosed [| mbCombine |])
 -- | GADT version of the 'Liftable' class
 data LiftableTp a where
   LiftableTp :: Liftable a => LiftableTp a
-
-$(mkNuMatching [t| Bool |])
-
-instance Liftable Bool where
-  mbLift [nuP| True |] = True
-  mbLift [nuP| False |] = False
 
 instance NuMatching Natural where
   nuMatchingProof = isoMbTypeRepr toInteger fromInteger
@@ -105,16 +105,9 @@ instance NuMatching Int64 where
 instance Liftable Int64 where
   mbLift mb_i = fromInteger $ mbLift $ fmap toInteger mb_i
 
-instance (Integral a, NuMatching a) => NuMatching (Ratio a) where
-  nuMatchingProof =
-    isoMbTypeRepr (\r -> (numerator r, denominator r)) (\(n,d) -> n%d)
-instance (Integral a, Liftable a) => Liftable (Ratio a) where
-  mbLift mb_r =
-    (\(n,d) -> n%d) $ mbLift $ fmap (\r -> (numerator r, denominator r)) mb_r
-
 
 ----------------------------------------------------------------------
--- Utilities for type lists
+-- * Utilities for Type Lists
 ----------------------------------------------------------------------
 
 -- | A heterogeneous list containing one element of type @f a@ for each type @a@
@@ -142,6 +135,11 @@ ml_12 l = (ml_first l, ml_first $ ml_rest l)
 -- | Get the first through third elements of a 'MapList'
 ml_123 :: MapList f (a ': b ': c ': l) -> (f a, f b, f c)
 ml_123 l = (ml_first l, ml_first $ ml_rest l, ml_first $ ml_rest $ ml_rest l)
+
+-- | Get the first through fourth elements of a 'MapList'
+ml_1234 :: MapList f (a ': b ': c ': d ': l) -> (f a, f b, f c, f d)
+ml_1234 l = (ml_first l, ml_first $ ml_rest l, ml_first $ ml_rest $ ml_rest l,
+             ml_first $ ml_rest $ ml_rest $ ml_rest l)
 
 -- | Map a function over a 'MapList'
 ml_map :: (forall x. f x -> g x) -> MapList f l -> MapList g l
@@ -186,7 +184,7 @@ ml_map1 f l (Elem_cons pf) = Cons (ml_first l) $ ml_map1 f (ml_rest l) pf
 
 
 ----------------------------------------------------------------------
--- Helper types used by our logic
+-- * Helper Types Used by Our Logic
 ----------------------------------------------------------------------
 
 -- | Container type for literals
@@ -195,9 +193,6 @@ newtype Literal a = Literal { unLiteral :: a }
 
 -- | Dummy type for propositions
 data Prop deriving Typeable
-
--- | Dummy type for predicate monads, i.e., set of program transitions
-data PM (a :: *) deriving Typeable
 
 -- | Untyped pointers = 'Integer's
 newtype Ptr = Ptr { unPtr :: Integer } deriving (Typeable, Eq, Ord)
@@ -208,7 +203,7 @@ nullPtr = Ptr 0
 
 
 ----------------------------------------------------------------------
--- The literal types
+-- * The Literal Types
 ----------------------------------------------------------------------
 
 -- | A GADT for the /literal types/ in our logic, which are the base types that
@@ -308,7 +303,7 @@ litTypeEq LitType_bits _ = Nothing
 
 
 ----------------------------------------------------------------------
--- The first-order types
+-- * The First-Order Types
 ----------------------------------------------------------------------
 
 -- | A GADT for the /first-order types/ in our logic, which are the types that
@@ -363,23 +358,18 @@ l1TypeEq L1Type_prop _ = Nothing
 no_functional_l1type :: L1Type (a -> b) -> c
 no_functional_l1type l1tp = case l1tp of { }
 
--- | "Proof" that there is no element of the type @'L1Type' (PM a)@
-no_pm_l1type :: L1Type (PM a) -> b
-no_pm_l1type l1tp = case l1tp of { }
-
 
 ----------------------------------------------------------------------
--- The types of our logic
+-- * The Types of Our Logic
 ----------------------------------------------------------------------
 
--- | A GADT for the types allowed in our logic
+-- | A GADT for the types allowed in our logic, which include the first-order
+-- types (also called base types) and the function types
 data LType (a :: *) where
   LType_base :: L1Type a -> LType a
   -- ^ Any first-order type is a type
   LType_fun :: LType a -> LType b -> LType (a -> b)
   -- ^ Function types
-  LType_pm :: LType a -> LType (PM a)
-  -- ^ The type of transition relations, using a predicate monad
 
 -- | Typeclass for 'LType'
 class LTypeable a where
@@ -391,8 +381,6 @@ instance LitTypeable a => LTypeable (Literal a) where
   ltypeRep = LType_base $ L1Type_lit litTypeRep
 instance LTypeable Ptr where ltypeRep = LType_base $ l1typeRep
 instance LTypeable Prop where ltypeRep = LType_base $ l1typeRep
-instance LTypeable a => LTypeable (PM a) where
-  ltypeRep = LType_pm ltypeRep
 instance (LTypeable a, LTypeable b) => LTypeable (a -> b) where
   ltypeRep = LType_fun ltypeRep ltypeRep
 
@@ -403,7 +391,6 @@ $(mkNuMatching [t| forall a. LType a |])
 instance Liftable (LType a) where
   mbLift [nuP| LType_base l1tp |] = LType_base $ mbLift l1tp
   mbLift [nuP| LType_fun t1 t2 |] = LType_fun (mbLift t1) (mbLift t2)
-  mbLift [nuP| LType_pm l1tp |] = LType_pm $ mbLift l1tp
 
 -- | Test if two 'LType's are equal
 ltypeEq :: LType a -> LType b -> Maybe (a :~: b)
@@ -417,15 +404,10 @@ ltypeEq (LType_fun t1 t1') (LType_fun t2 t2') =
     (Just Refl, Just Refl) -> Just Refl
     _ -> Nothing
 ltypeEq (LType_fun _ _) _ = Nothing
-ltypeEq (LType_pm tp1) (LType_pm tp2) =
-  case ltypeEq tp1 tp2 of
-    Just Refl -> Just Refl
-    _ -> Nothing
-ltypeEq (LType_pm _) _ = Nothing
 
 
 ----------------------------------------------------------------------
--- Extracting the argument and return types of a function type
+-- * Extracting the Argument and Return Types of a Function Type
 ----------------------------------------------------------------------
 
 -- | Type family to add a list of types as arguments to a function return type
@@ -441,7 +423,6 @@ type family ArgTypes a :: [*]
 type instance ArgTypes (Literal a) = '[]
 type instance ArgTypes Ptr = '[]
 type instance ArgTypes Prop = '[]
-type instance ArgTypes (PM a) = '[]
 type instance ArgTypes (a -> b) = a ': ArgTypes b
 
 -- | Type family to extract the return type from a function type; see 'ArgTypes'
@@ -449,13 +430,11 @@ type family RetType a :: *
 type instance RetType (Literal a) = (Literal a)
 type instance RetType Ptr = Ptr
 type instance RetType Prop = Prop
-type instance RetType (PM a) = PM a
 type instance RetType (a -> b) = RetType b
 
 -- | "Proof" that @a = AddArrows args ret@
 data LTypeArgs a args ret where
   LTypeArgs_base :: L1Type a -> LTypeArgs a '[] a
-  LTypeArgs_pm :: LType a -> LTypeArgs (PM a) '[] (PM a)
   LTypeArgs_fun :: LType arg -> LTypeArgs a args ret ->
                    LTypeArgs (arg -> a) (arg ': args) ret
 
@@ -469,8 +448,6 @@ instance LTypeableArgs Ptr '[] Ptr where
   ltypeArgsRep = LTypeArgs_base l1typeRep
 instance LTypeableArgs Prop '[] Prop where
   ltypeArgsRep = LTypeArgs_base l1typeRep
-instance LTypeable a => LTypeableArgs (PM a) '[] (PM a) where
-  ltypeArgsRep = LTypeArgs_pm ltypeRep
 instance (LTypeable arg, LTypeableArgs a args ret) =>
          LTypeableArgs (arg -> a) (arg ': args) ret where
   ltypeArgsRep = LTypeArgs_fun ltypeRep ltypeArgsRep
@@ -480,21 +457,18 @@ mkLTypeArgs :: LType a -> LTypeArgs a (ArgTypes a) (RetType a)
 mkLTypeArgs (LType_base l1tp@(L1Type_lit _)) = LTypeArgs_base l1tp
 mkLTypeArgs (LType_base L1Type_prop) = LTypeArgs_base l1typeRep
 mkLTypeArgs (LType_base L1Type_ptr) = LTypeArgs_base l1typeRep
-mkLTypeArgs (LType_pm ltp) = LTypeArgs_pm ltp
 mkLTypeArgs (LType_fun tp_a tp_b) =
   LTypeArgs_fun tp_a (mkLTypeArgs tp_b)
 
 -- | Convert an @'LTypeArgs' a args ret@ to an @'LType' a@
 ltypeArgsFullType :: LTypeArgs a args ret -> LType a
 ltypeArgsFullType (LTypeArgs_base l1tp) = LType_base l1tp
-ltypeArgsFullType (LTypeArgs_pm ltp) = LType_pm ltp
 ltypeArgsFullType (LTypeArgs_fun tp tp_args) =
   LType_fun tp $ ltypeArgsFullType tp_args
 
 -- | Convert an 'LTypeArgs' to an 'LType' for the return type
 ltypeArgsRetType :: LTypeArgs a args ret -> LType ret
 ltypeArgsRetType (LTypeArgs_base l1tp) = LType_base l1tp
-ltypeArgsRetType (LTypeArgs_pm ltp) = LType_pm ltp
 ltypeArgsRetType (LTypeArgs_fun _ tp_args) = ltypeArgsRetType tp_args
 
 -- | Proof that the return type of an 'LTypeArgs' is never a function type
@@ -508,13 +482,12 @@ $(mkNuMatching [t| forall a args ret. LTypeArgs a args ret |])
 
 instance Liftable (LTypeArgs a args ret) where
   mbLift [nuP| LTypeArgs_base l1tp |] = LTypeArgs_base $ mbLift l1tp
-  mbLift [nuP| LTypeArgs_pm ltp |] = LTypeArgs_pm $ mbLift ltp
   mbLift [nuP| LTypeArgs_fun tp tp_args |] =
     LTypeArgs_fun (mbLift tp) (mbLift tp_args)
 
 
 ----------------------------------------------------------------------
--- The types of functions over first-order types
+-- * The Types of Functions over First-Order Types
 ----------------------------------------------------------------------
 
 -- | Types for functions over first-order types
@@ -535,7 +508,6 @@ instance L1FunTypeable Prop where
 instance (L1Typeable a, L1FunTypeable b) => L1FunTypeable (a -> b) where
   l1funTypeRep = L1FunType_cons l1typeRep l1funTypeRep
 
--- Build a NuMatching instance for L1FunType, needed for Liftable
 $(mkNuMatching [t| forall a. L1FunType a |])
 
 -- Liftable instance, to lift L1FunTypes out of binding contexts
@@ -564,9 +536,37 @@ funType_ret_type (L1FunType_base l1tp@L1Type_ptr) = l1tp
 funType_ret_type (L1FunType_base l1tp@L1Type_prop) = l1tp
 funType_ret_type (L1FunType_cons _ ftp) = funType_ret_type ftp
 
+-- | The type of first-order contexts of types. This is just a helper type so
+-- that we can build a 'NuMatching' instance for @'MapRList' 'L1FunType' ctx@
+data L1Ctx ctx where
+  L1CtxNil :: L1Ctx 'RNil
+  L1CtxCons :: L1Ctx ctx -> L1FunType a -> L1Ctx (ctx ':> a)
+
+$(mkNuMatching [t| forall ctx. L1Ctx ctx |])
+
+instance Liftable (L1Ctx ctx) where
+  mbLift [nuP| L1CtxNil |] = L1CtxNil
+  mbLift [nuP| L1CtxCons ctx a |] = L1CtxCons (mbLift ctx) (mbLift a)
+
+-- | Convert an 'L1Ctx' to a 'MapRList' of first-order function types
+l1CtxToRList :: L1Ctx ctx -> MapRList L1FunType ctx
+l1CtxToRList L1CtxNil = MNil
+l1CtxToRList (L1CtxCons ctx a) = l1CtxToRList ctx :>: a
+
+-- | Convert a 'MapRList' of first-order function types to an 'L1Ctx'
+rListToL1Ctx :: MapRList L1FunType ctx -> L1Ctx ctx
+rListToL1Ctx MNil = L1CtxNil
+rListToL1Ctx (ctx :>: a) = L1CtxCons (rListToL1Ctx ctx) a
+
+instance {-# OVERLAPPING #-} NuMatching (MapRList L1FunType ctx) where
+  nuMatchingProof = isoMbTypeRepr rListToL1Ctx l1CtxToRList
+
+instance Liftable (MapRList L1FunType ctx) where
+  mbLift = l1CtxToRList . mbLift . fmap rListToL1Ctx
+
 
 ----------------------------------------------------------------------
--- Finite functinos
+-- * Finite Functions
 ----------------------------------------------------------------------
 
 -- | Build the right-nested tuple type @(a1, (.., (an, ()) .. ))@ from the type
@@ -605,14 +605,14 @@ updateFinFun f args newval =
 
 
 ----------------------------------------------------------------------
--- The memory model of our logic
+-- * The Memory Model of our Logic
 ----------------------------------------------------------------------
 
 -- | Type class stating that @mm@ is a list of the types that are considered
 -- storable, and also a list of default values for each of these types. Note
 -- that, if type @a@ is in @mm@, then it is type @'Literal' a@ that is actually
--- storable. Additionally, the 'Ptr' is always storable, and so is not contained
--- in the @mm@ list.
+-- storable. Additionally, the 'Ptr' type is always storable, and so is not
+-- contained in the @mm@ list.
 class MemoryModel (mm :: [*]) where
   memoryDefaults :: MapList Literal mm
   memoryLitTypes :: MapList LitType mm
@@ -657,6 +657,8 @@ defaultMemory =
            memLengths = mkFinFun (Literal 0),
            memLastAlloc = Ptr 0 }
 
+-- FIXME HERE: remove ReadOp and UpdateOp types!
+
 -- | The read operations for 'Memory's
 data ReadOp mm args ret where
   -- | Read the nth element of an array whose type is in @mm@
@@ -677,29 +679,9 @@ data UpdateOp mm args where
   UpdateOp_ptr_array :: UpdateOp mm '[ Ptr, Literal Word64, Ptr ]
   -- | Copy the contents of one array to another, like a memcopy (NOTE: the
   -- first pointer is the source, the second is the destination)
-  UpdateOp_ptr_copy :: UpdateOp mm '[ Ptr, Ptr ]
+  UpdateOp_ptr_copy :: UpdateOp mm '[ Ptr, Literal Word64, Ptr, Literal Word64 ]
   -- | Allocate a new array with a given length
   UpdateOp_alloc :: UpdateOp mm '[ Literal Word64 ]
-
--- | Get the 'LType' of a 'ReadOp'
-readOpType :: MemoryModel mm => ReadOp mm args ret -> LType (AddArrows args (PM ret))
-readOpType (ReadOp_array elem_pf) =
-  LType_fun ltypeRep $ LType_fun ltypeRep $
-  LType_pm $ LType_base $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf
-readOpType ReadOp_ptr_array = ltypeRep
-readOpType ReadOp_length = ltypeRep
-readOpType ReadOp_last_alloc = ltypeRep
-
--- | Get the 'LType' of an 'UpdateOp'
-updateOpType :: MemoryModel mm => UpdateOp mm args ->
-                LType (AddArrows args (PM (Literal ())))
-updateOpType (UpdateOp_array elem_pf) =
-  LType_fun ltypeRep $ LType_fun ltypeRep $
-  LType_fun (LType_base $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf)
-  ltypeRep
-updateOpType UpdateOp_ptr_array = ltypeRep
-updateOpType UpdateOp_ptr_copy = ltypeRep
-updateOpType UpdateOp_alloc = ltypeRep
 
 -- | Perform a read generic operation on a 'Memory'
 readMemory :: ReadOp mm args ret -> Memory mm -> MapList Identity args -> ret
@@ -750,7 +732,10 @@ updateMemory UpdateOp_ptr_array mem
               (Cons (Identity ix) (Cons (Identity newval) _))) =
   mem { memPtrArray = updateFinFun (memPtrArray mem) (ptr, (ix, ())) newval }
 updateMemory UpdateOp_ptr_copy mem
-             (Cons (Identity ptr_src) (Cons (Identity ptr_dest) _)) =
+             (Cons (Identity src_ptr)
+              (Cons (Identity src_ix)
+              (Cons (Identity dest_ptr)
+               (Cons (Identity dest_ix) _)))) =
   error "FIXME HERE: write the updateMemory case for pointer copy!"
 updateMemory UpdateOp_alloc mem
              (Cons (Identity new_len) _) =
@@ -771,15 +756,8 @@ updateMemory UpdateOp_alloc mem
 
 
 ----------------------------------------------------------------------
--- The built-in operations of our logic
+-- * The Built-in Operations of our Logic
 ----------------------------------------------------------------------
-
--- | Type class associating meta-data with @tag@ that is needed by our logic
-class (MemoryModel (LStorables tag), Eq (LException tag),
-       Liftable (LException tag)) =>
-      LExprTag tag where
-  type LStorables tag :: [*]
-  type LException tag :: *
 
 -- | The unary arithmetic operations
 data ArithOp1
@@ -822,93 +800,61 @@ data ArithCmp
   | OpCmp_LE -- ^ Less than or equal to
 
 -- | The operations / function symbols of our logic
-data Op tag a where
+data Op a where
   -- | Literals that are lifted from Haskell
-  Op_Literal :: Liftable a => LitType a -> a -> Op tag (Literal a)
+  Op_Literal :: Liftable a => LitType a -> a -> Op (Literal a)
 
   -- * First-order operations on data
 
   -- | Unary arithmetic
-  Op_arith1 :: LitType a -> ArithOp1 -> Op tag (Literal a -> Literal a)
+  Op_arith1 :: LitType a -> ArithOp1 -> Op (Literal a -> Literal a)
   -- | Binary arithmetic
   Op_arith2 :: LitType a -> ArithOp2 ->
-               Op tag (Literal a -> Literal a -> Literal a)
+               Op (Literal a -> Literal a -> Literal a)
   -- | Coercion between types
-  Op_coerce :: LitType a -> LitType b -> Op tag (Literal a -> Literal b)
+  Op_coerce :: LitType a -> LitType b -> Op (Literal a -> Literal b)
   -- | Comparison operations
   Op_cmp :: LitType a -> ArithCmp ->
-            Op tag (Literal a -> Literal a -> Literal Bool)
+            Op (Literal a -> Literal a -> Literal Bool)
   -- | The condition, i.e., if-then-else; note that it operates on Booleans, not
   -- propositions, as it cannot take in, e.g., forall formulas
-  Op_cond :: L1Type a -> Op tag (Literal Bool -> a -> a -> a)
+  Op_cond :: L1Type a -> Op (Literal Bool -> a -> a -> a)
 
   -- | The null pointer
-  Op_null_ptr :: Op tag Ptr
+  Op_null_ptr :: Op Ptr
   -- | A global variable, referred to by reference, named by (natural) number
-  Op_global_var :: Natural -> Op tag Ptr
+  Op_global_var :: Natural -> Op Ptr
   -- | Bump a free pointer
-  Op_next_ptr :: Op tag (Ptr -> Ptr)
+  Op_next_ptr :: Op (Ptr -> Ptr)
   -- | Pointer comparisons
-  Op_ptr_cmp :: ArithCmp -> Op tag (Ptr -> Ptr -> Literal Bool)
+  Op_ptr_cmp :: ArithCmp -> Op (Ptr -> Ptr -> Literal Bool)
 
   -- * Propositional operations
   -- | The true proposition
-  Op_true :: Op tag Prop
+  Op_true :: Op Prop
   -- | The false proposition
-  Op_false :: Op tag Prop
+  Op_false :: Op Prop
   -- | Logical and
-  Op_and :: Op tag (Prop -> Prop -> Prop)
+  Op_and :: Op (Prop -> Prop -> Prop)
   -- | Logical or
-  Op_or :: Op tag (Prop -> Prop -> Prop)
+  Op_or :: Op (Prop -> Prop -> Prop)
   -- | Logical negation
-  Op_not :: Op tag (Prop -> Prop)
+  Op_not :: Op (Prop -> Prop)
   -- | Equality at base type
-  Op_eq :: L1Type a -> Op tag (a -> a -> Prop)
+  Op_eq :: L1Type a -> Op (a -> a -> Prop)
   -- | Lift a 'Bool' to a 'Prop'
-  Op_istrue  :: Op tag (Literal Bool -> Prop)
+  Op_istrue  :: Op (Literal Bool -> Prop)
 
   -- | Universal quantification
-  Op_forall :: L1Type a -> Op tag ((a -> Prop) -> Prop)
+  Op_forall :: L1Type a -> Op ((a -> Prop) -> Prop)
   -- | Existential quantification
-  Op_exists :: L1Type a -> Op tag ((a -> Prop) -> Prop)
+  Op_exists :: L1Type a -> Op ((a -> Prop) -> Prop)
 
   -- | Let-bindings, which are only allowed in propositions
-  Op_let :: L1Type a -> Op tag (a -> (a -> Prop) -> Prop)
-
-  -- * Predicate monad operations
-
-  -- | Return in the predicate monad
-  Op_returnP :: LType a -> Op tag (a -> PM a)
-  -- | Bind in the predicate monad
-  Op_bindP :: LType a -> LType b -> Op tag (PM a -> (a -> PM b) -> PM b)
-  -- | Memory read operations
-  Op_readP :: MemoryModel (LStorables tag) =>
-              ReadOp (LStorables tag) args ret ->
-              Op tag (AddArrows args (PM ret))
-  -- | Memory update operations
-  Op_updateP :: MemoryModel (LStorables tag) =>
-                UpdateOp (LStorables tag) args ->
-                Op tag (AddArrows args (PM (Literal ())))
-  -- | Raise an exception in the predicate monad. The 'Nothing' exception
-  -- represents an un-catchable error
-  Op_raiseP :: Liftable (LException tag) => LException tag ->
-               Op tag (PM (Literal ()))
-  -- | Catch an exception
-  Op_catchP :: (Eq (LException tag), Liftable (LException tag)) =>
-               LException tag ->
-               Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
-  -- | Assumptions about the current execution
-  Op_assumeP :: Op tag (Prop -> PM (Literal ()))
-  -- | Return an arbitrary, existentially-quantified value
-  Op_existsP :: L1FunType a -> Op tag (PM a)
-  -- | Special-purpose assumption of false: prunes out the current execution
-  Op_falseP :: Op tag (PM (Literal ()))
-  -- | Disjunctions
-  Op_orP :: Eq (LException tag) =>
-            Op tag (PM (Literal ()) -> PM (Literal ()) -> PM (Literal ()))
+  -- Op_let :: L1Type a -> Op (a -> (a -> Prop) -> Prop)
 
 -- | Get the 'LType' for an 'Op'
-opType :: Op tag a -> LType a
+opType :: Op a -> LType a
 opType (Op_Literal lit_tp _) = LType_base $ L1Type_lit lit_tp
 opType (Op_arith1 lit_tp _) =
   LType_fun (LType_base $ L1Type_lit lit_tp) (LType_base $ L1Type_lit lit_tp)
@@ -942,40 +888,27 @@ opType (Op_forall l1tp) =
   LType_fun (LType_fun (LType_base l1tp) ltypeRep) ltypeRep
 opType (Op_exists l1tp) =
   LType_fun (LType_fun (LType_base l1tp) ltypeRep) ltypeRep
+{-
 opType (Op_let l1tp) =
   LType_fun (LType_base l1tp) $
   LType_fun (LType_fun (LType_base l1tp) ltypeRep) ltypeRep
-opType (Op_returnP ltp) =
-  LType_fun ltp (LType_pm ltp)
-opType (Op_bindP ltp_a ltp_b) =
-  LType_fun (LType_pm ltp_a) $
-  LType_fun (LType_fun ltp_a $ LType_pm ltp_b) $
-  LType_pm ltp_b
-opType (Op_readP read_op) = readOpType read_op
-opType (Op_updateP update_op) = updateOpType update_op
-opType (Op_raiseP _) = ltypeRep
-opType (Op_catchP _) = ltypeRep
-opType Op_assumeP = ltypeRep
-opType (Op_existsP ftp) = LType_pm $ funType_to_type ftp
-opType Op_falseP = ltypeRep
-opType Op_orP = ltypeRep
+-}
 
 -- | Build an 'LTypeArgs' for the type arguments of an 'Op'
-opTypeArgs :: Op tag a -> LTypeArgs a (ArgTypes a) (RetType a)
+opTypeArgs :: Op a -> LTypeArgs a (ArgTypes a) (RetType a)
 opTypeArgs op = mkLTypeArgs $ opType op
 
 -- | Get the 'LType' for the return type of an 'Op'
-opRetType :: Op tag a -> LType (RetType a)
+opRetType :: Op a -> LType (RetType a)
 opRetType op = ltypeArgsRetType $ opTypeArgs op
 
 -- Build a NuMatching instances for Op and friends
 $(mkNuMatching [t| ArithOp1 |])
 $(mkNuMatching [t| ArithOp2 |])
 $(mkNuMatching [t| ArithCmp |])
-$(mkNuMatching [t| forall a. NuMatching a => Maybe a |])
 $(mkNuMatching [t| forall mm args ret. ReadOp mm args ret |])
 $(mkNuMatching [t| forall mm args. UpdateOp mm args |])
-$(mkNuMatching [t| forall tag a. Op tag a |])
+$(mkNuMatching [t| forall a. Op a |])
 
 -- Build Liftable instances for Op and friends
 instance Liftable ArithOp1 where
@@ -1008,7 +941,7 @@ instance Liftable (UpdateOp mm args) where
   mbLift [nuP| UpdateOp_ptr_array |] = UpdateOp_ptr_array
   mbLift [nuP| UpdateOp_ptr_copy |] = UpdateOp_ptr_copy
   mbLift [nuP| UpdateOp_alloc |] = UpdateOp_alloc
-instance Liftable (Op tag a) where
+instance Liftable (Op a) where
   mbLift [nuP| Op_Literal ltp x |] = Op_Literal (mbLift ltp) (mbLift x)
   mbLift [nuP| Op_arith1 ltp aop |] = Op_arith1 (mbLift ltp) (mbLift aop)
   mbLift [nuP| Op_arith2 ltp aop |] = Op_arith2 (mbLift ltp) (mbLift aop)
@@ -1028,23 +961,11 @@ instance Liftable (Op tag a) where
   mbLift [nuP| Op_istrue |] = Op_istrue
   mbLift [nuP| Op_forall l1tp |] = Op_forall $ mbLift l1tp
   mbLift [nuP| Op_exists l1tp |] = Op_exists $ mbLift l1tp
-  mbLift [nuP| Op_let tp |] = Op_let $ mbLift tp
-  --mbLift [nuP| Op_LetRead read_op |] = Op_LetRead $ mbLift read_op
-  mbLift [nuP| Op_returnP ltp |] = Op_returnP $ mbLift ltp
-  mbLift [nuP| Op_bindP ltp_a ltp_b |] =
-    Op_bindP (mbLift ltp_a) (mbLift ltp_b)
-  mbLift [nuP| Op_readP read_op |] = Op_readP $ mbLift read_op
-  mbLift [nuP| Op_updateP update_op |] = Op_updateP $ mbLift update_op
-  mbLift [nuP| Op_assumeP |] = Op_assumeP
-  mbLift [nuP| Op_raiseP exn |] = Op_raiseP $ mbLift exn
-  mbLift [nuP| Op_catchP exn |] = Op_catchP $ mbLift exn
-  mbLift [nuP| Op_existsP ftp |] = Op_existsP $ mbLift ftp
-  mbLift [nuP| Op_falseP |] = Op_falseP
-  mbLift [nuP| Op_orP |] = Op_orP
+  --mbLift [nuP| Op_let tp |] = Op_let $ mbLift tp
 
 
 ----------------------------------------------------------------------
--- The expressions of our logic
+-- * The Expressions of Our Logic
 ----------------------------------------------------------------------
 
 -- | The expressions of our logic as a GADT. This is essentially the typed
@@ -1052,27 +973,24 @@ instance Liftable (Op tag a) where
 -- form, which is enforced by restricting the expressions to only the
 -- lambda-abstractions and the full applications of variables and function
 -- symbols to all of their arguments.
-data LExpr tag a where
-  LLambda :: LType a -> Binding a (LExpr tag b) -> LExpr tag (a -> b)
-  LOp :: Op tag a -> LExprs tag (ArgTypes a) -> LExpr tag (RetType a)
-  LVar :: LTypeArgs a args ret -> Name a -> LExprs tag args -> LExpr tag ret
+data LExpr a where
+  LLambda :: LType a -> Binding a (LExpr b) -> LExpr (a -> b)
+  LOp :: Op a -> LExprs (ArgTypes a) -> LExpr (RetType a)
+  LVar :: LTypeArgs a args ret -> Name a -> LExprs args -> LExpr ret
 
 -- | Lists of 'LExpr's
-data LExprs tag as where
-  LExprs_nil :: LExprs tag '[]
-  LExprs_cons :: LExpr tag a -> LExprs tag as -> LExprs tag (a ': as)
+data LExprs as where
+  LExprs_nil :: LExprs '[]
+  LExprs_cons :: LExpr a -> LExprs as -> LExprs (a ': as)
 
-$(mkNuMatching [t| forall tag a. LExpr tag a |])
-$(mkNuMatching [t| forall tag as. LExprs tag as |])
+$(mkNuMatching [t| forall a. LExpr a |])
+$(mkNuMatching [t| forall as. LExprs as |])
 
 -- | The type of propositions in our logic
-type LProp tag = LExpr tag Prop
-
--- | The type of transition relations in our logic
-type LPM tag = LExpr tag (PM (Literal ()))
+type LProp = LExpr Prop
 
 -- | Get the 'LType' of an expression-in-binding
-mbExprType :: Mb ctx (LExpr tag a) -> LType a
+mbExprType :: Mb ctx (LExpr a) -> LType a
 mbExprType [nuP| LLambda tp_a body |] =
   LType_fun (mbLift tp_a) $ mbExprType $ mbCombine body
 mbExprType [nuP| LOp op _ |] = opRetType $ mbLift op
@@ -1080,7 +998,7 @@ mbExprType [nuP| LVar tp_args _ _ |] = ltypeArgsRetType $ mbLift tp_args
 
 
 ----------------------------------------------------------------------
--- General facilities for building and manipulating expressions
+-- * General Facilities for Building and Manipulating Expressions
 ----------------------------------------------------------------------
 
 -- | Apply type function @f@ to the input and outputs of a function type, i.e.,
@@ -1089,78 +1007,86 @@ type family ApplyToArgs (f :: * -> *) a :: *
 type instance ApplyToArgs f (Literal a) = f (Literal a)
 type instance ApplyToArgs f Ptr = f Ptr
 type instance ApplyToArgs f Prop = f Prop
-type instance ApplyToArgs f (PM a) = f (PM a)
 type instance ApplyToArgs f (a -> b) = f a -> ApplyToArgs f b
 
--- | Curry a @'LExprs' tag args -> 'LExpr' tag ret@ function
+-- | Curry a @'LExprs' args -> 'LExpr' ret@ function
 curryLExprsFun :: LType a ->
-                  (LExprs tag (ArgTypes a) -> LExpr tag (RetType a)) ->
-                  ApplyToArgs (LExpr tag) a
+                  (LExprs (ArgTypes a) -> LExpr (RetType a)) ->
+                  ApplyToArgs LExpr a
 curryLExprsFun (LType_base (L1Type_lit _)) f = f LExprs_nil
 curryLExprsFun (LType_base L1Type_prop) f = f LExprs_nil
 curryLExprsFun (LType_base L1Type_ptr) f = f LExprs_nil
-curryLExprsFun (LType_pm _) f = f LExprs_nil
 curryLExprsFun (LType_fun _ tp_b) f =
   \e -> curryLExprsFun tp_b (\es -> f (LExprs_cons e es))
 
--- | Build an expression function from a variable
-mkVar :: LTypeable a => Proxy tag -> Name a -> ApplyToArgs (LExpr tag) a
-mkVar proxy n = mkVarTp proxy ltypeRep n
-
--- | Build an expression function from a variable, with an explicity type
-mkVarTp :: Proxy tag -> LType a -> Name a -> ApplyToArgs (LExpr tag) a
-mkVarTp (_ :: Proxy tag) (tp :: LType a) n =
+-- | Build an expression for a variable applied to its arguments, given an
+-- explicit type for the variable
+mkVarAppTp :: LType a -> Name a -> ApplyToArgs LExpr a
+mkVarAppTp (tp :: LType a) n =
   curryLExprsFun tp (LVar (mkLTypeArgs tp) n
-                     :: LExprs tag (ArgTypes a) -> LExpr tag (RetType a))
+                     :: LExprs (ArgTypes a) -> LExpr (RetType a))
 
--- | Build an expression from a variable of a 'Literal' type
-mkLitVar :: LitType a -> Name (Literal a) -> LExpr tag (Literal a)
-mkLitVar lit_tp n = LVar (LTypeArgs_base $ L1Type_lit lit_tp) n LExprs_nil
+-- | Build an expression for a variable applied to its arguments
+mkVarApp :: LTypeable a => Name a -> ApplyToArgs LExpr a
+mkVarApp n = mkVarAppTp ltypeRep n
+
+-- | Build an expression from a variable of first-order type
+mkVar1 :: L1Typeable a => Name a -> LExpr a
+mkVar1 n = LVar (LTypeArgs_base l1typeRep) n LExprs_nil
+
+-- | Explicitly-typed version of 'mkVar1'
+mkVar1Tp :: L1Type a -> Name a -> LExpr a
+mkVar1Tp l1tp n = LVar (LTypeArgs_base l1tp) n LExprs_nil
+
+-- | Explicitly-typed version of 'mkVar1', for 'Literal' types
+mkLitVarTp :: LitType a -> Name (Literal a) -> LExpr (Literal a)
+mkLitVarTp lit_tp n = LVar (LTypeArgs_base (L1Type_lit lit_tp)) n LExprs_nil
 
 -- | Make a variable into an expression, rather than a function
-mkVarExprTp :: LType a -> Name a -> LExpr tag a
+mkVarExprTp :: LType a -> Name a -> LExpr a
 mkVarExprTp tp n = etaExpandLExprsFun tp (LVar (mkLTypeArgs tp) n)
+
+-- | Build an expression from a variable of first-order function type
+mkVarFOFunTp :: L1FunType a -> Name a -> LExpr a
+mkVarFOFunTp ftp n = mkVarExprTp (funType_to_type ftp) n
 
 -- | Helper function for building expression functions from 'Op's with an
 -- explicit 'LType'
-mkOp :: Op tag a -> ApplyToArgs (LExpr tag) a
+mkOp :: Op a -> ApplyToArgs LExpr a
 mkOp op = curryLExprsFun (opType op) (LOp op)
 
 -- | Helper function for building literal expressions
-mkLiteralTp :: LitType a -> a -> LExpr tag (Literal a)
+mkLiteralTp :: LitType a -> a -> LExpr (Literal a)
 mkLiteralTp lit_tp a =
   case litTypeLiftable lit_tp of
     LiftableTp -> LOp (Op_Literal lit_tp a) LExprs_nil
 
 -- | Helper function for building literal expressions
-mkLiteral :: LitTypeable a => a -> LExpr tag (Literal a)
+mkLiteral :: LitTypeable a => a -> LExpr (Literal a)
 mkLiteral a = mkLiteralTp litTypeRep a
 
 -- | Helper function for building literal 'Word64' expressions from any integral
-mkLiteral64 :: Integral a => a -> LExpr tag (Literal Word64)
+mkLiteral64 :: Integral a => a -> LExpr (Literal Word64)
 mkLiteral64 i = mkLiteral $ fromInteger $ toInteger i
 
 -- | Helper function for building lambda-abstractions
-mkLambda :: LTypeable a =>
-            (ApplyToArgs (LExpr tag) a -> LExpr tag b) -> LExpr tag (a -> b)
-mkLambda (f :: _ -> LExpr tag b) =
-  LLambda ltypeRep $ nu $ \x -> f (mkVar (Proxy :: Proxy tag) x)
+mkLambda :: LTypeable a => (ApplyToArgs LExpr a -> LExpr b) -> LExpr (a -> b)
+mkLambda (f :: _ -> LExpr b) =
+  LLambda ltypeRep $ nu $ \x -> f (mkVarApp x)
 
 -- | Helper function for building lambda-abstractions
-mkLambdaTp :: LType a -> (LExpr tag a -> LExpr tag b) ->
-              LExpr tag (a -> b)
-mkLambdaTp tp_a (f :: LExpr tag a -> LExpr tag b) =
+mkLambdaTp :: LType a -> (LExpr a -> LExpr b) -> LExpr (a -> b)
+mkLambdaTp tp_a (f :: LExpr a -> LExpr b) =
   LLambda tp_a $ nu $ \x -> f (mkVarExprTp tp_a x)
 
--- | Eta-expand a @'LExprs' tag args -> 'LExpr' tag ret@ function into an
+-- | Eta-expand a @'LExprs' args -> 'LExpr' ret@ function into an
 -- expression with functional type
 etaExpandLExprsFun :: LType a ->
-                  (LExprs tag (ArgTypes a) -> LExpr tag (RetType a)) ->
-                  LExpr tag a
+                      (LExprs (ArgTypes a) -> LExpr (RetType a)) ->
+                      LExpr a
 etaExpandLExprsFun (LType_base (L1Type_lit _)) f = f LExprs_nil
 etaExpandLExprsFun (LType_base L1Type_prop) f = f LExprs_nil
 etaExpandLExprsFun (LType_base L1Type_ptr) f = f LExprs_nil
-etaExpandLExprsFun (LType_pm _) f = f LExprs_nil
 etaExpandLExprsFun (LType_fun tp_a tp_b) f =
   LLambda tp_a $ nu $ \n ->
   etaExpandLExprsFun tp_b (\es -> f (LExprs_cons (mkVarExprTp tp_a n) es))
@@ -1169,19 +1095,19 @@ etaExpandLExprsFun (LType_fun tp_a tp_b) f =
 -- OR: we have to do arbitrary substitution...
 {-
 -- | Apply an 'LExpr' to another
-(@@) :: LExpr tag (a -> b) -> LExpr tag a -> LExpr tag b
+(@@) :: LExpr (a -> b) -> LExpr a -> LExpr b
 f@(LLambda tp body) @@ arg = LAppExpr $ LApp (LApp (LOp $ Op_let tp) arg) f
 (LAppExpr app_expr) @@ arg = LAppExpr $ LApp app_expr arg
 -}
 
 -- | Match the body of a lambda-expression
-matchLambda :: LExpr tag (a -> b) -> Binding a (LExpr tag b)
+matchLambda :: LExpr (a -> b) -> Binding a (LExpr b)
 matchLambda (LLambda _ body) = body
 matchLambda (LVar tp_args _ _) = no_functional_type_args_ret tp_args
 matchLambda (LOp op _) = no_functional_type_args_ret $ opTypeArgs op
 
 -- | Same as 'matchLambda', but on an expression inside a binding
-mbMatchLambda :: Mb ctx (LExpr tag (a -> b)) -> Mb (ctx ':> a) (LExpr tag b)
+mbMatchLambda :: Mb ctx (LExpr (a -> b)) -> Mb (ctx ':> a) (LExpr b)
 mbMatchLambda [nuP| LLambda _ body |] = mbCombine body
 mbMatchLambda [nuP| LVar tp_args _ _ |] =
   no_functional_type_args_ret $ mbLift tp_args
@@ -1190,21 +1116,21 @@ mbMatchLambda [nuP| LOp op _ |] =
 
 
 ----------------------------------------------------------------------
--- Building numeric, Boolean, and pointer expressions
+-- * Building Numeric, Boolean, and Pointer Expressions
 ----------------------------------------------------------------------
 
 -- | Apply an 'ArithOp1' to an expression
-mkArithOp1 :: LitType a -> ArithOp1 -> LExpr tag (Literal a) ->
-              LExpr tag (Literal a)
+mkArithOp1 :: LitType a -> ArithOp1 -> LExpr (Literal a) ->
+              LExpr (Literal a)
 mkArithOp1 lit_tp aop = mkOp (Op_arith1 lit_tp aop)
 
 -- | Apply an 'ArithOp2' to an expression
-mkArithOp2 :: LitType a -> ArithOp2 -> LExpr tag (Literal a) ->
-              LExpr tag (Literal a) -> LExpr tag (Literal a)
+mkArithOp2 :: LitType a -> ArithOp2 -> LExpr (Literal a) ->
+              LExpr (Literal a) -> LExpr (Literal a)
 mkArithOp2 lit_tp aop = mkOp (Op_arith2 lit_tp aop)
 
 -- Num instance allows us to use arithmetic operations to build expressions.
-instance (LitTypeable a, Num a) => Num (LExpr tag (Literal a)) where
+instance (LitTypeable a, Num a) => Num (LExpr (Literal a)) where
   (+) = mkOp (Op_arith2 litTypeRep Op2_Add)
   (-) = mkOp (Op_arith2 litTypeRep Op2_Sub)
   (*) = mkOp (Op_arith2 litTypeRep Op2_Mult)
@@ -1213,39 +1139,39 @@ instance (LitTypeable a, Num a) => Num (LExpr tag (Literal a)) where
   fromInteger i = mkLiteral (fromInteger i)
 
 -- | Build a negation expression
-mkNeg :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a)
+mkNeg :: LitTypeable a => LExpr (Literal a) -> LExpr (Literal a)
 mkNeg e = mkOp (Op_arith1 litTypeRep Op1_Neg) e
 
 -- | Smart constructor for building coercions
-mkCoerce :: LitType a -> LitType b -> LExpr tag (Literal a) ->
-            LExpr tag (Literal b)
+mkCoerce :: LitType a -> LitType b -> LExpr (Literal a) ->
+            LExpr (Literal b)
 mkCoerce lit_tp_from lit_tp_to expr
   | Just Refl <- litTypeEq lit_tp_from lit_tp_to = expr
 mkCoerce lit_tp_from lit_tp_to expr =
   mkOp (Op_coerce lit_tp_from lit_tp_to) expr
 
 -- | Build a null pointer expression
-mkNullPtr :: LExpr tag Ptr
+mkNullPtr :: LExpr Ptr
 mkNullPtr = mkOp Op_null_ptr
 
 -- | Build a global variable expression
-mkGlobalVar :: Natural -> LExpr tag Ptr
+mkGlobalVar :: Natural -> LExpr Ptr
 mkGlobalVar n = mkOp (Op_global_var n)
 
 -- | Make a Boolean less-than expression over a 'Literal' type
-mkLtBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
-            LExpr tag (Literal Bool)
+mkLtBool :: LitTypeable a => LExpr (Literal a) -> LExpr (Literal a) ->
+            LExpr (Literal Bool)
 mkLtBool e1 e2 = mkOp (Op_cmp litTypeRep OpCmp_LT) e1 e2
 
 -- | Make a Boolean less-than-or-equal expression over a 'Literal' type
-mkLeBool :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
-            LExpr tag (Literal Bool)
+mkLeBool :: LitTypeable a => LExpr (Literal a) -> LExpr (Literal a) ->
+            LExpr (Literal Bool)
 mkLeBool e1 e2 = mkOp (Op_cmp litTypeRep OpCmp_LE) e1 e2
 
 -- | Make a Boolean comparison at a first-order type, raising an error if that
 -- first-order type is 'Prop'
-mkArithCmpTp :: L1Type a -> ArithCmp -> LExpr tag a -> LExpr tag a ->
-                LExpr tag (Literal Bool)
+mkArithCmpTp :: L1Type a -> ArithCmp -> LExpr a -> LExpr a ->
+                LExpr (Literal Bool)
 mkArithCmpTp (L1Type_lit lit_tp) acmp e1 e2 =
   mkOp (Op_cmp lit_tp acmp) e1 e2
 mkArithCmpTp L1Type_ptr acmp e1 e2 =
@@ -1254,94 +1180,94 @@ mkArithCmpTp L1Type_prop _ _ _ =
   error "mkArithCmpTp: arithmetic comparison of propositions!"
 
 -- | Negate a Boolean
-mkNotBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool)
+mkNotBool :: LExpr (Literal Bool) -> LExpr (Literal Bool)
 mkNotBool = mkOp (Op_arith1 LitType_bool Op1_Neg)
 
 -- | Conjoin two Booleans: represented using '*'
-mkAndBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool) ->
-             LExpr tag (Literal Bool)
+mkAndBool :: LExpr (Literal Bool) -> LExpr (Literal Bool) ->
+             LExpr (Literal Bool)
 mkAndBool = mkOp (Op_arith2 LitType_bool Op2_Mult)
 
 -- | Disjoin two Booleans: represented using '+'
-mkOrBool :: LExpr tag (Literal Bool) -> LExpr tag (Literal Bool) ->
-             LExpr tag (Literal Bool)
+mkOrBool :: LExpr (Literal Bool) -> LExpr (Literal Bool) ->
+             LExpr (Literal Bool)
 mkOrBool = mkOp (Op_arith2 LitType_bool Op2_Add)
 
 -- | Build a conditional expression
-mkCond :: L1Type a -> LExpr tag (Literal Bool) -> LExpr tag a -> LExpr tag a ->
-          LExpr tag a
+mkCond :: L1Type a -> LExpr (Literal Bool) -> LExpr a -> LExpr a ->
+          LExpr a
 mkCond l1tp@(L1Type_lit _) = mkOp (Op_cond l1tp)
 mkCond l1tp@L1Type_ptr = mkOp (Op_cond l1tp)
 mkCond l1tp@L1Type_prop = mkOp (Op_cond l1tp)
 
 
 ----------------------------------------------------------------------
--- Building proposition expressions
+-- * Building Proposition Expressions
 ----------------------------------------------------------------------
 
 -- | Get the head of an 'LExprs' list
-lexprs_head :: LExprs tag (a ': as) -> LExpr tag a
+lexprs_head :: LExprs (a ': as) -> LExpr a
 lexprs_head (LExprs_cons e _) = e
 
 -- | Get the tail of an 'LExprs' list
-lexprs_tail :: LExprs tag (a ': as) -> LExprs tag as
+lexprs_tail :: LExprs (a ': as) -> LExprs as
 lexprs_tail (LExprs_cons _ es) = es
 
 -- | Get the first and second arguments of an 'LExprs' list
-lexprs_12 :: LExprs tag (a ': b ': any) -> (LExpr tag a, LExpr tag b)
+lexprs_12 :: LExprs (a ': b ': any) -> (LExpr a, LExpr b)
 lexprs_12 es = (lexprs_head es, lexprs_head $ lexprs_tail es)
 
 -- | Check if an expression is a literal, and if so, return the literal value
-matchLiteral :: LExpr tag (Literal a) -> Maybe a
+matchLiteral :: LExpr (Literal a) -> Maybe a
 matchLiteral (LOp (Op_Literal _ x) _) = Just x
 matchLiteral _ = Nothing
 
 -- | Check if a proposition is the "true" proposition
-isTrue :: LProp tag -> Bool
+isTrue :: LProp -> Bool
 isTrue (LOp Op_true _) = True
 isTrue _ = False
 
 -- | Check if a proposition is the "false" proposition
-isFalse :: LProp tag -> Bool
+isFalse :: LProp -> Bool
 isFalse (LOp Op_false _) = True
 isFalse _ = False
 
 -- | Destructure a proposition into all of its (recursive) conjuncts
-getConjuncts :: LProp tag -> [LProp tag]
+getConjuncts :: LProp -> [LProp]
 getConjuncts (LOp Op_and (lexprs_12 -> (p1, p2))) =
   getConjuncts p1 ++ getConjuncts p2
 getConjuncts p = [p]
 
 -- | Destructure a proposition into all of its (recursive) disjuncts
-getDisjuncts :: LProp tag -> [LProp tag]
+getDisjuncts :: LProp -> [LProp]
 getDisjuncts (LOp Op_or (lexprs_12 -> (p1, p2))) =
   getDisjuncts p1 ++ getDisjuncts p2
 getDisjuncts p = [p]
 
 -- | Check if a proposition is a conjunction, and, if so, return its conjuncts.
 -- This is done recursively, so any sub-conjuncts are destructured as well.
-matchAnd :: LProp tag -> Maybe [LProp tag]
+matchAnd :: LProp -> Maybe [LProp]
 matchAnd (LOp Op_and (lexprs_12 -> (p1, p2))) =
   Just (getConjuncts p1 ++ getConjuncts p2)
 matchAnd _ = Nothing
 
 -- | Check if a proposition is a disjunction, and, if so, return its disjuncts.
 -- This is done recursively, so any sub-disjuncts are destructured as well.
-matchOr :: LProp tag -> Maybe [LProp tag]
+matchOr :: LProp -> Maybe [LProp]
 matchOr (LOp Op_or (lexprs_12 -> (p1, p2))) =
   Just (getDisjuncts p1 ++ getDisjuncts p2)
 matchOr _ = Nothing
 
 -- | The true proposition
-mkTrue :: LProp tag
+mkTrue :: LProp
 mkTrue = mkOp Op_true
 
 -- | The false proposition
-mkFalse :: LProp tag
+mkFalse :: LProp
 mkFalse = mkOp Op_false
 
 -- | Negate a proposition (FIXME: handle quantifiers)
-mkNot :: LProp tag -> LProp tag
+mkNot :: LProp -> LProp
 mkNot p | not doSimplifications = mkOp Op_not p
 mkNot p | isTrue p = mkFalse
 mkNot p | isFalse p = mkTrue
@@ -1351,7 +1277,7 @@ mkNot p = mkOp Op_not p
 
 -- | Build a right-nested conjunction, removing any "true"s and returning
 -- "false" if any conjuncts are "false"
-mkAnd :: [LProp tag] -> LProp tag
+mkAnd :: [LProp] -> LProp
 mkAnd ps | not doSimplifications = foldl' (mkOp Op_and) mkTrue ps
 mkAnd ps =
   let ps1 = concatMap getConjuncts ps
@@ -1363,7 +1289,7 @@ mkAnd ps =
 
 -- | Build a right-nested disjunction, removing any "true"s and returning
 -- "false" if any disjuncts are "false"
-mkOr :: [LProp tag] -> LProp tag
+mkOr :: [LProp] -> LProp
 mkOr ps | not doSimplifications = foldl' (mkOp Op_or) mkFalse ps
 mkOr ps =
   let ps1 = concatMap getDisjuncts ps
@@ -1375,37 +1301,49 @@ mkOr ps =
 
 -- | Build an expression stating that the given Boolean is 'True' (FIXME: make
 -- this "smart" by recognizing and, or, and not)
-mkIsTrue :: LExpr tag (Literal Bool) -> LProp tag
+mkIsTrue :: LExpr (Literal Bool) -> LProp
 mkIsTrue = mkOp Op_istrue
 
 -- | Build a less-than expression as a 'Prop'
-mkLt :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
-        LExpr tag Prop
+mkLt :: LitTypeable a => LExpr (Literal a) -> LExpr (Literal a) ->
+        LExpr Prop
 mkLt e1 e2 = mkIsTrue $ mkLtBool e1 e2
 
 -- | Build a less-than-or-equal expression as a 'Prop'
-mkLe :: LitTypeable a => LExpr tag (Literal a) -> LExpr tag (Literal a) ->
-        LExpr tag Prop
+mkLe :: LitTypeable a => LExpr (Literal a) -> LExpr (Literal a) ->
+        LExpr Prop
 mkLe e1 e2 = mkIsTrue $ mkLeBool e1 e2
 
 -- | Build a universal quantifier into an 'LProp'
-mkForall :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
-mkForall l1tp body =
+mkForall :: L1Typeable a => (LExpr a -> LProp) -> LProp
+mkForall body =
+  mkOp (Op_forall l1typeRep) $ mkLambdaTp (LType_base l1typeRep) body
+
+-- | Explicitly-typed version of 'mkForall'
+mkForallTp :: L1Type a -> (LExpr a -> LProp) -> LProp
+mkForallTp l1tp body =
   mkOp (Op_forall l1tp) $ mkLambdaTp (LType_base l1tp) body
 
 -- | Build an existential quantifier into an 'LProp'
-mkExists :: L1Type a -> (LExpr tag a -> LProp tag) -> LProp tag
-mkExists l1tp body =
+mkExists :: L1Typeable a => (LExpr a -> LProp) -> LProp
+mkExists body =
+  mkOp (Op_exists l1typeRep) $ mkLambdaTp (LType_base l1typeRep) body
+
+-- | Explicitly-typed version of 'mkExists'
+mkExistsTp :: L1Type a -> (LExpr a -> LProp) -> LProp
+mkExistsTp l1tp body =
   mkOp (Op_exists l1tp) $ mkLambdaTp (LType_base l1tp) body
 
 -- | Build a let-binding into an 'LProp'
-mkLet :: L1Type a -> LExpr tag a -> (LExpr tag a -> LProp tag) -> LProp tag
+{-
+mkLet :: L1Type a -> LExpr a -> (LExpr a -> LProp) -> LProp
 mkLet l1tp rhs body =
   mkOp (Op_let l1tp) rhs $ mkLambdaTp (LType_base l1tp) body
+-}
 
 -- | Build an equality at a first-order type which is given explicitly.  Does
 -- some simplification.
-mkEq1Tp :: L1Type a -> LExpr tag a -> LExpr tag a -> LProp tag
+mkEq1Tp :: L1Type a -> LExpr a -> LExpr a -> LProp
 mkEq1Tp l1tp e1 e2
   | not doSimplifications
   = LOp (Op_eq l1tp) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
@@ -1428,8 +1366,8 @@ mkEq1Tp l1tp e1 e2 =
   LOp (Op_eq l1tp) (LExprs_cons e1 $ LExprs_cons e2 $ LExprs_nil)
 
 -- | Build an equality at an arbitrary second-order type
-mkEqTp :: L1FunType a -> ApplyToArgs (LExpr tag) a ->
-          ApplyToArgs (LExpr tag) a -> LProp tag
+mkEqTp :: L1FunType a -> ApplyToArgs LExpr a ->
+          ApplyToArgs LExpr a -> LProp
 mkEqTp (L1FunType_base l1tp@(L1Type_lit _)) e1 e2 =
   mkEq1Tp l1tp e1 e2
 mkEqTp (L1FunType_base l1tp@L1Type_ptr) e1 e2 =
@@ -1437,114 +1375,39 @@ mkEqTp (L1FunType_base l1tp@L1Type_ptr) e1 e2 =
 mkEqTp (L1FunType_base l1tp@L1Type_prop) e1 e2 =
   mkEq1Tp l1tp e1 e2
 mkEqTp (L1FunType_cons l1tp_a tp_b) f1 f2 =
-  mkForall l1tp_a $ \x -> mkEqTp tp_b (f1 x) (f2 x)
+  mkForallTp l1tp_a $ \x -> mkEqTp tp_b (f1 x) (f2 x)
 
 -- | Build an equality at a first-order type
-mkEq1 :: L1Typeable a => LExpr tag a -> LExpr tag a -> LProp tag
+mkEq1 :: L1Typeable a => LExpr a -> LExpr a -> LProp
 mkEq1 e1 e2 = mkEq1Tp l1typeRep e1 e2
 
 -- | Build an equality for two 'Name's, short-circuiting the equality for
 -- syntactically identical names
-mkNameEq :: Proxy tag -> L1FunType a -> Name a -> Name a -> LProp tag
-mkNameEq proxy ftp n1 n2 =
+mkNameEq :: L1FunType a -> Name a -> Name a -> LProp
+mkNameEq ftp n1 n2 =
   if n1 == n2 && doSimplifications then mkTrue else
-    mkEqTp ftp (mkVarTp proxy (funType_to_type ftp) n1)
-    (mkVarTp proxy (funType_to_type ftp) n2)
+    mkEqTp ftp (mkVarAppTp (funType_to_type ftp) n1)
+    (mkVarAppTp (funType_to_type ftp) n2)
 
 
 ----------------------------------------------------------------------
--- Building predicate monad expressions
-----------------------------------------------------------------------
-
--- | Build a return expression
-mkReturnP :: LTypeable a => LExpr tag a -> LExpr tag (PM a)
-mkReturnP = mkOp (Op_returnP ltypeRep)
-
--- | Build a return expression with an explicit 'L1Type'
-mkReturnP_tp :: L1Type a -> LExpr tag a -> LExpr tag (PM a)
-mkReturnP_tp l1tp = mkOp (Op_returnP $ LType_base l1tp)
-
--- | Build a bind expression
-mkBindP :: (LTypeable a, LTypeable b) => LExpr tag (PM a) ->
-           (LExpr tag a -> LExpr tag (PM b)) -> LExpr tag (PM b)
-mkBindP m f =
-  mkOp (Op_bindP ltypeRep ltypeRep) m $
-  mkLambdaTp ltypeRep f
-
--- | Sequence together two predicate monad expressions
-mkSeqP :: LTypeable a => LExpr tag (PM (Literal ())) -> LExpr tag (PM a) ->
-          LExpr tag (PM a)
-mkSeqP pm1 pm2 = mkBindP pm1 (\_ -> pm2)
-
--- | Sequence together 0 or more predicate monad expressions
-mkSequenceP :: [LPM tag] -> LPM tag
-mkSequenceP [] = mkReturnP (mkLiteral ())
-mkSequenceP [pm] = pm
-mkSequenceP (pm : pms) = mkSeqP pm (mkSequenceP pms)
-
--- | Build an assume expression inside the predicate monad
-mkAssumeP :: LProp tag -> LPM tag
-mkAssumeP = mkOp Op_assumeP
-
--- | Build an assume of false inside the predicate monad
-mkFalseP :: LPM tag
-mkFalseP = mkOp Op_falseP
-
--- | Build an existential transition relation
-mkExistsP :: L1FunTypeable a => LExpr tag (PM a)
-mkExistsP = mkOp (Op_existsP l1funTypeRep)
-
--- | Build an existential transition relation with an explicit 'L1FunType'
-mkExistsP_ftp :: L1FunType a -> LExpr tag (PM a)
-mkExistsP_ftp ftp = mkOp (Op_existsP ftp)
-
--- | Build an existential transition relation with an explicit 'L1Type'
-mkExistsP_tp :: L1Type a -> LExpr tag (PM a)
-mkExistsP_tp l1tp = mkExistsP_ftp $ L1FunType_base l1tp
-
--- | Build a raise expression inside the predicate monad
-mkRaiseP :: (Eq (LException tag), Liftable (LException tag)) =>
-            LException tag -> LPM tag
-mkRaiseP exn = mkOp (Op_raiseP exn)
-
--- | Build a catch expression inside the predicate monad
-mkCatchP :: (Eq (LException tag), Liftable (LException tag)) =>
-            LException tag -> LPM tag -> LPM tag -> LPM tag
-mkCatchP exn = mkOp (Op_catchP exn)
-
--- | Build an orP expression inside the predicate monad
-mkOrP :: Eq (LException tag) => LPM tag -> LPM tag -> LPM tag
-mkOrP = mkOp Op_orP
-
--- | Build an assertion in the predicate monad. This builds a disjunctive
--- transition relation, which transitions to an error state (given by the
--- supplied exception) if the assertion does not hold, and otherwise performs a
--- no-op transition.
-mkAssertP :: (Eq (LException tag), Liftable (LException tag)) =>
-             LException tag -> LProp tag -> LPM tag
-mkAssertP exn prop =
-  mkOrP (mkAssumeP prop) (mkSeqP (mkAssumeP (mkNot prop)) (mkRaiseP exn))
-
-
-----------------------------------------------------------------------
--- Eliminating expressions via expression algebras
+-- * Eliminating Expressions via Expression Algebras
 ----------------------------------------------------------------------
 
 -- | Type class stating that @f@ commutes with the arrow type constructor
 class CommutesWithArrow f where
   interpApply :: f (a -> b) -> f a -> f b
-  interpLambda :: (f a -> f b) -> f (a -> b)
+  interpLambda :: LType a -> (f a -> f b) -> f (a -> b)
 
 -- | An expression @f@-algebra shows how to convert any 'Op' of type @a@ to an
 -- element of type @f a@. It also requires that @f@ commutes with arrow.
-class CommutesWithArrow f => LExprAlgebra tag (f :: * -> *) where
-  interpOp :: Op tag a -> f a
+class CommutesWithArrow f => LExprAlgebra (f :: * -> *) where
+  interpOp :: Op a -> f a
 
 -- | Interpret an 'LExpr' to another functor @f@ using an @f@-algebra
-interpExpr :: LExprAlgebra tag f =>
-              MapRList f ctx -> Mb ctx (LExpr tag a) -> f a
-interpExpr ctx [nuP| LLambda _ body |] =
-  interpLambda $ \x ->
+interpExpr :: LExprAlgebra f => MapRList f ctx -> Mb ctx (LExpr a) -> f a
+interpExpr ctx [nuP| LLambda ltp body |] =
+  interpLambda (mbLift ltp) $ \x ->
   interpExpr (ctx :>: x) (mbCombine body)
 interpExpr ctx [nuP| LVar tp_args n args |] =
   case mbNameBoundP n of
@@ -1556,16 +1419,28 @@ interpExpr ctx [nuP| LOp mb_op args |] =
   interpExprsApply ctx (interpOp op) (opTypeArgs op) args
 
 -- | Helper for 'interpExpr'
-interpExprsApply :: LExprAlgebra tag f => MapRList f ctx ->
+interpExprsApply :: LExprAlgebra f => MapRList f ctx ->
                     f a -> LTypeArgs a args ret ->
-                    Mb ctx (LExprs tag args) -> f ret
+                    Mb ctx (LExprs args) -> f ret
 interpExprsApply _ f (LTypeArgs_base _) _ = f
-interpExprsApply _ f (LTypeArgs_pm _) _ = f
 interpExprsApply ctx f (LTypeArgs_fun _ tp_args) [nuP| LExprs_cons e es |] =
   interpExprsApply ctx (interpApply f (interpExpr ctx e)) tp_args es
 
+instance CommutesWithArrow LExpr where
+  interpApply e1 e2 = substExpr (MNil :>: e2) (matchLambda e1)
+  interpLambda ltp f = mkLambdaTp ltp f
+
+-- LExpr itself forms an @f@-algebra, useful for substitution
+instance LExprAlgebra LExpr where
+  interpOp op = etaExpandLExprsFun (opType op) (LOp op)
+
+-- | Substitute into an 'LExpr'
+substExpr :: MapRList LExpr ctx -> Mb ctx (LExpr a) -> LExpr a
+substExpr = interpExpr
+
+
 ----------------------------------------------------------------------
--- Eliminating expressions via expression binding-algebras
+-- * Eliminating Expressions via Expression Binding-Algebras
 ----------------------------------------------------------------------
 
 -- | Form the type @f (ctx :> a1 :> ... :> an) b@ for @a = a1 -> ... -> an -> b@
@@ -1573,7 +1448,6 @@ type family BindingApplyF (f :: RList * -> * -> *) (ctx :: RList *) a :: *
 type instance BindingApplyF f ctx (Literal a) = f ctx (Literal a)
 type instance BindingApplyF f ctx Ptr = f ctx Ptr
 type instance BindingApplyF f ctx Prop = f ctx Prop
-type instance BindingApplyF f ctx (PM a) = f ctx (PM a)
 type instance BindingApplyF f ctx (a -> b) = BindingApplyF f (ctx ':> a) b
 
 -- | Helper for building a 'BindingApplyF' at a return type of an 'Op' or
@@ -1583,11 +1457,10 @@ mkRetBindingApplyF :: LTypeArgs a args ret -> f ctx ret -> BindingApplyF f ctx r
 mkRetBindingApplyF (LTypeArgs_base (L1Type_lit _)) x = x
 mkRetBindingApplyF (LTypeArgs_base L1Type_ptr) x = x
 mkRetBindingApplyF (LTypeArgs_base L1Type_prop) x = x
-mkRetBindingApplyF (LTypeArgs_pm _) x = x
 mkRetBindingApplyF (LTypeArgs_fun _ tp_args) x =
   mkRetBindingApplyF tp_args x
 
--- | Helper for eliminated a 'BindingApplyF' at base type. This is just the
+-- | Helper for eliminating a 'BindingApplyF' at base type. This is just the
 -- identity function, but it needs to examine the type to convince Haskell.
 elimL1BindingApplyF :: L1Type a -> BindingApplyF f ctx a -> f ctx a
 elimL1BindingApplyF (L1Type_lit _) x = x
@@ -1599,66 +1472,66 @@ newtype BindingApply f ctx a =
   BindingApply { unBindingApply :: BindingApplyF f ctx a }
 
 -- | Type-class for interpreting expressions using expression binding-algebras
-class LBindingExprAlgebra tag (f :: RList * -> * -> *) where
-  interpOpB :: Op tag a ->
+class LBindingExprAlgebra (f :: RList * -> * -> *) where
+  interpOpB :: Op a ->
                MapList (BindingApply f ctx) (ArgTypes a) ->
                f ctx (RetType a)
-  interpVarB :: Proxy tag -> LTypeArgs a args ret -> Member ctx a ->
+  interpVarB :: LTypeArgs a args ret -> Member ctx a ->
                 MapList (BindingApply f ctx) args ->
                 f ctx ret
 
 -- | Interpret an expression using a binding-algebra
-interpMbExprB :: LBindingExprAlgebra tag f => Proxy f ->
-                 Mb ctx (LExpr tag a) -> BindingApplyF f ctx a
+interpMbExprB :: LBindingExprAlgebra f => Proxy f ->
+                 Mb ctx (LExpr a) -> BindingApplyF f ctx a
 interpMbExprB proxy [nuP| LLambda _ body |] =
   interpMbExprB proxy $ mbCombine body
 interpMbExprB proxy [nuP| LOp mb_op args |] =
   let op = mbLift mb_op in
   mkRetBindingApplyF (opTypeArgs op) $
   interpOpB op $ interpMbExprsB proxy args
-interpMbExprB proxy ([nuP| LVar mb_tp_args n args |] :: Mb ctx (LExpr tag a)) =
+interpMbExprB proxy ([nuP| LVar mb_tp_args n args |] :: Mb ctx (LExpr a)) =
   let tp_args = mbLift mb_tp_args in
   case mbNameBoundP n of
     Left memb ->
       mkRetBindingApplyF tp_args $
-      interpVarB (Proxy :: Proxy tag) tp_args memb $
+      interpVarB tp_args memb $
       interpMbExprsB proxy args
     Right _ -> error "interpMbExprB: unbound name!"
 
 -- | Interpret a list of 'LExprs' using a binding-algebra
-interpMbExprsB :: LBindingExprAlgebra tag f =>
-                  Proxy f -> Mb ctx (LExprs tag args) ->
+interpMbExprsB :: LBindingExprAlgebra f =>
+                  Proxy f -> Mb ctx (LExprs args) ->
                   MapList (BindingApply f ctx) args
 interpMbExprsB _ [nuP| LExprs_nil |] = Nil
 interpMbExprsB proxy [nuP| LExprs_cons e es |] =
   Cons (BindingApply $ interpMbExprB proxy e) (interpMbExprsB proxy es)
 
 -- | Top-level function for interpreting expressions via binding-algebras
-interpExprB :: LBindingExprAlgebra tag f => Proxy f ->
-               LExpr tag a -> BindingApplyF f 'RNil a
+interpExprB :: LBindingExprAlgebra f => Proxy f ->
+               LExpr a -> BindingApplyF f 'RNil a
 interpExprB proxy e = interpMbExprB proxy $ emptyMb e
 
 
 ----------------------------------------------------------------------
--- Annotated expressions
+-- * Annotated Expressions
 ----------------------------------------------------------------------
 
 -- | The type of expressions-in-context where every subterm of type @a@ in
 -- binding context @ctx@ is annotated with a value of type @f ctx a@
-data MbAnnotExpr (f :: RList * -> * -> *) tag (ctx :: RList *) a where
-  MbAnnotExprFun :: MbAnnotExpr f tag (ctx ':> a) b ->
-                    MbAnnotExpr f tag ctx (a -> b)
-  MbAnnotExprOp :: Op tag a ->
-                   MapList (MbAnnotExpr f tag ctx) args ->
+data MbAnnotExpr (f :: RList * -> * -> *) (ctx :: RList *) a where
+  MbAnnotExprFun :: MbAnnotExpr f (ctx ':> a) b ->
+                    MbAnnotExpr f ctx (a -> b)
+  MbAnnotExprOp :: Op a ->
+                   MapList (MbAnnotExpr f ctx) args ->
                    f ctx (RetType a) ->
-                   MbAnnotExpr f tag ctx (RetType a)
+                   MbAnnotExpr f ctx (RetType a)
   MbAnnotExprVar :: LTypeArgs a args ret -> Member ctx a ->
-                    MapList (MbAnnotExpr f tag ctx) args ->
+                    MapList (MbAnnotExpr f ctx) args ->
                     f ctx ret ->
-                    MbAnnotExpr f tag ctx ret
+                    MbAnnotExpr f ctx ret
 
 -- | Extract the @f ctx a@ from an 'MbAnnotExpr'
-elimMbAnnotExpr :: MbAnnotExpr f tag ctx a -> BindingApplyF f ctx a
+elimMbAnnotExpr :: MbAnnotExpr f ctx a -> BindingApplyF f ctx a
 elimMbAnnotExpr (MbAnnotExprFun annot_expr) =
   elimMbAnnotExpr annot_expr
 elimMbAnnotExpr (MbAnnotExprOp op _ x) =
@@ -1666,54 +1539,52 @@ elimMbAnnotExpr (MbAnnotExprOp op _ x) =
 elimMbAnnotExpr (MbAnnotExprVar tp_args _ _ x) =
   mkRetBindingApplyF tp_args x
 
--- | Convert a @'BindingApplyF' ('MbAnnotExpr' f tag) ctx a@ to an
--- @'MbAnnotExpr' f tag ctx@
-mkBindingMbAnnotExpr :: LType a -> BindingApplyF (MbAnnotExpr f tag) ctx a ->
-                        MbAnnotExpr f tag ctx a
+-- | Convert a @'BindingApplyF' ('MbAnnotExpr' f ) ctx a@ to an
+-- @'MbAnnotExpr' f ctx@
+mkBindingMbAnnotExpr :: LType a -> BindingApplyF (MbAnnotExpr f) ctx a ->
+                        MbAnnotExpr f ctx a
 mkBindingMbAnnotExpr (LType_base l1tp) annot_expr =
   elimL1BindingApplyF l1tp annot_expr
-mkBindingMbAnnotExpr (LType_pm _) annot_expr = annot_expr
 mkBindingMbAnnotExpr (LType_fun _ tp2) x =
   MbAnnotExprFun $ mkBindingMbAnnotExpr tp2 x
 
--- | Convert a list of @'BindingApply' ('MbAnnotExpr' f tag) ctx a@ to a list of
--- @'MbAnnotExpr' f tag ctx@
+-- | Convert a list of @'BindingApply' ('MbAnnotExpr' f) ctx a@ to a list of
+-- @'MbAnnotExpr' f ctx@
 mkBindingMbAnnotExprs :: LTypeArgs a args ret ->
-                         MapList (BindingApply (MbAnnotExpr f tag) ctx) args ->
-                         MapList (MbAnnotExpr f tag ctx) args
+                         MapList (BindingApply (MbAnnotExpr f) ctx) args ->
+                         MapList (MbAnnotExpr f ctx) args
 mkBindingMbAnnotExprs (LTypeArgs_fun tp tp_args) (ml_first_rest ->
                                                   (BindingApply arg, args)) =
   Cons (mkBindingMbAnnotExpr tp arg) (mkBindingMbAnnotExprs tp_args args)
-mkBindingMbAnnotExprs (LTypeArgs_pm _) _ = Nil
 mkBindingMbAnnotExprs (LTypeArgs_base _) _ = Nil
 
 -- This instance lets us take any binding-algebra and use it to annotate an
 -- expression, saving all the intermediate results at each subterm
-instance LBindingExprAlgebra tag f =>
-         LBindingExprAlgebra tag (MbAnnotExpr f tag) where
+instance LBindingExprAlgebra f =>
+         LBindingExprAlgebra (MbAnnotExpr f) where
   interpOpB op binding_args =
     let tp_args = opTypeArgs op in
     let args = mkBindingMbAnnotExprs tp_args binding_args in
     MbAnnotExprOp op args $
     interpOpB op (ml_map (BindingApply . elimMbAnnotExpr) args)
-  interpVarB proxy tp_args memb binding_args =
+  interpVarB tp_args memb binding_args =
     let args = mkBindingMbAnnotExprs tp_args binding_args in
     MbAnnotExprVar tp_args memb args $
-    interpVarB proxy tp_args memb $
+    interpVarB tp_args memb $
     ml_map (BindingApply . elimMbAnnotExpr) args
 
 -- | Top-level annotation function
-annotateExpr :: (LBindingExprAlgebra tag f, LTypeable a) => Proxy f ->
-                LExpr tag a -> MbAnnotExpr f tag 'RNil a
-annotateExpr (_ :: Proxy f) (expr :: LExpr tag a) =
+annotateExpr :: (LBindingExprAlgebra f, LTypeable a) => Proxy f ->
+                LExpr a -> MbAnnotExpr f 'RNil a
+annotateExpr (_ :: Proxy f) (expr :: LExpr a) =
   mkBindingMbAnnotExpr ltypeRep $
-  interpExprB (Proxy :: Proxy (MbAnnotExpr f tag)) expr
+  interpExprB (Proxy :: Proxy (MbAnnotExpr f)) expr
 
 
 {- FIXME: Update or remove the following stuff about contextual algebras
 
 ----------------------------------------------------------------------
--- Expression interpretations that use the context
+-- * Expression Interpretations that Use the Context
 ----------------------------------------------------------------------
 
 -- | A @'CtxExt' ctx1 ctx2@ is a proof that @ctx2@ is an /extension/ of @ctx1@,
@@ -1867,15 +1738,15 @@ binding1InterpRes l1tp mk_var f =
 
 -- | A contextual expression @f@-algebra is like an expression @f@-algebra
 -- except that @f@ can depend on the current variable context
-class LCtxExprAlgebra tag (f :: RList * -> * -> *) where
-  interpOpC :: Proxy ctx -> Op tag a -> InterpRes f ctx a
+class LCtxExprAlgebra (f :: RList * -> * -> *) where
+  interpOpC :: Proxy ctx -> Op a -> InterpRes f ctx a
 
 -- | Interpret an 'LExpr' using a contextual @f@-algebra. The 'LExpr' is a
 -- closed expression in a given source context. The result is an 'InterpRes'
 -- that is relative to a given destination context.
-interpExprC :: LCtxExprAlgebra tag f =>
+interpExprC :: LCtxExprAlgebra f =>
                MapRList (InterpRes f dest_ctx) ctx ->
-               Closed (Mb ctx (LExpr tag a)) -> InterpRes f dest_ctx a
+               Closed (Mb ctx (LExpr a)) -> InterpRes f dest_ctx a
 interpExprC ctx [clNuP| LLambda _ body |] =
   lambdaInterpRes $ \ctx_ext x ->
   interpExprC (mapMapRList (extendInterpRes ctx_ext) ctx :>: x) $
@@ -1883,9 +1754,9 @@ interpExprC ctx [clNuP| LLambda _ body |] =
 interpExprC ctx [clNuP| LAppExpr e |] = interpAppExprC ctx e
 
 -- | Interpret an 'LAppExpr' to another functor @f@ using an @f@-algebra
-interpAppExprC :: LCtxExprAlgebra tag f =>
+interpAppExprC :: LCtxExprAlgebra f =>
                   MapRList (InterpRes f dest_ctx) ctx ->
-                  Closed (Mb ctx (LAppExpr tag a)) -> InterpRes f dest_ctx a
+                  Closed (Mb ctx (LAppExpr a)) -> InterpRes f dest_ctx a
 interpAppExprC ctx [clNuP| LVar _ n |] =
   case clApply $(mkClosed [| mbNameBoundP |]) n of
     [clP| Left memb |] -> hlistLookup (unClosed memb) ctx
@@ -1984,23 +1855,141 @@ buildBindInterpRes l1tp_a l1tp_b mk_var f =
 
 
 ----------------------------------------------------------------------
--- The symbolic representation of memory
+-- * A Monad for Fresh Names
 ----------------------------------------------------------------------
 
--- | The type of a function used in the 'symMemArrays' field
+-- | This type classifies how an existential name in a 'WithNames' is created
+data NameDecl a where
+  -- | An existential name with no constraints
+  NameDecl_exists :: L1FunType a -> NameDecl a
+  -- | A let-bound name, with a right-hand side
+  NameDecl_let :: L1Type a -> LExpr a -> NameDecl a
+
+-- | Get a list of formulas associated with a 'NameDecl'
+nameDeclProps :: NameDecl a -> Name a -> [LProp]
+nameDeclProps (NameDecl_exists _) _ = []
+nameDeclProps (NameDecl_let l1tp rhs :: NameDecl a) n =
+  [mkEq1Tp l1tp (mkVarExprTp (LType_base l1tp) n) rhs]
+
+-- | Apply 'nameDeclProps' to a 'NameDecl' in a name-binding
+mbNameDeclProps :: Mb ctx (NameDecl a) -> [Mb (ctx ':> a) LProp]
+mbNameDeclProps mb_decl =
+  mbList $ mbCombine $ fmap (nu . nameDeclProps) mb_decl
+
+-- | Extract the 'L1FunType' associated with a 'NameDecl'
+mbNameDeclFunType :: Mb ctx (NameDecl a) -> L1FunType a
+mbNameDeclFunType [nuP| NameDecl_exists ftp |] = mbLift ftp
+mbNameDeclFunType [nuP| NameDecl_let l1tp _ |] =
+  L1FunType_base $ mbLift l1tp
+
+-- | An object inside 0 or more some existential quantifiers at function type
+data ExFOFuns a where
+  ExFOFuns :: MapRList L1FunType ctx -> Mb ctx a -> ExFOFuns a
+
+instance Functor ExFOFuns where
+  fmap f (ExFOFuns ctx mb_a) = ExFOFuns ctx $ fmap f mb_a
+
+-- Make the NuMatching instance for ExFOFuns
+$(mkNuMatching [t| forall a. NuMatching a => ExFOFuns a |])
+
+-- | Turn a 'ExFOFuns' in a binding for first-order function types into an
+-- expanded 'ExFOFuns' that quantifies over all the combined function types
+mbExFOFuns :: NuMatching a => MapRList L1FunType ctx1 -> Mb ctx1 (ExFOFuns a) ->
+              ExFOFuns a
+mbExFOFuns ctx1 [nuP| ExFOFuns mb_ctx2 mb_mb_a |] =
+  ExFOFuns (appendMapRList ctx1 (mbLift mb_ctx2)) (mbCombine mb_mb_a)
+
+-- | Substitute into 'ExFOFuns' existential quantifier
+substExFOFuns :: MapRList LExpr ctx -> Mb ctx (ExFOFuns (LExpr a)) ->
+                 ExFOFuns (LExpr a)
+substExFOFuns exprs [nuP| ExFOFuns mb_ctx mb_mb_expr |] =
+  let ctx = mbLift mb_ctx in
+  ExFOFuns ctx $ nuMulti ctx $ \ex_names ->
+  substExpr (appendMapRList exprs
+             (mapMapRList2 (\ftp n -> mkVarFOFunTp ftp n) ctx ex_names)) $
+  mbCombine mb_mb_expr
+
+-- | A monad for computing with fresh bound names
+newtype WithNames a =
+  WithNames { unWithNames ::
+                forall res. NuMatching res => (a -> ExFOFuns res) -> ExFOFuns res }
+
+instance Functor WithNames where
+  fmap f m = m >>= return . f
+
+instance Applicative WithNames where
+  pure = return
+  (<*>) = ap
+
+instance Monad WithNames where
+  return x = WithNames $ \k -> k x
+  WithNames f >>= g = WithNames $ \k -> f $ \x -> unWithNames (g x) k
+
+instance NuMatching a => RunM WithNames a (ExFOFuns a) where
+  runM m = unWithNames m $ \x -> ExFOFuns MNil (emptyMb x)
+
+-- | Type class for monads that allow name-binding
+class Monad m => NamesMonad m where
+  nuM :: L1FunType a -> m (Name a)
+
+instance NamesMonad WithNames where
+  nuM ftp = WithNames $ \k -> mbExFOFuns (MNil :>: ftp) (nu k)
+
+instance NamesMonad m => NamesMonad (StateT s m) where
+  nuM ftp = lift $ nuM ftp
+
+instance NamesMonad m => NamesMonad (ChoiceT m) where
+  nuM ftp = lift $ nuM ftp
+
+instance NamesMonad m => NamesMonad (ExceptionT exn m) where
+  nuM ftp = lift $ nuM ftp
+
+-- | Use 'nuM' to generate multiple fresh names
+nuMultiM :: NamesMonad m => MapRList L1FunType ctx -> m (MapRList Name ctx)
+nuMultiM MNil = return MNil
+nuMultiM (ctx :>: ftp) = (:>:) <$> nuMultiM ctx <*> nuM ftp
+
+-- | Generate a fresh, existentially-bound name
+freshExName :: (NamesMonad m, L1FunTypeable a) => m (Name a)
+freshExName = nuM l1funTypeRep
+
+-- | Explicitly-typed version of 'freshExName'
+freshExNameTp :: NamesMonad m => L1FunType a -> m (Name a)
+freshExNameTp = nuM
+
+-- | Eliminate the binders in an 'ExFOFuns' existential quantifier, by
+-- generating fresh names for all the names it binds and then substituting
+elimExFOFunsM :: NamesMonad m => ExFOFuns (LExpr a) -> m (LExpr a)
+elimExFOFunsM (ExFOFuns ctx mb_expr) =
+  do ns <- nuMultiM ctx
+     return $ substExpr (mapMapRList2 mkVarFOFunTp ctx ns) mb_expr
+
+
+----------------------------------------------------------------------
+-- * The Symbolic Representation of Memory
+----------------------------------------------------------------------
+
+-- | The type of a memory array of a literal type @a@, which is represented as a
+-- function from pointers plus offsets to literal values of type @a@ stored at
+-- that offset from that pointer
 type SymMemArrayType a = Ptr -> Literal Word64 -> Literal a
 
--- | The type of a function used in the 'symMemPtrArray' field
+-- | The type of a memory array of pointers, which is represented as a relation
+-- from a pointer plus offset to the pointer stored at that offset from the
+-- former pointer
 type SymMemPtrArrayType = Ptr -> Literal Word64 -> Ptr -> Prop
 
--- | The symbolic representation of memory arrays of a given type
+-- | A 'Name' that represents a symbolic memory of arrays of a literal type @a@
+-- plus a proof that @a@ is a literal type
 data SymMemName a = SymMemName (LitType a) (Name (SymMemArrayType a))
 
+$(mkNuMatching [t| forall a. SymMemName a |])
+
 -- | The symbolic representation of a 'Memory'
-data SymMemory tag =
+data SymMemory (mm :: [*]) =
   SymMemory
   {
-    symMemArrays :: MapList SymMemName (LStorables tag),
+    symMemArrays :: MapList SymMemName mm,
     -- ^ One 'Name' for each storable type
     symMemPtrArray :: Name SymMemPtrArrayType,
     -- ^ A 'Name' for storing the 'Ptr' type
@@ -2010,41 +1999,65 @@ data SymMemory tag =
     -- ^ A 'Name' for the last-allocated pointer value
   }
 
--- | The 'LType' of a function used in the 'symMemArrays' field
+-- | Helper type for building the 'NuMatching' instance for 'SymMemory'
+data SymMemNameList as where
+  SymMemNameListNil :: SymMemNameList '[]
+  SymMemNameListCons :: SymMemName a -> SymMemNameList as ->
+                        SymMemNameList (a ': as)
+
+$(mkNuMatching [t| forall as. SymMemNameList as |])
+
+toSymMemNameList :: MapList SymMemName as -> SymMemNameList as
+toSymMemNameList Nil = SymMemNameListNil
+toSymMemNameList (Cons a as) = SymMemNameListCons a (toSymMemNameList as)
+
+fromSymMemNameList :: SymMemNameList as -> MapList SymMemName as
+fromSymMemNameList SymMemNameListNil = Nil
+fromSymMemNameList (SymMemNameListCons a as) = (Cons a (fromSymMemNameList as))
+
+-- We build a NuMatching instance for SymMemory using an isomorphism to tuples
+-- since the HobbitLib TH stuff for building them doesn't handle records yet...
+instance NuMatching (SymMemory mm) where
+  nuMatchingProof =
+    isoMbTypeRepr
+    (\SymMemory {..} ->
+      (toSymMemNameList symMemArrays, symMemPtrArray,
+       symMemLengths, symMemLastAlloc))
+    (\(fromSymMemNameList -> symMemArrays, symMemPtrArray,
+       symMemLengths, symMemLastAlloc) ->
+      SymMemory {..})
+
+-- | The 'LType' corresponding to @'SymMemArrayType' a@
 symMemArrayType :: LitType a -> LType (SymMemArrayType a)
 symMemArrayType ltp =
   LType_fun (LType_base L1Type_ptr) $
   LType_fun (LType_base $ L1Type_lit LitType_bits) $
   LType_base $ L1Type_lit ltp
 
--- | The 'L1FunType' of a function used in the 'symMemArrays' field
+-- | The 'L1FunType' corresponding to @'SymMemArrayType' a@
 symMemArrayFunType :: LitType a -> L1FunType (SymMemArrayType a)
 symMemArrayFunType ltp =
   L1FunType_cons L1Type_ptr $ L1FunType_cons (L1Type_lit LitType_bits) $
   L1FunType_base $ L1Type_lit ltp
 
 -- | Extract a typed expression for the 'symMemArrays' field of a 'SymMemory'
-symMemArrayName :: ElemPf (LStorables tag) a -> SymMemory tag ->
-                   Name (SymMemArrayType a)
-symMemArrayName elem_pf mem =
-  case ml_lookup (symMemArrays mem) elem_pf of
-    SymMemName _ n -> n
+symMemArrayName :: SymMemory mm -> ElemPf mm a -> SymMemName a
+symMemArrayName mem elem_pf = ml_lookup (symMemArrays mem) elem_pf
 
 -- | Make the proposition that two 'SymMemory's are equal
-symMemEquals :: SymMemory tag -> SymMemory tag -> LProp tag
+symMemEquals :: SymMemory mm -> SymMemory mm -> LProp
 symMemEquals mem1 mem2 =
   mkAnd $
   memArraysEqual (symMemArrays mem1) (symMemArrays mem2) ++
-  [mkNameEq Proxy l1funTypeRep (symMemPtrArray mem1) (symMemPtrArray mem2),
-   mkNameEq Proxy l1funTypeRep (symMemLengths mem1) (symMemLengths mem2),
-   mkNameEq Proxy l1funTypeRep (symMemLastAlloc mem1) (symMemLastAlloc mem2)]
+  [mkNameEq l1funTypeRep (symMemPtrArray mem1) (symMemPtrArray mem2),
+   mkNameEq l1funTypeRep (symMemLengths mem1) (symMemLengths mem2),
+   mkNameEq l1funTypeRep (symMemLastAlloc mem1) (symMemLastAlloc mem2)]
   where
-    memArraysEqual :: MapList SymMemName mm -> MapList SymMemName mm ->
-                      [LProp tag]
+    memArraysEqual :: MapList SymMemName mm -> MapList SymMemName mm -> [LProp]
     memArraysEqual Nil _ = []
     memArraysEqual (Cons (SymMemName l1tp n1) as1) (ml_first_rest ->
                                                     (SymMemName _ n2, as2)) =
-      mkNameEq Proxy (symMemArrayFunType l1tp) n1 n2 : memArraysEqual as1 as2
+      mkNameEq (symMemArrayFunType l1tp) n1 n2 : memArraysEqual as1 as2
 
 -- | A type context of all the variables needed to build a @'SymMemory' tag@
 -- when @mm = LStorables tag@
@@ -2055,20 +2068,38 @@ type instance SymMemoryCtx (a ': mm) =
   SymMemoryCtx mm ':> SymMemArrayType a
 
 -- | Construct a context of types for a 'SymMemory'
-symMemoryCtxTypes :: MemoryModel (LStorables tag) => Proxy tag ->
-                     MapRList L1FunType (SymMemoryCtx (LStorables tag))
-symMemoryCtxTypes (_ :: Proxy tag) =
-  helper (memoryLitTypes :: MapList LitType (LStorables tag))
+symMemoryCtxTypes :: MemoryModel mm =>
+                     Proxy mm -> MapRList L1FunType (SymMemoryCtx mm)
+symMemoryCtxTypes (_ :: Proxy mm) =
+  helper (memoryLitTypes :: MapList LitType mm)
   where
-    helper :: MapList LitType mm -> MapRList L1FunType (SymMemoryCtx mm)
+    helper :: MapList LitType mm' -> MapRList L1FunType (SymMemoryCtx mm')
     helper (Cons lit_tp mm) = helper mm :>: symMemArrayFunType lit_tp
     helper Nil = MNil :>: l1funTypeRep :>: l1funTypeRep :>: l1funTypeRep
 
+-- | Construct a context of free variables from a symbolic memory
+namesOfSymMemory :: SymMemory mm -> MapRList Name (SymMemoryCtx mm)
+namesOfSymMemory (SymMemory { .. }) =
+  helper symMemArrays (MNil :>: symMemPtrArray :>:
+                       symMemLengths :>: symMemLastAlloc)
+  where
+    helper :: MapList SymMemName mm' -> MapRList Name (SymMemoryCtx '[]) ->
+              MapRList Name (SymMemoryCtx mm')
+    helper (Cons (SymMemName _ n) ns) base = helper ns base :>: n
+    helper Nil base = base
+
+-- | Construct a context of expressions from the free variables in a symbolic
+-- memory returned by 'namesOfSymMemory'
+exprsOfSymMemory :: MemoryModel mm => SymMemory mm ->
+                    MapRList LExpr (SymMemoryCtx mm)
+exprsOfSymMemory (mem :: SymMemory mm) =
+  mapMapRList2 mkVarFOFunTp (symMemoryCtxTypes (Proxy :: Proxy mm))
+  (namesOfSymMemory mem)
+
 -- | Construct a symbolic memory from a context of free variables
-symMemoryOfNames :: MemoryModel (LStorables tag) => Proxy tag ->
-                    MapRList Name (SymMemoryCtx (LStorables tag)) ->
-                    SymMemory tag
-symMemoryOfNames _ names =
+symMemoryOfNames :: MemoryModel mm => MapRList Name (SymMemoryCtx mm) ->
+                    SymMemory mm
+symMemoryOfNames names =
   let (symMemArrays, symMemPtrArray,
        symMemLengths, symMemLastAlloc) = helper memoryLitTypes names
   in
@@ -2082,289 +2113,301 @@ symMemoryOfNames _ names =
       let (ns, n1, n2, n3) = helper lit_tps names' in
       (Cons (SymMemName lit_tp n) ns, n1, n2, n3)
 
--- | Build the proposition stating that @n@ is a valid name for use as a
--- 'symMemPtrArray' field in a 'SymMemory'. This means that (n ptr ix ptr')
+-- | Build the proposition stating that @vals@ is a valid name for use as a
+-- 'symMemPtrArray' field in a 'SymMemory'. This means that (vals ptr ix ptr')
 -- should only hold for at most one ptr' value, for any given ptr and ix values.
-validPtrArrayName :: Name SymMemPtrArrayType -> LProp tag
-validPtrArrayName f =
-  mkForall L1Type_ptr $ \p ->
-  mkForall (L1Type_lit LitType_bits) $ \i ->
-  mkForall L1Type_ptr $ \p1 ->
-  mkForall L1Type_ptr $ \p2 ->
-  mkOr [mkNot (mkVar Proxy f p i p1),
-        mkNot (mkVar Proxy f p i p2),
+validPtrArrayName :: Name SymMemPtrArrayType -> LProp
+validPtrArrayName vals =
+  mkForall $ \p ->
+  mkForall $ \i ->
+  mkForall $ \p1 ->
+  mkForall $ \p2 ->
+  mkOr [mkNot (mkVarApp vals p i p1),
+        mkNot (mkVarApp vals p i p2),
         mkEq1 p1 p2]
 
 -- | Construct the proposition that a 'SymMemory' is well-formed
-validSymMemoryProp :: SymMemory tag -> LProp tag
+validSymMemoryProp :: SymMemory mm -> LProp
 validSymMemoryProp mem = validPtrArrayName $ symMemPtrArray mem
 
-
-----------------------------------------------------------------------
--- A monad for fresh names
-----------------------------------------------------------------------
-
--- | This type classifies how an existential name in a 'WithNames' is created
-data NameDecl tag a where
-  -- | An existential name with no constraints
-  NameDecl_exists :: L1FunType a -> NameDecl tag a
-  -- | A let-bound name, with a right-hand side
-  NameDecl_let :: L1Type a -> LExpr tag a -> NameDecl tag a
-
--- | Get a list of formulas associated with a 'NameDecl'
-nameDeclProps :: NameDecl tag a -> Name a -> [LProp tag]
-nameDeclProps (NameDecl_exists _) _ = []
-nameDeclProps (NameDecl_let l1tp rhs :: NameDecl tag a) n =
-  [mkEq1Tp l1tp (mkVarExprTp (LType_base l1tp) n) rhs]
-
--- | Apply 'nameDeclProps' to a 'NameDecl' in a name-binding
-mbNameDeclProps :: Mb ctx (NameDecl tag a) -> [Mb (ctx ':> a) (LProp tag)]
-mbNameDeclProps mb_decl =
-  mbList $ mbCombine $ fmap (nu . nameDeclProps) mb_decl
-
--- | Extract the 'L1FunType' associated with a 'NameDecl'
-mbNameDeclFunType :: Mb ctx (NameDecl tag a) -> L1FunType a
-mbNameDeclFunType [nuP| NameDecl_exists ftp |] = mbLift ftp
-mbNameDeclFunType [nuP| NameDecl_let l1tp _ |] =
-  L1FunType_base $ mbLift l1tp
-
--- | An object inside 0 or more name-bindings that are given by 'NameDecl's
-data WithNames tag a where
-  WithNoNames :: a -> WithNames tag a
-  WithName :: NameDecl tag a -> Binding a (WithNames tag b) -> WithNames tag b
-
--- Make the NuMatching instances for NameDecl and WithNames
-$(mkNuMatching [t| forall tag a. NameDecl tag a |])
-$(mkNuMatching [t| forall tag a. NuMatching a => WithNames tag a |])
-
-instance Functor (WithNames tag) where
-  fmap f (WithNoNames a) = WithNoNames (f a)
-  fmap f (WithName decl body) = WithName decl $ fmap (fmap f) body
-
-instance Applicative (WithNames tag) where
-  pure = return
-  (<*>) = ap
-
-instance Monad (WithNames tag) where
-  return x = WithNoNames x
-  (WithNoNames x) >>= f = f x
-  (WithName decl body) >>= f =
-    WithName decl $ fmap (\x -> x >>= f) body
-
-instance RunM (WithNames tag) a (WithNames tag a) where
-  runM m = m
-
--- | Type class for monads that allow name-binding
-class Monad m => NamesMonad tag m | m -> tag where
-  nuM :: NameDecl tag a -> m (Name a)
-
-instance NamesMonad tag (WithNames tag) where
-  nuM decl = WithName decl $ nu WithNoNames
-
-instance NamesMonad tag m => NamesMonad tag (StateT s m) where
-  nuM decl = lift $ nuM decl
-
-instance NamesMonad tag m => NamesMonad tag (ChoiceT m) where
-  nuM decl = lift $ nuM decl
-
-instance NamesMonad tag m => NamesMonad tag (ExceptionT exn m) where
-  nuM decl = lift $ nuM decl
+-- | Substitute a 'SymMemory' into an expression
+substMemory :: MemoryModel mm => SymMemory mm ->
+               Mb (SymMemoryCtx mm) (LExpr a) -> LExpr a
+substMemory mem mb_expr = substExpr (exprsOfSymMemory mem) mb_expr
 
 
 ----------------------------------------------------------------------
--- Logic predicate monad
+-- * The Logic Predicate Monad
 ----------------------------------------------------------------------
 
--- | Helper container datatype for 'LException's
-newtype LExn tag = LExn { runLExn :: LException tag }
+-- | Typeclass associating type tag @arch@ with information about the
+-- architecture that it models, including the types of literal values that can
+-- be stored and the type of "exceptions" (i.e., non-local exits) it supports
+class (MemoryModel (ArchStorables arch), Eq (ArchException arch),
+       NuMatching (ArchException arch)) =>
+      Arch arch where
+  type ArchStorables arch :: [*]
+  type ArchException arch :: *
 
-instance Eq (LException tag) => Eq (LExn tag) where
-  (LExn exn1) == (LExn exn2) = exn1 == exn2
+type ArchMemory arch = SymMemory (ArchStorables arch)
+type ArchMemoryCtx arch = SymMemoryCtx (ArchStorables arch)
 
--- | Predicate monad for transition relations (FIXME: better documentation)
-type LogicPM tag =
-  ExceptionT (LExn tag)
-  (StateT (SymMemory tag, [LExpr tag Prop])
-   (ChoiceT
-    (WithNames tag)))
+-- | The type of transition relations on the architecture described by @arch@
+-- (FIXME: better documentation)
+newtype LogicPM arch a =
+  LogicPM { unLogicPM ::
+              ExceptionT (ArchException arch)
+              (StateT (ArchMemory arch, [LExpr Prop])
+               (ChoiceT
+                WithNames)) a }
+  deriving (Functor, Monad, Applicative, Alternative, MonadPlus, NamesMonad)
+
+-- The run method for LogicPM
+instance (NuMatching a, Arch arch, mem ~ ArchMemory arch,
+          exn ~ ArchException arch) =>
+         RunM (LogicPM arch) a (mem ->
+                                ExFOFuns [(Either exn a, (mem, [LProp]))]) where
+  runM (LogicPM m) =
+    \mem -> runM $ findAll $ runStateT (mem,[]) $ runExceptionT m
+
+instance exn ~ (ArchException arch) => ExceptionM (LogicPM arch) exn where
+  raise = LogicPM . raise
+
+instance exn ~ (ArchException arch) => RunExceptionM (LogicPM arch) exn where
+  try (LogicPM m) = LogicPM $ try m
 
 -- | Get the current 'SymMemory' in a 'LogicPM' computation
-getMem :: LogicPM tag (SymMemory tag)
-getMem = liftM fst get
+getMem :: LogicPM arch (ArchMemory arch)
+getMem = LogicPM (fst <$> get)
 
 -- | Set the current 'SymMemory' in a 'LogicPM' computation
-setMem :: SymMemory tag -> LogicPM tag ()
-setMem mem = sets_ (\(_,props) -> (mem,props))
+setMem :: ArchMemory arch -> LogicPM arch ()
+setMem mem = LogicPM $ sets_ (\(_,props) -> (mem,props))
 
 -- | Prune out the current execution in a 'LogicPM' computation
-falsePM :: LogicPM tag ()
-falsePM = mzero
+falsePM :: LogicPM arch ()
+falsePM = LogicPM mzero
 
--- | Assume an 'LProp' in the current 'LogicPM' computation
-assumePM :: LProp tag -> LogicPM tag ()
-assumePM prop = sets_ $ \(mem, props) -> (mem, prop:props)
+-- | Assume an 'LProp' along the current execution in a 'LogicPM' computation
+assumePM :: LProp -> LogicPM arch ()
+assumePM prop = LogicPM $ sets_ $ \(mem, props) -> (mem, prop:props)
 
--- | Assume that @n@ is a valid name for use as a 'symMemPtrArray' field in a
--- 'SymMemory'. This means that (n ptr ix ptr') should only hold for at most one
--- ptr' value, for any given ptr and ix values.
-assumePtrArrayName :: Name SymMemPtrArrayType -> LogicPM tag ()
-assumePtrArrayName f = assumePM $ validPtrArrayName f
+-- | Generate a fresh, let-bound name from a definition for it
+letBindName :: L1Typeable a => LExpr a -> LogicPM arch (Name a)
+letBindName rhs =
+  do n <- nuM $ L1FunType_base l1typeRep
+     assumePM (mkEq1 (mkVar1 n) rhs)
+     return n
 
--- | Perform a read operation in the current 'LogicPM' computation
-readPM :: ReadOp (LStorables tag) args ret -> MapList (LExpr tag) args ->
-          LogicPM tag (LExpr tag ret)
-readPM (ReadOp_array elem_pf) (ml_12 -> (ptr, ix)) =
-  do mem <- getMem
-     case ml_lookup (symMemArrays mem) elem_pf of
-       SymMemName lit_tp n ->
-         return $ mkVarTp Proxy (symMemArrayType lit_tp) n ptr ix
-readPM ReadOp_ptr_array (ml_12 -> (ptr, ix)) =
-  do mem <- getMem
-     ptr_ret_n <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType Ptr)
-     let ptr_ret = mkVar Proxy ptr_ret_n
-     assumePM $ mkVar Proxy (symMemPtrArray mem) ptr ix ptr_ret
-     return ptr_ret
-readPM ReadOp_length (ml_first -> ptr) =
-  do mem <- getMem
-     return $ mkVar Proxy (symMemLengths mem) ptr
-readPM ReadOp_last_alloc _ =
-  do mem <- getMem
-     return $ mkVar Proxy $ symMemLastAlloc mem
+-- | Generate a fresh, let-bound name from a definition for it, returning an
+-- expression for the generated name
+letBind :: L1Typeable a => LExpr a -> LogicPM arch (LExpr a)
+letBind rhs = mkVar1 <$> letBindName rhs
 
--- | Perform an update operation in the current 'LogicPM' computation
-updatePM :: UpdateOp (LStorables tag) args -> MapList (LExpr tag) args ->
-            LogicPM tag ()
-updatePM (UpdateOp_array elem_pf) (ml_123 -> (ptr, ix, v)) =
+-- | Build an assertion in the predicate monad. This builds a disjunctive
+-- transition relation, which transitions to an error state (given by the
+-- supplied exception) if the assertion does not hold, and otherwise performs a
+-- no-op transition.
+assertPM :: Arch arch => ArchException arch -> LProp -> LogicPM arch ()
+assertPM exn prop =
+  orPM (assumePM prop) (assumePM (mkNot prop) >> raisePM exn)
+
+-- | Raise an exception in a 'LogicPM' computation
+raisePM :: ArchException arch -> LogicPM arch ()
+raisePM = raise
+
+-- | Run the first computation. If it raises the given exception, then run the
+-- second computation.
+catch :: (Eq exn, RunExceptionM m exn) => exn -> m a -> m a -> m a
+catch exn m m_exn =
+  do exn_or_res <- try m
+     case exn_or_res of
+       Left exn' ->
+         if exn' == exn then m_exn else raise exn'
+       Right res -> return res
+
+-- | Catch an exception in 'LogicPM'
+catchPM :: Arch arch => ArchException arch ->
+           LogicPM arch a -> LogicPM arch a -> LogicPM arch a
+catchPM = catch
+
+
+----------------------------------------------------------------------
+-- * Memory Operations in the Predicate Monad
+----------------------------------------------------------------------
+
+-- | Read a literal from memory
+readLitPM :: Arch arch => ElemPf (ArchStorables arch) a -> LExpr Ptr ->
+             LExpr (Literal Word64) -> LogicPM arch (LExpr (Literal a))
+readLitPM elem_pf ptr ix =
   do mem <- getMem
-     -- Look up the proper name with its output type
-     let SymMemName ltp n = ml_lookup (symMemArrays mem) elem_pf
+     -- Get the variable vals associating pointers + offsets to stored values
+     let SymMemName ltp vals = symMemArrayName mem elem_pf
+     -- Return the expression (vals ptr ix)
+     return $ mkVarAppTp (symMemArrayType ltp) vals ptr ix
+
+-- | Read a pointer from memory, by generating a fresh 'Ptr' variable and
+-- assuming that it is stored at the given location in memory
+readPtrPM :: Arch arch => LExpr Ptr -> LExpr (Literal Word64) ->
+             LogicPM arch (LExpr Ptr)
+readPtrPM ptr ix =
+  do mem <- getMem
+     -- Get the variable vals associating pointers + offsets to stored values
+     let vals = symMemPtrArray mem
+     -- Make a fresh name for the returned pointer
+     res_nm <- freshExName
+     -- Assume that res_nm is stored at ptr+ix, i.e., that (vals ptr ix res_nm)
+     assumePM $ mkVarApp vals ptr ix (mkVar1 res_nm)
+     -- Return res_nm
+     return $ mkVar1 res_nm
+
+-- | Read the length associated with a memory object in memory
+readPtrLengthM :: Arch arch => LExpr Ptr ->
+                  LogicPM arch (LExpr (Literal Word64))
+readPtrLengthM ptr =
+  do lengths_nm <- symMemLengths <$> getMem
+     return $ mkVarApp lengths_nm ptr
+
+-- | Read the last allocated pointer value
+readLastAllocM :: Arch arch => LogicPM arch (LExpr Ptr)
+readLastAllocM = mkVar1 <$> symMemLastAlloc <$> getMem
+
+-- | Update a literal value in memory
+updateLitPM :: Arch arch => ElemPf (ArchStorables arch) a -> LExpr Ptr ->
+               LExpr (Literal Word64) -> LExpr (Literal a) ->
+               LogicPM arch ()
+updateLitPM elem_pf ptr ix val =
+  do mem <- getMem
+     -- Get the variable vals associating pointers + offsets to stored values
+     let SymMemName ltp vals = symMemArrayName mem elem_pf
      -- Create a fresh name for the updated memory
-     n' <- nuM $ NameDecl_exists (symMemArrayFunType ltp)
-     -- Assert that (n' ptr ix) = v
+     vals' <- freshExNameTp (symMemArrayFunType ltp)
+     -- Assume that (vals' ptr ix) = val
      assumePM $
        mkEqTp (L1FunType_base $ L1Type_lit ltp)
-       (mkVarTp Proxy (symMemArrayType ltp) n' ptr ix) v
-     -- Assert that (n' p i) = (n p i) for p != ptr or i != ix
-     assumePM $ mkForall L1Type_ptr $ \p ->
-       mkForall (L1Type_lit LitType_bits) $ \i ->
+       (mkVarAppTp (symMemArrayType ltp) vals' ptr ix) val
+     -- Assume that (vals' p i) = (vals p i) for p != ptr or i != ix
+     assumePM $ mkForall $ \p ->
+       mkForall $ \i ->
        mkOr [mkAnd [mkEq1 p ptr, mkEq1 i ix]
             ,
              mkEqTp (L1FunType_base $ L1Type_lit ltp)
-             (mkVarTp Proxy (symMemArrayType ltp) n p i)
-             (mkVarTp Proxy (symMemArrayType ltp) n' p i)]
-     -- Set mem' as the output memory
+             (mkVarAppTp (symMemArrayType ltp) vals p i)
+             (mkVarAppTp (symMemArrayType ltp) vals' p i)]
+     -- Set vals' as the output memory
      setMem $ mem { symMemArrays =
-                      ml_map1 (\_ -> SymMemName ltp n')
+                      ml_map1 (\_ -> SymMemName ltp vals')
                       (symMemArrays mem) elem_pf }
-updatePM UpdateOp_ptr_array (ml_123 -> (ptr, ix, v)) =
+
+-- | Update a pointer value in memory
+updatePtrPM :: Arch arch => ElemPf (ArchStorables arch) a -> LExpr Ptr ->
+               LExpr (Literal Word64) -> LExpr Ptr -> LogicPM arch ()
+updatePtrPM elem_pf ptr ix val =
   do mem <- getMem
-     let n = symMemPtrArray mem
+     let vals = symMemPtrArray mem
      -- Create a fresh name for the updated memory
-     n' <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType SymMemPtrArrayType)
-     -- Assert that n' is a valid set of pointer arrays
-     assumePtrArrayName n'
-     -- Assert that (n' ptr ix v) holds
-     assumePM $ mkVar Proxy n' ptr ix v
-     -- Assert that (n' p i p') = (n p i p') for p != ptr or i != ix
-     assumePM $ mkForall L1Type_ptr $ \p ->
-       mkForall (L1Type_lit LitType_bits) $ \i ->
-       mkForall L1Type_ptr $ \p' ->
-       mkOr [mkAnd [mkEq1 p ptr, mkEq1 i ix]
-            ,
-             mkEq1 (mkVar Proxy n p i p') (mkVar Proxy n' p i p')]
+     vals' <- freshExName
+     -- Assume that vals' is a valid set of pointer arrays
+     assumePM $ validPtrArrayName vals'
+     -- Assume that (vals' ptr ix val) holds
+     assumePM $ mkVarApp vals' ptr ix val
+     -- Assume that (vals' p i p') = (vals p i p') for p != ptr or i != ix
+     assumePM $ mkForall $ \p ->
+       mkForall $ \i ->
+       mkForall $ \p' ->
+       mkOr [mkAnd [mkEq1 p ptr, mkEq1 i ix],
+             mkEq1 (mkVarApp vals p i p') (mkVarApp vals' p i p')]
      -- Set mem' as the output memory
-     setMem $ mem { symMemPtrArray = n' }
-updatePM UpdateOp_ptr_copy (ml_12 -> (ptr_src, ptr_dest :: LExpr tag Ptr)) =
+     setMem $ mem { symMemPtrArray = vals' }
+
+-- | Copy the memory objects pointed to by a pointer, starting at an offset,
+-- continuing for a given length, to a destination pointer + offset. This copies
+-- all types of memory objects, including pointer values.
+copyPtrPM :: Arch arch => LExpr Ptr -> LExpr (Literal Word64) ->
+             LExpr (Literal Word64) -> LExpr Ptr -> LExpr (Literal Word64) ->
+             LogicPM arch ()
+copyPtrPM src_ptr src_ix len dest_ptr dest_ix =
   do mem <- getMem
-     let n = symMemPtrArray mem
+     let vals = symMemPtrArray mem
      -- Create a fresh name for the pointer memory
-     n' <- nuM $ NameDecl_exists (l1funTypeRep :: L1FunType SymMemPtrArrayType)
-     -- Assert that (n' ptr_dest ix p) = (n ptr_src ix p)
-     assumePM $ mkForall l1typeRep $ \ix ->
-       mkForall l1typeRep $ \p ->
-       mkEq1 (mkVar Proxy n' ptr_dest ix p) (mkVar Proxy n ptr_src ix p)
-     -- Assert that (n' p ix p') = (n p ix p') when p != ptr_dest
-     assumePM $ mkForall l1typeRep $ \p ->
-       mkForall l1typeRep $ \ix ->
-       mkForall l1typeRep $ \p' ->
-       mkOr [mkEq1 p ptr_dest,
-             mkEq1 (mkVar Proxy n' p ix p') (mkVar Proxy n p ix p')]
+     vals' <- freshExName
+     -- Assume that, forall ix < len, we have (vals' dest_ptr (dest_ix + ix) p)
+     -- = (vals src_ptr (src_ix + ix) p)
+     assumePM $ mkForall $ \ix ->
+       mkForall $ \p ->
+       mkOr [mkLe len ix,
+             mkEq1 (mkVarApp vals' dest_ptr (dest_ix + ix) p)
+             (mkVarApp vals src_ptr (src_ix + ix) p)]
+     -- Assume that (vals' p ix p') = (vals p ix p') when p != dest_ptr
+     assumePM $ mkForall $ \p ->
+       mkForall $ \ix ->
+       mkForall $ \p' ->
+       mkOr [mkEq1 p dest_ptr,
+             mkEq1 (mkVarApp vals' p ix p') (mkVarApp vals p ix p')]
      -- Use the helper to make new symbolic memories for the non-pointer types
      arrays' <- copy_helper (symMemArrays mem)
      -- Set the updated memory with the new names
-     setMem $ mem { symMemArrays = arrays', symMemPtrArray = n' }
+     setMem $ mem { symMemArrays = arrays', symMemPtrArray = vals' }
        where
          copy_helper :: MapList SymMemName mm ->
                         LogicPM tag (MapList SymMemName mm)
          copy_helper Nil = return Nil
-         copy_helper (Cons (SymMemName lit_tp n) arrays) =
+         copy_helper (Cons (SymMemName lit_tp vals) arrays) =
            do let l1tp = L1Type_lit lit_tp
-              let n_type = symMemArrayType lit_tp
+              let vals_type = symMemArrayType lit_tp
               -- Create a fresh name for the updated memory
-              n' <- nuM $ NameDecl_exists (symMemArrayFunType lit_tp)
-              -- Assert that (n' ptr_dest ix) = (n ptr_src ix)
-              assumePM $ mkForall l1typeRep $ \ix ->
-                mkEq1Tp l1tp (mkVarTp Proxy n_type n' ptr_dest ix)
-                (mkVarTp Proxy n_type n ptr_src ix)
-              -- Assert that (n' p ix) = (n p ix) when p != ptr_dest
-              assumePM $ mkForall l1typeRep $ \p ->
-                mkForall l1typeRep $ \ix ->
-                mkOr [mkEq1 p ptr_dest,
+              vals' <- freshExNameTp (symMemArrayFunType lit_tp)
+              -- Assume that, for ix < len, (vals' dest_ptr (dest_ix + ix)) =
+              -- (vals src_ptr (src_ix + ix))
+              assumePM $ mkForall $ \ix ->
+                mkOr [mkLe len ix,
+                      mkEq1Tp l1tp (mkVarAppTp vals_type vals' dest_ptr ix)
+                      (mkVarAppTp vals_type vals src_ptr ix)]
+              -- Assume that (vals' p ix) = (vals p ix) when p != dest_ptr
+              assumePM $ mkForall $ \p ->
+                mkForall $ \ix ->
+                mkOr [mkEq1 p dest_ptr,
                       mkEq1Tp l1tp
-                      (mkVarTp Proxy n_type n' p ix)
-                      (mkVarTp Proxy n_type n p ix)]
-              -- Recurse, and combine the result with n'
+                      (mkVarAppTp vals_type vals' p ix)
+                      (mkVarAppTp vals_type vals p ix)]
+              -- Recurse, and combine the result with vals'
               arrays' <- copy_helper arrays
-              return (Cons (SymMemName lit_tp n') arrays')
+              return (Cons (SymMemName lit_tp vals') arrays')
 
-updatePM UpdateOp_alloc (ml_first -> len) =
+-- | Allocate a pointer with a given length
+allocPtrM :: Arch arch => LExpr (Literal Word64) -> LogicPM arch (LExpr Ptr)
+allocPtrM len =
   do mem <- getMem
      let lengths = symMemLengths mem
      let last_alloc = symMemLastAlloc mem
      -- Define a new function for the lengths
-     lengths' <-
-       nuM $ NameDecl_exists (l1funTypeRep :: L1FunType (Ptr -> Literal Word64))
-     -- Define a new name for last_alloc
-     last_alloc' <-
-       nuM $ NameDecl_let (l1typeRep :: L1Type Ptr)
-       (mkOp Op_next_ptr $ mkVar Proxy last_alloc)
-     -- Assert that (lengths' last_alloc') = len
+     lengths' <- freshExName
+     -- Define a new name last_alloc' = (next_ptr last_alloc)
+     last_alloc' <- letBindName $ mkOp Op_next_ptr $ mkVar1 last_alloc
+     -- Assume that (lengths' last_alloc') = len
+     assumePM $ mkEq1 (mkVarApp lengths' $ mkVar1 last_alloc') len
+     -- Assume that (mem_lengths' p) = (mem_lengths p) for p != last_alloc
      assumePM $
-       mkEq1 (mkVar Proxy lengths' $ mkVar Proxy last_alloc') len
-     -- Assert that (mem_lengths' p) = (mem_lengths p) for p != last_alloc
-     assumePM $
-       mkForall L1Type_ptr $ \p ->
-       mkOr [mkEq1 p (mkVar Proxy last_alloc')
-            ,
-             mkEq1 (mkVar Proxy lengths' p) (mkVar Proxy lengths p)]
+       mkForall $ \p ->
+       mkOr [mkEq1 p (mkVar1 last_alloc'),
+             mkEq1 (mkVarApp lengths' p) (mkVarApp lengths p)]
      -- Set the output memory
      setMem $ mem { symMemLengths = lengths', symMemLastAlloc = last_alloc' }
-
--- | Raise an exception in a 'LogicPM' computation
-raisePM :: LExn tag -> LogicPM tag ()
-raisePM exn = raise exn
-
--- | Run the first computation. If it raises the given exception, then run the
--- second computation.
-catchPM :: Eq (LException tag) => LException tag ->
-           LogicPM tag () -> LogicPM tag () -> LogicPM tag ()
-catchPM exn m m_exn =
-  handle m $ \raised ->
-  if runLExn raised == exn then m_exn else raisePM raised
+     -- Return the newly-allocated pointer
+     return $ mkVar1 last_alloc'
 
 
 ----------------------------------------------------------------------
--- The orP operation in the predicate monad
+-- * Disjunction in the Predicate Monad
 ----------------------------------------------------------------------
 
 -- | Collect all the possible alternative output states of a 'LogicPM'
 -- computation, grouping them together by exception or lack thereof
-collectResultsPM :: Eq (LException tag) =>
-                    LogicPM tag () ->
-                    LogicPM tag [(Either (LExn tag) (),
-                                  [(SymMemory tag, [LProp tag])])]
-collectResultsPM pm =
-  get >>= \s ->
+groupByExnPM :: Arch arch => LogicPM arch () ->
+                LogicPM arch [(Either (ArchException arch) (),
+                               [(SymMemory (ArchStorables arch), [LProp])])]
+groupByExnPM (LogicPM pm) =
+  LogicPM $ get >>= \s ->
   liftM groupAList $
   lift $ lift $ lift $ findAll $ runStateT s $ runExceptionT pm
 
@@ -2372,19 +2415,18 @@ collectResultsPM pm =
 -- name equal to the conjunction of these propositions, returning this fresh
 -- name after first clearing the input propositions (the motiviation for this
 -- being that the caller is going to use the returned newly-let-bound prop)
-letBindInputProps :: LogicPM tag (LProp tag)
+letBindInputProps :: LogicPM arch LProp
 letBindInputProps =
-  do (mem, props) <- get
-     prop_n <- nuM $ NameDecl_let l1typeRep (mkAnd props)
-     let combined_prop = mkVar Proxy prop_n
-     set (mem, [])
-     return combined_prop
+  do (mem, props) <- LogicPM get
+     prop <- letBind (mkAnd props)
+     LogicPM $ set (mem, [])
+     return prop
 
 -- | Join a list of symbolic memories into a single symbolic memory, creating
 -- fresh names for the components that differ between the memories.
-freshMemoryFrom :: [SymMemory tag] -> LogicPM tag (SymMemory tag)
-freshMemoryFrom [] = error "freshMemoryFrom: empty list!"
-freshMemoryFrom (mem:mems) =
+combineMemories :: [ArchMemory arch] -> LogicPM arch (ArchMemory arch)
+combineMemories [] = error "combineMemories: empty list!"
+combineMemories (mem:mems) =
   foldM (\mem1 mem2 ->
           do symMemArrays <-
                combineMemArrays (symMemArrays mem1) (symMemArrays mem2)
@@ -2393,274 +2435,50 @@ freshMemoryFrom (mem:mems) =
              symMemLengths <-
                combineNames l1funTypeRep (symMemLengths mem1) (symMemLengths mem2)
              symMemLastAlloc <-
-               combineNames l1funTypeRep
-               (symMemLastAlloc mem1) (symMemLastAlloc mem2)
+               combineNames l1funTypeRep (symMemLastAlloc mem1) (symMemLastAlloc mem2)
              return $ SymMemory { symMemArrays, symMemPtrArray,
                                   symMemLengths, symMemLastAlloc }
           ) mem mems
   where
-    combineNames :: L1FunType a -> Name a -> Name a -> LogicPM tag (Name a)
+    combineNames :: L1FunType a -> Name a -> Name a -> LogicPM arch (Name a)
     combineNames ftp n1 n2 =
-      if n1 == n2 then return n1 else
-        nuM $ NameDecl_exists ftp
+      if n1 == n2 then return n1 else nuM ftp
     combineMemArrays :: MapList SymMemName mm -> MapList SymMemName mm ->
-                        LogicPM tag (MapList SymMemName mm)
+                        LogicPM arch (MapList SymMemName mm)
     combineMemArrays Nil _ = return Nil
-    combineMemArrays (Cons (SymMemName ltp n1) as1) (ml_first_rest ->
-                                                     (SymMemName _ n2, as2)) =
-      do n' <- combineNames (symMemArrayFunType ltp) n1 n2
+    combineMemArrays (Cons (SymMemName lit_tp n1) as1) (ml_first_rest ->
+                                                        (SymMemName _ n2, as2)) =
+      do n' <- combineNames (symMemArrayFunType lit_tp) n1 n2
          as' <- combineMemArrays as1 as2
-         return $ Cons (SymMemName ltp n') as'
+         return $ Cons (SymMemName lit_tp n') as'
 
 -- | FIXME: documentation
-canonicalizePM :: Eq (LException tag) => LogicPM tag () -> LogicPM tag ()
+canonicalizePM :: Arch arch => LogicPM arch () -> LogicPM arch ()
 canonicalizePM pm =
   do orig_prop <- letBindInputProps
-     res_alist <- collectResultsPM pm
+     res_alist <- groupByExnPM pm
      foldr mplus mzero $
        map (\(exn_or_unit, mems_with_props) ->
-            do mem' <- freshMemoryFrom $ map fst mems_with_props
-               set (mem',
-                    [orig_prop,
-                     mkOr $
-                     map (\(mem, props) ->
-                           mkAnd (props ++ [symMemEquals mem mem']))
-                     mems_with_props
-                    ])
+            do mem' <- combineMemories $ map fst mems_with_props
+               LogicPM $ set (mem',
+                              [orig_prop,
+                               mkOr $
+                               map (\(mem, props) ->
+                                     mkAnd (props ++ [symMemEquals mem mem']))
+                               mems_with_props
+                              ])
                case exn_or_unit of
-                 Left exn -> raise exn
+                 Left exn -> LogicPM $ raise exn
                  Right () -> return ())
        res_alist
 
 -- | Disjoin two 'LogicPM' computations
-orPM :: Eq (LException tag) => LogicPM tag () -> LogicPM tag () ->
-        LogicPM tag ()
+orPM :: Arch arch => LogicPM arch () -> LogicPM arch () -> LogicPM arch ()
 orPM pm1 pm2 = canonicalizePM $ pm1 `mplus` pm2
 
 
 ----------------------------------------------------------------------
--- Interpreting the predicate monad inside the logic
-----------------------------------------------------------------------
-
--- | An interpretation of type @a@, where first-order types are interpreted as
--- logical expressions, functional types as functions, and 'PM' types are
--- interpreted as 'LogicPM' computations
-data InterpPM tag a where
-  InterpPM_base :: L1Type a -> LExpr tag a -> InterpPM tag a
-  InterpPM_fun :: (InterpPM tag a -> InterpPM tag b) -> InterpPM tag (a -> b)
-  InterpPM_pm :: LogicPM tag (InterpPM tag a) -> InterpPM tag (PM a)
-  InterpPM_unit_pm :: LogicPM tag () -> InterpPM tag (PM (Literal ()))
-
--- | Extract an 'LExpr' from an 'InterpPM' of base type
-expr_of_interpPM :: L1Type a -> InterpPM tag a -> LExpr tag a
-expr_of_interpPM _ (InterpPM_base _ e) = e
-expr_of_interpPM l1tp (InterpPM_fun _) = no_functional_l1type l1tp
-expr_of_interpPM l1tp (InterpPM_pm _) = no_pm_l1type l1tp
-expr_of_interpPM l1tp (InterpPM_unit_pm _) = no_pm_l1type l1tp
-
--- | Extract a function from an 'InterpPM'
-apply_interpPM :: InterpPM tag (a -> b) -> InterpPM tag a -> InterpPM tag b
-apply_interpPM (InterpPM_fun f) = f
-apply_interpPM (InterpPM_base l1tp _) = no_functional_l1type l1tp
-
--- | Extract a 'LogicPM' computation from an 'InterpPM'
-pm_of_interpPM :: InterpPM tag (PM a) -> LogicPM tag (InterpPM tag a)
-pm_of_interpPM (InterpPM_base l1tp _) = no_pm_l1type l1tp
-pm_of_interpPM (InterpPM_pm m) = m
-pm_of_interpPM (InterpPM_unit_pm m) =
-  m >> return (InterpPM_base l1typeRep $ mkLiteral ())
-
--- | Extract a @'LogicPM' ()@ computation from an 'InterpPM'
-unit_pm_of_interpPM :: InterpPM tag (PM (Literal ())) -> LogicPM tag ()
-unit_pm_of_interpPM (InterpPM_base l1tp _) = no_pm_l1type l1tp
-unit_pm_of_interpPM (InterpPM_pm m) = m >>= \_ -> return ()
-unit_pm_of_interpPM (InterpPM_unit_pm m) = m
-
--- | Build an 'InterpPM' from a first-order function on 'LExprs'
-mkL1FunInterpPM :: L1FunType a ->
-                   (LExprs tag (ArgTypes a) -> LExpr tag (RetType a)) ->
-                   InterpPM tag a
-mkL1FunInterpPM (L1FunType_base l1tp@(L1Type_lit _)) f =
-  InterpPM_base l1tp $ f LExprs_nil
-mkL1FunInterpPM (L1FunType_base l1tp@L1Type_prop) f =
-  InterpPM_base l1tp $ f LExprs_nil
-mkL1FunInterpPM (L1FunType_base l1tp@L1Type_ptr) f =
-  InterpPM_base l1tp $ f LExprs_nil
-mkL1FunInterpPM (L1FunType_cons l1tp ftp) f =
-  InterpPM_fun $ \ipm ->
-  mkL1FunInterpPM ftp (\es -> f (LExprs_cons (expr_of_interpPM l1tp ipm) es))
-
--- | Build an 'InterpM' from an 'Op' with a first-order function type
-mkOpInterpPM :: L1FunType a -> Op tag a -> InterpPM tag a
-mkOpInterpPM ftp op = mkL1FunInterpPM ftp (LOp op)
-
--- | Build an 'InterpM' from a variable with a first-order function type
-mkVarInterpPM :: L1FunType a -> Name a -> InterpPM tag a
-mkVarInterpPM ftp n =
-  mkL1FunInterpPM ftp (LVar (mkLTypeArgs $ funType_to_type ftp) n)
-
--- | Build an 'InterpM' from a unary, first-order 'Op'
-mkOp1InterpPM :: L1Type a -> L1Type b -> Op tag (a -> b) ->
-                 InterpPM tag (a -> b)
-mkOp1InterpPM tp1 tp2 op =
-  mkOpInterpPM (L1FunType_cons tp1 $ L1FunType_base tp2) op
-
--- | Build an 'InterpM' from a binary, first-order 'Op'
-mkOp2InterpPM :: L1Type a -> L1Type b -> L1Type c -> Op tag (a -> b -> c) ->
-                 InterpPM tag (a -> b -> c)
-mkOp2InterpPM tp1 tp2 tp3 op =
-  mkOpInterpPM (L1FunType_cons tp1 $ L1FunType_cons tp2 $ L1FunType_base tp3) op
-
--- | Build an 'InterpM' from a trinary, first-order 'Op'
-mkOp3InterpPM :: L1Type a -> L1Type b -> L1Type c -> L1Type d ->
-                 Op tag (a -> b -> c -> d) ->
-                 InterpPM tag (a -> b -> c -> d)
-mkOp3InterpPM tp1 tp2 tp3 tp4 op =
-  mkOpInterpPM (L1FunType_cons tp1 $ L1FunType_cons tp2 $
-                L1FunType_cons tp3 $ L1FunType_base tp4) op
-
--- CommutesWithArrow instance for InterpPM
-instance CommutesWithArrow (InterpPM tag) where
-  interpApply (InterpPM_fun f) = f
-  interpApply (InterpPM_base l1tp _) = no_functional_l1type l1tp
-  interpLambda = InterpPM_fun
-
--- LExprAlgebra instance for interpreting the predicate monad
-instance LExprAlgebra tag (InterpPM tag) where
-  interpOp (Op_Literal ltp x) =
-    mkOpInterpPM (L1FunType_base $ L1Type_lit ltp) (Op_Literal ltp x)
-  interpOp op@(Op_arith1 ltp _) =
-    mkOp1InterpPM (L1Type_lit ltp) (L1Type_lit ltp) op
-  interpOp op@(Op_arith2 ltp _) =
-    mkOp2InterpPM (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit ltp) op
-  interpOp op@(Op_coerce tp_from tp_to) =
-    mkOp1InterpPM (L1Type_lit tp_from) (L1Type_lit tp_to) op
-  interpOp op@(Op_cmp ltp _) =
-    mkOp2InterpPM (L1Type_lit ltp) (L1Type_lit ltp) (L1Type_lit LitType_bool) op
-  interpOp op@(Op_cond l1tp) =
-    mkOp3InterpPM (L1Type_lit LitType_bool) l1tp l1tp l1tp op
-  interpOp op@Op_null_ptr =
-    mkOpInterpPM (L1FunType_base L1Type_ptr) op
-  interpOp op@(Op_global_var _) =
-    mkOpInterpPM (L1FunType_base L1Type_ptr) op
-  interpOp op@Op_next_ptr =
-    mkOp1InterpPM L1Type_ptr L1Type_ptr op
-  interpOp op@(Op_ptr_cmp _) =
-    mkOp2InterpPM L1Type_ptr L1Type_ptr l1typeRep op
-  interpOp op@Op_true = mkOpInterpPM l1funTypeRep op
-  interpOp op@Op_false = mkOpInterpPM l1funTypeRep op
-  interpOp op@Op_and = mkOpInterpPM l1funTypeRep op
-  interpOp op@Op_or = mkOpInterpPM l1funTypeRep op
-  interpOp op@Op_not = mkOpInterpPM l1funTypeRep op
-  interpOp op@(Op_eq l1tp) = mkOp2InterpPM l1tp l1tp l1typeRep op
-  interpOp op@Op_istrue = mkOpInterpPM l1funTypeRep op
-  interpOp (Op_forall l1tp) =
-    InterpPM_fun $ \body_ipm ->
-    InterpPM_base L1Type_prop $ mkForall l1tp $ \x ->
-    expr_of_interpPM L1Type_prop $
-    apply_interpPM body_ipm $ InterpPM_base l1tp x
-  interpOp (Op_exists l1tp) =
-    InterpPM_fun $ \body_ipm ->
-    InterpPM_base L1Type_prop $ mkExists l1tp $ \x ->
-    expr_of_interpPM L1Type_prop $
-    apply_interpPM body_ipm $ InterpPM_base l1tp x
-  interpOp (Op_let l1tp) =
-    InterpPM_fun $ \rhs_ipm ->
-    InterpPM_fun $ \body_ipm ->
-    InterpPM_base L1Type_prop $
-    mkLet l1tp (expr_of_interpPM l1tp rhs_ipm) $ \x ->
-    expr_of_interpPM L1Type_prop $
-    apply_interpPM body_ipm $ InterpPM_base l1tp x
-  interpOp (Op_returnP ltp) =
-    InterpPM_fun $ \x ->
-    InterpPM_pm $ return x
-  interpOp (Op_bindP _ _) =
-    InterpPM_fun $ \m ->
-    InterpPM_fun $ \f_ipm ->
-    InterpPM_pm $
-    do res <- pm_of_interpPM m
-       case res of
-         InterpPM_base _ (LVar (LTypeArgs_base _) _ _) ->
-           -- If res is a variable of base type, just pass it to f_ipm
-           pm_of_interpPM $ apply_interpPM f_ipm res
-         InterpPM_base l1tp e ->
-           -- If res is an expression of base type, let-bind a fresh name to its
-           -- value, to avoid duplication
-           do nm <- nuM (NameDecl_let l1tp e)
-              pm_of_interpPM (apply_interpPM f_ipm $
-                              InterpPM_base l1tp $
-                              mkVarExprTp (LType_base l1tp) nm)
-         _ ->
-           -- Otherwise, just pass res to f_ipm, cause we cannot coerce it to an
-           -- expression in general...
-           pm_of_interpPM $ apply_interpPM f_ipm res
-  interpOp (Op_readP rop@(ReadOp_array elem_pf)) =
-    InterpPM_fun $ \(InterpPM_base _ ptr) ->
-    InterpPM_fun $ \(InterpPM_base _ ix) ->
-    InterpPM_pm $
-    liftM (InterpPM_base $ L1Type_lit $ ml_lookup memoryLitTypes elem_pf) $
-    readPM rop (Cons ptr (Cons ix Nil))
-  interpOp (Op_readP rop@ReadOp_ptr_array) =
-    InterpPM_fun $ \(InterpPM_base _ ptr) ->
-    InterpPM_fun $ \(InterpPM_base _ ix) ->
-    InterpPM_pm $ liftM (InterpPM_base l1typeRep) $
-    readPM rop (Cons ptr (Cons ix Nil))
-  interpOp (Op_readP rop@ReadOp_length) =
-    InterpPM_fun $ \(InterpPM_base _ ptr) ->
-    InterpPM_pm $ liftM (InterpPM_base l1typeRep) $ readPM rop (Cons ptr Nil)
-  interpOp (Op_readP rop@ReadOp_last_alloc) =
-    InterpPM_pm $ liftM (InterpPM_base l1typeRep) $ readPM rop Nil
-  interpOp (Op_updateP uop@(UpdateOp_array _)) =
-    InterpPM_fun $ \(InterpPM_base _ ptr) ->
-    InterpPM_fun $ \(InterpPM_base _ ix) ->
-    InterpPM_fun $ \(InterpPM_base _ v) ->
-    InterpPM_unit_pm $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
-  interpOp (Op_updateP uop@UpdateOp_ptr_array) =
-    InterpPM_fun $ \(InterpPM_base _ ptr) ->
-    InterpPM_fun $ \(InterpPM_base _ ix) ->
-    InterpPM_fun $ \(InterpPM_base _ v) ->
-    InterpPM_unit_pm $ updatePM uop (Cons ptr (Cons ix (Cons v Nil)))
-  interpOp (Op_updateP uop@UpdateOp_ptr_copy) =
-    InterpPM_fun $ \(InterpPM_base _ ptr_src) ->
-    InterpPM_fun $ \(InterpPM_base _ ptr_dest) ->
-    InterpPM_unit_pm $ updatePM uop (Cons ptr_src (Cons ptr_dest Nil))
-  interpOp (Op_updateP uop@UpdateOp_alloc) =
-    InterpPM_fun $ \(InterpPM_base _ len) ->
-    InterpPM_unit_pm $ updatePM uop (Cons len Nil)
-  interpOp (Op_raiseP exn) =
-    InterpPM_unit_pm $ raisePM (LExn exn)
-  interpOp (Op_catchP exn) =
-    InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
-    InterpPM_unit_pm $
-    catchPM exn (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
-  interpOp Op_assumeP =
-    InterpPM_fun $ \(InterpPM_base _ p) -> InterpPM_unit_pm $ assumePM p
-  interpOp (Op_existsP ftp) =
-    InterpPM_pm $ do n <- nuM $ NameDecl_exists ftp
-                     return $ mkVarInterpPM ftp n
-  interpOp Op_falseP =
-    InterpPM_unit_pm $ falsePM
-  interpOp Op_orP =
-    InterpPM_fun $ \m1 -> InterpPM_fun $ \m2 ->
-    InterpPM_unit_pm $
-    orPM (unit_pm_of_interpPM m1) (unit_pm_of_interpPM m2)
-
--- | Top-level call to convert a predicate monad expression to a 'LogicPM'
-lexpr_to_logicPM :: LPM tag -> LogicPM tag ()
-lexpr_to_logicPM expr = unit_pm_of_interpPM $ interpExpr MNil (emptyMb expr)
-
--- | Top-level call to convert a predicate monad expression inside a binding to
--- a 'LogicPM' inside a binding
-mb_lexpr_to_logicPM :: MapRList L1FunType ctx -> Mb ctx (LPM tag) ->
-                       Mb ctx (LogicPM tag ())
-mb_lexpr_to_logicPM tps mb_expr =
-  nuMulti tps $ \names ->
-  unit_pm_of_interpPM $
-  interpExpr (mapMapRList2 mkVarInterpPM tps names) mb_expr
-
-
-----------------------------------------------------------------------
--- SMT solver interface
+-- * SMT Solver Interface
 ----------------------------------------------------------------------
 
 -- | Build the type lift @'[SMTValue a1, .., SMTValue an]@ from the type list
@@ -2717,7 +2535,7 @@ class SMTSolver solver where
   -- variables must have first-order function type. If the formulas are
   -- satisfiable, the result is a model of 'SMTValue's of these free variables.
   smtSolve :: solver -> MapRList L1FunType ctx ->
-              [Mb ctx (LProp tag)] ->
+              Mb ctx [LProp] ->
               IO (SMTResult (MapRList MaybeSMTValue ctx))
   -- | Get the debugging level of the solver: 0 = no debugging, 1 = print
   -- queries, higher levels = more info
@@ -2756,110 +2574,141 @@ memoryOfSMTValues (Cons def mm) (mm_values :>: vals_v) =
 
 
 ----------------------------------------------------------------------
--- Testing reachability using an SMT solver
+-- * Testing Reachability using an SMT Solver
 ----------------------------------------------------------------------
 
--- | Run a 'LogicPM' computation, starting from a given symbolic memory, to get
--- a set of formulas that must hold for that computation to terminate normally,
--- i.e., to not throw an exception. If there is no such set of formulas, we use
--- the single false formula.
-runLogicPM :: Eq (LException tag) => SymMemory tag -> LogicPM tag () ->
-              WithNames tag [LProp tag]
-runLogicPM mem pm =
-  do res_alist <-
-       liftM groupAList $ findAll $ runStateT (mem,[]) $ runExceptionT $
-       canonicalizePM pm
-     case filter (\(exn_or_unit, _) ->
-                   case exn_or_unit of
-                     Left _ -> False
-                     Right () -> True) res_alist of
-       [] -> return [mkFalse]
-       [(_, [(_, props)])] ->
-         -- NOTE: we implicitly add the assertion that mem is valid
-         return $ validSymMemoryProp mem : props
-       _ ->
-         error "runLogicPM: non-canonical computation!"
+-- | A proposition about the current state, i.e., memory. This is represented as
+-- an existential proposition inside name-bindings for the current memory.
+type StateProp mm = Mb (SymMemoryCtx mm) (ExFOFuns LProp)
 
--- | FIXME: documentation, move this
-mbExprLower1 :: Mb ctx (LExpr tag b) -> Mb (ctx ':> a) (LExpr tag b)
-mbExprLower1 mb_expr = mbCombine $ fmap (\e -> nu $ \_ -> e) mb_expr
+type ArchStateProp arch = StateProp (ArchStorables arch)
 
--- | Solve a set of formulas inside a 'WithNames'
-smtSolveWithNames :: SMTSolver solver => solver ->
-                     MapRList L1FunType ctx ->
-                     [Mb ctx (LProp tag)] ->
-                     Mb ctx (WithNames tag [LProp tag]) ->
-                     IO (SMTResult (MapRList MaybeSMTValue ctx))
-smtSolveWithNames solver ftps in_props [nuP| WithNoNames props |] =
-  smtSolve solver ftps (in_props ++ mbList props)
-smtSolveWithNames solver ftps in_props [nuP| WithName mb_decl body |] =
-  liftM (fmap (\(ctx :>: _) -> ctx)) $
-  smtSolveWithNames solver (ftps :>: mbNameDeclFunType mb_decl)
-  (mbNameDeclProps mb_decl ++ map mbExprLower1 in_props)
-  (mbCombine body)
+-- | Substitue a memory into a 'StateProp'
+substMemStateProp :: MemoryModel mm => SymMemory mm -> StateProp mm ->
+                     ExFOFuns LProp
+substMemStateProp mem state_prop =
+  substExFOFuns (exprsOfSymMemory mem) state_prop
 
--- | Solve the formulas returned by a 'LogicPM' computation inside a binding
-smtSolveLogicPM :: (SMTSolver solver, LExprTag tag) =>
-                   solver -> MapRList L1FunType ctx ->
-                   Mb ctx (LogicPM tag ()) ->
-                   IO (SMTResult (MapRList MaybeSMTValue
-                                  (SymMemoryCtx (LStorables tag) :++: ctx)))
-smtSolveLogicPM solver tps (mb_m :: Mb ctx (LogicPM tag ())) =
-  smtSolveWithNames solver
-  (appendMapRList (symMemoryCtxTypes (Proxy :: Proxy tag)) tps) [] $
-  mbCombine $ nuMulti (symMemoryCtxTypes (Proxy :: Proxy tag)) $ \names ->
-  fmap (runLogicPM (symMemoryOfNames (Proxy :: Proxy tag) names)) mb_m
+-- | Assume that a 'StateProp' holds in a 'LogicPM'
+assumeStateProp :: Arch arch => ArchStateProp arch -> LogicPM arch ()
+assumeStateProp state_prop =
+  do mem <- getMem
+     prop <- elimExFOFunsM $ substMemStateProp mem state_prop
+     assumePM prop
 
--- | Test if a non-exceptional output state is reachable via a 'LogicPM'
--- computation, and, if so, return an input memory from which that output state
--- is reachable
-reachablePM :: (SMTSolver solver, LExprTag tag) => solver ->
-               LogicPM tag () ->
-               IO (SMTResult (Memory (LStorables tag)))
-reachablePM solver (m :: LogicPM tag ()) =
-  liftM (fmap (memoryOfSMTValues memoryDefaults)) $
-  smtSolveLogicPM solver MNil $ emptyMb m
+-- | Construct the proposition that a 'LogicPM' could transition from the
+-- current state to a "success" final state (where it just returns unit instead
+-- of throwing an exception), by forming the disjunction of all propositions
+-- associated with a success exit
+succeedsPM :: Arch arch => LogicPM arch () -> ArchStateProp arch
+succeedsPM (pm :: LogicPM arch ()) =
+  let mem_tps = symMemoryCtxTypes (Proxy :: Proxy (ArchStorables arch)) in
+  nuMulti mem_tps $ \names ->
+  fmap (\final_states ->
+         mkOr $ mapMaybe (\(ex, (_, props)) ->
+                           case ex of
+                             Right () -> Just $ mkAnd props
+                             Left _ -> Nothing)
+         final_states) $
+  runM pm (symMemoryOfNames names)
 
--- | Test reachability on a 'PM' expression, returning an example initial input
--- memory from which a non-exceptional output state is reachable
-reachable :: (SMTSolver solver, LExprTag tag) => solver ->
-             LPM tag -> IO (SMTResult (Memory (LStorables tag)))
-reachable solver expr = reachablePM solver (lexpr_to_logicPM expr)
+-- | A reachability proposition, specifying a 'StateProp' that must hold for
+-- each possible exit
+type ReachProp arch = [(Either (ArchException arch) (), ArchStateProp arch)]
 
--- | Test reachability of a given exception state
-exn_reachable :: (SMTSolver solver, LExprTag tag) =>
-                 solver -> LException tag -> LPM tag ->
-                 IO (SMTResult (Memory (LStorables tag)))
-exn_reachable solver exn expr =
-  reachablePM solver $ lexpr_to_logicPM $
-  mkCatchP exn (mkBindP expr (\_ -> mkFalseP)) (mkReturnP $ mkLiteral ())
+-- | Construct a state proposition for the states from which a reachability
+-- proposition is reachable via a 'LogicPM' transition
+reachablePM :: Arch arch => LogicPM arch () -> ReachProp arch ->
+               ArchStateProp arch
+reachablePM pm reach_prop =
+  -- Construct the proposition that, if we transition via pm, then we will end
+  -- up in a final state that satisfies a proposition given by the clause in
+  -- reach_prop given by the exit (an exception or "success" exit) that pm
+  -- transitioned to
+  succeedsPM
+  (try pm >>= \ex ->
+    case lookup ex reach_prop of
+      Just state_prop -> assumeStateProp state_prop
+      Nothing -> falsePM)
 
--- | Test if a non-exceptional output state is reachable via a 'LogicPM'
--- computation inside a binding, and, if so, return an input memory from which
--- that output state is reachable and values for the bound variables
-mbReachablePM :: (SMTSolver solver, LExprTag tag) =>
-                 solver -> MapRList L1FunType ctx ->
-                 Mb ctx (LogicPM tag ()) ->
-                 IO (SMTResult (MapRList MaybeSMTValue ctx,
-                                Memory (LStorables tag)))
-mbReachablePM solver tps mb_m =
-  liftM (fmap $ \vals ->
-          let (mem_vals, var_vals) = splitMapRList Proxy tps vals in
-          (var_vals, memoryOfSMTValues memoryDefaults mem_vals)) $
-  smtSolveLogicPM solver tps mb_m
-
--- | Test reachability of a given exception state of a computation-in-binding
-mb_exn_reachable :: (SMTSolver solver, LExprTag tag) =>
-                    solver -> LException tag -> MapRList L1FunType ctx ->
-                    Mb ctx (LPM tag) ->
-                    IO (SMTResult (MapRList MaybeSMTValue ctx,
-                                   Memory (LStorables tag)))
-mb_exn_reachable solver exn tps mb_expr =
-  mbReachablePM solver tps $ mb_lexpr_to_logicPM tps $
-  fmap (\expr ->
-         mkCatchP exn
-         (mkBindP expr (\_ -> mkFalseP))
-         (mkReturnP $ mkLiteral ())) mb_expr
-
+-- | Pass the proposition generated by 'reachablePM' to an SMT solver, returning
+-- an initial 'Memory' that can transition via the given 'LogicPM' transition to
+-- a final state that satisfies the given 'ReachProp'
+smtSolvePM :: (SMTSolver solver, Arch arch) => solver ->
+              Proxy arch -> LogicPM arch () -> ReachProp arch ->
+              IO (SMTResult (Memory (ArchStorables arch)))
+smtSolvePM solver (_ :: Proxy arch) pm prop =
+  case reachablePM pm prop of
+    [nuP| ExFOFuns mb_ctx prop |] ->
+      do let proxy = Proxy :: Proxy (ArchStorables arch)
+             mem_tps = symMemoryCtxTypes proxy
+             (extra_tps, mb_prop) = (mbLift mb_ctx, mbCombine prop)
+         res <-
+           smtSolve solver (appendMapRList mem_tps extra_tps) $
+           fmap (: []) mb_prop
+         return $ fmap (memoryOfSMTValues memoryDefaults
+                        . fst . splitMapRList Proxy extra_tps) res
 
 -- FIXME HERE: also include an 'LProp' in the output
+
+
+----------------------------------------------------------------------
+-- * Programs
+----------------------------------------------------------------------
+
+newtype BlockLabel = BlockLabel { getBlockLabel :: Int }
+
+-- | The type of structured programs
+data Program arch
+  = BasicBlock !BlockLabel (LogicPM arch ())
+    -- ^ A basic block, which is just a single transition
+  | SeqBlock !BlockLabel !(Program arch) !(Program arch)
+    -- ^ A block that sequences two sub-programs
+  | OrBlock !BlockLabel !(Program arch) !(Program arch)
+    -- ^ A disjunctive block, that can execute either sub-program
+  | CatchBlock !BlockLabel !(ArchException arch) !(Program arch) !(Program arch)
+    -- ^ A block that executes the first sub-program and then, if and only if
+    -- that program threw the given exception, the second sub-program
+  | LoopBlock !BlockLabel !(Program arch)
+    -- ^ A loop block, that can execute the sub-program 0 or more times
+
+-- | A monad for building 'Program's, using a fresh name counter
+newtype PgmBuilder a = PgmBuilder { unPgmBuilder :: StateT BlockLabel Id a }
+                     deriving (Functor, Monad, Applicative)
+
+instance RunM (StateT BlockLabel Id) a r => RunM PgmBuilder a r where
+  runM = runM . unPgmBuilder
+
+-- | Generate a fresh 'BlockLabel' in the 'PgmBuilder' monad
+freshLabel :: PgmBuilder BlockLabel
+freshLabel = PgmBuilder $ do
+  label@(BlockLabel i) <- get
+  set $ BlockLabel $ i+1
+  return label
+
+-- | Generate a 'Program' from a transition
+mkBasicBlock :: LogicPM arch () -> PgmBuilder (Program arch)
+mkBasicBlock pm = BasicBlock <$> freshLabel <*> return pm
+
+-- | Sequence two 'Program's
+mkSeqBlock :: Program arch -> Program arch -> PgmBuilder (Program arch)
+mkSeqBlock (BasicBlock _ pm1) (BasicBlock _ pm2) = mkBasicBlock (pm1 >> pm2)
+mkSeqBlock pgm1 pgm2 = SeqBlock <$> freshLabel <*> return pgm1 <*> return pgm2
+
+-- | Disjoin two 'Program's
+mkOrBlock :: Arch arch => Program arch -> Program arch ->
+             PgmBuilder (Program arch)
+mkOrBlock (BasicBlock _ pm1) (BasicBlock _ pm2) = mkBasicBlock (orPM pm1 pm2)
+mkOrBlock pgm1 pgm2 = OrBlock <$> freshLabel <*> return pgm1 <*> return pgm2
+
+-- | Make a catch 'Program'
+mkCatchBlock :: Arch arch => ArchException arch -> Program arch ->
+                Program arch -> PgmBuilder (Program arch)
+mkCatchBlock exn (BasicBlock _ pm1) (BasicBlock _ pm2) =
+  mkBasicBlock $ catchPM exn pm1 pm2
+mkCatchBlock exn pgm1 pgm2 =
+  CatchBlock <$> freshLabel <*> return exn <*> return pgm1 <*> return pgm2
+
+-- | Make a loop 'Program'
+mkLoopBlock :: Program arch -> PgmBuilder (Program arch)
+mkLoopBlock pgm = LoopBlock <$> freshLabel <*> return pgm
