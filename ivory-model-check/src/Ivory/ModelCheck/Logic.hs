@@ -2592,6 +2592,11 @@ statePropOfMb :: Proxy mm -> MapRList L1FunType extras ->
 statePropOfMb _ extra_tps mb_prop =
   fmap (ExFOFuns extra_tps) $ mbSeparate extra_tps mb_prop
 
+trueStateProp :: MemoryModel mm => Proxy mm -> StateProp mm
+trueStateProp proxy =
+  nuMulti (symMemoryCtxTypes proxy) $ \_ ->
+  ExFOFuns MNil $ emptyMb mkTrue
+
 -- | Substitue a memory into a 'StateProp'
 substMemStateProp :: MemoryModel mm => SymMemory mm -> StateProp mm ->
                      ExFOFuns LProp
@@ -2765,11 +2770,10 @@ mkLoopBlock pgm = LoopBlock <$> freshLabel <*> return pgm
 -- stuck, return the label of the earliest state that we could reach, along with
 -- its state proposition
 overReachablePgm :: Arch arch => Program arch -> ReachProp arch ->
-                    IO (Either (BlockLabel, ReachProp arch)
-                        (ArchStateProp arch))
-overReachablePgm pgm p = runExceptionT $ helper Proxy pgm p where
+                    IO (ArchStateProp arch)
+overReachablePgm pgm p = helper Proxy pgm p where
   helper :: Arch arch => Proxy arch -> Program arch -> ReachProp arch ->
-            ExceptionT (BlockLabel, ReachProp arch) IO (ArchStateProp arch)
+            IO (ArchStateProp arch)
   helper _ (BasicBlock _ pm) prop = return $ reachablePM pm prop
   helper proxy (SeqBlock _ pgm1 pgm2) prop =
     do state_prop1 <- helper proxy pgm2 prop
@@ -2780,6 +2784,7 @@ overReachablePgm pgm p = runExceptionT $ helper Proxy pgm p where
   helper proxy (CatchBlock _ exn pgm1 pgm2) prop =
     do state_prop1 <- helper proxy pgm2 prop
        helper proxy pgm1 $ updateReachProp proxy (Left exn) state_prop1 prop
-  helper _ (LoopBlock label _pgm) prop =
-    lift (putStrLn "FIXME HERE NOW: PDR not yet implemented!") >>
-    raise (label, prop)
+  helper (_ :: Proxy arch) (LoopBlock label _pgm) prop =
+    -- Return the weakest over-approximation, the true proposition
+    putStrLn "FIXME HERE NOW: PDR not yet implemented!" >>
+    return (trueStateProp (Proxy :: Proxy (ArchStorables arch)))
