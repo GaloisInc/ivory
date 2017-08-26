@@ -659,6 +659,9 @@ defaultMemory =
 
 -- FIXME HERE: remove ReadOp and UpdateOp types!
 
+-- FIXME HERE: Remove finite functions, build an evaluator, and change Memories
+-- so that they use values (i.e., LExpr functions for the arrays)
+
 -- | The read operations for 'Memory's
 data ReadOp mm args ret where
   -- | Read the nth element of an array whose type is in @mm@
@@ -2999,6 +3002,13 @@ underReachablePgm solver pgm rprop = runM (helper solver Proxy pgm rprop) where
         max_iters <- UnderM ask
         go max_iters sprop)
 
+
+----------------------------------------------------------------------
+-- * Top-level reachability interface
+----------------------------------------------------------------------
+
+-- FIXME HERE: store the over-approximations with the BlockLabels and use that
+-- information in the under-approximation code
 
 -- | Test if a program can reach a set of "bad" states given by a reachability
 -- proposition. If so, return an initial 'Memory' that leads to a bad state, and
