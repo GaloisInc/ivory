@@ -1966,6 +1966,56 @@ elimExFOFunsM (ExFOFuns ctx mb_expr) =
 
 
 ----------------------------------------------------------------------
+-- * A monad for backtracking search with informative failures
+----------------------------------------------------------------------
+
+-- | The backtracking monad transformer with an informative failure type
+newtype BackT fail (m :: * -> *) a =
+  BackT { unBackT ::
+            forall r. (a -> (fail -> m r) -> m r) -> (fail -> m r) -> m r }
+
+instance Functor (BackT fail m) where
+  fmap f m = m >>= return . f
+
+instance Applicative (BackT fail m) where
+  pure = return
+  (<*>) = ap
+
+instance Monad (BackT fail m) where
+  return x = BackT $ \ks kf -> ks x kf
+  (BackT m) >>= f =
+    BackT $ \ks kf -> m (\a kf' -> unBackT (f a) ks kf') kf
+
+instance MonadT (BackT fail) where
+  lift m = BackT $ \ks kf -> m >>= \a -> ks a kf
+
+instance ExceptionM (BackT fail m) fail where
+  raise exn = BackT $ \_ kf -> kf exn
+
+instance Monad m => RunExceptionM (BackT fail m) fail where
+  try (BackT m) = lift $ m (\a _ -> return $ Right a) (return . Left)
+
+-- Running a BackT computation yields either a success or a failure
+instance RunM m (Either fail a) r => RunM (BackT fail m) a r where
+  runM (BackT m) = runM $ m (\a _ -> return $ Right a) (return . Left)
+
+-- | A typeclass for monads that support disjunction; i.e., they have an 'mplus'
+-- but instead of 'mzero' they might have 'raise' (which is different from
+-- 'mzero' because it takes an exception value)
+class Monad m => MonadDisj m where
+  mdisj :: m a -> m a -> m a
+
+instance MonadDisj (BackT fail m) where
+  mdisj (BackT m1) (BackT m2) =
+    BackT $ \ks kf -> m1 ks (\_ -> m2 ks kf)
+
+instance MonadDisj m => MonadDisj (ReaderT r m) where
+  mdisj m1 m2 =
+    do r <- ask
+       lift $ mdisj (runReaderT r m1) (runReaderT r m2)
+
+
+----------------------------------------------------------------------
 -- * The Symbolic Representation of Memory
 ----------------------------------------------------------------------
 
@@ -2579,6 +2629,9 @@ memoryOfSMTValues (Cons def mm) (mm_values :>: vals_v) =
 -- * Testing Reachability using an SMT Solver
 ----------------------------------------------------------------------
 
+-- FIXME HERE: make ArchStateProp a newtype, rename it to just StateProp, and
+-- get rid of all the damned proxies!
+
 -- | A proposition about the current state, i.e., memory. This is represented as
 -- an existential proposition inside name-bindings for the current memory.
 type StateProp mm = Mb (SymMemoryCtx mm) (ExFOFuns LProp)
@@ -2592,10 +2645,16 @@ statePropOfMb :: Proxy mm -> MapRList L1FunType extras ->
 statePropOfMb _ extra_tps mb_prop =
   fmap (ExFOFuns extra_tps) $ mbSeparate extra_tps mb_prop
 
-trueStateProp :: MemoryModel mm => Proxy mm -> StateProp mm
-trueStateProp proxy =
-  nuMulti (symMemoryCtxTypes proxy) $ \_ ->
-  ExFOFuns MNil $ emptyMb mkTrue
+statePropOfProp :: Arch arch => Proxy arch -> LProp -> ArchStateProp arch
+statePropOfProp (_ :: Proxy arch) prop =
+  nuMulti (symMemoryCtxTypes (Proxy :: Proxy (ArchStorables arch))) $ \_ ->
+  ExFOFuns MNil $ emptyMb prop
+
+trueStateProp :: Arch arch => Proxy arch -> ArchStateProp arch
+trueStateProp proxy = statePropOfProp proxy mkTrue
+
+falseStateProp :: Arch arch => Proxy arch -> ArchStateProp arch
+falseStateProp proxy = statePropOfProp proxy mkFalse
 
 -- | Substitue a memory into a 'StateProp'
 substMemStateProp :: MemoryModel mm => SymMemory mm -> StateProp mm ->
@@ -2603,18 +2662,34 @@ substMemStateProp :: MemoryModel mm => SymMemory mm -> StateProp mm ->
 substMemStateProp mem state_prop =
   substExFOFuns (exprsOfSymMemory mem) state_prop
 
--- | Construct the disjunction of two state propositions
-disjoinStateProps :: Proxy mm -> StateProp mm -> StateProp mm ->
-                     StateProp mm
-disjoinStateProps _ sprop1 sprop2 =
+-- | Map a binary function over the propositions in two 'StateProp's
+statePropMap2 :: Proxy mm -> (LProp -> LProp -> LProp) ->
+                 StateProp mm -> StateProp mm -> StateProp mm
+statePropMap2 _ f sprop1 sprop2 =
   flip nuMultiWithElim (MNil :>: sprop1 :>: sprop2) $ \_ exfos ->
   case exfos of
     (_ :>: Identity (ExFOFuns ctx1 mb_p1) :>: Identity (ExFOFuns ctx2 mb_p2)) ->
       ExFOFuns (appendMapRList ctx1 ctx2) $ mbCombine $
       flip nuMultiWithElim1 mb_p1 $ \_ p1 ->
       flip nuMultiWithElim1 mb_p2 $ \_ p2 ->
-      mkOr [p1, p2]
-    _ -> error "disjoinStateProps: unreachable!"
+      f p1 p2
+    _ -> error "statePropMap2: unreachable!"
+
+-- | Construct the conjunction of two state propositions
+archStatePropAnd :: Proxy arch -> ArchStateProp arch ->
+                   ArchStateProp arch -> ArchStateProp arch
+archStatePropAnd (_ :: Proxy arch) =
+  statePropMap2 (Proxy :: Proxy (ArchStorables arch)) (\p1 p2 -> mkAnd [p1, p2])
+
+-- | Construct the disjunction of two state propositions
+archStatePropOr :: Proxy arch -> ArchStateProp arch ->
+                   ArchStateProp arch -> ArchStateProp arch
+archStatePropOr (_ :: Proxy arch) =
+  statePropMap2 (Proxy :: Proxy (ArchStorables arch)) (\p1 p2 -> mkOr [p1, p2])
+
+-- | Negate a state proposition
+archStatePropNot :: Proxy arch -> ArchStateProp arch -> ArchStateProp arch
+archStatePropNot _ = fmap (fmap mkNot)
 
 -- | Assume that a 'StateProp' holds in a 'LogicPM'
 assumeStateProp :: Arch arch => ArchStateProp arch -> LogicPM arch ()
@@ -2645,6 +2720,10 @@ type Exit arch = Either (ArchException arch) ()
 -- | A reachability proposition, specifying a 'StateProp' that must hold for
 -- each possible exit
 type ReachProp arch = [(Exit arch, ArchStateProp arch)]
+
+-- | The reachability proposition stating that a given exit is reachable
+exitReachProp :: Arch arch => Proxy arch -> Exit arch -> ReachProp arch
+exitReachProp proxy ex = [(ex, trueStateProp proxy)]
 
 -- | Set the state proposition for a given exit in a reachability proposition
 updateReachProp :: Arch arch => Proxy arch -> Exit arch -> ArchStateProp arch ->
@@ -2764,14 +2843,17 @@ mkCatchBlock exn pgm1 pgm2 =
 mkLoopBlock :: Program arch -> PgmBuilder (Program arch)
 mkLoopBlock pgm = LoopBlock <$> freshLabel <*> return pgm
 
+
+----------------------------------------------------------------------
+-- * PDR and generating over-approximations
+----------------------------------------------------------------------
+
 -- | Generate a state proposition that over-approximates the set of input states
 -- such that the given 'Program' could transition to a state that satisfies the
--- given reachability proposition. If this could not be done because we got
--- stuck, return the label of the earliest state that we could reach, along with
--- its state proposition
-overReachablePgm :: Arch arch => Program arch -> ReachProp arch ->
-                    IO (ArchStateProp arch)
-overReachablePgm pgm p = helper Proxy pgm p where
+-- given reachability proposition
+overReachablePgm :: (SMTSolver solver, Arch arch) => solver ->
+                    Program arch -> ReachProp arch -> IO (ArchStateProp arch)
+overReachablePgm _solver pgm p = helper Proxy pgm p where
   helper :: Arch arch => Proxy arch -> Program arch -> ReachProp arch ->
             IO (ArchStateProp arch)
   helper _ (BasicBlock _ pm) prop = return $ reachablePM pm prop
@@ -2779,12 +2861,171 @@ overReachablePgm pgm p = helper Proxy pgm p where
     do state_prop1 <- helper proxy pgm2 prop
        helper proxy pgm1 $ updateReachProp proxy (Right ()) state_prop1 prop
   helper (proxy :: Proxy arch) (OrBlock _ pgm1 pgm2) prop =
-    disjoinStateProps (Proxy :: Proxy (ArchStorables arch)) <$>
+    archStatePropOr proxy <$>
     helper proxy pgm1 prop <*> helper proxy pgm2 prop
   helper proxy (CatchBlock _ exn pgm1 pgm2) prop =
     do state_prop1 <- helper proxy pgm2 prop
        helper proxy pgm1 $ updateReachProp proxy (Left exn) state_prop1 prop
-  helper (_ :: Proxy arch) (LoopBlock label _pgm) prop =
+  helper proxy (LoopBlock label _pgm) prop =
     -- Return the weakest over-approximation, the true proposition
     putStrLn "FIXME HERE NOW: PDR not yet implemented!" >>
-    return (trueStateProp (Proxy :: Proxy (ArchStorables arch)))
+    return (trueStateProp proxy)
+
+
+----------------------------------------------------------------------
+-- * Generating under-approximations
+----------------------------------------------------------------------
+
+type UnderFail arch = (BlockLabel, ArchStateProp arch)
+
+-- | The result type for under-approximation with respect to an architecture,
+-- which is either a state proposition for the beginning of a program or a label
+-- in the code
+type UnderRes arch = Either (UnderFail arch) (ArchStateProp arch)
+
+-- | The monad for computing under-approximations of state propositions. Each
+-- computation is relative to an "expansion level" (the reader transformer), and
+-- performs backtracking search (the backtracking transformer)
+newtype UnderM arch a =
+  UnderM { unUnderM :: ReaderT Int (BackT (UnderFail arch) IO) a }
+  deriving (Functor, Applicative, Monad, MonadDisj)
+
+instance (a ~ ArchStateProp arch, res ~ UnderRes arch) =>
+         RunM (UnderM arch) a (Int -> IO res) where
+  runM m i = runM (unUnderM m) i
+
+instance BaseM (UnderM arch) IO where
+  inBase = UnderM . lift . lift
+
+instance exn ~ UnderFail arch => ExceptionM (UnderM arch) exn where
+  raise = UnderM . raise
+
+-- | Generate a stream of under-approximations from the satisfiable cores of a
+-- state prop, where we generate the next sat core by negating the previous ones
+--
+-- FIXME: exclude the negated formulas from the Sat cores
+satCoreStream :: (SMTSolver solver, Arch arch) =>
+                 solver -> Proxy arch -> BlockLabel -> ArchStateProp arch ->
+                 UnderM arch (ArchStateProp arch)
+satCoreStream solver proxy label start_sprop =
+  do res1 <- inBase $ smtSolveStateProp solver proxy start_sprop
+     case res1 of
+       SMT_sat (_, sat_core1) ->
+         -- There is at least one Sat core, so start generating sat cores
+         helper solver proxy start_sprop sat_core1
+       SMT_unsat ->
+         -- There is no Sat core for this label, so raise an error
+         raise (label, start_sprop)
+       SMT_unknown str -> error $ "SMT error:" ++ str
+       where
+         -- The helper takes in a state prop and a Sat core of that state prop,
+         -- and it returns first the Sat core and then, if there are any more
+         -- possible Sat cores (formed by conjoining the negation of the current
+         -- Sat core with the initial state prop) it recurses
+         helper :: (SMTSolver solver, Arch arch) =>
+                   solver -> Proxy arch -> ArchStateProp arch ->
+                   ArchStateProp arch -> UnderM arch (ArchStateProp arch)
+         helper solver proxy sprop sat_core =
+           do let next_sprop =
+                    archStatePropAnd proxy sprop (archStatePropNot proxy sat_core)
+              res <- inBase $ smtSolveStateProp solver proxy next_sprop
+              case res of
+                SMT_sat (_, next_sat_core) ->
+                  -- There is at least one more Sat core, so keep going
+                  return sat_core
+                  `mdisj` helper solver proxy next_sprop next_sat_core
+                SMT_unsat ->
+                  -- We are at our last Sat core, so just return it
+                  return sat_core
+                SMT_unknown str -> error $ "SMT error:" ++ str
+
+-- | Perform backtracking search to try to find a satisfiable
+-- under-approximation of the set of input states such that the given 'Program'
+-- could transition to a state that satisfies the given reachability
+-- proposition. If this could not be done because we got stuck, return the label
+-- of the earliest state that we could reach, along with its under-approximation
+underReachablePgm :: (SMTSolver solver, Arch arch) =>
+                     solver -> Program arch -> ReachProp arch ->
+                     Int -> IO (UnderRes arch)
+underReachablePgm solver pgm rprop = runM (helper solver Proxy pgm rprop) where
+
+  helper :: (SMTSolver solver, Arch arch) =>
+            solver -> Proxy arch -> Program arch -> ReachProp arch ->
+            UnderM arch (ArchStateProp arch)
+  helper solver proxy (BasicBlock label pm) rprop =
+    satCoreStream solver proxy label $ reachablePM pm rprop
+  helper solver proxy (SeqBlock _ pgm1 pgm2) rprop =
+    -- Either pgm1 reaches an initial state of pgm2 that leads to rprop, OR pgm1
+    -- reaches a non-success exit
+    --
+    -- FIXME HERE: need a fair interleaving here
+    (do sprop1 <- helper solver proxy pgm2 rprop
+        helper solver proxy pgm1 [(Right (), sprop1)])
+    `mdisj`
+    helper solver proxy pgm1 (updateReachProp proxy (Right ())
+                              (falseStateProp proxy) rprop)
+  helper solver proxy (OrBlock _ pgm1 pgm2) rprop =
+    -- Either pgm1 or pgm2 reaches rprop
+    --
+    -- FIXME HERE: need a fair interleaving here
+    helper solver proxy pgm1 rprop
+    `mdisj`
+    helper solver proxy pgm2 rprop
+  helper solver proxy (CatchBlock _ exn pgm1 pgm2) rprop =
+    -- Either pgm1 reaches an exit other than exn in rprop, or it reaches an
+    -- initial state of pgm2 which then leads to rprop
+    --
+    -- FIXME HERE: need a fair interleaving here
+    helper solver proxy pgm1 (updateReachProp proxy (Left exn)
+                              (falseStateProp proxy) rprop)
+    `mdisj`
+    (do sprop1 <- helper solver proxy pgm2 rprop
+        helper solver proxy pgm1 [(Left exn, sprop1)])
+  helper solver proxy (LoopBlock label pgm) rprop =
+    -- Either the loop transitions 0 times, or it transitions 0 or more times
+    -- successfully (without any exceptions) to a state from which it
+    -- transitions one more time to rprop. NOTE: this does *not* need fair
+    -- interleaving.
+    let go 0 sprop = return sprop
+        go n sprop =
+          return sprop
+          `mdisj`
+          helper solver proxy pgm [(Right (), sprop)] >>= go (n-1) in
+    return (case lookup (Right ()) rprop of
+               Just sprop -> sprop
+               Nothing -> falseStateProp proxy)
+    `mdisj`
+    (do sprop <- helper solver proxy pgm rprop
+        max_iters <- UnderM ask
+        go max_iters sprop)
+
+
+-- | Test if a program can reach a set of "bad" states given by a reachability
+-- proposition. If so, return an initial 'Memory' that leads to a bad state, and
+-- if not, return 'Nothing'. If we do not know, return the earliest point in a
+-- program that we could show leads to bad state.
+reachablePgm :: (SMTSolver solver, Arch arch) => Int -> solver ->
+                Program arch -> ReachProp arch ->
+                IO (Maybe (Either (UnderFail arch)
+                           (Memory (ArchStorables arch))))
+reachablePgm iters solver (pgm :: Program arch) rprop =
+  do let proxy = Proxy :: Proxy arch
+     over_sprop <- overReachablePgm solver pgm rprop
+     over_smt_res <- smtSolveStateProp solver proxy over_sprop
+     case over_smt_res of
+       SMT_unsat ->
+         -- The over-approximation is unsatisfiable, so the bad states are
+         -- unreachable!
+         return Nothing
+       SMT_unknown str -> error $ "SMT error:" ++ str
+       SMT_sat _ ->
+         runM (underReachablePgm solver pgm rprop iters) >>= \under_res ->
+         case under_res of
+           Right under_sprop ->
+             do under_smt_res <- smtSolveStateProp solver proxy under_sprop
+                case under_smt_res of
+                  SMT_sat (init_mem, _) -> return $ Just $ Right init_mem
+                  SMT_unknown str -> error $ "SMT error:" ++ str
+                  _ ->
+                    error "underReachablePgm returned an unsatisfiable formula!"
+           Left under_fail -> return $ Just $ Left under_fail
