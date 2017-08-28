@@ -306,8 +306,8 @@ litTypeEq LitType_bits _ = Nothing
 -- * The First-Order Types
 ----------------------------------------------------------------------
 
--- | A GADT for the /first-order types/ in our logic, which are the types that
--- are not function types or transition relations.
+-- | A GADT for the /first-order/ types in our logic, which are the types in our
+-- logic that are not function types
 data L1Type a where
   L1Type_lit :: LitType a -> L1Type (Literal a)
   -- ^ The type @'Literal' a@ is a first-order type when @a@ is a literal type
@@ -1860,30 +1860,6 @@ buildBindInterpRes l1tp_a l1tp_b mk_var f =
 ----------------------------------------------------------------------
 -- * A Monad for Fresh Names
 ----------------------------------------------------------------------
-
--- | This type classifies how an existential name in a 'WithNames' is created
-data NameDecl a where
-  -- | An existential name with no constraints
-  NameDecl_exists :: L1FunType a -> NameDecl a
-  -- | A let-bound name, with a right-hand side
-  NameDecl_let :: L1Type a -> LExpr a -> NameDecl a
-
--- | Get a list of formulas associated with a 'NameDecl'
-nameDeclProps :: NameDecl a -> Name a -> [LProp]
-nameDeclProps (NameDecl_exists _) _ = []
-nameDeclProps (NameDecl_let l1tp rhs :: NameDecl a) n =
-  [mkEq1Tp l1tp (mkVarExprTp (LType_base l1tp) n) rhs]
-
--- | Apply 'nameDeclProps' to a 'NameDecl' in a name-binding
-mbNameDeclProps :: Mb ctx (NameDecl a) -> [Mb (ctx ':> a) LProp]
-mbNameDeclProps mb_decl =
-  mbList $ mbCombine $ fmap (nu . nameDeclProps) mb_decl
-
--- | Extract the 'L1FunType' associated with a 'NameDecl'
-mbNameDeclFunType :: Mb ctx (NameDecl a) -> L1FunType a
-mbNameDeclFunType [nuP| NameDecl_exists ftp |] = mbLift ftp
-mbNameDeclFunType [nuP| NameDecl_let l1tp _ |] =
-  L1FunType_base $ mbLift l1tp
 
 -- | An object inside 0 or more some existential quantifiers at function type
 data ExFOFuns a where
