@@ -182,11 +182,11 @@ instance TwosComplementCast Uint64 Sint64
 -- the two values (x & 0xFF, x >> 8), with the first value safely
 -- casted to an 8-bit integer.
 --
--- This is convenient to use with a state monad and "sets", such as:
+-- This is convenient to use with a state monad and 'Control.Monad.State.state', such as:
 --
--- > fst $ runState x $ do
--- >   a <- sets extractByte
--- >   b <- sets extractByte
+-- > evalState x $ do
+-- >   a <- state extractByte
+-- >   b <- state extractByte
 -- >   return (a, b)
 extractByte :: (BitCast a Uint8) => a -> (Uint8, a)
 extractByte x = (bitCast x, x `iShiftR` 8)
