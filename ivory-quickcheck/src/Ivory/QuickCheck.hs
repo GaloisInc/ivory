@@ -72,7 +72,7 @@ checkWith :: Int                  -- ^ The number of inputs to generate.
           -> Opts                 -- ^ Options to pass to the Ivory compiler.
           -> [Module]             -- ^ Modules we need to have in scope.
           -> Module               -- ^ The defining module.
-          -> Def (args ':-> IBool) -- ^ The property to check.
+          -> Def (args :-> IBool) -- ^ The property to check.
           -> IO ()
 checkWith n opts deps m prop@(DefProc p) = do
   inputs <- sampleProc m p n
@@ -95,14 +95,14 @@ checkWith _ _ _ _ _ = error "I can only check normal Ivory procs!"
 check :: Int                  -- ^ The number of inputs to generate.
       -> [Module]             -- ^ Modules we need to have in scope.
       -> Module               -- ^ The defining module.
-      -> Def (args ':-> IBool) -- ^ The property to check.
+      -> Def (args :-> IBool) -- ^ The property to check.
       -> IO ()
 check n deps m p = checkWith n (initialOpts { outDir = Just "test"}) deps m p
 
 -- | Make a @check@able property from an arbitrary Ivory procedure. The
 -- property will simply check that the contracts are satisfied.
-contract :: Def (args ':-> res) -> Def (args ':-> IBool)
-contract (DefProc (I.Proc {..}))
+contract :: Def (args :-> res) -> Def (args :-> IBool)
+contract (DefProc I.Proc{..})
   = DefProc I.Proc
       { I.procSym = procSym ++ "__contract_check"
       , I.procRetTy = I.TyBool
@@ -123,7 +123,7 @@ mkUnique = do
   return i
 
 sampleProc :: Module -> I.Proc -> Int -> IO [I.Block]
-sampleProc m@(I.Module {..}) p@(I.Proc {..}) n
+sampleProc m@I.Module{..} p@I.Proc{..} n
   = do c <- newIORef 0
        let ?counter = c
        allInits <- fmap transpose $ forM procArgs $ \ (I.Typed t _) ->
@@ -160,7 +160,7 @@ getVisible xs = I.public xs ++ I.private xs
 
 mkCheck :: (?counter :: IORef Integer)
         => I.Proc -> [I.Var] -> IO I.Block
-mkCheck (I.Proc {..}) args = do
+mkCheck I.Proc{..} args = do
   n <- mkUnique
   let b = mkVar n
   let c = [ I.Call I.TyBool (Just b) (I.NameSym procSym)
@@ -275,7 +275,7 @@ sampleDouble = do
 
 sampleStruct :: (?counter :: IORef Integer)
              => I.Module -> String -> IO [(I.Var, I.Block)]
-sampleStruct m@(I.Module {..}) ty
+sampleStruct m@I.Module{..} ty
   = case find (\s -> ty == I.structName s) structs of
     Just (I.Struct _ fields) -> repeatIO $ do
       (vars, blcks) <- fmap unzip $ forM fields $ \ (I.Typed t _) ->

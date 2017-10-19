@@ -50,7 +50,7 @@ heartbeatWrapper = wrapPackRep "mavlink_heartbeat" $ packStruct
   , packLabel mavlink_version
   ]
 
-packUnpack :: Def ('[Ref s1 ('Struct "heartbeat_msg")] ':-> ())
+packUnpack :: Def ('[Ref s1 ('Struct "heartbeat_msg")] :-> ())
 packUnpack = proc "heartbeat_pack_unpack" $ \ msg -> body $ do
   let rep = wrappedPackRep heartbeatWrapper
   buf <- local (iarray [] :: Init ('Array 9 ('Stored Uint8)))

@@ -19,7 +19,7 @@ struct foo
 |]
 
 
-test :: Def ('[] ':-> Uint8)
+test :: Def ('[] :-> Uint8)
 test  = proc "sizeof_test" (body (ret (sizeOf (Proxy :: Proxy ('Struct "foo")))))
 
 cmodule :: Module

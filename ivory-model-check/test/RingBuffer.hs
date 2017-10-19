@@ -77,7 +77,7 @@ ringBuffer s = RingBuffer
     r <- deref remove'
     return (i ==? r)
 
-  push_proc :: Def('[ConstRef s a] ':-> IBool)
+  push_proc :: Def('[ConstRef s a] :-> IBool)
   push_proc = proc (named "push") $ \v ->
    -- requires/ensures in terms of hidden state?
    body $ do
@@ -88,7 +88,7 @@ ringBuffer s = RingBuffer
       incr insert' >>= store insert'
       ret true
 
-  pop_proc :: Def('[Ref s a] ':-> IBool)
+  pop_proc :: Def('[Ref s a] :-> IBool)
   pop_proc = proc (named "pop") $ \v -> body $ do
     e <- isEmpty'
     ifte_ e (ret false) $ do
@@ -126,7 +126,7 @@ isEmpty i r = i' ==? r'
   i' = fromIx i
   r' = fromIx r
 
-push_pop_inv :: Def('[ConstRef s ('Stored Uint8), ConstRef s ('Stored Uint8)] ':-> ())
+push_pop_inv :: Def('[ConstRef s ('Stored Uint8), ConstRef s ('Stored Uint8)] :-> ())
 push_pop_inv = proc "push_pop_inv" $ \x y ->
   -- assume buffer is empty to start
   requires (checkStored insert (\i -> checkStored remove (\r ->
