@@ -8,10 +8,10 @@ import Ivory.Language
 
 -- | Infix structure field access and dereference.
 -- This is a shorthand for 'deref $ s~>x'.
-(~>*) :: (IvoryVar a, IvoryStruct sym, IvoryRef ref, IvoryStore a,
-          IvoryExpr (ref s ('Stored a)),
-          IvoryExpr (ref s ('Struct sym))) =>
-            ref s ('Struct sym) -> Label sym ('Stored a) -> Ivory eff a
+(~>*) :: (IvoryVar a, IvoryStruct sym, IvoryStore a, KnownConstancy c)
+      => Pointer 'Valid c s ('Struct sym)
+      -> Label sym ('Stored a)
+      -> Ivory eff a
 struct ~>* label = deref (struct~>label)
 infixl 8 ~>*
 
@@ -36,4 +36,3 @@ ref %=! mf = do
 (+=) :: (Num a, IvoryStore a) =>
         Ref s ('Stored a) -> a -> Ivory eff ()
 ref += x = ref %= (+ x)
-

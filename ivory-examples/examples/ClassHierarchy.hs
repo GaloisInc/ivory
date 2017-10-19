@@ -37,12 +37,10 @@ struct StanagBaseMsg2
 --
 -- XXX This is boilerplate that might be generated...
 class (IvoryStruct sym) => ExtendBase sym where
-  getBase :: forall ref s
-           . ( IvoryExpr (ref s ('Struct sym))
-             , IvoryExpr (ref s ('Struct "StanagBase"))
-             , IvoryRef ref
-             )
-         => ref s ('Struct sym) -> ref s ('Struct "StanagBase")
+  getBase :: forall c s
+           . (KnownConstancy c)
+          => Pointer 'Valid c s ('Struct sym)
+          -> Pointer 'Valid c s ('Struct "StanagBase")
 
 -- For the parent, it's just a noop (identity).
 instance ExtendBase "StanagBase" where

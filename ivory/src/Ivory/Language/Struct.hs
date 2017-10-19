@@ -9,8 +9,8 @@
 module Ivory.Language.Struct where
 
 import Ivory.Language.Area
+import Ivory.Language.Pointer
 import Ivory.Language.Proxy
-import Ivory.Language.Ref
 import Ivory.Language.Type(IvoryExpr(..), IvoryVar(..))
 import qualified Ivory.Language.Syntax as I
 
@@ -36,10 +36,11 @@ instance Eq (Label (sym :: Symbol) (field :: Area *)) where
   l0 == l1 = getLabel l0 == getLabel l1
 
 -- | Label indexing in a structure.
-(~>) :: forall ref s sym field.
-        ( IvoryStruct sym, IvoryRef ref
-        , IvoryExpr (ref s ('Struct sym)), IvoryExpr (ref s field) )
-     => ref s ('Struct sym) -> Label sym field -> ref s field
+(~>) :: forall c s sym field.
+        (IvoryStruct sym, KnownConstancy c, IvoryArea field)
+     => Pointer 'Valid c s ('Struct sym)
+     -> Label sym field
+     -> Pointer 'Valid c s field
 s ~> l = wrapExpr (I.ExpLabel ty (unwrapExpr s) (getLabel l))
   where
   ty = ivoryArea (Proxy :: Proxy ('Struct sym))

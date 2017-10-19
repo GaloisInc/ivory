@@ -29,21 +29,16 @@ into a b = store b =<< deref a
 -- is fully copied, the @to@ array is full, or index @end@ in the @from@ array
 -- is reached (index @end@ is not copied).  to copy the full @from@ array, let
 -- @end@ equal 'arrayLen from'.
-arrayCopy ::
-           ( ANat n, ANat m, IvoryRef r
-           , IvoryExpr (r s2 ('Array m ('Stored t)))
-           , IvoryExpr (r s2 ('Stored t))
-           , IvoryStore t
-           )
+arrayCopy :: (ANat n, ANat m, IvoryStore t, KnownConstancy c)
         => Ref s1 ('Array n ('Stored t))
-        -> r s2 ('Array m ('Stored t))
+        -> Pointer 'Valid c s2 ('Array m ('Stored t))
         -> Sint32
         -> Sint32
         -> Ivory eff ()
 arrayCopy to from toOffset end = do
   assert (toOffset >=? 0 .&& toOffset <? toLen)
   assert (end      >=? 0 .&& end     <=? frLen)
-  arrayMap $ go
+  arrayMap go
   where
   -- The index is w.r.t. the from array.
   go ix =

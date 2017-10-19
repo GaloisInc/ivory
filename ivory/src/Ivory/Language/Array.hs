@@ -17,6 +17,7 @@ module Ivory.Language.Array (
 
 import Ivory.Language.IBool
 import Ivory.Language.Area
+import Ivory.Language.Pointer
 import Ivory.Language.Proxy
 import Ivory.Language.Ref
 import Ivory.Language.Sint
@@ -124,16 +125,15 @@ rawIxVal n = case unwrapExpr n of
 
 -- Arrays ----------------------------------------------------------------------
 
-arrayLen :: forall s len area n ref.
-            (Num n, ANat len, IvoryArea area, IvoryRef ref)
-         => ref s ('Array len area) -> n
+arrayLen :: forall s len area n c.
+            (Num n, ANat len, IvoryArea area)
+         => Pointer 'Valid c s ('Array len area) -> n
 arrayLen _ = fromInteger (fromTypeNat (aNat :: NatType len))
 
 -- | Array indexing.
-(!) :: forall s len area ref.
-       ( ANat len, IvoryArea area, IvoryRef ref
-       , IvoryExpr (ref s ('Array len area)), IvoryExpr (ref s area))
-    => ref s ('Array len area) -> Ix len -> ref s area
+(!) :: forall s len area c.
+       (ANat len, IvoryArea area, KnownConstancy c)
+    => Pointer 'Valid c s ('Array len area) -> Ix len -> Pointer 'Valid c s area
 arr ! ix = wrapExpr (I.ExpIndex ty (unwrapExpr arr) ixRep (getIx ix))
   where
   ty    = ivoryArea (Proxy :: Proxy ('Array len area))
