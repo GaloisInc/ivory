@@ -349,14 +349,15 @@ function takes two arguments, the name for the function in the outputted code,
 and a function that describes its behavior.  For example, the body of the
 function symbol `f` defined below is typed separately from the definition, to
 illustrate the connection between the body definition and the signature.  Note
-that the return type of the `f_body` function is specified as the `r` parameter
-to the `Ivory` monad type, and that the monadic return type is set as `()`.
+that the return type of the `f_body` function is specified via the `eff` parameter
+to the `Ivory` monad type and the `GetReturn eff ~ Returns Uint32` constraint,
+and that the monadic return type is set as `()`.
 
 ```haskell
 f :: Def ('[Uint32] :-> Uint32)
 f  = proc "f" f_body
 
-f_body :: (eff `Returns` Uint32) => Uint32 -> Ivory eff ()
+f_body :: (GetReturn eff ~ Returns Uint32) => Uint32 -> Ivory eff ()
 f_body val = ret val
 ```
 
@@ -366,13 +367,13 @@ In order to return a value from a function body, either the `ret` or `retVoid`
 functions must be used.  The two functions have the following type:
 
 ```haskell
-ret     :: (eff `Returns` r) => r -> Ivory eff ()
-retVoid :: Ivory () ()
+ret     :: (GetReturn eff ~ Returns r)  => r -> Ivory eff ()
+retVoid :: (GetReturn eff ~ Returns ()) => Ivory eff ()
 ```
 
-Note that these two functions are the only way to affect the `r` parameter of
+Note that these two functions are the only way to set the `Returns` value of the `eff` parameter of
 the `Ivory` monad.  The purpose of this is that if multiple uses of `ret` are
-present in a function body, having them fix this `r` type will cause them to all
+present in a function body, having them fix this `eff` type will cause them to all
 have the same type.  As an example, consider this fragment, which will cause a
 type error:
 
