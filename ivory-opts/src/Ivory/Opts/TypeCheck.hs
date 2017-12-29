@@ -110,8 +110,10 @@ showWarning w =
                 -> "Array contains unused initializers."
            )
 
--- Boolean says whether to show warnings (True) or not.
-showTyChkModule :: Bool -> ModResult Result -> IO ()
+showTyChkModule
+  :: Bool -- ^ show warnings
+  -> ModResult Result
+  -> Doc
 showTyChkModule b res = showModErrs go res
   where
   go :: Result -> Doc

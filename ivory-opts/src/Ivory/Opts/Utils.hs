@@ -13,8 +13,6 @@ import           Ivory.Language.Syntax.Concrete.Location
 import           Ivory.Language.Syntax.Concrete.Pretty   (pretty, prettyPrint)
 import qualified Ivory.Language.Syntax.Type              as I
 
-import           System.IO                               (hPutStrLn, stderr)
-
 --------------------------------------------------------------------------------
 
 -- | Type of the expression's arguments.
@@ -40,16 +38,13 @@ data ModResult a = ModResult String [SymResult a]
   deriving (Show, Read, Eq)
 
 -- Show the errors for a module.
-showModErrs :: Show a => (a -> Doc) -> ModResult a -> IO ()
+showModErrs :: Show a => (a -> Doc) -> ModResult a -> Doc
 showModErrs doc (ModResult m errs) =
   case errs of
-    [] -> return ()
+    [] -> empty
     _  ->
-         hPutStrLn stderr
-       $ render
-       $ text "***" <+> text "Module" <+> text m <> colon
+         text "***" <+> text "Module" <+> text m <> colon
       $$ nest 2 (vcat (map (showSymErrs doc) errs))
-      $$ empty
 
 -- Show the errors for a symbol (area or procedure).
 showSymErrs :: (a -> Doc) -> SymResult a -> Doc
@@ -59,7 +54,6 @@ showSymErrs doc (SymResult sym errs) =
     _  ->
          text "***" <+> text "Symbol" <+> text sym <> colon
       $$ nest 2 (vcat (map doc errs))
-      $$ empty
 
 showWithLoc :: (a -> Doc) -> Located a -> Doc
 showWithLoc sh (Located loc a) =
