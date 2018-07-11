@@ -10,6 +10,7 @@ module Ivory.Language.Init where
 
 import           Prelude                ()
 import           Prelude.Compat
+import           Data.Semigroup         (Semigroup(..))
 
 import           Ivory.Language.Area
 import           Ivory.Language.Array
@@ -200,9 +201,12 @@ newtype InitStruct (sym :: Symbol) = InitStruct
 
 -- Much like the C initializers, the furthest right field initializer will take
 -- precidence, and fields not mentioned will be left as zero.
+instance IvoryStruct sym => Semigroup (InitStruct sym) where
+  l <> r = InitStruct (getInitStruct l <> getInitStruct r)
+
 instance IvoryStruct sym => Monoid (InitStruct sym) where
-  mempty      = InitStruct []
-  mappend l r = InitStruct (mappend (getInitStruct l) (getInitStruct r))
+  mempty  = InitStruct []
+  mappend = (<>)
 
 istruct :: forall sym. IvoryStruct sym => [InitStruct sym] -> Init ('Struct sym)
 istruct is = Init (IStruct ty fields)

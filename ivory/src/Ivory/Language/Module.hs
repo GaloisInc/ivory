@@ -9,6 +9,7 @@ import           Prelude                ()
 import           Prelude.Compat
 
 import           Data.List              (nub)
+import           Data.Semigroup         (Semigroup(..))
 
 import           Ivory.Language.Area    (IvoryArea)
 import           Ivory.Language.MemArea (ConstMemArea (..), MemArea (..))
@@ -43,10 +44,14 @@ instance WriterM ModuleM I.Module where
 
 type ModuleDef = ModuleM ()
 
+instance Semigroup (ModuleM ()) where
+  (<>) = (>>)
+  {-# INLINE (<>) #-}
+
 instance Monoid (ModuleM ()) where
   mempty  = return ()
-  mappend = (>>)
   {-# INLINE mempty #-}
+  mappend = (<>)
   {-# INLINE mappend #-}
 
 -- | Add an element to the public/private list, depending on visibility

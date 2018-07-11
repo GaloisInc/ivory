@@ -18,7 +18,7 @@ import Control.Monad (mplus)
 import Data.Function (on)
 import Data.List (foldl')
 import Data.Maybe (maybeToList)
-import Data.Monoid.Compat ((<>))
+import Data.Semigroup (Semigroup(..))
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Pretty
@@ -123,13 +123,15 @@ instance HasLocation SrcLoc where
   {-# INLINE stripLoc #-}
   stripLoc _ = NoLoc
 
+instance Semigroup SrcLoc where
+  -- widen source ranges, and prefer source names from the left
+  SrcLoc lr ls <> SrcLoc rr rs = SrcLoc (lr <> rr) (mplus ls rs)
+  NoLoc        <> r              = r
+  l            <> NoLoc          = l
+
 instance Monoid SrcLoc where
   mempty = NoLoc
-
-  -- widen source ranges, and prefer source names from the left
-  mappend (SrcLoc lr ls) (SrcLoc rr rs) = SrcLoc (mappend lr rr) (mplus ls rs)
-  mappend NoLoc          r              = r
-  mappend l              NoLoc          = l
+  mappend = (<>)
 
 -- | Get info to build a line pragma from a 'SrcLoc'. Returns a value only if
 -- there is a valid range. Returns the starting line number.
@@ -165,11 +167,13 @@ data Range = Range
   , rangeEnd   :: !Position
   } deriving (Show,Read,Eq,Ord)
 
+instance Semigroup Range where
+  -- widen the range
+  Range ls le <> Range rs re = Range (smallerOf ls rs) (largerOf le re)
+
 instance Monoid Range where
   mempty = Range zeroPosition zeroPosition
-
-  -- widen the range
-  mappend (Range ls le) (Range rs re) = Range (smallerOf ls rs) (largerOf le re)
+  mappend = (<>)
 
 instance Pretty Range where
   pretty (Range st end) =

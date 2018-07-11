@@ -36,7 +36,9 @@ import           MonadLib                                (Id, StateM (..),
                                                           WriterT, runId,
                                                           runStateT, runWriterT,
                                                           sets_)
-import           Text.PrettyPrint
+
+import           Data.Monoid.Compat                      ((<>))
+import           Text.PrettyPrint                        hiding ((<>))
 
 import qualified Ivory.Language.Array                    as I
 import qualified Ivory.Language.Syntax.AST               as I
@@ -178,8 +180,7 @@ showDupDefs dups =
   if null dups then return ()
     else hPutStrLn stderr $ render (vcat (map docDups dups) $$ empty)
   where
-  docDups x = text "*** WARNING"
-           <> colon
+  docDups x = (text "*** WARNING" <> colon)
           <+> quotes (text x)
           <+> text "has multiple definitions."
 

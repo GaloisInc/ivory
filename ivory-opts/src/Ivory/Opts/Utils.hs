@@ -6,7 +6,8 @@ module Ivory.Opts.Utils
 
 where
 
-import           Text.PrettyPrint
+import           Data.Monoid.Compat                      ((<>))
+import           Text.PrettyPrint                        hiding ((<>))
 
 import qualified Ivory.Language.Syntax.AST               as I
 import           Ivory.Language.Syntax.Concrete.Location
@@ -47,7 +48,7 @@ showModErrs doc (ModResult m errs) =
     _  ->
          hPutStrLn stderr
        $ render
-       $ text "***" <+> text "Module" <+> text m <> colon
+       $ text "***" <+> text "Module" <+> (text m <> colon)
       $$ nest 2 (vcat (map (showSymErrs doc) errs))
       $$ empty
 
@@ -57,7 +58,7 @@ showSymErrs doc (SymResult sym errs) =
   case errs of
     [] -> empty
     _  ->
-         text "***" <+> text "Symbol" <+> text sym <> colon
+         text "***" <+> text "Symbol" <+> (text sym <> colon)
       $$ nest 2 (vcat (map doc errs))
       $$ empty
 
@@ -65,4 +66,4 @@ showWithLoc :: (a -> Doc) -> Located a -> Doc
 showWithLoc sh (Located loc a) =
   case loc of
     NoLoc -> sh a
-    _     -> text (prettyPrint (pretty loc)) <> colon <+> sh a
+    _     -> text (prettyPrint (pretty loc)) <> (colon <+> sh a)

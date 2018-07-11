@@ -39,7 +39,7 @@ module Ivory.ModelCheck.Monad
 
 import Prelude ()
 import Prelude.Compat hiding (exp)
-import Data.Monoid.Compat
+import Data.Semigroup (Semigroup(..))
 
 import           Control.Monad (unless,forM_)
 import           Data.List (stripPrefix)
@@ -375,14 +375,25 @@ instance ReaderM ModelCheck SymOpts where
 askOpts :: ModelCheck SymOpts
 askOpts = ask
 
+instance Semigroup Queries where
+  Queries a0 e0 <> Queries a1 e1 =
+    Queries { assertQueries = a0 ++ a1
+            , ensureQueries = e0 ++ e1
+            }
+
 instance Monoid Queries where
   mempty = Queries { assertQueries = []
                    , ensureQueries = []
                    }
-  (Queries a0 e0) `mappend` (Queries a1 e1) =
-    Queries { assertQueries = a0 ++ a1
-            , ensureQueries = e0 ++ e1
-            }
+  mappend = (<>)
+
+instance Semigroup ProgramSt where
+  ProgramSt t0 d0 e0 _ <> ProgramSt t1 d1 e1 _ =
+    ProgramSt { types  = t0 <> t1
+              , decls  = d0 ++ d1
+              , invars = e0 ++ e1
+              , srcloc = NoLoc    -- XXX: should be able to do better than this..
+              }
 
 instance Monoid ProgramSt where
   mempty = ProgramSt { types  = mempty
@@ -390,12 +401,7 @@ instance Monoid ProgramSt where
                      , invars = []
                      , srcloc = NoLoc
                      }
-  (ProgramSt t0 d0 e0 _) `mappend` (ProgramSt t1 d1 e1 _) =
-    ProgramSt { types  = t0 <> t1
-              , decls  = d0 ++ d1
-              , invars = e0 ++ e1
-              , srcloc = NoLoc    -- XXX: should be able to do better than this..
-              }
+  mappend = (<>)
 
 --------------------------------------------------------------------------------
 -- Contracts for overflow assertions
@@ -500,8 +506,8 @@ mkMul t = (nm, pc)
   v1 = I.VarName "var1"
 
   sqrtMax :: I.Expr
-  sqrtMax = fromInteger . floor . (sqrt :: Double -> Double) . fromInteger 
-          $ case t of 
+  sqrtMax = fromInteger . floor . (sqrt :: Double -> Double) . fromInteger
+          $ case t of
               I.TyInt I.Int8    -> toInteger (maxBound :: Int8)
               I.TyInt I.Int16   -> toInteger (maxBound :: Int16)
               I.TyInt I.Int32   -> toInteger (maxBound :: Int32)

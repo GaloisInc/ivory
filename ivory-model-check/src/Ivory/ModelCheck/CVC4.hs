@@ -8,7 +8,7 @@ module Ivory.ModelCheck.CVC4 where
 
 import Prelude ()
 import Prelude.Compat hiding (exp)
-import Data.Monoid.Compat
+import Data.Monoid.Compat ((<>))
 
 import qualified Data.ByteString.Char8 as B
 import           Data.Int
