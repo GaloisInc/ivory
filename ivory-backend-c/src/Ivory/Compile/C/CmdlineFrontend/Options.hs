@@ -2,6 +2,7 @@ module Ivory.Compile.C.CmdlineFrontend.Options where
 
 import           Prelude               ()
 import           Prelude.Compat
+import           Data.Semigroup        (Semigroup(..))
 
 import           System.Console.GetOpt (ArgDescr (..), ArgOrder (Permute),
                                         OptDescr (..), getOpt, usageInfo)
@@ -13,10 +14,13 @@ import           System.Exit           (exitFailure, exitSuccess)
 
 data OptParser opt = OptParser [String] (opt -> opt)
 
+instance Semigroup (OptParser opt) where
+  -- left-to-right composition makes the last option parsed take precedence
+  OptParser as f <> OptParser bs g = OptParser (as ++ bs) (f . g)
+
 instance Monoid (OptParser opt) where
   mempty = OptParser [] id
-  -- left-to-right composition makes the last option parsed take precedence
-  OptParser as f `mappend` OptParser bs g = OptParser (as ++ bs) (f . g)
+  mappend = (<>)
 
 -- | Option parser succeeded, use this function to transform the default
 -- options.

@@ -8,6 +8,7 @@ import           Prelude              ()
 import           Prelude.Compat
 
 import           Data.List            (nub)
+import           Data.Semigroup       (Semigroup(..))
 
 import           Language.C.Quote.GCC
 import qualified "language-c-quote" Language.C.Syntax    as C
@@ -35,14 +36,17 @@ data CompileUnits = CompileUnits
   , headers  :: (Includes, Sources)
   } deriving Show
 
-instance Monoid CompileUnits where
-  mempty = CompileUnits mempty mempty mempty
-  (CompileUnits n0 s0 h0) `mappend` (CompileUnits n1 s1 h1) =
-    CompileUnits (n0 `mappend` n1)
-                 (go (s0 `mappend` s1))
-                 (go (h0 `mappend` h1))
+instance Semigroup CompileUnits where
+  CompileUnits n0 s0 h0 <> CompileUnits n1 s1 h1 =
+    CompileUnits (n0 <> n1)
+                 (go (s0 <> s1))
+                 (go (h0 <> h1))
     where
     go (i,s) = (nub i, nub s)
+
+instance Monoid CompileUnits where
+  mempty = CompileUnits mempty mempty mempty
+  mappend = (<>)
 
 --------------------------------------------------------------------------------
 

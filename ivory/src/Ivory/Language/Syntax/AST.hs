@@ -19,6 +19,7 @@ import           Language.Haskell.TH.Syntax              (Lift (..))
 
 import           Data.Ratio                              (denominator,
                                                           numerator)
+import           Data.Semigroup                          (Semigroup(..))
 
 -- Modules ---------------------------------------------------------------------
 
@@ -31,9 +32,12 @@ data Visible a = Visible
   , private :: [a]
   } deriving (Show, Eq, Ord)
 
+instance Semigroup (Visible a) where
+  Visible l0 l1 <> Visible m0 m1 = Visible (l0 ++ m0) (l1 ++ m1)
+
 instance Monoid (Visible a) where
-  mempty                                  = Visible [] []
-  mappend (Visible l0 l1) (Visible m0 m1) = Visible (l0 ++ m0) (l1 ++ m1)
+  mempty  = Visible [] []
+  mappend = (<>)
 
 -- | The name of a module defined in Ivory.
 type ModuleName = String
@@ -55,6 +59,19 @@ data Module = Module
   , modAreaImports :: [AreaImport]
   } deriving (Show, Eq, Ord)
 
+instance Semigroup Module where
+  l <> r = Module
+    { modName        = modName (if null (modName l) then r else l)
+    , modHeaders     = modHeaders     l <> modHeaders     r
+    , modDepends     = modDepends     l <> modDepends     r
+    , modExterns     = modExterns     l <> modExterns     r
+    , modImports     = modImports     l <> modImports     r
+    , modProcs       = modProcs       l <> modProcs       r
+    , modStructs     = modStructs     l <> modStructs     r
+    , modAreas       = modAreas       l <> modAreas       r
+    , modAreaImports = modAreaImports l <> modAreaImports r
+    }
+
 instance Monoid Module where
   mempty = Module
     { modName        = ""
@@ -67,18 +84,7 @@ instance Monoid Module where
     , modAreas       = mempty
     , modAreaImports = []
     }
-
-  mappend l r = Module
-    { modName        = modName (if null (modName l) then r else l)
-    , modHeaders     = modHeaders     l `mappend` modHeaders     r
-    , modDepends     = modDepends     l `mappend` modDepends     r
-    , modExterns     = modExterns     l `mappend` modExterns     r
-    , modImports     = modImports     l `mappend` modImports     r
-    , modProcs       = modProcs       l `mappend` modProcs       r
-    , modStructs     = modStructs     l `mappend` modStructs     r
-    , modAreas       = modAreas       l `mappend` modAreas       r
-    , modAreaImports = modAreaImports l `mappend` modAreaImports r
-    }
+  mappend = (<>)
 
 -- Imported Functions ----------------------------------------------------------
 

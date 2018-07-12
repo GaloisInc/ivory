@@ -20,6 +20,7 @@ coroutine name and Ivory module.
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# OPTIONS_GHC -fsimpl-tick-factor=200 #-}
 
 module Ivory.Language.Coroutine (
   -- * Usage Notes

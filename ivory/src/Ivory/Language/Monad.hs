@@ -43,6 +43,7 @@ module Ivory.Language.Monad (
 
 import Prelude ()
 import Prelude.Compat
+import Data.Semigroup (Semigroup(..))
 
 import qualified Ivory.Language.Effects as E
 import Ivory.Language.Proxy
@@ -66,18 +67,20 @@ data CodeBlock = CodeBlock
   , blockEnsures  :: [AST.Ensure]
   } deriving (Show)
 
+instance Semigroup CodeBlock where
+  l <> r = l `seq` r `seq` CodeBlock
+    { blockStmts    = blockStmts l    <> blockStmts r
+    , blockRequires = blockRequires l <> blockRequires r
+    , blockEnsures  = blockEnsures l  <> blockEnsures r
+    }
+
 instance Monoid CodeBlock where
   mempty = CodeBlock
     { blockStmts    = []
     , blockRequires = []
     , blockEnsures  = []
     }
-  mappend l r = l `seq` r `seq` CodeBlock
-    { blockStmts    = blockStmts l    `mappend` blockStmts r
-    , blockRequires = blockRequires l `mappend` blockRequires r
-    , blockEnsures  = blockEnsures l  `mappend` blockEnsures r
-    }
-
+  mappend = (<>)
 
 -- | Run an Ivory block computation that could require any effect.
 --
