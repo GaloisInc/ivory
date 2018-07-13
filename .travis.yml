@@ -15,6 +15,10 @@ matrix:
       addons: {apt: {packages: [ghc-7.10.3], sources: [hvr-ghc]}}
     - env: GHCVER=8.0.2 STACK_YAML=stack-8.0.2.yaml
       addons: {apt: {packages: [ghc-8.0.2], sources: [hvr-ghc]}}
+    - env: GHCVER=8.2.2 STACK_YAML=stack-8.2.2.yaml
+      addons: {apt: {packages: [ghc-8.2.2], sources: [hvr-ghc]}}
+    - env: GHCVER=8.4.3 STACK_YAML=stack-8.4.3.yaml
+      addons: {apt: {packages: [ghc-8.4.3], sources: [hvr-ghc]}}
 
 before_install:
  # Download and unpack the stack executable
