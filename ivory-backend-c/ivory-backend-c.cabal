@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory-backend-c
-version:             0.1.0.7
+version:             0.1.0.8
 author:              Galois, Inc.
 maintainer:          leepike@galois.com
 category:            Language

@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory
-version:             0.1.0.7
+version:             0.1.0.8
 author:              Galois, Inc.
 maintainer:          trevor@galois.com, leepike@galois.com
 category:            Language
