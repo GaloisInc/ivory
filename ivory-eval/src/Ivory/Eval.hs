@@ -1,5 +1,7 @@
-{-# LANGUAGE RankNTypes      #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 -- | A simple interpreter for a subset of Ivory.
@@ -29,8 +31,10 @@ import           Prelude.Compat                          hiding (and, div, mod,
                                                           negate, not, or)
 import qualified Prelude.Compat                          as Prelude
 
-
 import           Control.Monad                           (foldM, unless, void)
+#if MIN_VERSION_base_compat(0,10,0)
+import qualified Control.Monad.Fail.Compat as Fail
+#endif
 import           Data.Int
 import qualified Data.Map                                as Map
 import           Data.Maybe
@@ -50,6 +54,11 @@ import           MonadLib                                (ExceptionM (..),
 
 type Error  = String
 type Eval a = StateT EvalState (ExceptionT Error Id) a
+
+#if MIN_VERSION_base_compat(0,10,0)
+instance {-# OVERLAPS #-} Fail.MonadFail (StateT EvalState (ExceptionT Error Id)) where
+  fail = raise
+#endif
 
 runEval :: Eval a -> Either Error a
 runEval doThis = fmap fst (runEvalStartingFrom (initState Map.empty) doThis)

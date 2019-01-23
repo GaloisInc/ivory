@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -5,6 +6,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+
+#if MIN_VERSION_base(4,10,0)
+{-# OPTIONS_GHC -fno-warn-simplifiable-class-constraints #-}
+#endif
 
 module Ivory.Language.Ref
   ( ConstRef
