@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE MonoLocalBinds #-}
 
 module Ivory.Serialize.Atoms
   ( serializeHeader
