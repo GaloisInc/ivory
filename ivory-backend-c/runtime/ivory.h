@@ -1,10 +1,14 @@
 #ifndef IVORY_H
 #define IVORY_H
 
-#include <stdint.h>
-#include <math.h>
-#include <string.h>
-#include <limits.h>
+#ifndef __KERNEL__
+  #include <stdint.h>
+  #include <math.h>
+  #include <string.h>
+  #include <limits.h>
+#else
+  #include <linux/types.h>
+#endif
 
 #include "ivory_asserts.h"
 #include "ivory_templates.h"
@@ -12,6 +16,7 @@
 #define IFOREVER true
 #define IFOREVER_INC
 
+#ifndef __KERNEL__
 // ----------------------------------------
 
 #define TYPE char
@@ -178,6 +183,7 @@ DIV_OVF_U
 #undef M
 
 // ----------------------------------------
+#endif // _KERNEL
 
 // Index type: machine-depdentent size
 typedef int idx;
