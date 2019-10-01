@@ -87,7 +87,9 @@ getTyBits ty =
     _ -> mzero
   where
     tyInsts name t = lift (reifyInstances name [t]) >>= anyOf
-#if __GLASGOW_HASKELL__ >= 708
+#if MIN_VERSION_template_haskell(2,15,0)
+    decBits (TySynInstD (TySynEqn _ _ t)) = getTyBits t
+#elif __GLASGOW_HASKELL__ >= 708
     decBits (TySynInstD _ (TySynEqn _ t)) = getTyBits t
 #else
     decBits (TySynInstD _ _ t) = getTyBits t
@@ -351,7 +353,11 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     baseTy  = thDefType def
     instTy  = [t| B.BitData $(conT (thDefName def)) |]
     body    = [tyDef, toFun, fromFun]
+#if MIN_VERSION_th_abstraction(0,3,0)
+    tyDef   = tySynInstDCompat ''B.BitType Nothing [conT name] (return baseTy)
+#else
     tyDef   = tySynInstDCompat ''B.BitType [conT name] (return baseTy)
+#endif
     x       = mkName "x"
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]
@@ -378,7 +384,11 @@ mkArraySizeTypeInsts def =
 -- result type is the same.
 mkArraySizeTypeInst :: Integer -> TH.Type -> [DecQ]
 mkArraySizeTypeInst n ty =
+#if MIN_VERSION_th_abstraction(0,3,0)
+  [tySynInstDCompat ''B.ArraySize Nothing args size]
+#else
   [tySynInstDCompat ''B.ArraySize args size]
+#endif
   where
     size = tyBits ty >>= litT . numTyLit . fromIntegral . (* n)
     args = [litT (numTyLit (fromIntegral n)), return ty]

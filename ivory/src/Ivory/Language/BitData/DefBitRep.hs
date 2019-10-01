@@ -22,7 +22,9 @@ import Language.Haskell.TH
 defBitRep :: Name -> Name -> [Integer] -> DecsQ
 defBitRep fname rname xs = return $ map go xs
   where
-#if __GLASGOW_HASKELL__ >= 708
+#if MIN_VERSION_template_haskell(2,15,0)
+  go n = TySynInstD (TySynEqn Nothing (AppT (ConT fname) (LitT (NumTyLit n))) (ConT rname))
+#elif __GLASGOW_HASKELL__ >= 708
   go n = TySynInstD fname (TySynEqn [LitT (NumTyLit n)] (ConT rname))
 #else
   go n = TySynInstD fname [LitT (NumTyLit n)] (ConT rname)
