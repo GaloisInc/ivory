@@ -88,7 +88,7 @@ library
                         containers >= 0.5,
                         monadLib >= 3.7,
                         template-haskell >= 2.8 && <3,
-                        th-abstraction >=0.2.5 && <0.3,
+                        th-abstraction >=0.2.5 && <0.4,
                         filepath,
                         text,
                         dlist >= 0.5,
