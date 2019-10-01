@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -81,6 +82,11 @@ instance Monoid CodeBlock where
     , blockEnsures  = []
     }
   mappend = (<>)
+
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail (Ivory eff) where
+  fail = error
+#endif
 
 -- | Run an Ivory block computation that could require any effect.
 --

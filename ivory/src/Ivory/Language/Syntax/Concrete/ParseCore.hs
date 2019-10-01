@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 --
@@ -32,6 +33,11 @@ initParserState ls =
 newtype Parser a = Parser
   { unParser :: StateT ParserState Id a
   } deriving (Functor,Applicative,Monad)
+
+#if MIN_VERSION_base(4,13,0)
+instance MonadFail Parser where
+  fail = error
+#endif
 
 -- | Run the parser over the file given.
 runParser :: [Lexeme] -> Parser a -> a
