@@ -594,7 +594,7 @@ floatingUnary ty name args =
   [cexp| $id:(floatingSym ty name)($exp:(exp0 xs)) |]
 
 toLogBase :: I.Type -> [I.Expr] -> C.Exp
-toLogBase ty args = [cexp| $exp:(logC $ exp0 xs) / $exp:(logC $ exp1 xs) |]
+toLogBase ty args = [cexp| $exp:(logC $ exp1 xs) / $exp:(logC $ exp0 xs) |]
   where
   xs = mkArgs ty args
   logC e = [cexp| $id:(floatingSym ty "log")($exp:e) |]
