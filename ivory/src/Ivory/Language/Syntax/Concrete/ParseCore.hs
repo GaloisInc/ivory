@@ -44,10 +44,10 @@ lexer k =
      case psTokens ps of
        l:ls -> do Parser (set ps { psTokens = ls })
                   k l
-       []   -> fail "Unexpected end of input"
+       []   -> error "Unexpected end of input"
 
 parseError :: Lexeme -> Parser a
 parseError l =
-  fail $ prettyPrint
-       $ P.text "Parser error near" P.<+> pretty (getLoc l)
-         P.<+> P.text "for" P.$+$ P.nest 2 (P.text (show (unLoc l)))
+  error $ prettyPrint
+        $ P.text "Parser error near" P.<+> pretty (getLoc l)
+          P.<+> P.text "for" P.$+$ P.nest 2 (P.text (show (unLoc l)))
