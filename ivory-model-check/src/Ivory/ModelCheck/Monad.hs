@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -39,7 +40,9 @@ module Ivory.ModelCheck.Monad
 
 import Prelude ()
 import Prelude.Compat hiding (exp)
+#if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup (Semigroup(..))
+#endif
 
 import           Control.Monad (unless,forM_)
 import           Data.List (stripPrefix)

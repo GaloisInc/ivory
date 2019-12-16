@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 --------------------------------------------------------------------------------
 -- | Utilities.
 --------------------------------------------------------------------------------
@@ -6,7 +8,9 @@ module Ivory.Opts.Utils
 
 where
 
+#if !MIN_VERSION_base(4,11,0)
 import           Data.Monoid.Compat                      ((<>))
+#endif
 import           Text.PrettyPrint                        hiding ((<>))
 
 import qualified Ivory.Language.Syntax.AST               as I

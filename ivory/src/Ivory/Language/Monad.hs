@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -43,7 +44,9 @@ module Ivory.Language.Monad (
 
 import Prelude ()
 import Prelude.Compat
+#if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup (Semigroup(..))
+#endif
 
 import qualified Ivory.Language.Effects as E
 import Ivory.Language.Proxy

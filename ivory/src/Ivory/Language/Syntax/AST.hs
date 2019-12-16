@@ -19,7 +19,9 @@ import           Language.Haskell.TH.Syntax              (Lift (..))
 
 import           Data.Ratio                              (denominator,
                                                           numerator)
+#if !MIN_VERSION_base(4,11,0)
 import           Data.Semigroup                          (Semigroup(..))
+#endif
 
 -- Modules ---------------------------------------------------------------------
 
