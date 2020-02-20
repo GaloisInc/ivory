@@ -379,12 +379,7 @@ mkArraySizeTypeInsts def =
 -- because duplicates are allowed by the overlapping rules when the
 -- result type is the same.
 mkArraySizeTypeInst :: Integer -> TH.Type -> [DecQ]
-mkArraySizeTypeInst n ty =
-#if MIN_VERSION_th_abstraction(0,3,0)
-  [tySynInstDCompat ''B.ArraySize Nothing args size]
-#else
-  [tySynInstDCompat ''B.ArraySize args size]
-#endif
+mkArraySizeTypeInst n ty = [tySynInstDCompat ''B.ArraySize Nothing args size]
   where
     size = tyBits ty >>= litT . numTyLit . fromIntegral . (* n)
     args = [litT (numTyLit (fromIntegral n)), return ty]

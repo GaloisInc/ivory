@@ -11,7 +11,7 @@
 module Ivory.Language.BitData.DefBitRep where
 
 import Language.Haskell.TH
-import Language.Haskell.TH.Datatype
+import Language.Haskell.TH.Datatype (tySynInstDCompat)
 
 -- | Define the type instance:
 --
