@@ -11,6 +11,7 @@
 module Ivory.Language.BitData.DefBitRep where
 
 import Language.Haskell.TH
+import Language.Haskell.TH.Datatype (tySynInstDCompat)
 
 -- | Define the type instance:
 --
@@ -19,11 +20,10 @@ import Language.Haskell.TH
 -- for each "n" in "xs".
 --
 -- Used to define the set of representation types for bit lengths.
-defBitRep :: Name -> Name -> [Integer] -> DecsQ
-defBitRep fname rname xs = return $ map go xs
+defBitRep :: Name -> Name -> [Integer] -> Q [Dec]
+defBitRep fname rname xs = mapM makeInstance xs
   where
-#if __GLASGOW_HASKELL__ >= 708
-  go n = TySynInstD fname (TySynEqn [LitT (NumTyLit n)] (ConT rname))
-#else
-  go n = TySynInstD fname [LitT (NumTyLit n)] (ConT rname)
-#endif
+    makeInstance n = do
+      let nType = LitT (NumTyLit n)
+      let rType = ConT rname
+      tySynInstDCompat fname Nothing [pure nType] (pure rType)

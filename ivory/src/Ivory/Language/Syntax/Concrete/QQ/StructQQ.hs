@@ -25,6 +25,7 @@ import           Ivory.Language.Syntax.Concrete.QQ.Common
 import           Ivory.Language.Syntax.Concrete.QQ.TypeQQ
 
 import           Language.Haskell.TH                      hiding (Type)
+import           Language.Haskell.TH.Datatype             (tySynInstDCompat)
 import           Language.Haskell.TH.Quote                ()
 
 --------------------------------------------------------------------------------
@@ -126,12 +127,7 @@ mkStringDef ty_s len = do
   d2 <- sequence
     [ tySynD ty_n [] struct_t
     , instanceD (cxt []) (appT (conT ''S.IvoryString) struct_t)
-      [
-#if __GLASGOW_HASKELL__ >= 708
-        tySynInstD ''S.Capacity (tySynEqn [struct_t] (return $ szTy len))
-#else
-        tySynInstD ''S.Capacity [struct_t] (return $ szTy len)
-#endif
+      [ tySynInstDCompat ''S.Capacity Nothing [struct_t] (pure $ szTy len)
       , valD (varP 'S.stringDataL)   (normalB (varE data_n)) []
       , valD (varP 'S.stringLengthL) (normalB (varE len_n)) []
       ]

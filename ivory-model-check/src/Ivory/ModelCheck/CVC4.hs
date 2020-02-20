@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -8,7 +9,9 @@ module Ivory.ModelCheck.CVC4 where
 
 import Prelude ()
 import Prelude.Compat hiding (exp)
+#if !MIN_VERSION_base(4,11,0)
 import Data.Monoid.Compat ((<>))
+#endif
 
 import qualified Data.ByteString.Char8 as B
 import           Data.Int

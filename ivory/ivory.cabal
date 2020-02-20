@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                ivory
-version:             0.1.0.9
+version:             0.1.0.10
 author:              Galois, Inc.
 maintainer:          trevor@galois.com, leepike@galois.com
 category:            Language
@@ -88,7 +88,7 @@ library
                         containers >= 0.5,
                         monadLib >= 3.7,
                         template-haskell >= 2.8 && <3,
-                        th-abstraction >=0.2.5 && <0.3,
+                        th-abstraction >=0.3 && <0.4,
                         filepath,
                         text,
                         dlist >= 0.5,

@@ -87,7 +87,9 @@ getTyBits ty =
     _ -> mzero
   where
     tyInsts name t = lift (reifyInstances name [t]) >>= anyOf
-#if __GLASGOW_HASKELL__ >= 708
+#if MIN_VERSION_template_haskell(2,15,0)
+    decBits (TySynInstD (TySynEqn _ _ t)) = getTyBits t
+#elif __GLASGOW_HASKELL__ >= 708
     decBits (TySynInstD _ (TySynEqn _ t)) = getTyBits t
 #else
     decBits (TySynInstD _ _ t) = getTyBits t
@@ -351,7 +353,7 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     baseTy  = thDefType def
     instTy  = [t| B.BitData $(conT (thDefName def)) |]
     body    = [tyDef, toFun, fromFun]
-    tyDef   = tySynInstDCompat ''B.BitType [conT name] (return baseTy)
+    tyDef   = tySynInstDCompat ''B.BitType Nothing [conT name] (return baseTy)
     x       = mkName "x"
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]
@@ -377,8 +379,7 @@ mkArraySizeTypeInsts def =
 -- because duplicates are allowed by the overlapping rules when the
 -- result type is the same.
 mkArraySizeTypeInst :: Integer -> TH.Type -> [DecQ]
-mkArraySizeTypeInst n ty =
-  [tySynInstDCompat ''B.ArraySize args size]
+mkArraySizeTypeInst n ty = [tySynInstDCompat ''B.ArraySize Nothing args size]
   where
     size = tyBits ty >>= litT . numTyLit . fromIntegral . (* n)
     args = [litT (numTyLit (fromIntegral n)), return ty]

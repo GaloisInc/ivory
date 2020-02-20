@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -18,7 +19,9 @@ import Control.Monad (mplus)
 import Data.Function (on)
 import Data.List (foldl')
 import Data.Maybe (maybeToList)
+#if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup (Semigroup(..))
+#endif
 import qualified Text.PrettyPrint as P
 
 import Ivory.Language.Syntax.Concrete.Pretty

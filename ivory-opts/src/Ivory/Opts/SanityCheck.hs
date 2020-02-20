@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
@@ -37,7 +38,9 @@ import           MonadLib                                (Id, StateM (..),
                                                           runStateT, runWriterT,
                                                           sets_)
 
+#if !MIN_VERSION_base(4,11,0)
 import           Data.Monoid.Compat                      ((<>))
+#endif
 import           Text.PrettyPrint                        hiding ((<>))
 
 import qualified Ivory.Language.Array                    as I

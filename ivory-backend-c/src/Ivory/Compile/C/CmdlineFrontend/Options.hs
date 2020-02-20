@@ -1,8 +1,12 @@
+{-# LANGUAGE CPP #-}
+
 module Ivory.Compile.C.CmdlineFrontend.Options where
 
 import           Prelude               ()
 import           Prelude.Compat
+#if !MIN_VERSION_base(4,11,0)
 import           Data.Semigroup        (Semigroup(..))
+#endif
 
 import           System.Console.GetOpt (ArgDescr (..), ArgOrder (Permute),
                                         OptDescr (..), getOpt, usageInfo)
