@@ -353,11 +353,7 @@ mkDefInstance def = [instanceD (cxt []) instTy body]
     baseTy  = thDefType def
     instTy  = [t| B.BitData $(conT (thDefName def)) |]
     body    = [tyDef, toFun, fromFun]
-#if MIN_VERSION_th_abstraction(0,3,0)
     tyDef   = tySynInstDCompat ''B.BitType Nothing [conT name] (return baseTy)
-#else
-    tyDef   = tySynInstDCompat ''B.BitType [conT name] (return baseTy)
-#endif
     x       = mkName "x"
     toFun   = funD 'B.toBits [clause [conP name [varP x]]
                               (normalB (varE x)) []]

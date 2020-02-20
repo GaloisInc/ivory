@@ -19,9 +19,8 @@ packages:
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-  - th-abstraction-0.2.5.0
+  - th-abstraction-0.3.2.0
   - monadLib-3.7.3
-
 
 # Override default flag values for local packages and extra-deps
 flags: {}
