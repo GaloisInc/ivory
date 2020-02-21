@@ -1,8 +1,10 @@
 #ifndef IVORY_TEMPLATES_H
 #define IVORY_TEMPLATES_H
 
-#include<stdbool.h>
-#include<limits.h>
+#ifndef __KERNEL__
+  #include<stdbool.h>
+  #include<limits.h>
+#endif
 
 #define CAT(X,Y) X##_##Y
 // Indirection in case X,Y defined
