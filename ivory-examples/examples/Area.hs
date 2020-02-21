@@ -23,11 +23,11 @@ val  = area "value" (Just (istruct [field .= ival 0]))
 cval :: ConstMemArea ('Struct "val")
 cval  = constArea "cval" (istruct [field .= ival 10])
 
-getVal :: Def ('[] ':-> Uint32)
+getVal :: Def ('[] :-> Uint32)
 getVal = proc "getVal" $ body $ do
   ret =<< deref (addrOf val ~> field)
 
-setVal :: Def ('[Uint32] ':-> ())
+setVal :: Def ('[Uint32] :-> ())
 setVal = proc "setVal" $ \ n -> body $ do
   store (addrOf val ~> field) n
   retVoid

@@ -27,7 +27,7 @@ test1 = do
   param_info_ref :: Ref 'Global ('Array 512 ('Struct "param_info"))
   param_info_ref = addrOf param_info_area
 
-  t1 :: Def ('[] ':-> ())
+  t1 :: Def ('[] :-> ())
   t1 = proc "t1" $ body $ do
     arrayMap $ \ix ->
       store ((param_info_ref ! ix) ~> param_requested) 1
@@ -43,7 +43,7 @@ test1_noarray = do
   param_info_ref :: Ref 'Global ('Struct "param_info")
   param_info_ref = addrOf param_info_area
 
-  t1 :: Def ('[] ':-> ())
+  t1 :: Def ('[] :-> ())
   t1 = proc "t1_noarray" $ body $ do
     store (param_info_ref ~> param_requested) 1
 
@@ -58,7 +58,7 @@ test2 = do
   atom_array_ref :: Ref 'Global ('Array 512 ('Stored IFloat))
   atom_array_ref = addrOf atom_array_area
 
-  t2 :: Def ('[] ':-> ())
+  t2 :: Def ('[] :-> ())
   t2 = proc "t2" $ body $ do
     arrayMap $ \ix ->
       store (atom_array_ref ! ix) 1
@@ -67,7 +67,7 @@ test3 :: ModuleDef
 test3 = do
   incl t3
   where
-  t3 :: Def ('[] ':-> ())
+  t3 :: Def ('[] :-> ())
   t3 = proc "t3" $ body $ do
     (stack_array :: Ref ('Stack s) ('Array 512 ('Stored IFloat))) <- local izero
     arrayMap $ \ix ->

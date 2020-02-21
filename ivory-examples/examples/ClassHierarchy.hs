@@ -69,7 +69,7 @@ getBaseVal ref = do
 bar :: Def ([ Ref s ('Struct "StanagBase")
             , Ref s ('Struct "StanagBaseMsg1")
             , Ref s ('Struct "StanagBaseMsg2")
-            ] ':-> IBool)
+            ] :-> IBool)
 bar = proc "bar" $ \r0 r1 r2 -> body $ do
   b0 <- getBaseVal r0
   b1 <- getBaseVal r1

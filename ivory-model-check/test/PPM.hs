@@ -133,7 +133,7 @@ invalidate = do
     -- ms_no_sample modeswitch
     -- am_no_sample armingmachine
 
-new_sample_proc :: Def('[Ref s PPMs, ITime ] ':-> ())
+new_sample_proc :: Def('[Ref s PPMs, ITime ] :-> ())
 new_sample_proc = proc "ppm_new_sample_proc" $ \ppms tm -> body $ do
   all_good <- local (ival true)
   arrayMap $ \ix -> when (ix <? useful_channels) $ do
@@ -185,7 +185,7 @@ scale_ppm_channel input = call scale_proc ppmCenter 500 (-1.0) 1.0 input
 valid_ppm :: PPM -> IBool
 valid_ppm p = p >=? minBound .&& p <=? maxBound
 
-scale_proc :: Def ('[PPM, Uint16, IFloat, IFloat, PPM] ':-> IFloat)
+scale_proc :: Def ('[PPM, Uint16, IFloat, IFloat, PPM] :-> IFloat)
 scale_proc = proc "ppm_scale_proc" $ \center range outmin outmax input ->
   requires (    (range /=? 0)
             .&& valid_ppm input
@@ -210,7 +210,7 @@ valid_ui f = f >=? (-1.0) .&& f <=? (1.0)
 ppm_decode_ui_proc :: Def ('[ Ref s0 ('Array 8 ('Stored PPM))
                             , Ref s1 ('Struct "userinput_result")
                             , ITime
-                            ] ':-> ())
+                            ] :-> ())
 ppm_decode_ui_proc = proc "ppm_decode_userinput" $ \ppms ui now ->
   requires (checkStored (ppms ! 0) valid_ppm) $
   requires (checkStored (ppms ! 1) valid_ppm) $

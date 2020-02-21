@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -9,7 +8,7 @@
 module Ivory.Language (
     -- * Kinds
     Area(..)
-  , Proc(..)
+  , Proc((:->)), (:->)
 
     -- * Types
   , IvoryType(), IvoryArea()

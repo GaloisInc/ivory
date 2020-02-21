@@ -13,7 +13,7 @@ cmodule = package "Loop" $ do
 runLoopExample :: IO ()
 runLoopExample = runCompiler [cmodule] [] initialOpts { outDir = Nothing }
 
-loopTest0 :: Def ('[] ':-> ())
+loopTest0 :: Def ('[] :-> ())
 loopTest0  = proc "loopTest" $ body $
   do (0 :: Ix 1) `times` \ _ -> return ()
      retVoid

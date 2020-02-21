@@ -7,7 +7,7 @@ import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 import Prelude hiding (exp)
 
-add :: Def ('[Uint32,Uint32] ':-> Uint32)
+add :: Def ('[Uint32,Uint32] :-> Uint32)
 add  = proc "add"
      $ \ x y -> ensures (\r -> r ==? x + y)
               $ body
@@ -18,7 +18,7 @@ cmodule = package "cond" $ incl add
 
 -- Testing assertions with choice expression
 
-foo :: Def ('[IFloat,IFloat,IFloat] ':-> IFloat)
+foo :: Def ('[IFloat,IFloat,IFloat] :-> IFloat)
 foo = proc "foo" $ \x y z -> body $ do
   let cond  = 2/x ==? 5
   let tCond = 6/y ==? 7

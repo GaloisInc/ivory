@@ -19,7 +19,7 @@ cmodule = package "Bits" $ do
   incl test5
   incl test6
 
-test1 :: Def ('[Uint8, Uint16, Uint32, Uint64] ':-> Uint64)
+test1 :: Def ('[Uint8, Uint16, Uint32, Uint64] :-> Uint64)
 test1 = proc "test1" $ \u8 u16 u32 u64 -> body $ do
   a <- assign $ u8  .& 0xFF
   b <- assign $ u16 .& 0xFF00
@@ -28,7 +28,7 @@ test1 = proc "test1" $ \u8 u16 u32 u64 -> body $ do
   ret $ (safeCast a) .| (safeCast b) .| (safeCast c) .| d
 
 -- | Convert an array of four 8-bit integers into a 32-bit integer.
-test2 :: Def ('[Ref s ('Array 4 ('Stored Uint8))] ':-> Uint32)
+test2 :: Def ('[Ref s ('Array 4 ('Stored Uint8))] :-> Uint32)
 test2 = proc "test2" $ \arr -> body $ do
   a <- deref (arr ! 0)
   b <- deref (arr ! 1)
@@ -49,7 +49,7 @@ extractUint32 x = fst $ runState x $ do
   return (a, b, c, d)
 
 -- | Convert a 32-bit integer to an array of 8-bit integers.
-test3 :: Def ('[Uint32, Ref s ('Array 4 ('Stored Uint8))] ':-> ())
+test3 :: Def ('[Uint32, Ref s ('Array 4 ('Stored Uint8))] :-> ())
 test3 = proc "test3" $ \n arr -> body $ do
   let (a, b, c, d) = extractUint32 n
   store (arr ! 0) d
@@ -69,7 +69,7 @@ clearBit ref bit = do
   val <- deref ref
   store ref (val .& (iComplement (1 `iShiftL` (fromIntegral bit))))
 
-test4 :: Def ('[] ':-> Uint32)
+test4 :: Def ('[] :-> Uint32)
 test4 = proc "test4" $ body $ do
   n <- local (ival 0)
   setBit n 1
@@ -79,10 +79,10 @@ test4 = proc "test4" $ body $ do
   clearBit n 3
   ret =<< deref n
 
-test5 :: Def ('[Sint8] ':-> Uint8)
+test5 :: Def ('[Sint8] :-> Uint8)
 test5 = proc "test5" $ \s -> body $
   ret (twosComplementRep s)
 
-test6 :: Def ('[Uint8] ':-> Sint8)
+test6 :: Def ('[Uint8] :-> Sint8)
 test6 = proc "test6" $ \s -> body $
   ret (twosComplementCast s)

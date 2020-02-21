@@ -5,7 +5,7 @@ module ConstRef where
 
 import Ivory.Language
 
-test :: Def ('[ConstRef s ('Stored Uint8)] ':-> Uint8)
+test :: Def ('[ConstRef s ('Stored Uint8)] :-> Uint8)
 test = proc "test" $ \r -> body $ ret =<< deref r
 
 cmodule :: Module

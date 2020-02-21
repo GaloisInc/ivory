@@ -7,7 +7,7 @@ import Ivory.Language
 import Ivory.Compile.C.CmdlineFrontend
 
 -- No-op "action" for the coroutine to trigger
-emit :: Def ('[Sint32] ':-> ())
+emit :: Def ('[Sint32] :-> ())
 emit = proc "emit" $ \ _ -> body $ retVoid
 
 sequenced :: Coroutine ('Stored Sint32)
@@ -23,7 +23,7 @@ sequenced = coroutine "sequenced" $ CoroutineBody $ \ yield -> do
       (call_ emit 3)
       (call_ emit 2)
 
-run :: Def ('[IBool, ConstRef s ('Stored Sint32)] ':-> ())
+run :: Def ('[IBool, ConstRef s ('Stored Sint32)] :-> ())
 run = proc "run" $ \ doInit arg -> body $ coroutineRun sequenced doInit arg
 
 cmodule :: Module

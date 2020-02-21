@@ -127,16 +127,16 @@ mkPackRep ty sz = WrappedPackRep
            , packSize = sz })
            defs
   where
-  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 ('Stored a)] ':-> ())
+  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 ('Stored a)] :-> ())
   doGetLE = proc ("ivory_serialize_unpack_" ++ ty ++ "_le") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
-  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 ('Stored a)] ':-> ())
+  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 ('Stored a)] :-> ())
   doGetBE = proc ("ivory_serialize_unpack_" ++ ty ++ "_be") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
-  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 ('Stored a)] ':-> ())
+  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 ('Stored a)] :-> ())
   doSetLE = proc ("ivory_serialize_pack_" ++ ty ++ "_le") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
-  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 ('Stored a)] ':-> ())
+  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 ('Stored a)] :-> ())
   doSetBE = proc ("ivory_serialize_pack_" ++ ty ++ "_be") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
 
   defs = do

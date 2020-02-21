@@ -49,7 +49,7 @@ pidUpdate :: Def ('[ Ref s ('Struct "PID")
                    , SP
                    , PV
                    , Time ]
-                  ':-> IFloat)
+                  :-> IFloat)
 pidUpdate = proc "pid_update" $
   \ pid sp pv dt ->
   -- These are made up requires/ensures for testing purposes.
@@ -68,7 +68,7 @@ pidUpdate = proc "pid_update" $
     ret err
 
 foo :: Def ('[ Ref s ('Array 3 ('Stored Uint32))
-             , Ref s ('Array 3 ('Stored Uint32)) ] ':-> ())
+             , Ref s ('Array 3 ('Stored Uint32)) ] :-> ())
 foo = proc "foo" $ \a b ->
 --  requires (*a!0 < *b!0)
   requires (checkStored (a ! 0)
@@ -88,11 +88,11 @@ cmodule = package "PID" $ do
   -- incl pidUpdate
   -- incl alloc_test
 
-foobar :: Def ('[Uint8] ':-> Uint8)
+foobar :: Def ('[Uint8] :-> Uint8)
 foobar = proc "foobar" $ \x -> body $ do
   ret (x `iShiftR` (3 `iDiv` 2))
 
-alloc_test :: Def ('[] ':-> IFloat)
+alloc_test :: Def ('[] :-> IFloat)
 alloc_test  = proc "alloc_test" $ body $ do
   pid <- local (istruct [pid_i .= ival 1])
   ret =<< deref (pid ~> pid_i)

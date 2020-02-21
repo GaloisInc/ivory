@@ -76,16 +76,16 @@ wrapPackRep name rep = WrappedPackRep
        , packSetBE = call_ doSetBE })
   defs
   where
-  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] ':-> ())
+  doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] :-> ())
   doGetLE = proc (name ++ "_get_le") $ \ buf offs base -> body $ packGetLE rep buf offs base
 
-  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] ':-> ())
+  doGetBE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 a] :-> ())
   doGetBE = proc (name ++ "_get_be") $ \ buf offs base -> body $ packGetBE rep buf offs base
 
-  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] ':-> ())
+  doSetLE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] :-> ())
   doSetLE = proc (name ++ "_set_le") $ \ buf offs base -> body $ packSetLE rep buf offs base
 
-  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] ':-> ())
+  doSetBE :: Def ('[Ref s1 ('CArray ('Stored Uint8)), Uint32, ConstRef s2 a] :-> ())
   doSetBE = proc (name ++ "_set_be") $ \ buf offs base -> body $ packSetBE rep buf offs base
 
   defs = do
