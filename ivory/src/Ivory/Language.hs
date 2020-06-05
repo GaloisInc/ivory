@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -18,11 +17,18 @@ module Ivory.Language (
 
   , OpaqueType()
 
-    -- ** Non-null References
-  , IvoryRef()
+    -- ** Pointers
+  , Pointer()
+  , Nullability(Nullable, Valid)
+  , KnownConstancy
+
+    -- *** Non-null References
   , ConstRef()
   , IvoryStore()
   , Ref(), refToPtr, constRef, deref, store, refCopy, refZero
+
+    -- *** Nullable Pointers
+  , Ptr(), nullPtr
 
     -- ** Stack Allocation
   , IvoryInit(..), Init()
@@ -34,9 +40,6 @@ module Ivory.Language (
 
     -- ** SizeOf
   , IvorySizeOf, sizeOf
-
-    -- ** Nullable Pointers
-  , Ptr(), nullPtr
 
     -- ** Booleans
   , IBool(), true, false
@@ -224,6 +227,7 @@ import Ivory.Language.Loop
 import Ivory.Language.MemArea
 import Ivory.Language.Module
 import Ivory.Language.Monad
+import Ivory.Language.Pointer
 import Ivory.Language.Proc
 import Ivory.Language.Proxy
 import Ivory.Language.Ptr

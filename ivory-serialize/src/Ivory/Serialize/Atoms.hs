@@ -62,7 +62,7 @@ serializeArtifacts = [ Incl $ a serializeHeader ]
   a f = artifactCabalFile P.getDataDir ("support/" ++ f)
 
 ibool :: WrappedPackRep ('Stored IBool)
-ibool = wrapPackRep "ibool" (repackV (/=? 0) (? ((1 :: Uint8), 0)) (packRep :: PackRep ('Stored Uint8)))
+ibool = wrapPackRep "ibool" (repackV (/=? 0) (? (1 :: Uint8, 0)) (packRep :: PackRep ('Stored Uint8)))
 instance Packable ('Stored IBool) where
   packRep = wrappedPackRep ibool
 
@@ -120,12 +120,12 @@ instance Packable ('Stored IDouble) where
 mkPackRep :: forall a. (IvoryArea ('Stored a), IvoryEq a)
           => String -> Integer -> WrappedPackRep ('Stored a)
 mkPackRep ty sz = WrappedPackRep
-  (PackRep { packGetLE = call_ doGetLE
+  PackRep  { packGetLE = call_ doGetLE
            , packGetBE = call_ doGetBE
            , packSetLE = call_ doSetLE
            , packSetBE = call_ doSetBE
-           , packSize = sz })
-           defs
+           , packSize = sz }
+  defs
   where
   doGetLE :: Def ('[ConstRef s1 ('CArray ('Stored Uint8)), Uint32, Ref s2 ('Stored a)] ':-> ())
   doGetLE = proc ("ivory_serialize_unpack_" ++ ty ++ "_le") $ \ buf offs base -> ensures_ (checkStored base $ \ v -> (buf !! offs) ==? v) $ importFrom serializeHeader
@@ -145,8 +145,8 @@ mkPackRep ty sz = WrappedPackRep
     incl doSetLE
     incl doSetBE
 
-(!!) :: (IvoryRef ref, IvoryExpr (ref s ('CArray ('Stored Uint8))), IvoryExpr a)
-     => ref s ('CArray ('Stored Uint8)) -> Uint32 -> a
+(!!) :: (KnownConstancy c, IvoryExpr a)
+     => Pointer 'Valid c s ('CArray ('Stored Uint8)) -> Uint32 -> a
 arr !! ix = I.wrapExpr (I.ExpIndex ty (I.unwrapExpr arr) I.ixRep (I.getUint32 ix))
   where
   ty    =  I.TyCArray (I.TyWord I.Word8)

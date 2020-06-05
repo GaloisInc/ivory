@@ -12,9 +12,9 @@ import Prelude.Compat
 import Ivory.Language.Area
 import Ivory.Language.IBool
 import Ivory.Language.Monad
+import Ivory.Language.Pointer
 import Ivory.Language.Proc
 import Ivory.Language.Proxy
-import Ivory.Language.Ref
 import Ivory.Language.Type
 import qualified Ivory.Language.Syntax as I
 
@@ -44,12 +44,9 @@ newtype Cond = Cond
 check :: IBool -> Cond
 check bool = Cond (return (I.CondBool (unwrapExpr bool)))
 
-checkStored' :: forall ref s a c.
-     ( CheckStored c
-     , IvoryVar a
-     , IvoryRef ref
-     , IvoryVar (ref s ('Stored a))
-     ) => (c -> Cond) -> ref s ('Stored a) -> (a -> c) -> Cond
+checkStored' :: forall co s a c.
+     (CheckStored c, IvoryVar a, KnownConstancy co)
+     => (c -> Cond) -> Pointer 'Valid co s ('Stored a) -> (a -> c) -> Cond
 checkStored' c ref prop = Cond $ do
   n <- freshVar "pre"
   let ty = ivoryType (Proxy :: Proxy a)
@@ -57,8 +54,8 @@ checkStored' c ref prop = Cond $ do
   return (I.CondDeref ty (unwrapExpr ref) n b)
 
 class CheckStored c where
-  checkStored :: (IvoryVar a, IvoryRef ref, IvoryVar (ref s ('Stored a)))
-              => ref s ('Stored a) -> (a -> c) -> Cond
+  checkStored :: (IvoryVar a, KnownConstancy co)
+              => Pointer 'Valid co s ('Stored a) -> (a -> c) -> Cond
 
 instance CheckStored IBool where
   checkStored = checkStored' check
@@ -118,4 +115,3 @@ instance Ensures IBool where
 instance Ensures Cond where
   ensures = ensures' id
   ensures_ = ensures_' id
-
